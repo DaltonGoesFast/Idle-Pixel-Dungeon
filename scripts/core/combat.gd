@@ -217,8 +217,11 @@ func close_to_dying() -> bool:
 
 # ------------------------------------------------------------------ damage
 ## Damage to the hero: flat DR -> Barrier -> HP. Chip rule on fully blocked hits.
+var dmg_in := 0      # damage after DR that reached Barrier/HP this fight (balance telemetry)
+var absorbed_total := 0
 func hit_hero(raw: int, src: String, pierce := false) -> void:
 	var dmg := raw if pierce else maxi(0, raw - int(hero.dr))
+	dmg_in += maxi(dmg, 1 if hero.barrier > 0 else 0); absorbed_total += mini(maxi(dmg, 1), int(hero.barrier))
 	if dmg == 0:
 		if hero.barrier > 0:
 			hero.barrier -= 1
