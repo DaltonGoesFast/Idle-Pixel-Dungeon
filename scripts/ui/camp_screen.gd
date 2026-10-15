@@ -566,7 +566,9 @@ func _facility_header(v: VBoxContainer, id: String) -> void:
 		var at2 := AtlasTexture.new(); at2.atlas = load("res://assets/tiles/tiles_sewers.png"); at2.region = Rect2(0, 64, 16, 16)
 		var tp := UIKit.pixel(at2, int(kk)); tp.size_flags_vertical = SIZE_SHRINK_CENTER; row.add_child(tp)
 	var cv := UIKit.vbox(row); cv.size_flags_horizontal = SIZE_EXPAND_FILL
-	cv.add_child(UIKit.label("%s   Lv %d / %d" % [d.name, f.level, f.cap], 1.0, Color("ffd27a")))
+	# "Lv level / max"; the Scroll-of-Upgrade cap is shown only while it is what blocks the next level (DECISIONS #114)
+	var cap: int = GameState.facility_cap(id)
+	cv.add_child(UIKit.label(GameState.facility_title(d.name, int(f.level), cap, int(d.max)), 1.0, Color("ffd27a")))
 	var pb := ProgressBar.new(); pb.max_value = int(d.max); pb.value = f.level; pb.show_percentage = false
 	pb.custom_minimum_size.y = UIKit.font_size * 0.5; pb.tooltip_text = "Max level %d (cap raised by Scrolls of Upgrade)" % d.max; cv.add_child(pb)
 	cv.add_child(UIKit.label(d.desc, 0.8, Color("bdb3a0")))
@@ -576,7 +578,7 @@ func _facility_header(v: VBoxContainer, id: String) -> void:
 		var ur := UIKit.hbox(v)
 		var cr := cost_row(GameState.facility_upgrade_cost(id)); cr.size_flags_horizontal = SIZE_EXPAND_FILL; ur.add_child(cr)
 		var ub := UIKit.action("Upgrade", func(): GameState.upgrade_facility(id), why); ub.custom_minimum_size.x = UIKit.font_size * 7; ur.add_child(ub)
-	if f.cap < int(d.max) and GameState.mat("scroll_upgrade") > 0:
+	if cap < int(d.max) and GameState.mat("scroll_upgrade") > 0:
 		v.add_child(UIKit.button("Apply Scroll of Upgrade (raise cap)", func(): GameState.apply_sou(id)))
 
 func _recipe_slots(v: VBoxContainer, id: String, title: String) -> void:

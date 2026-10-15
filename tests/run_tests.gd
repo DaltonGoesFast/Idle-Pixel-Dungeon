@@ -35,6 +35,7 @@ func _ready() -> void:
 	test_armor_tiers(gs)
 	test_floor_label(gs)
 	test_total_wipe(gs)
+	test_facility_cap(gs)
 	test_owed_sou(gs)
 	await test_icon_sizes(gs)
 	test_full_auto(gs)
@@ -1529,3 +1530,22 @@ func test_total_wipe(gs) -> void:
 	# a full simulated run from the wipe: it either extracts with ore or, at worst, Patch up stays available
 	var r := RunSim.play(gs, "warrior", {}, 4242)
 	check(gs.mat("iron_ore") > 0 or gs.can_patch_up() == "" or gs.cracked_gear().is_empty(), "after a run from a wipe there is a path to repairs (%s, ore %d)" % [r.result, gs.mat("iron_ore")])
+
+## DECISIONS #114: facility header shows level / max, the cap never sits below the level.
+func test_facility_cap(gs) -> void:
+	print("[facility cap]")
+	gs.new_game()
+	gs.facilities.guild.level = 2   # the reported state: level above the stored cap 1
+	check(gs.facility_cap("guild") == 2, "a level above the stored cap counts as the cap")
+	var t: String = gs.facility_title("Guild Hall", 2, gs.facility_cap("guild"), int(DB.facilities.guild.max))
+	check(t.contains("Lv 2 / 3") and not t.contains("/ 1") and t.contains("cap 2"), "header shows level / max and the blocking cap (%s)" % t)
+	check(gs.can_upgrade_facility("guild").begins_with("capped"), "level 2 at cap 2 is capped")
+	gs.mats.scroll_upgrade = 1
+	check(gs.apply_sou("guild") and gs.facility_cap("guild") == 3, "a Scroll raises the cap from the effective cap (2 -> 3)")
+	gs.mats.gold = 1000
+	check(gs.can_upgrade_facility("guild") == "" and gs.upgrade_facility("guild"), "upgrade allowed once the cap is raised")
+	check(not gs.facility_title("Guild Hall", 3, 3, 3).contains("cap"), "no cap note at max level")
+	check(gs.facility_title("Forge", 1, 2, 3) == "Forge   Lv 1 / 3", "no cap note while the cap is not blocking")
+	gs.facilities.guild.level = 2; gs.facilities.guild.cap = 1
+	gs.from_dict(JSON.parse_string(JSON.stringify(gs.to_dict())))
+	check(int(gs.facilities.guild.cap) == 2, "loading a save repairs cap < level")

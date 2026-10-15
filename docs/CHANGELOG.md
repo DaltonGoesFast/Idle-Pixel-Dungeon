@@ -1,5 +1,7 @@
 # Changelog
 
+## Unreleased
+- Facility headers show "Lv level / max" (plus the Scroll cap only when it blocks), and a cap below the level is repaired; no more "Lv 2 / 1" (+test).
 
 ## 0.26.0
 - Identified rings, potions, and scrolls show SPD's small type glyph from item_icons.png in the top-right of the slot. The blue shield is Ring of Tenacity and Potion of Shielding.
