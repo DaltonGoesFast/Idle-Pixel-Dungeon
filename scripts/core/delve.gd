@@ -12,6 +12,7 @@ const RATION_RESTORE := 70.0
 const FLOOR_REST_HEAL := 0.2  # fraction of HT healed when descending
 const SEARCH_TORCH := 10.0    # torch spent searching a cleared floor for hidden doors
 const FINAL_REST_HEAL := 0.6
+const BOSS_RATIONS := 2       # rations every boss kill adds to the belt (DECISIONS #110)
 const CAMPFIRE_REST := 50.0  # torch and satiety restored when pressing on from a boss campfire
 const SEARCH_CHANCE := 50     # % to find a hidden door (Rogue: always)
 
@@ -424,11 +425,18 @@ static func apply_fight_result(gs, ev: Dictionary, res: Dictionary, reward: Dict
 	if not reward.is_empty(): gs.say("Reward: " + reward(gs, reward))
 	if res.boss_killed:
 		run.boss_dead = true
+		# boss larders: every boss leaves rations on the belt so a healthy hero can press on (DECISIONS #110)
+		run.supplies.ration = int(run.supplies.get("ration", 0)) + BOSS_RATIONS
+		gs.say("The boss's larder: +%d Rations." % BOSS_RATIONS, "positive")
 		# bosses drop an artifact you don't own yet (DECISIONS #80)
 		var owned: Array = gs.gear.map(func(g): return g.id) + run.pack_gear.map(func(g): return g.id)
 		var arts: Array = DB.items.keys().filter(func(k): return DB.items[k].get("type", "") == "artifact" and not (k in owned))
 		if not arts.is_empty(): gs.say("The boss drops: " + reward(gs, {"item": arts[0]}))
 		gs.grant_owed_sou()
+		# Goo always leaves a Potion of Healing on the belt; unused, it goes back to the stash (DECISIONS #109)
+		if ev.mobs[0] == "goo":
+			run.supplies.potion_healing = int(run.supplies.get("potion_healing", 0)) + 1
+			gs.say("Goo leaves behind a Potion of Healing.", "positive")
 		if gs.record_boss_kill(run.hero, run.biome): gs.say("First %s kill for this class: Scroll of Upgrade!" % DB.mobs[ev.mobs[0]].name)
 	gs.touch()
 	return true

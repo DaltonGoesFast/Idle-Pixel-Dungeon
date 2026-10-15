@@ -18,6 +18,13 @@ func _init() -> void:
 func scale_k() -> int:
 	return maxi(1, int(cell_px / 16))
 
+## Scale the sprite is drawn at: tiny SPD sprites (longest side <= 10 px: rings, holders, seeds) get one more
+## step so a ring is not half the size of the sword next to it; still integer and inside the cell (DECISIONS #111).
+func draw_k() -> int:
+	var k := scale_k()
+	if texture != null and maxf(texture.get_width(), texture.get_height()) <= 10.0 and k >= 2: return k + 1
+	return k
+
 ## Integer rect the sprite occupies inside a box of `box` size (also used by the centring test).
 static func layout(box: Vector2, tex_size: Vector2, k: int) -> Rect2:
 	var sz := tex_size * k
@@ -33,6 +40,6 @@ static func badge_layout(box: Vector2, tex_size: Vector2, k: int) -> Rect2:
 func _draw() -> void:
 	if texture == null: return
 	var k := scale_k()
-	draw_texture_rect(texture, layout(size, texture.get_size(), k), false)
+	draw_texture_rect(texture, layout(size, texture.get_size(), draw_k()), false)
 	if badge != null:
 		draw_texture_rect(badge, badge_layout(size, badge.get_size(), k), false)

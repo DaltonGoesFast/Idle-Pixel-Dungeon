@@ -35,6 +35,9 @@ func _ready() -> void:
 	test_armor_tiers(gs)
 	test_floor_label(gs)
 	test_total_wipe(gs)
+	test_goo_spiral(gs)
+	test_food_sources(gs)
+	test_facility_cap(gs)
 	test_owed_sou(gs)
 	await test_icon_sizes(gs)
 	test_full_auto(gs)
@@ -891,11 +894,19 @@ func test_icon_centering(_gs) -> void:
 	for id in ["GOLD", "DEWDROP", "TORCH", "IRON_KEY", "RATION", "SEED_SUNGRASS" if DB.icons.has("SEED_SUNGRASS") else "ORE", "RING_HOLDER", "WEAPON_HOLDER", "ARMOR_HOLDER", "ARTIFACT_HOLDER"]:
 		var ic: PixelIcon = UIKit.icon(id, 48)
 		var tex_sz: Vector2 = ic.texture.get_size()
-		var r := PixelIcon.layout(Vector2(72, 72), tex_sz, ic.scale_k())
+		var r := PixelIcon.layout(Vector2(72, 72), tex_sz, ic.draw_k())
 		var off := (r.get_center() - Vector2(36, 36)).abs()
 		if r.position != r.position.floor() or off.x > 0.5 * ic.scale_k() + 0.01 or off.y > 0.5 * ic.scale_k() + 0.01 or ic.scale_k() != 3: bad.append(id)
 	check(bad.is_empty(), "item icons are integer-scaled and centred on their visible pixels %s" % [bad])
 	check(UIKit.item_rect(DB.icon_index("IRON_KEY")).size == Vector2(8, 14), "SPD item rects loaded (iron key 8x14)")
+	# DECISIONS #111: rings/potions/scrolls had no rect, so a full 16x16 cell was centred and the 8x10 ring sat top-left
+	var no_rect := []
+	for k in DB.icons:
+		if typeof(DB.icons[k]) in [TYPE_INT, TYPE_FLOAT] and not UIKit._rects.has(str(int(DB.icons[k]))): no_rect.append(k)
+	check(no_rect.is_empty(), "every icon id has an SPD item rect %s" % [no_rect])
+	check(UIKit.item_rect(DB.icon_index("ring_wealth")).size == Vector2(8, 10), "ring rect is SPD's 8x10")
+	var ring: PixelIcon = UIKit.icon("ring_wealth", 48); var sword: PixelIcon = UIKit.icon("shortsword", 48)
+	check(ring.draw_k() == sword.draw_k() + 1, "tiny ring sprites draw one scale step larger (%d vs %d)" % [ring.draw_k(), sword.draw_k()])
 	check(int(UIKit.btn_height()) % 2 == 0 and UIKit.btn_height() == floorf(UIKit.btn_height()), "button height is an even whole number")
 	for n in ["enter", "backpack_lrg", "prefs", "journal", "talent"]:
 		var t := UIKit.toolbar_icon(n)
@@ -1538,3 +1549,56 @@ func test_total_wipe(gs) -> void:
 	# a full simulated run from the wipe: it either extracts with ore or, at worst, Patch up stays available
 	var r := RunSim.play(gs, "warrior", {}, 4242)
 	check(gs.mat("iron_ore") > 0 or gs.can_patch_up() == "" or gs.cracked_gear().is_empty(), "after a run from a wipe there is a path to repairs (%s, ore %d)" % [r.result, gs.mat("iron_ore")])
+
+## DECISIONS #109: the Goo death spiral (0 potions, 0 gold) has a way out.
+func test_goo_spiral(gs) -> void:
+	print("[goo spiral]")
+	gs.new_game()
+	for cc in gs.heroes: gs.heroes[cc].unlocked = true
+	for k in gs.mats.keys(): gs.mats[k] = 0
+	check(gs.recipe("guild", "buy_healing").size() > 0 and gs.can_craft("guild", "buy_healing") != "", "Guild sells healing potions (not affordable at 0 gold)")
+	gs.start_run("rogue", {}, "sewers", 5)
+	gs.end_run("death")
+	check(gs.mat("gold") >= gs.SAFETY_GOLD, "a death tops the stash up to the safety gold (%d)" % gs.mat("gold"))
+	check(gs.can_craft("guild", "buy_healing") == "" and gs.craft("guild", "buy_healing") and gs.mat("potion_healing") == 1, "the safety gold buys a Potion of Healing")
+	gs.mats.gold = 500; gs.start_run("rogue", {}, "sewers", 5); gs.end_run("death")
+	check(gs.mat("gold") == 500, "the safety net never removes gold")
+	gs.start_run("warrior", {}, "sewers", 5); gs.run.floor = 5
+	var p0 := int(gs.run.supplies.get("potion_healing", 0))
+	Delve.apply_fight_result(gs, {"mobs": ["goo"]}, {"won": true, "hp": 5, "loot": 0, "fallen_loot": 0, "xp": 0, "boss_killed": true, "kills": 1}, {})
+	check(int(gs.run.supplies.potion_healing) == p0 + 1, "Goo always drops a Potion of Healing onto the belt")
+	gs.end_run("extract")
+	check(gs.mat("potion_healing") >= 2, "an unused Goo potion is banked in the stash")
+
+## DECISIONS #110: food no longer caps depth.
+func test_food_sources(gs) -> void:
+	print("[food sources]")
+	gs.new_game()
+	gs.start_run("warrior", {}, "sewers", 5); gs.run.floor = 5
+	var r0 := int(gs.run.supplies.get("ration", 0))
+	Delve.apply_fight_result(gs, {"mobs": ["goo"]}, {"won": true, "hp": 5, "loot": 0, "fallen_loot": 0, "xp": 0, "boss_killed": true, "kills": 1}, {})
+	check(int(gs.run.supplies.ration) == r0 + Delve.BOSS_RATIONS, "a boss kill adds %d rations to the belt" % Delve.BOSS_RATIONS)
+	gs.end_run("abandon")
+	var cr: Dictionary = gs.recipe("guild", "buy_ration_crate")
+	check(int(cr.get("out_n", 0)) == 3 and int(cr.cost.gold) < 3 * int(gs.recipe("guild", "buy_ration").cost.gold), "Guild Lv2 ration crate: 3 rations, cheaper than 3 singles")
+	gs.mats.gold = 100; gs.facilities.guild.level = 1
+	check(gs.can_craft("guild", "buy_ration_crate") != "", "the crate needs Guild Lv2")
+
+## DECISIONS #114: facility header shows level / max, the cap never sits below the level.
+func test_facility_cap(gs) -> void:
+	print("[facility cap]")
+	gs.new_game()
+	gs.facilities.guild.level = 2   # the reported state: level above the stored cap 1
+	check(gs.facility_cap("guild") == 2, "a level above the stored cap counts as the cap")
+	var t: String = gs.facility_title("Guild Hall", 2, gs.facility_cap("guild"), int(DB.facilities.guild.max))
+	check(t.contains("Lv 2 / 3") and not t.contains("/ 1") and t.contains("cap 2"), "header shows level / max and the blocking cap (%s)" % t)
+	check(gs.can_upgrade_facility("guild").begins_with("capped"), "level 2 at cap 2 is capped")
+	gs.mats.scroll_upgrade = 1
+	check(gs.apply_sou("guild") and gs.facility_cap("guild") == 3, "a Scroll raises the cap from the effective cap (2 -> 3)")
+	gs.mats.gold = 1000
+	check(gs.can_upgrade_facility("guild") == "" and gs.upgrade_facility("guild"), "upgrade allowed once the cap is raised")
+	check(not gs.facility_title("Guild Hall", 3, 3, 3).contains("cap"), "no cap note at max level")
+	check(gs.facility_title("Forge", 1, 2, 3) == "Forge   Lv 1 / 3", "no cap note while the cap is not blocking")
+	gs.facilities.guild.level = 2; gs.facilities.guild.cap = 1
+	gs.from_dict(JSON.parse_string(JSON.stringify(gs.to_dict())))
+	check(int(gs.facilities.guild.cap) == 2, "loading a save repairs cap < level")

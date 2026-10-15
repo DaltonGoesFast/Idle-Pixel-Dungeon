@@ -528,10 +528,22 @@ func facility_upgrade_cost(id: String) -> Dictionary:
 	for k in base: o[k] = int(base[k]) * facility_level(id)
 	return o
 
+## Level cap raised by Scrolls of Upgrade. A level above the stored cap (old saves, debug/test edits) counts as
+## the cap, so the cap is never below the level and never above the facility max (DECISIONS #114).
+func facility_cap(id: String) -> int:
+	var f: Dictionary = facilities[id]
+	return clampi(maxi(int(f.cap), int(f.level)), 1, int(DB.facilities[id].max))
+
+## Header text: "Name   Lv level / max", plus "(cap N)" only while the Scroll cap blocks the next level.
+static func facility_title(fname: String, level: int, cap: int, mx: int) -> String:
+	var t := "%s   Lv %d / %d" % [fname, level, mx]
+	if level >= cap and cap < mx: t += "  (cap %d)" % cap
+	return t
+
 func can_upgrade_facility(id: String) -> String:
 	var f: Dictionary = facilities[id]
 	if f.level >= int(DB.facilities[id].max): return "max level"
-	if f.level >= f.cap: return "capped - apply a Scroll of Upgrade"
+	if f.level >= facility_cap(id): return "capped - apply a Scroll of Upgrade"
 	if not can_afford(facility_upgrade_cost(id)): return "need " + cost_text(facility_upgrade_cost(id))
 	return ""
 
@@ -542,8 +554,8 @@ func upgrade_facility(id: String) -> bool:
 
 func apply_sou(id: String) -> bool:
 	var f: Dictionary = facilities[id]
-	if mat("scroll_upgrade") < 1 or f.cap >= int(DB.facilities[id].max): return false
-	add_mat("scroll_upgrade", -1); f.cap += 1
+	if mat("scroll_upgrade") < 1 or facility_cap(id) >= int(DB.facilities[id].max): return false
+	add_mat("scroll_upgrade", -1); f.cap = facility_cap(id) + 1
 	say("Scroll of Upgrade: %s cap raised to %d." % [DB.facilities[id].name, f.cap]); touch(); return true
 
 func recipe(fac: String, rid: String) -> Dictionary:
@@ -666,6 +678,8 @@ func patch_up() -> bool:
 
 ## Relief supplies: a broke Camp (no rations or torches, can't buy one) gets 1 of each when a run starts.
 const RELIEF_GOLD := 10
+## Gold safety net (DECISIONS #109): a death never leaves the stash below enough gold for one Guild potion.
+const SAFETY_GOLD := 30
 func needs_relief() -> bool:
 	return mat("ration") == 0 and mat("torch") == 0 and mat("gold") < RELIEF_GOLD
 
@@ -957,6 +971,9 @@ func end_run(result: String) -> void:
 				owed_sou += lost_sou
 				log_line("%d Scroll%s of Upgrade will return on the next boss kill (%d owed)." % [lost_sou, "" if lost_sou == 1 else "s", owed_sou], "highlight")
 			say("%s fell. Pack lost, gear cracked, back to Lv1 / 10 Str." % DB.heroes[c].name)
+			if mat("gold") < SAFETY_GOLD:
+				log_line("The Camp chips in %d gold so you can restock." % (SAFETY_GOLD - mat("gold")), "positive")
+				add_mat("gold", SAFETY_GOLD - mat("gold"))
 		"abandon":
 			for g in run.pack_gear:
 				if g.get("owned", false): g.erase("owned"); gear.append(g)
@@ -1075,6 +1092,7 @@ func _fix_types() -> void:
 		for k in ["level", "xp", "str", "weapon", "armor", "ring", "artifact"]: h[k] = int(h[k])
 	for f in facilities:
 		facilities[f].level = int(facilities[f].level); facilities[f].cap = int(facilities[f].cap)
+		if DB.facilities.has(f): facilities[f].cap = facility_cap(f)
 	for q in id_queue: q.uid = int(q.uid)
 	if not run.is_empty():
 		for k in ["floor", "next_event", "gather", "starve", "seed", "hp", "pending_loot"]: run[k] = int(run.get(k, 0))

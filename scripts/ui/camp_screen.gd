@@ -525,27 +525,60 @@ func _page_heroes() -> void:
 	if show_talents or GameState.talent_points_total_free(c) > 0: HeroPanels.talents(v, c, _fill_window)
 
 # ------------------------------------------------------------ Stash
+const GEAR_CATS := [["weapon", "Weapons"], ["armor", "Armor"], ["ring", "Rings"], ["artifact", "Artifacts"], ["wand", "Wands"]]
+
+func _is_potion_or_scroll(k: String) -> bool:
+	var kind: String = DB.materials.get(k, {}).get("kind", "")
+	return kind in ["potion", "scroll"] or k.begins_with("potion_") or k.begins_with("scroll_") or k.begins_with("elixir_")
+
+func _add_mat_grid(v: VBoxContainer, keys: Array) -> void:
+	var grid := slot_grid(v)
+	for k in keys:
+		var md: Dictionary = DB.materials[k]
+		grid.add_child(item_slot(k, str(GameState.mat(k)), "", func(): info(k, DB.mat_name(k), [md.get("desc", "") if GameState.is_mat_known(k) else "Unidentified - use it during a delve to learn what it is.", "In stash: %d" % GameState.mat(k)])))
+
+func _stash_gear_less(a: Dictionary, b: Dictionary) -> bool:
+	var da := DB.item(a.id); var db := DB.item(b.id)
+	var ta := int(da.get("tier", 0)); var tb := int(db.get("tier", 0))
+	if ta != tb: return ta < tb
+	if a.known != b.known: return bool(a.known)
+	if a.id != b.id: return String(a.id) < String(b.id)
+	if int(a.lvl) != int(b.lvl): return int(a.lvl) > int(b.lvl)
+	var wa := GameState.equipped_by(a.uid) != ""; var wb := GameState.equipped_by(b.uid) != ""
+	if wa != wb: return wa
+	return int(a.uid) < int(b.uid)
+
 func _page_stash() -> void:
 	var v := _p("Stash")
 	if GameState.owed_sou > 0:
 		var row := UIKit.hbox(v); row.add_child(UIKit.icon("scroll_upgrade"))
 		var ol := UIKit.label("%d lost Scroll%s of Upgrade will return on your next boss kill." % [GameState.owed_sou, "" if GameState.owed_sou == 1 else "s"], 0.85, Color("ffff66"))
 		ol.size_flags_horizontal = SIZE_EXPAND_FILL; row.add_child(ol)
-	v.add_child(UIKit.header("Materials & supplies"))
-	var grid := slot_grid(v)
+	var mats := []; var potions := []; var scrolls := []
 	for k in DB.materials:
-		if GameState.mat(k) > 0:
-			var md: Dictionary = DB.materials[k]
-			grid.add_child(item_slot(k, str(GameState.mat(k)), "", func(): info(k, DB.mat_name(k), [md.get("desc", "") if GameState.is_mat_known(k) else "Unidentified - use it during a delve to learn what it is.", "In stash: %d" % GameState.mat(k)])))
+		if GameState.mat(k) <= 0: continue
+		if not _is_potion_or_scroll(k): mats.append(k)
+		elif String(k).begins_with("scroll_") or DB.materials[k].get("kind", "") == "scroll": scrolls.append(k)
+		else: potions.append(k)
+	v.add_child(UIKit.header("Materials & supplies"))
+	if not mats.is_empty(): _add_mat_grid(v, mats)
+	if not potions.is_empty() or not scrolls.is_empty():
+		v.add_child(UIKit.header("Potions & scrolls"))
+		_add_mat_grid(v, potions + scrolls)
 	v.add_child(UIKit.header("Gear (%d)" % GameState.gear.size()))
 	v.add_child(UIKit.label("Tap for info, hold to compare with %s's gear." % DB.heroes[chosen_hero].name, 0.75, Color("9a9488")))
-	var gg := slot_grid(v)
-	for g in GameState.gear:
-		var who := GameState.equipped_by(g.uid)
-		var bdg := UIKit.gear_badge(g)
-		if bdg == "": bdg = "NONE"
-		gg.add_child(item_slot(gear_icon(g), DB.heroes[who].name.substr(0, 1) if who != "" else "", "+%d" % g.lvl if g.lvl > 0 and g.known else "",
-			func(): info(gear_icon(g), GameState.gear_name(g), gear_lines(g), [], bdg), Color(1, 0.55, 0.5) if g.get("cracked", false) else Color.WHITE, "c9a96e" if who != "" else "", g))
+	for cat in GEAR_CATS:
+		var list := GameState.gear.filter(func(g): return DB.item(g.id).type == cat[0])
+		if list.is_empty(): continue
+		list.sort_custom(_stash_gear_less)
+		v.add_child(UIKit.label("%s (%d)" % [cat[1], list.size()], 0.95, Color("ffd27a")))
+		var gg := slot_grid(v)
+		for g in list:
+			var who := GameState.equipped_by(g.uid)
+			var bdg := UIKit.gear_badge(g)
+			if bdg == "": bdg = "NONE"
+			gg.add_child(item_slot(gear_icon(g), DB.heroes[who].name.substr(0, 1) if who != "" else "", "+%d" % g.lvl if g.lvl > 0 and g.known else "",
+				func(): info(gear_icon(g), GameState.gear_name(g), gear_lines(g), [], bdg), Color(1, 0.55, 0.5) if g.get("cracked", false) else Color.WHITE, "c9a96e" if who != "" else "", g))
 
 # ------------------------------------------------------------ Facilities
 const NEXT_TEXT := {"blacksmith": "Gear upgrade cap +%d", "alchemy": "Potion belt %d slots", "enchanter": "Faster identification (Lv%d)", "guild": "Patrols up to %dh"}
@@ -572,7 +605,9 @@ func _facility_header(v: VBoxContainer, id: String) -> void:
 		var at2 := AtlasTexture.new(); at2.atlas = load("res://assets/tiles/tiles_sewers.png"); at2.region = Rect2(0, 64, 16, 16)
 		var tp := UIKit.pixel(at2, int(kk)); tp.size_flags_vertical = SIZE_SHRINK_CENTER; row.add_child(tp)
 	var cv := UIKit.vbox(row); cv.size_flags_horizontal = SIZE_EXPAND_FILL
-	cv.add_child(UIKit.label("%s   Lv %d / %d" % [d.name, f.level, f.cap], 1.0, Color("ffd27a")))
+	# "Lv level / max"; the Scroll-of-Upgrade cap is shown only while it is what blocks the next level (DECISIONS #114)
+	var cap: int = GameState.facility_cap(id)
+	cv.add_child(UIKit.label(GameState.facility_title(d.name, int(f.level), cap, int(d.max)), 1.0, Color("ffd27a")))
 	var pb := ProgressBar.new(); pb.max_value = int(d.max); pb.value = f.level; pb.show_percentage = false
 	pb.custom_minimum_size.y = UIKit.font_size * 0.5; pb.tooltip_text = "Max level %d (cap raised by Scrolls of Upgrade)" % d.max; cv.add_child(pb)
 	cv.add_child(UIKit.label(d.desc, 0.8, Color("bdb3a0")))
@@ -582,7 +617,7 @@ func _facility_header(v: VBoxContainer, id: String) -> void:
 		var ur := UIKit.hbox(v)
 		var cr := cost_row(GameState.facility_upgrade_cost(id)); cr.size_flags_horizontal = SIZE_EXPAND_FILL; ur.add_child(cr)
 		var ub := UIKit.action("Upgrade", func(): GameState.upgrade_facility(id), why); ub.custom_minimum_size.x = UIKit.font_size * 7; ur.add_child(ub)
-	if f.cap < int(d.max) and GameState.mat("scroll_upgrade") > 0:
+	if cap < int(d.max) and GameState.mat("scroll_upgrade") > 0:
 		v.add_child(UIKit.button("Apply Scroll of Upgrade (raise cap)", func(): GameState.apply_sou(id)))
 
 func _recipe_slots(v: VBoxContainer, id: String, title: String) -> void:

@@ -309,3 +309,21 @@ SPD draws a second sprite from `item_icons.png` in the top-right of an inventory
 
 ## 104. No softlock after a total wipe
 Starting a run never required gear, but a wiped save felt (and played) locked: cracked weapons fell back to starter stats while still applying the cracked item's upgrade level math, cracked armor gave no DR, a broke Camp had no rations/torches and no gold to buy them, and repair ore came only from chests/patrols. Now: cracked/missing weapon or armor uses the class starter weapon + Cloth Armor (free, never cracks, like SPD starting items); the Forge shows a free "Patch up" (cheapest cracked weapon/armor first) whenever no repair is affordable; a broke Camp (0 rations, 0 torches, < 10 gold) gets 1 ration + 1 torch when a run starts; every floor descended yields 1 iron ore. These are runtime rules, so an existing wiped save is playable on load. test_total_wipe covers the reported state.
+
+## 109. Goo death-spiral exit
+Playtest (12 Full Auto expeditions x 4 classes x 3 seeds) showed early saves locked into dying to Goo: healing potions were only brewed (seeds) so the stash hit 0 after run 1, deaths drained gold to 0, and a Lv3-4 hero without potions cannot beat Goo. Now: the Guild sells a Potion of Healing for 30 gold (Lv1); killing Goo always puts a Potion of Healing on the belt (unused, it is banked like any supply); a death tops the stash up to 30 gold (`SAFETY_GOLD`, enough for one potion) and never removes gold. test_goo_spiral covers all three.
+
+## 110. Food scaling
+Playtest: a Lv24 Mage still ended every run at floor 9-10 because rations ran out (a 3-ration loadout covers about 2 biomes and nothing refilled it). Now every boss kill adds `Delve.BOSS_RATIONS` (2) rations to the belt (unused ones are banked like any supply), and Guild Lv2 sells a Ration Crate (3 rations for 25 gold instead of 30). test_food_sources covers both.
+
+## 111. Ring, potion and scroll rects; tiny sprites one step larger
+Root cause of the small/off-centre ring icon (the open on-device question from #98): data/item_rects.json had no entry for the ring gems (224-228), the potion colours (352-360) or the rune scrolls (304-313), so item_rect fell back to the full 16x16 cell and the 8x10 ring was drawn top-left inside a centred 16x16 block. Added SPD's assignItemRect sizes (rings 8x10, potions 12x14, scrolls 15x14). PixelIcon.draw_k() also draws sprites whose longest side is <= 10 px one integer step larger than scale_k(), so a ring is not half the size of the sword next to it; still integer and inside the cell; badges keep scale_k. test_icon_centering checks every icons.json id has a rect and the ring scale step.
+
+## 112. Delve log "missing i" was a screenshot artifact
+Playtest saw "Warr or", "P cked up", "Rat on" in delve log screenshots. At native resolution (968x2376 viewport, SHOT_NATIVE=1) every glyph is there: the harness window (484x1188 / 928x1080) is a ~0.5x canvas_items stretch, and with nearest-filtered, non-antialiased pixel font a 1-px column (i, :, .) can vanish. On the Fold the stretch is ~0.93 and the smallest text is 1.5 font px, so >= 1.4 screen px per font pixel: no drops. The screenshot harness now renders at 2x and Lanczos-downsamples to the old sizes, so shots show what the device shows. The game's font sizing is unchanged. (The desktop dev window override, 484x1188, still drops glyphs; it is not a shipped target.)
+
+## 113. Screenshot pickup-pop leak
+The "+3" gold pop in delve_enemy / delve_special / delve_auto shots was not a game bug: delve_walk stages a pop (age 0.2 of a 1.1 s life) and the next shots, 12 frames apart on the same DelveScene, captured it again. In play, pops age by real delta and expire. The harness now clears pops and the glow before the following delve shots.
+
+## 114. Facility header: level / max, cap never below level
+The Guild header read "Lv 2 / 1" beside a "capped" Upgrade button: the header printed the Scroll-of-Upgrade `cap` (not the facility max), and nothing kept `cap >= level` (the screenshot harness, debug edits or an old save can set a level without the cap). `GameState.facility_cap(id)` = clamp(max(cap, level), 1, max) is used by can_upgrade_facility, apply_sou and on load; the header shows "Lv level / max" and adds "(cap N)" only while the cap is what blocks the next level. test_facility_cap covers the reported state.
