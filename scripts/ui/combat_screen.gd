@@ -22,6 +22,7 @@ var potions_used := 0
 var heal := 10
 var auto := false
 var _auto_t := 0.0
+var _low_hp_stopped := false
 var finished := false
 ## Guided first fight (v0.11.0, DECISIONS #63): 0 = off, 1 move, 2 attack, 3 finish, 4 done
 var bag_open := false
@@ -41,8 +42,10 @@ func setup(ev: Dictionary, done: Callable, saved := {}) -> void:
 		combat._log("(fight resumed)")
 	potions = int(run.supplies.get("potion_healing", 0))
 	heal = GameState.potion_heal(run.hero)
-	# Auto Battle plays the fight itself: the combat Auto toggle starts on (the player can still turn it off).
-	if bool(GameState.settings.get("full_auto", false)): auto = true
+	# Auto Battle plays the fight itself: the combat Auto toggle starts on (unless already close to dying).
+	if bool(GameState.settings.get("full_auto", false)):
+		if combat.close_to_dying(): _stop_auto_low_hp()
+		else: auto = true
 
 func _ready() -> void:
 	split = BoxContainer.new(); add_child(split); split.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
@@ -74,7 +77,7 @@ func _ready() -> void:
 	log_label = RichTextLabel.new(); log_label.fit_content = true; log_label.scroll_active = false
 	log_label.size_flags_horizontal = SIZE_EXPAND_FILL; log_scroll.add_child(log_label)
 	_refresh()
-	main.tip("boss" if event.get("boss", false) else "first_fight")
+	if main: main.tip("boss" if event.get("boss", false) else "first_fight")
 
 func apply_layout(portrait: bool, s: Vector2) -> void:
 	split.vertical = portrait
@@ -100,8 +103,8 @@ func _process(d: float) -> void:
 			_auto_t = 0.0; _do_bot()
 
 const BTN_ICONS := {"Wait": "wait", "Search": "search", "Search again": "search", "Bag": "backpack", "Hint": "info",
-	"Auto": "busy", "Auto: ON": "busy", "Shove": "arrow", "Shove: ON": "arrow"}
-const BTN_PREFIX_ICONS := {"Slam": "warning", "Potion": "plus", "Cloak": "buffs", "Bolt": "target"}
+	"Auto": "busy", "Auto: ON": "busy", "Shove": "arrow", "Shove: ON": "arrow", "Scroll of Passage": "scroll"}
+const BTN_PREFIX_ICONS := {"Slam": "warning", "Potion": "plus", "Cloak": "buffs", "Bolt": "target", "Scroll of Passage": "scroll"}
 func _btn(text: String, cb: Callable, enabled := true) -> void:
 	var b := UIKit.button(text, cb, enabled)
 	b.custom_minimum_size.x = UIKit.font_size * 6.5
@@ -155,6 +158,8 @@ func _refresh() -> void:
 		_btn("Bolt (%d)" % h.charges, func(): mode = "" if mode == "bolt" else "bolt"; grid.mode = mode; _refresh(), h.charges > 0)
 	_btn("Search" if not h.get("searched", false) else "Search again", func(): _act(func(): combat.hero_search()))
 	_btn("Potion (%d)" % (potions - potions_used), _drink, potions - potions_used > 0 and h.hp < h.ht)
+	if Delve.scroll_passage_count(GameState) > 0:
+		_btn("Scroll of Passage", _use_passage)
 	_btn("Bag", func(): bag_open = not bag_open; _refresh())
 	_btn("Hint", _hint)
 	_btn("Auto: ON" if auto else "Auto", func(): auto = not auto; _refresh())
@@ -245,7 +250,37 @@ func _act(f: Callable) -> void:
 	if combat.over and not finished:
 		finished = true; auto = false
 		Sfx.play("levelup" if combat.won else "death")
+	else:
+		_check_low_hp_stop()
 	_refresh()
+
+## Turn off Auto Battle when close to dying so the player can manually control the fight or use a Scroll of Passage.
+func _check_low_hp_stop() -> bool:
+	if not combat.close_to_dying():
+		_low_hp_stopped = false
+		return false
+	if not auto or _low_hp_stopped:
+		return false
+	_stop_auto_low_hp()
+	return true
+
+func _stop_auto_low_hp() -> void:
+	_low_hp_stopped = true
+	auto = false
+	if GameState.settings.get("full_auto", false):
+		GameState.settings.full_auto = false
+		SaveSystem.save_game()
+	if main and main.get("delve") != null:
+		main.delve.running = false
+	var msg := "Low HP! Auto battle off - take control or use Scroll of Passage." if Delve.scroll_passage_count(GameState) > 0 else "Low HP! Auto battle off - take manual control."
+	combat._log(msg)
+	GameState.log_line(msg, "warning")
+
+func _use_passage() -> void:
+	if not Delve.use_scroll_passage(GameState): return
+	finished = true; auto = false
+	if main: main.show_camp()
+	else: _refresh()
 
 ## Potions are consumed from the run supplies immediately (so a lost fight doesn't refund them).
 func _drink() -> void:
@@ -260,6 +295,9 @@ func _hint() -> void:
 	grid.hint_cell = s.get("pos", Vector2i(-1, -1))
 
 func _do_bot() -> void:
+	if _check_low_hp_stop():
+		_refresh()
+		return
 	var s := CombatBot.suggest(combat, potions - potions_used, heal)
 	match s.act:
 		"heal": _drink()

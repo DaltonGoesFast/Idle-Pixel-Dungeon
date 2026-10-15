@@ -204,6 +204,17 @@ func surprise_ready() -> bool:
 	var t := tile(hero.pos)
 	return t == T.DOOR or t == T.GRASS or hidden()
 
+## True when the hero is at critical HP (<= 30% max HP) or adjacent enemies / poison could kill them next turn.
+func close_to_dying() -> bool:
+	if over or hero.is_empty(): return false
+	if int(hero.hp) <= int(ceil(float(hero.ht) * Delve.AUTO_STOP_HP)): return true
+	var threat := 1 if int(hero.get("poison", 0)) > 0 else 0
+	if not hidden():
+		for e in enemies():
+			if cheb(e.pos, hero.pos) == 1 and not e.get("charging", false):
+				threat += maxi(0, int(e.dmg) - int(hero.dr))
+	return threat > 0 and int(hero.hp) + int(hero.barrier) <= threat
+
 # ------------------------------------------------------------------ damage
 ## Damage to the hero: flat DR -> Barrier -> HP. Chip rule on fully blocked hits.
 func hit_hero(raw: int, src: String, pierce := false) -> void:

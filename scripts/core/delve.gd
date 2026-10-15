@@ -15,6 +15,7 @@ const FINAL_REST_HEAL := 0.6
 const BOSS_RATIONS := 2       # rations every boss kill adds to the belt (DECISIONS #110)
 const CAMPFIRE_REST := 50.0  # torch and satiety restored when pressing on from a boss campfire
 const SEARCH_CHANCE := 50     # % to find a hidden door (Rogue: always)
+const AUTO_STOP_HP := 0.3     # at or below this HP fraction Auto Battle turns off for manual control / Scroll of Passage
 
 static func biome(run: Dictionary) -> Dictionary:
 	return DB.biomes[run.biome]
@@ -440,3 +441,28 @@ static func apply_fight_result(gs, ev: Dictionary, res: Dictionary, reward: Dict
 		if gs.record_boss_kill(run.hero, run.biome): gs.say("First %s kill for this class: Scroll of Upgrade!" % DB.mobs[ev.mobs[0]].name)
 	gs.touch()
 	return true
+
+## True when the hero's HP in the run is at or below the low-HP danger threshold (30% of max HP).
+static func close_to_dying(gs) -> bool:
+	if gs.run.is_empty(): return false
+	var ht: int = gs.hero_stats(gs.run.hero).ht
+	return int(gs.run.hp) <= int(ceil(float(ht) * AUTO_STOP_HP))
+
+## Total Scrolls of Passage carried in supplies or pack.
+static func scroll_passage_count(gs) -> int:
+	if gs.run.is_empty(): return 0
+	return int(gs.run.get("supplies", {}).get("scroll_passage", 0)) + int(gs.run.get("pack", {}).get("scroll_passage", 0))
+
+## Consume a Scroll of Passage and extract to Camp (works from the delve bar, an encounter card, or mid-fight).
+static func use_scroll_passage(gs) -> bool:
+	if scroll_passage_count(gs) <= 0: return false
+	if int(gs.run.get("supplies", {}).get("scroll_passage", 0)) > 0:
+		gs.run.supplies.scroll_passage = int(gs.run.supplies.scroll_passage) - 1
+	else:
+		gs.run.pack.scroll_passage = int(gs.run.pack.scroll_passage) - 1
+	gs.run.erase("active_fight")
+	gs.run.erase("pending_card")
+	Sfx.play("read")
+	gs.end_run("extract")
+	return true
+

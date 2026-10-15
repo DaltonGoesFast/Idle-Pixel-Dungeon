@@ -84,8 +84,20 @@ func set_full_auto(on: bool) -> void:
 	if on: running = true
 	SaveSystem.save_game(); _refresh_controls(); _show_card()
 
+func _stop_auto_low_hp() -> void:
+	GameState.settings.full_auto = false
+	running = false
+	_auto_t = 0.0
+	var msg := "Low HP! Auto battle off - take control or use Scroll of Passage." if Delve.scroll_passage_count(GameState) > 0 else "Low HP! Auto battle off - take manual control."
+	GameState.log_line(msg, "warning")
+	SaveSystem.save_game(); _refresh_controls(); _show_card()
+
 ## Plays ambushes only. Doors, rooms, floor ends, campfires, backpack, and talents wait for the player.
+## Stops and pauses when close to dying so the player can take control or use a Scroll of Passage.
 func _auto_tick(delta: float) -> void:
+	if Delve.close_to_dying(GameState):
+		_stop_auto_low_hp()
+		return
 	if pending.get("kind", "") != "combat":
 		_auto_t = 0.0
 		return
@@ -215,9 +227,10 @@ func _refresh_controls() -> void:
 	b0.custom_minimum_size.x = w * 1.6
 	UIKit.as_toolbar(b0, "busy"); b0.name = "FullAuto"
 	controls.add_child(b1); controls.add_child(b2); controls.add_child(b0)
-	if int(GameState.run.get("supplies", {}).get("scroll_passage", 0)) > 0:
+	if Delve.scroll_passage_count(GameState) > 0:
 		var b3 := UIKit.button("Read Scroll of Passage (extract)", func():
-			GameState.run.supplies.scroll_passage -= 1; Sfx.play("read"); GameState.end_run("extract"); main.show_camp()); b3.custom_minimum_size.x = w * 2
+			if Delve.use_scroll_passage(GameState) and main: main.show_camp()); b3.custom_minimum_size.x = w * 2
+		UIKit.as_toolbar(b3, "scroll")
 		controls.add_child(b3)
 	var nfree := GameState.talent_points_total_free(GameState.run.hero) if not GameState.run.is_empty() else 0
 	var bb := UIKit.button("Backpack %d/%d" % [GameState.backpack_used(), GameState.BACKPACK_SLOTS], func(): _open_panel("backpack")); bb.custom_minimum_size.x = w
@@ -340,6 +353,9 @@ func _card_combat() -> void:
 	var v := _card("BOSS: " + DB.mobs[pending.mobs[0]].name if boss else "Ambush!", "You face: " + _mob_names(pending.mobs))
 	_add_close(v)
 	v.add_child(UIKit.button("Fight", func(): _fight(pending, {})))
+	if Delve.scroll_passage_count(GameState) > 0:
+		v.add_child(UIKit.button("Read Scroll of Passage (extract)", func():
+			if Delve.use_scroll_passage(GameState) and main: main.show_camp()))
 
 func _fight(ev: Dictionary, reward: Dictionary, saved := {}) -> void:
 	_under = {}
@@ -366,6 +382,8 @@ func _after_fight(ev: Dictionary, res: Dictionary, reward: Dictionary) -> void:
 	if GameState.heroes[GameState.run.hero].level > lvl:
 		Sfx.play("levelup"); GameState.run.talent_prompted = false
 	var gain := Delve.fight_changes(before, Delve.ledger(GameState), res)
+	if Delve.close_to_dying(GameState) and GameState.settings.get("full_auto", false):
+		_stop_auto_low_hp()
 	if main: main.end_combat()
 	_open_summary("Victory", gain.got, gain.lost)
 

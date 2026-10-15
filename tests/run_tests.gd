@@ -1334,7 +1334,35 @@ func test_full_auto(gs) -> void:
 	cs2.setup(fight, func(_r): pass)
 	check(not cs2.auto, "auto battle stays off when the toggle is off")
 	cs.free(); cs2.free()
-	gs.end_run("abandon")
+	# Low HP turns off Auto Battle in delve and in combat so you can manually control and use Scroll of Passage.
+	gs.run.supplies.scroll_passage = 1
+	gs.run.pack["gold"] = 25
+	gs.run.pack["iron_ore"] = 7
+	gs.run.hp = 5
+	gs.settings.full_auto = true
+	var ds_low = load("res://scripts/ui/delve_screen.gd").new()
+	add_child(ds_low)
+	ds_low.running = true; ds_low.pending = fight; ds_low._refresh_controls(); ds_low._show_card()
+	ds_low._auto_tick(5.0)
+	check(not gs.settings.get("full_auto", false) and not ds_low.running and ds_low.pending == fight, "low HP turns off Auto Battle and pauses before starting an ambush")
+	check(_find_btn(ds_low, "Read Scroll of Passage (extract)") != null, "Scroll of Passage is offered when Auto Battle stops on an ambush")
+	ds_low.queue_free()
+	# Mid-fight drop to close-to-dying turns off Auto Battle and offers Scroll of Passage in combat.
+	gs.run.hp = 20
+	gs.settings.full_auto = true
+	var cs_low = load("res://scripts/ui/combat_screen.gd").new()
+	cs_low.setup(fight, func(_r): pass)
+	add_child(cs_low)
+	check(cs_low.auto and _find_btn(cs_low.buttons, "Scroll of Passage") != null, "combat toolbar offers Scroll of Passage while carried")
+	cs_low.combat.hero.hp = 5
+	cs_low._do_bot()
+	check(not cs_low.auto and not gs.settings.get("full_auto", false), "dropping close to death in combat turns off Auto Battle for manual control")
+	var pbtn: Button = _find_btn(cs_low.buttons, "Scroll of Passage")
+	check(pbtn != null, "Scroll of Passage button remains ready in combat after Auto Battle stops")
+	var gold_before: int = gs.mat("gold")
+	pbtn.pressed.emit()
+	check(gs.run.is_empty() and gs.last_result == "extract" and gs.mat("iron_ore") == 7 and gs.mat("gold") >= gold_before + 25 and gs.mat("scroll_passage") == 0, "using Scroll of Passage in combat extracts and banks the pack")
+	cs_low.queue_free()
 
 ## Closing an encounter card sets it aside so the bag and settings work; the bar cannot skip it.
 func test_encounter_dismiss(gs) -> void:
