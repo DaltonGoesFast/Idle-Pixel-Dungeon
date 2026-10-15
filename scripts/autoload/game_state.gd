@@ -691,7 +691,7 @@ func repair_all() -> bool:
 		if repair(g.uid): n += 1
 	say("Repaired %d item%s." % [n, "" if n == 1 else "s"]); touch(); return true
 
-# ---------------------------------------------------------------- breaking down spare rings (DECISIONS #109)
+# ---------------------------------------------------------------- breaking down spare rings (DECISIONS #107)
 ## A ring melts into a little gold (the band) and resin (the gem). Small on purpose: patrols hand rings out.
 func ring_break_yield() -> Dictionary:
 	return {"gold": 5, "arcane_resin": 1}
