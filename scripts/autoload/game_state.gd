@@ -29,7 +29,7 @@ var seen: Dictionary = {}          # codex discoveries: "mob:rat", "trap:worn_da
 var tutorial_done: Array = []      # onboarding steps already shown
 var last_result := ""              # "extract" / "death" / "abandon" of the run that just ended (not saved)
 var run: Dictionary = {}           # empty when no expedition is active
-var time_offset := 0.0             # tests / debug can fast-forward wall-clock time
+var time_offset := 0.0             # debug fast-forward; saved so patrol and identify timers survive a relaunch
 var messages: PackedStringArray = []
 
 func _ready() -> void:
@@ -1052,7 +1052,8 @@ func note_floor(f: int) -> void:
 func to_dict() -> Dictionary:
 	return {"mats": mats, "gear": gear, "next_uid": next_uid, "heroes": heroes, "facilities": facilities,
 		"id_queue": id_queue, "boss_kills": boss_kills, "settings": settings, "run": run, "stats": stats,
-		"milestones_claimed": milestones_claimed, "seen": seen, "tutorial_done": tutorial_done, "looks": looks, "ided": ided, "owed_sou": owed_sou}
+		"milestones_claimed": milestones_claimed, "seen": seen, "tutorial_done": tutorial_done, "looks": looks, "ided": ided, "owed_sou": owed_sou,
+		"time_offset": time_offset}
 
 func from_dict(d: Dictionary) -> void:
 	new_game()
@@ -1073,6 +1074,7 @@ func from_dict(d: Dictionary) -> void:
 	milestones_claimed = Array(d.get("milestones_claimed", [])); seen = d.get("seen", {}); tutorial_done = Array(d.get("tutorial_done", []))
 	settings.text_scale = float(settings.text_scale); settings.delve_speed = float(settings.delve_speed)
 	for k in stats: stats[k] = int(stats[k])
+	time_offset = float(d.get("time_offset", 0.0))   # older saves: no fast-forward
 	_fix_types()
 	touch()
 
@@ -1099,6 +1101,9 @@ func _fix_types() -> void:
 		if not h.has("artifact"): h.artifact = 0
 		for k in ["level", "xp", "str", "weapon", "armor", "ring", "artifact"]: h[k] = int(h[k])
 		if h.level > MAX_LEVEL: h.level = MAX_LEVEL; h.xp = 0   # saves from before the cap
+		# a start ahead of the clock (fast-forward that was not saved) stays at 0% until that gap passes
+		var p: Dictionary = h.get("patrol", {})
+		if not p.is_empty() and float(p.get("start", 0)) > now(): p.start = now()
 	for f in facilities:
 		facilities[f].level = int(facilities[f].level); facilities[f].cap = int(facilities[f].cap)
 		if DB.facilities.has(f): facilities[f].cap = facility_cap(f)

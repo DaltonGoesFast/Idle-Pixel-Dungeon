@@ -578,6 +578,22 @@ func test_camp(gs) -> void:
 	check(gs.heroes.huntress.unlocked, "5 potions brewed unlocks Huntress")
 	gs.note_floor(4); check(gs.heroes.rogue.unlocked, "reaching floor 4 unlocks Rogue")
 	gs.end_run("extract")
+	# relaunch: fast-forward lives in time_offset, which used to be dropped, so a 4h patrol came back at 0%
+	gs.facilities.guild.level = 2
+	check(gs.start_patrol("warrior", "sewers"), "restart patrol")
+	var off_before: float = gs.time_offset
+	gs.time_offset += 4 * 3600
+	check(is_equal_approx(gs.patrol_preview("warrior")._hours, 4.0), "guild lv2 patrol fills at 4h")
+	var snap: Dictionary = JSON.parse_string(JSON.stringify(gs.to_dict()))
+	gs.from_dict(snap)
+	check(is_equal_approx(gs.time_offset, off_before + 4 * 3600), "fast-forward survives relaunch")
+	check(is_equal_approx(gs.patrol_preview("warrior")._hours, 4.0), "patrol progress survives relaunch")
+	gs.heroes.warrior.patrol.start = gs.now() + 4 * 3600
+	var stuck: Dictionary = JSON.parse_string(JSON.stringify(gs.to_dict()))
+	stuck.erase("time_offset")
+	gs.from_dict(stuck)
+	gs.time_offset += 3600
+	check(gs.patrol_preview("warrior")._hours > 0.9, "future patrol start counts time after relaunch")
 
 ## Tapping the sprite or the name plate under it opens that facility. The plate used to hang outside
 ## the sprite's hit box, so Stash / Alchemy / Guild / Enchanter ignored clicks on their names.
