@@ -1,86 +1,265 @@
-## CampScreen: the persistent Surface Camp. Tabs: Expedition, Heroes, Stash, Blacksmith, Alchemy,
-## Enchanter, Guild (supplies & patrols), Journal (milestones, unlocks, codex), Settings. Content is rebuilt from GameState on every change.
+## CampScreen: the persistent Surface Camp hub (DECISIONS #82).
+## Layout: a resource header, then a drawn camp scene (CampScene) where you tap the NPCs to open the facilities.
+## Below it: a hero selector with portraits, a biome picker and the big Delve button.
+## Facilities, Stash, Heroes, Journal and Settings open as SPD windows over the hub. Item lists are
+## SPD-style item-slot grids; tapping a slot opens an info window with its actions.
+## Content is rebuilt from GameState on every change.
 extends Control
 
+const CampScene := preload("res://scripts/ui/camp_scene.gd")
 var main: Control
-var root_box: VBoxContainer
+var root_box: BoxContainer
 var summary: HFlowContainer
-var tabs: TabContainer
+var scene: Control
+var side: VBoxContainer
 var pages := {}
 var loadout := {"ration": 2, "torch": 2, "potion_healing": 1, "scroll_passage": 0, "elixir_starter": 0}
 var chosen_hero := "warrior"
+var chosen_biome := "sewers"
 var portrait := true
-const MAX_SUPPLY := 10   # torches / rations per expedition (a 15-floor dive needs ~9 torches)
-## SPD icons.png on the camp tabs (DECISIONS #75)
-const TAB_ICONS := {"Delve": "enter", "Heroes": "rankings", "Stash": "backpack_lrg", "Forge": "challenge", "Alchemy": "alchemy",
+var open_name := ""          # page shown in the window ("" = hub)
+var win_layer: Control       # page window
+var info_layer: Control      # item info popup (on top of the window)
+const MAX_SUPPLY := 10
+const PAGE_ORDER := ["Delve", "Heroes", "Stash", "Forge", "Alchemy", "Enchanter", "Guild", "Journal", "Settings"]
+const TAB_ORDER := PAGE_ORDER   # kept for older tests/tools
+const PAGE_ICONS := {"Delve": "enter", "Heroes": "rankings", "Stash": "backpack_lrg", "Forge": "challenge", "Alchemy": "alchemy",
 	"Enchanter": "scroll", "Guild": "badges", "Journal": "journal", "Settings": "prefs"}
-## Width test for icon-only tabs (DECISIONS #78).
-func icon_only_tabs() -> bool:
-	return get_viewport_rect().size.x < UIKit.font_size * 34.0
-
-## Icon-only mode: only the selected tab shows its label.
-func _name_selected_tab(i: int) -> void:
-	for k in tabs.get_tab_count(): tabs.set_tab_title(k, TAB_ORDER[k] if k == i else "")
-
-const TAB_ORDER := ["Delve", "Heroes", "Stash", "Forge", "Alchemy", "Enchanter", "Guild", "Journal", "Settings"]
+const FAC_PAGE := {"Forge": "blacksmith", "Alchemy": "alchemy", "Enchanter": "enchanter", "Guild": "guild"}
+const NPC := {"blacksmith": ["blacksmith", 13, 16], "enchanter": ["wandmaker", 12, 14], "guild": ["shopkeeper", 14, 14]}
+const HERO_FRAME := Vector2i(12, 15)
 
 func _ready() -> void:
-	root_box = UIKit.vbox(self)
-	root_box.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
-	var title := UIKit.header("Surface Camp   " + UIKit.version())
-	root_box.add_child(title)
-	summary = HFlowContainer.new(); root_box.add_child(summary)
-	summary.add_theme_constant_override("h_separation", int(UIKit.font_size * 0.9))
-	tabs = TabContainer.new(); tabs.size_flags_vertical = SIZE_EXPAND_FILL
-	root_box.add_child(tabs)
-	for t in TAB_ORDER:
-		var sc := ScrollContainer.new(); sc.name = t
-		sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-		var v := UIKit.vbox(sc); v.size_flags_horizontal = SIZE_EXPAND_FILL
-		tabs.add_child(sc); pages[t] = v
-		var ti := tabs.get_tab_count() - 1
-		if TAB_ICONS.has(t): tabs.set_tab_icon(ti, UIKit.spd_icon(TAB_ICONS[t]))
-		# narrow screens (Fold cover): icon-only tabs so all 9 fit without scrolling; the selected tab keeps its name
-		if icon_only_tabs(): tabs.set_tab_title(ti, ""); tabs.set_tab_tooltip(ti, t)
+	_build_shell()
 	GameState.changed.connect(rebuild)
-	if icon_only_tabs():
-		tabs.tab_changed.connect(_name_selected_tab); (func(): _name_selected_tab(tabs.current_tab)).call_deferred()
-	tabs.tab_changed.connect(func(i: int):
-		var t: String = TAB_ORDER[i].to_lower()
-		if main: main.tip("camp_" + t))
 	rebuild()
 
 func apply_layout(p: bool, _size: Vector2) -> void:
+	if p == portrait and root_box != null: rebuild(); return
 	portrait = p
-	rebuild()
+	_build_shell(); rebuild()
+
+func _build_shell() -> void:
+	for c in get_children(): c.queue_free()
+	var outer := UIKit.vbox(self); outer.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
+	# top bar: title, version, Journal + Settings
+	var top := UIKit.hbox(outer)
+	var title := UIKit.header("Surface Camp"); title.size_flags_horizontal = SIZE_EXPAND_FILL; top.add_child(title)
+	var ver := UIKit.label(UIKit.version(), 0.75, Color("9a9488")); ver.size_flags_vertical = SIZE_SHRINK_CENTER
+	ver.autowrap_mode = TextServer.AUTOWRAP_OFF; top.add_child(ver)
+	for p in ["Journal", "Settings"]:
+		var b := UIKit.as_toolbar(UIKit.button("", func(): open_page(p)), PAGE_ICONS[p])
+		b.tooltip_text = p; b.custom_minimum_size = Vector2.ONE * UIKit.btn_height()
+		b.size_flags_horizontal = SIZE_SHRINK_END; b.size_flags_vertical = SIZE_SHRINK_CENTER; b.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		top.add_child(b)
+	# resource header in an SPD toast frame
+	var rp := PanelContainer.new(); rp.add_theme_stylebox_override("panel", UIKit.chrome("toast", Color.WHITE, UIKit.font_size * 0.35)); outer.add_child(rp)
+	summary = HFlowContainer.new(); rp.add_child(summary)
+	summary.add_theme_constant_override("h_separation", int(UIKit.font_size * 0.9))
+	# body: scene + controls (stacked on the cover, side-by-side on the inner screen)
+	root_box = VBoxContainer.new() if portrait else HBoxContainer.new()
+	root_box.size_flags_vertical = SIZE_EXPAND_FILL; outer.add_child(root_box)
+	root_box.add_theme_constant_override("separation", int(UIKit.font_size * 0.4))
+	var frame := PanelContainer.new(); frame.add_theme_stylebox_override("panel", UIKit.chrome("window", Color.WHITE, UIKit.font_size * 0.25))
+	frame.size_flags_vertical = SIZE_EXPAND_FILL; frame.size_flags_horizontal = SIZE_EXPAND_FILL
+	frame.size_flags_stretch_ratio = 1.0 if portrait else 1.35
+	root_box.add_child(frame)
+	scene = CampScene.new(); scene.custom_minimum_size = Vector2(0, UIKit.font_size * 10)
+	scene.picked.connect(open_page); frame.add_child(scene)
+	side = UIKit.vbox(); side.size_flags_horizontal = SIZE_EXPAND_FILL
+	side.size_flags_vertical = SIZE_SHRINK_END if portrait else SIZE_EXPAND_FILL
+	root_box.add_child(side)
+	win_layer = null; info_layer = null
 
 func rebuild() -> void:
-	if not is_inside_tree(): return
+	if not is_inside_tree() or summary == null: return
 	UIKit.clear(summary)
-	for k in ["gold", "iron_ore", "dark_gold", "seeds", "arcane_resin", "dew", "scroll_upgrade"]:
+	for k in ["gold", "iron_ore", "dark_gold", "seeds", "arcane_resin", "dew", "scroll_upgrade", "torch", "ration", "potion_healing"]:
 		if GameState.mat(k) > 0 or k in ["gold", "iron_ore", "seeds"]:
-			summary.add_child(UIKit.res_chip(k, str(GameState.mat(k)), 0.9))
-	_page_delve(); _page_heroes(); _page_stash()
-	_page_facility("Forge", "blacksmith"); _page_facility("Alchemy", "alchemy"); _page_facility("Enchanter", "enchanter")
-	_page_guild(); _page_journal(); _page_settings()
+			var chip := UIKit.res_chip(k, str(GameState.mat(k)), 0.9); chip.tooltip_text = DB.mat_name(k); summary.add_child(chip)
+	if not GameState.heroes[chosen_hero].unlocked: chosen_hero = "warrior"
+	if not (chosen_biome in start_biomes(chosen_hero)): chosen_biome = "sewers"
+	scene.hero = chosen_hero
+	_build_side()
+	if open_name != "": _fill_window()
+
+# ------------------------------------------------------------ hub controls
+func _build_side() -> void:
+	UIKit.clear(side)
+	# hero selector: SPD portrait slots with level badges; the selected one is framed in red
+	var hr := HFlowContainer.new(); hr.add_theme_constant_override("h_separation", int(UIKit.font_size * 0.4)); side.add_child(hr)
+	for c in GameState.heroes:
+		hr.add_child(_hero_slot(c))
+	var hb := UIKit.button("Heroes", func(): open_page("Heroes")); UIKit.with_icon(hb, PAGE_ICONS.Heroes); UIKit.secondary(hb)
+	hb.custom_minimum_size = Vector2(UIKit.font_size * 6, UIKit.font_size * 3.4); hr.add_child(hb)
+	# one-line hero summary
+	var s := GameState.hero_stats(chosen_hero); var h: Dictionary = GameState.heroes[chosen_hero]
+	var line := UIKit.label("%s  Lv%d   HP %d  DR %d  Dmg %d  Str %d" % [s.name, h.level, s.ht, s.dr, s.dmg, h.str], 0.85, Color("ffd27a"))
+	side.add_child(line)
+	if not h.patrol.is_empty(): side.add_child(UIKit.label("On patrol - recall at the Guild.", 0.8, Color("c9a96e")))
+	# biome picker (start at any biome after the one this hero has cleared)
+	side.add_child(UIKit.label("Destination", 0.8, Color("bdb3a0")))
+	var bf := HFlowContainer.new(); side.add_child(bf)
+	var ok := start_biomes(chosen_hero)
+	for b in DB.biomes:
+		var d: Dictionary = DB.biomes[b]
+		var bb := UIKit.button("%s %d-%d" % [d.name, d.floors[0], d.floors[1]], func(): chosen_biome = b; rebuild(), b in ok,
+			"" if b in ok else "Clear the previous biome with this hero first")
+		if b != chosen_biome: UIKit.secondary(bb)
+		bb.custom_minimum_size.x = UIKit.font_size * 5
+		bf.add_child(bb)
+		if not (b in ok): break   # show only the next locked one
+	var go := UIKit.action("Delve: %s" % DB.biomes[chosen_biome].name, func(): open_page("Delve"), GameState.can_start_run(chosen_hero))
+	go.custom_minimum_size.y = UIKit.btn_height() * 1.4
+	side.add_child(go)
+	if not portrait:
+		side.add_child(UIKit.label("Camp", 0.8, Color("bdb3a0")))
+		var qg := GridContainer.new(); qg.columns = 2; side.add_child(qg)
+		for p in ["Stash", "Forge", "Alchemy", "Enchanter", "Guild", "Journal"]:
+			var qb := UIKit.button(p, func(): open_page(p)); UIKit.with_icon(qb, PAGE_ICONS[p]); UIKit.secondary(qb)
+			qb.alignment = HORIZONTAL_ALIGNMENT_LEFT; qg.add_child(qb)
+
+func _hero_slot(c: String) -> Control:
+	var h: Dictionary = GameState.heroes[c]
+	var b := Button.new(); b.focus_mode = FOCUS_NONE
+	var sz := UIKit.font_size * 3.4
+	b.custom_minimum_size = Vector2(sz, sz)
+	var sel := c == chosen_hero
+	for st in ["normal", "hover", "pressed", "disabled"]:
+		b.add_theme_stylebox_override(st, UIKit.chrome("red_button" if sel else "grey_button", Color(1, 1, 1) if st != "disabled" else Color(0.5, 0.5, 0.5), UIKit.font_size * 0.3))
+	b.tooltip_text = DB.heroes[c].name + ("" if h.unlocked else " (locked): " + DB.heroes[c].get("unlock", ""))
+	b.disabled = not h.unlocked
+	b.pressed.connect(func(): chosen_hero = c; Sfx.play("click"); rebuild())
+	var tr := TextureRect.new(); tr.texture = _hero_tex(c); tr.texture_filter = TEXTURE_FILTER_NEAREST
+	tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE; tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	tr.set_anchors_and_offsets_preset(PRESET_FULL_RECT); tr.offset_left = sz * 0.12; tr.offset_right = -sz * 0.12; tr.offset_top = sz * 0.06; tr.offset_bottom = -sz * 0.24
+	tr.mouse_filter = MOUSE_FILTER_IGNORE
+	if not h.unlocked: tr.modulate = Color(0, 0, 0, 0.75)
+	b.add_child(tr)
+	var lv := UIKit.label(("Lv%d" % h.level) if h.unlocked else "?", 0.75, Color("ffffaa"))
+	lv.set_anchors_and_offsets_preset(PRESET_BOTTOM_WIDE); lv.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lv.offset_top = -UIKit.font_size * 1.05; lv.mouse_filter = MOUSE_FILTER_IGNORE; b.add_child(lv)
+	return b
+
+func _hero_tex(c: String) -> Texture2D:
+	var at := AtlasTexture.new(); at.atlas = load("res://assets/sprites/%s.png" % c)
+	at.region = Rect2(Vector2.ZERO, HERO_FRAME); return at
+
+## Biomes a hero may start in: Sewers, plus the biome after each one they've cleared.
+func start_biomes(c: String) -> Array:
+	var out := ["sewers"]
+	for b in DB.biomes:
+		if b in GameState.heroes[c].get("cleared", []) and DB.biomes[b].has("next"): out.append(DB.biomes[b].next)
+	return out
+
+# ------------------------------------------------------------ windows
+## Open a page (facility, Stash, Heroes, Journal, Settings or Delve) as an SPD window over the hub.
+func open_page(p: String) -> void:
+	if not (p in PAGE_ORDER): return
+	open_name = p
+	if main: main.tip("camp_" + p.to_lower())
+	_fill_window()
+
+func close_page() -> void:
+	open_name = ""; _close_info()
+	if win_layer: win_layer.queue_free(); win_layer = null
+
+## A dimmed overlay with a centred SPD window: title row (icon, name, close), and a scrolling body.
+func _make_window(title: String, icon_name: String, close_cb: Callable, w_frac := 0.96, h_frac := 0.92) -> Array:
+	var layer := Control.new(); layer.set_anchors_and_offsets_preset(PRESET_FULL_RECT); add_child(layer)
+	var dim := ColorRect.new(); dim.color = Color(0, 0, 0, 0.6); dim.set_anchors_and_offsets_preset(PRESET_FULL_RECT); layer.add_child(dim)
+	dim.gui_input.connect(func(e): if e is InputEventMouseButton and e.pressed: close_cb.call())
+	var pc := PanelContainer.new(); layer.add_child(pc)
+	var vs := get_viewport_rect().size
+	var w := minf(vs.x * w_frac, UIKit.font_size * 36.0); var h := vs.y * h_frac
+	pc.position = ((vs - Vector2(w, h)) / 2.0).floor(); pc.size = Vector2(w, h); pc.custom_minimum_size = Vector2(w, 0)
+	var v := UIKit.vbox(pc)
+	var tr := UIKit.hbox(v)
+	if icon_name != "":
+		var ic := TextureRect.new(); ic.texture = UIKit.spd_icon(icon_name); ic.texture_filter = TEXTURE_FILTER_NEAREST
+		ic.stretch_mode = TextureRect.STRETCH_KEEP_CENTERED; tr.add_child(ic)
+	var tl := UIKit.header(title); tl.size_flags_horizontal = SIZE_EXPAND_FILL; tr.add_child(tl)
+	var x := UIKit.button("X", close_cb); UIKit.secondary(x); x.custom_minimum_size = Vector2.ONE * UIKit.btn_height()
+	x.size_flags_horizontal = SIZE_SHRINK_END; tr.add_child(x)
+	var sc := ScrollContainer.new(); sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	sc.size_flags_vertical = SIZE_EXPAND_FILL; v.add_child(sc)
+	var body := UIKit.vbox(sc); body.size_flags_horizontal = SIZE_EXPAND_FILL
+	return [layer, body, pc, sc]
+
+func _fill_window() -> void:
+	var keep_scroll := 0
+	if win_layer:
+		var old_sc: ScrollContainer = win_layer.get_meta("sc"); keep_scroll = old_sc.scroll_vertical
+		win_layer.queue_free()
+	var w := _make_window(open_name if open_name != "Delve" else "Expedition", PAGE_ICONS[open_name], close_page)
+	win_layer = w[0]; win_layer.set_meta("sc", w[3]); pages[open_name] = w[1]
+	match open_name:
+		"Delve": _page_delve()
+		"Heroes": _page_heroes()
+		"Stash": _page_stash()
+		"Guild": _page_guild()
+		"Journal": _page_journal()
+		"Settings": SettingsPanel.build(_p("Settings"))
+		_: _page_facility(open_name, FAC_PAGE[open_name])
+	(func(): if is_instance_valid(w[3]): w[3].scroll_vertical = keep_scroll).call_deferred()
+	if info_layer: move_child(info_layer, -1)
 
 func _p(name: String) -> VBoxContainer:
 	var v: VBoxContainer = pages[name]
 	UIKit.clear(v)
 	return v
 
+## Small info window for one item/recipe: icon + name, text lines, then the given action buttons.
+func info(id: String, title: String, lines: Array, actions: Array = []) -> void:
+	_close_info()
+	var w := _make_window(title, "", _close_info, 0.86, 0.5)
+	info_layer = w[0]
+	var body: VBoxContainer = w[1]
+	var top := UIKit.hbox(body); var ic := UIKit.icon(id, UIKit.font_size * 3); top.add_child(ic)
+	var tv := UIKit.vbox(top); tv.size_flags_horizontal = SIZE_EXPAND_FILL
+	for l in lines:
+		if l is Control: tv.add_child(l)
+		else: tv.add_child(UIKit.label(String(l), 0.9))
+	for a in actions:   # [text, callable, reason]
+		body.add_child(UIKit.action(a[0], func(): a[1].call(); _close_info(), a[2]))
+	# fit the popup to its content
+	(func():
+		if not is_instance_valid(w[2]): return
+		var pc: PanelContainer = w[2]; var vs := get_viewport_rect().size
+		var hh := minf(vs.y * 0.8, body.get_combined_minimum_size().y + UIKit.font_size * 4.0)
+		pc.size.y = hh; pc.position.y = floorf((vs.y - hh) / 2.0)).call_deferred()
+
+func _close_info() -> void:
+	if info_layer: info_layer.queue_free(); info_layer = null
+
+## Cost as resource chips; amounts you can't afford are red.
+func cost_row(cost: Dictionary) -> HFlowContainer:
+	var f := HFlowContainer.new(); f.add_theme_constant_override("h_separation", int(UIKit.font_size * 0.6))
+	for k in cost:
+		var chip := UIKit.res_chip(k, "%d" % int(cost[k]), 0.85)
+		if GameState.mat(k) < int(cost[k]): (chip.get_child(1) as Label).add_theme_color_override("font_color", Color("ff6a5a"))
+		f.add_child(chip)
+	return f
+
+func slot_grid(v: Control) -> GridContainer:
+	var g := GridContainer.new()
+	var w := minf(get_viewport_rect().size.x * 0.96, UIKit.font_size * 36.0) - UIKit.font_size * 2.0
+	g.columns = maxi(3, int(w / (UIKit.font_size * 3.2)))
+	g.add_theme_constant_override("h_separation", int(UIKit.font_size * 0.2)); g.add_theme_constant_override("v_separation", int(UIKit.font_size * 0.2))
+	v.add_child(g); return g
+
 # ------------------------------------------------------------ Delve (loadout & start)
 func _page_delve() -> void:
 	var v := _p("Delve")
-	v.add_child(UIKit.label("Choose a hero, pack supplies, and descend into the Sewers (floors 1-5, Goo waits on 5). After each boss you may extract or press on: Prison (6-10, Tengu), then Caves (11-15, DM-300), then the Dwarf City (16-20, King of Dwarves). Extract at a boss campfire or with a Scroll of Passage; dying loses the pack."))
-	var hb := HFlowContainer.new(); v.add_child(hb)
-	for c in GameState.heroes:
-		var h: Dictionary = GameState.heroes[c]
-		var label: String = ("%s Lv%d" % [DB.heroes[c].name, h.level]) if h.unlocked else (DB.heroes[c].name + " (locked)")
-		var b := UIKit.button(("> " if c == chosen_hero else "") + label, func(): chosen_hero = c; rebuild(), h.unlocked)
-		b.custom_minimum_size.x = UIKit.font_size * 8
-		hb.add_child(b)
-	v.add_child(_stats_card(chosen_hero))
+	var b: Dictionary = DB.biomes[chosen_biome]
+	var hd := UIKit.hbox(v)
+	var tr := TextureRect.new(); tr.texture = _hero_tex(chosen_hero); tr.texture_filter = TEXTURE_FILTER_NEAREST
+	tr.custom_minimum_size = Vector2(HERO_FRAME) * maxf(2.0, floorf(UIKit.font_size / 6.0)); tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE; tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	hd.add_child(tr)
+	var hv := UIKit.vbox(hd); hv.size_flags_horizontal = SIZE_EXPAND_FILL
+	hv.add_child(UIKit.label("%s  ->  %s" % [DB.heroes[chosen_hero].name, b.name], 1.0, Color("ffd27a")))
+	hv.add_child(UIKit.label("Floors %d-%d, boss: %s. Strength %d recommended." % [b.floors[0], b.floors[1], DB.mobs.get(b.get("boss", ""), {}).get("name", "?"), b.str_gate], 0.8, Color("bdb3a0")))
+	hv.add_child(UIKit.label("Extract at a boss campfire or with a Scroll of Passage. Dying loses the pack.", 0.75, Color("9a9488")))
 	v.add_child(UIKit.header("Supplies"))
 	for k in ["ration", "torch", "potion_healing", "scroll_passage", "elixir_starter"]:
 		var have := GameState.mat(k)
@@ -88,154 +267,273 @@ func _page_delve() -> void:
 		loadout[k] = clampi(int(loadout[k]), 0, mini(have, cap))
 		if k == "elixir_starter" and have == 0: continue
 		var row := UIKit.hbox(v)
-		var r := UIKit.icon_row(k, "%s: %d  (stash %d)" % [DB.mat_name(k), loadout[k], have], 0.9)
-		r.size_flags_horizontal = SIZE_EXPAND_FILL; row.add_child(r)
-		var minus := UIKit.button("-", func(): loadout[k] -= 1; rebuild(), loadout[k] > 0); minus.size_flags_horizontal = 0
-		var plus := UIKit.button("+", func(): loadout[k] += 1; rebuild(), loadout[k] < mini(have, cap)); plus.size_flags_horizontal = 0
+		var r := UIKit.icon_row(k, "%s  x%d" % [DB.mat_name(k), loadout[k]], 0.9)
+		var mx := UIKit.label("max %d" % mini(have, cap), 0.75, Color("9a9488")); mx.autowrap_mode = TextServer.AUTOWRAP_OFF; mx.size_flags_vertical = SIZE_SHRINK_CENTER; r.add_child(mx)
+		r.size_flags_horizontal = SIZE_EXPAND_FILL; r.tooltip_text = "In stash: %d" % have; row.add_child(r)
+		var minus := UIKit.button("-", func(): loadout[k] -= 1; _fill_window(), loadout[k] > 0); minus.size_flags_horizontal = 0
+		var plus := UIKit.button("+", func(): loadout[k] += 1; _fill_window(), loadout[k] < mini(have, cap)); plus.size_flags_horizontal = 0
 		minus.custom_minimum_size.x = UIKit.btn_height(); plus.custom_minimum_size.x = UIKit.btn_height()
+		UIKit.secondary(minus); UIKit.secondary(plus)
+		for pm in [minus, plus]: pm.add_theme_font_size_override("font_size", UIKit.font_px(UIKit.font_size * 1.5))
 		row.add_child(minus); row.add_child(plus)
+	var floors := int(b.floors[1]) - int(b.floors[0]) + 1
+	if loadout.torch < floors - 2: v.add_child(UIKit.label("Tip: about one torch per floor (%d floors)." % floors, 0.75, Color("ffb060")))
 	if GameState.mat("elixir_starter") > 0 and GameState.heroes[chosen_hero].level < 3:
 		v.add_child(UIKit.button("Drink Starter Elixir (boost to Lv3)", func(): GameState.use_elixir(chosen_hero)))
-	v.add_child(UIKit.action("Descend into the Sewers", _start, GameState.can_start_run(chosen_hero)))
+	var go := UIKit.action("Descend into the %s" % b.name, _start, GameState.can_start_run(chosen_hero))
+	go.custom_minimum_size.y = UIKit.btn_height() * 1.3; v.add_child(go)
 
 func _start() -> void:
-	if GameState.start_run(chosen_hero, loadout):
-		main.show_delve()
+	if GameState.start_run(chosen_hero, loadout, chosen_biome):
+		close_page(); main.show_delve()
 
 func _stats_card(c: String) -> Control:
 	var card := UIKit.card()
 	var v := UIKit.vbox(card)
 	var h: Dictionary = GameState.heroes[c]
 	var s: Dictionary = GameState.hero_stats(c)
-	v.add_child(UIKit.label("%s - Lv%d (%d/%d xp), %d Str" % [s.name, h.level, h.xp, GameState.xp_to_next(h.level), h.str], 1.0, Color("ffd27a")))
+	var top := UIKit.hbox(v)
+	var tr := TextureRect.new(); tr.texture = _hero_tex(c); tr.texture_filter = TEXTURE_FILTER_NEAREST
+	tr.custom_minimum_size = Vector2(HERO_FRAME) * maxf(2.0, floorf(UIKit.font_size / 6.0)); tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE; tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	top.add_child(tr)
+	var tv := UIKit.vbox(top); tv.size_flags_horizontal = SIZE_EXPAND_FILL
+	tv.add_child(UIKit.label("%s  Lv%d  -  %d Str" % [s.name, h.level, h.str], 1.0, Color("ffd27a")))
+	var xb := ProgressBar.new(); xb.max_value = GameState.xp_to_next(h.level); xb.value = h.xp; xb.show_percentage = false
+	xb.custom_minimum_size.y = UIKit.font_size * 0.5; xb.tooltip_text = "%d / %d xp" % [h.xp, GameState.xp_to_next(h.level)]; tv.add_child(xb)
 	var line := "HP %d   Barrier %d   DR %d   Dmg %d" % [s.ht, s.barrier_max, s.dr, s.dmg]
-	if s.delay != 1.0: line += "   (swing %.1f ticks)" % s.delay
-	v.add_child(UIKit.label(line))
-	if s.has("sub_name"): v.add_child(UIKit.label("Subclass: %s - %s" % [s.sub_name, DB.heroes[c].subclasses[s.sub].desc], 0.9, Color("9fd3ff")))
-	elif h.get("mask", false): v.add_child(UIKit.label("Tengu's Mask: choose a subclass below.", 0.9, Color("9fd3ff")))
-	if s.has("bolt"): v.add_child(UIKit.label("Staff bolt: %s, %d dmg (ignores DR), %d charges" % [s.bolt.name, s.bolt.dmg, s.bolt.charges], 0.9))
-	v.add_child(UIKit.label("Weapon: %s\nArmor: %s\nRing: %s\nArtifact: %s" % [GameState.gear_name(GameState.gear_by_uid(h.weapon)),
-		GameState.gear_name(GameState.gear_by_uid(h.armor)), GameState.gear_name(GameState.gear_by_uid(h.ring)), GameState.gear_name(GameState.gear_by_uid(int(h.get("artifact", 0))))], 0.9))
-	if not h.unlocked: v.add_child(UIKit.label("Unlock: " + DB.heroes[c].get("unlock", ""), 0.9, Color("c9a96e")))
-	v.add_child(UIKit.label(DB.heroes[c].desc, 0.8, Color("bdb3a0")))
+	if s.delay != 1.0: line += "   swing %.1f" % s.delay
+	tv.add_child(UIKit.label(line, 0.85))
+	if s.has("sub_name"): v.add_child(UIKit.label("%s: %s" % [s.sub_name, DB.heroes[c].subclasses[s.sub].desc], 0.8, Color("9fd3ff")))
+	elif h.get("mask", false): v.add_child(UIKit.label("Tengu's Mask: choose a subclass below.", 0.8, Color("9fd3ff")))
+	if s.has("bolt"): v.add_child(UIKit.label("Staff: %s, %d dmg, %d charges" % [s.bolt.name, s.bolt.dmg, s.bolt.charges], 0.8))
+	if not h.unlocked: v.add_child(UIKit.label("Unlock: " + DB.heroes[c].get("unlock", ""), 0.85, Color("c9a96e")))
 	return card
+
+# ------------------------------------------------------------ item slots
+## SPD inventory slot: dark translucent square, item sprite, count bottom-right, "+N" top-left.
+func item_slot(id: String, br: String, tl: String, cb: Callable, tint := Color.WHITE, frame := "") -> Button:
+	var b := Button.new(); b.focus_mode = FOCUS_NONE
+	var sz := UIKit.font_size * 3.0
+	b.custom_minimum_size = Vector2(sz, sz)
+	var bg := StyleBoxFlat.new(); bg.bg_color = Color(0.33, 0.34, 0.30, 0.6)
+	if frame != "": bg.border_color = Color(frame); bg.set_border_width_all(maxi(2, int(UIKit.font_size * 0.12)))
+	var hv := bg.duplicate(); hv.bg_color = Color(0.45, 0.46, 0.40, 0.75)
+	b.add_theme_stylebox_override("normal", bg); b.add_theme_stylebox_override("hover", hv); b.add_theme_stylebox_override("pressed", hv)
+	b.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+	var ic := UIKit.icon(id, int(sz * 0.7)); ic.set_anchors_and_offsets_preset(PRESET_FULL_RECT); ic.mouse_filter = MOUSE_FILTER_IGNORE
+	ic.modulate *= tint; b.add_child(ic)
+	if br != "":
+		var l := UIKit.label(br, 0.75); l.set_anchors_and_offsets_preset(PRESET_BOTTOM_RIGHT); l.grow_horizontal = GROW_DIRECTION_BEGIN; l.grow_vertical = GROW_DIRECTION_BEGIN
+		l.autowrap_mode = TextServer.AUTOWRAP_OFF; l.offset_right = -UIKit.font_size * 0.15; l.mouse_filter = MOUSE_FILTER_IGNORE; b.add_child(l)
+	if tl != "":
+		var l2 := UIKit.label(tl, 0.75, Color("66ffff")); l2.position = Vector2(UIKit.font_size * 0.15, 0); l2.autowrap_mode = TextServer.AUTOWRAP_OFF
+		l2.mouse_filter = MOUSE_FILTER_IGNORE; b.add_child(l2)
+	b.pressed.connect(func(): Sfx.play("click"); cb.call())
+	return b
+
+func gear_icon(g: Dictionary) -> String:
+	return g.id   # rings show their gem, as in SPD (the gem is the appearance, not the identity)
+
+func gear_lines(g: Dictionary) -> Array:
+	var d := DB.item(g.id); var out := []
+	var who := GameState.equipped_by(g.uid)
+	if g.known:
+		var bits := []
+		if d.has("dmg"): bits.append("Dmg %d" % (int(d.dmg) + int(g.lvl)))
+		if d.has("dr"): bits.append("DR %d" % (int(d.dr) + int(g.lvl)))
+		if d.has("str"): bits.append("Str %d" % int(d.str))
+		if not bits.is_empty(): out.append("  ".join(bits))
+		if d.has("desc"): out.append(d.desc)
+	else: out.append("Unidentified. The Enchanter can identify it.")
+	if g.get("cracked", false): out.append("Cracked - repair at the Forge.")
+	if who != "": out.append("Equipped by " + DB.heroes[who].name)
+	return out
 
 # ------------------------------------------------------------ Heroes (equipment)
 func _page_heroes() -> void:
 	var v := _p("Heroes")
-	for c in GameState.heroes:
-		v.add_child(_stats_card(c))
-		if not GameState.heroes[c].unlocked: continue
-		HeroPanels.talents(v, c, rebuild)
-		if GameState.can_choose_subclass(c):
-			var subs: Dictionary = DB.heroes[c].subclasses
-			for sid in subs:
-				v.add_child(UIKit.button("Become %s: %s" % [subs[sid].name, subs[sid].desc], func(): GameState.choose_subclass(c, sid)))
-		var flow := HFlowContainer.new(); v.add_child(flow)
-		for g in GameState.gear:
-			var t: String = DB.item(g.id).type
-			if not (t in ["weapon", "armor", "ring", "artifact"]): continue
-			var h: Dictionary = GameState.heroes[c]
-			if h.weapon == g.uid or h.armor == g.uid or h.ring == g.uid or int(h.get("artifact", 0)) == g.uid: continue
+	var hr := HFlowContainer.new(); hr.add_theme_constant_override("h_separation", int(UIKit.font_size * 0.4)); v.add_child(hr)
+	for c in GameState.heroes: hr.add_child(_hero_slot(c))
+	var c := chosen_hero
+	v.add_child(_stats_card(c))
+	if not GameState.heroes[c].unlocked: return
+	var h: Dictionary = GameState.heroes[c]
+	v.add_child(UIKit.header("Equipped"))
+	var eg := slot_grid(v)
+	for slot in ["weapon", "armor", "ring", "artifact"]:
+		var g := GameState.gear_by_uid(int(h.get(slot, 0)))
+		if g.is_empty():
+			eg.add_child(item_slot({"weapon": "WEAPON_HOLDER", "armor": "ARMOR_HOLDER", "ring": "RING_HOLDER", "artifact": "ARTIFACT_HOLDER"}.get(slot, "SOMETHING"), "", "", func(): info("SOMETHING", slot.capitalize(), ["Empty slot."]), Color(1, 1, 1, 0.25)))
+		else:
+			eg.add_child(item_slot(gear_icon(g), "", "+%d" % g.lvl if g.lvl > 0 and g.known else "", func(): info(gear_icon(g), GameState.gear_name(g), gear_lines(g)), Color.WHITE, "c9a96e"))
+	var opts := GameState.gear.filter(func(g):
+		var t: String = DB.item(g.id).type
+		if not (t in ["weapon", "armor", "ring", "artifact"]): return false
+		var why: String = GameState.can_equip(c, g.uid)
+		return GameState.equipped_by(g.uid) == "" and not why.begins_with("heirloom") and not why.begins_with("equipped"))
+	if not opts.is_empty():
+		v.add_child(UIKit.header("Swap gear (tap to equip)"))
+		var sg := slot_grid(v)
+		for g in opts:
 			var why: String = GameState.can_equip(c, g.uid)
-			if why.begins_with("heirloom") or why.begins_with("equipped"): continue
-			var b := UIKit.button("Equip " + GameState.gear_name(g), func(): GameState.equip(c, g.uid), why == "", why)
-			b.custom_minimum_size.x = UIKit.font_size * 10
-			b.icon = null
-			flow.add_child(b)
-		if c == "mage":
-			for g in GameState.gear:
-				if DB.item(g.id).type == "wand" and g.known:
-					flow.add_child(UIKit.button("Imbue " + GameState.gear_name(g), func(): GameState.imbue_wand(g.uid)))
+			sg.add_child(item_slot(gear_icon(g), "", "+%d" % g.lvl if g.lvl > 0 and g.known else "", func():
+				info(gear_icon(g), GameState.gear_name(g), gear_lines(g), [["Equip on " + DB.heroes[c].name, func(): GameState.equip(c, g.uid), why]]),
+				Color.WHITE if why == "" else Color(1, 0.6, 0.6)))
+	if c == "mage":
+		for g in GameState.gear:
+			if DB.item(g.id).type == "wand" and g.known:
+				v.add_child(UIKit.button("Imbue " + GameState.gear_name(g), func(): GameState.imbue_wand(g.uid)))
+	if GameState.can_choose_subclass(c):
+		var subs: Dictionary = DB.heroes[c].subclasses
+		for sid in subs:
+			v.add_child(UIKit.button("Become %s: %s" % [subs[sid].name, subs[sid].desc], func(): GameState.choose_subclass(c, sid)))
+	HeroPanels.talents(v, c, rebuild)
 
 # ------------------------------------------------------------ Stash
 func _page_stash() -> void:
 	var v := _p("Stash")
-	v.add_child(UIKit.header("Materials & consumables"))
-	var grid := GridContainer.new(); grid.columns = 2 if portrait else 3; v.add_child(grid)
+	v.add_child(UIKit.header("Materials & supplies"))
+	var grid := slot_grid(v)
 	for k in DB.materials:
 		if GameState.mat(k) > 0:
-			var r := UIKit.icon_row(k, "%s x%d" % [DB.mat_name(k), GameState.mat(k)], 0.9)
-			r.size_flags_horizontal = SIZE_EXPAND_FILL; grid.add_child(r)
-	v.add_child(UIKit.header("Gear"))
+			var md: Dictionary = DB.materials[k]
+			grid.add_child(item_slot(k, str(GameState.mat(k)), "", func(): info(k, DB.mat_name(k), [md.get("desc", "") if GameState.is_mat_known(k) else "Unidentified - use it during a delve to learn what it is.", "In stash: %d" % GameState.mat(k)])))
+	v.add_child(UIKit.header("Gear (%d)" % GameState.gear.size()))
+	var gg := slot_grid(v)
 	for g in GameState.gear:
 		var who := GameState.equipped_by(g.uid)
-		var text := GameState.gear_name(g) + ("  [%s]" % DB.heroes[who].name if who != "" else "")
-		v.add_child(UIKit.icon_row(g.id if g.known else ("RING_HOLDER" if DB.item(g.id).type == "ring" else g.id), text, 0.9))
+		gg.add_child(item_slot(gear_icon(g), DB.heroes[who].name.substr(0, 1) if who != "" else "", "+%d" % g.lvl if g.lvl > 0 and g.known else "",
+			func(): info(gear_icon(g), GameState.gear_name(g), gear_lines(g)), Color(1, 0.55, 0.5) if g.get("cracked", false) else Color.WHITE, "c9a96e" if who != "" else ""))
 
 # ------------------------------------------------------------ Facilities
+const NEXT_TEXT := {"blacksmith": "Gear upgrade cap +%d", "alchemy": "Potion belt %d slots", "enchanter": "Faster identification (Lv%d)", "guild": "Patrols up to %dh"}
+
+func _preview(id: String, lvl: int) -> String:
+	match id:
+		"blacksmith": return NEXT_TEXT[id] % lvl
+		"alchemy": return (NEXT_TEXT[id] % (lvl + 1)) + (", Starter Elixirs" if lvl == 2 else "")
+		"guild": return NEXT_TEXT[id] % [2, 4, 8][clampi(lvl - 1, 0, 2)]
+		_: return NEXT_TEXT[id] % lvl
+
 func _facility_header(v: VBoxContainer, id: String) -> void:
 	var f: Dictionary = GameState.facilities[id]
 	var d: Dictionary = DB.facilities[id]
-	v.add_child(UIKit.header("%s  Lv%d / cap %d (max %d)" % [d.name, f.level, f.cap, d.max]))
-	v.add_child(UIKit.label(d.desc, 0.85, Color("bdb3a0")))
+	var card := UIKit.card(); v.add_child(card)
+	var row := UIKit.hbox(card)
+	var kk := maxf(2.0, floorf(UIKit.font_size / 6.0))
+	if NPC.has(id):
+		var at := AtlasTexture.new(); at.atlas = load("res://assets/sprites/%s.png" % NPC[id][0]); at.region = Rect2(0, 0, NPC[id][1], NPC[id][2])
+		var tr := TextureRect.new(); tr.texture = at; tr.texture_filter = TEXTURE_FILTER_NEAREST
+		tr.custom_minimum_size = Vector2(NPC[id][1], NPC[id][2]) * kk; tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE; tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		row.add_child(tr)
+	else:
+		var at2 := AtlasTexture.new(); at2.atlas = load("res://assets/tiles/tiles_sewers.png"); at2.region = Rect2(0, 64, 16, 16)
+		var tp := TextureRect.new(); tp.texture = at2; tp.texture_filter = TEXTURE_FILTER_NEAREST; tp.custom_minimum_size = Vector2(16, 16) * kk
+		tp.expand_mode = TextureRect.EXPAND_IGNORE_SIZE; row.add_child(tp)
+	var cv := UIKit.vbox(row); cv.size_flags_horizontal = SIZE_EXPAND_FILL
+	cv.add_child(UIKit.label("%s   Lv %d / %d" % [d.name, f.level, f.cap], 1.0, Color("ffd27a")))
+	var pb := ProgressBar.new(); pb.max_value = int(d.max); pb.value = f.level; pb.show_percentage = false
+	pb.custom_minimum_size.y = UIKit.font_size * 0.5; pb.tooltip_text = "Max level %d (cap raised by Scrolls of Upgrade)" % d.max; cv.add_child(pb)
+	cv.add_child(UIKit.label(d.desc, 0.8, Color("bdb3a0")))
 	var why: String = GameState.can_upgrade_facility(id)
-	v.add_child(UIKit.action("Upgrade (%s)" % GameState.cost_text(GameState.facility_upgrade_cost(id)), func(): GameState.upgrade_facility(id), why))
+	if f.level < int(d.max):
+		cv.add_child(UIKit.label("Next: " + _preview(id, f.level + 1), 0.85, Color("9fd3ff")))
+		var ur := UIKit.hbox(v)
+		var cr := cost_row(GameState.facility_upgrade_cost(id)); cr.size_flags_horizontal = SIZE_EXPAND_FILL; ur.add_child(cr)
+		var ub := UIKit.action("Upgrade", func(): GameState.upgrade_facility(id), why); ub.custom_minimum_size.x = UIKit.font_size * 7; ur.add_child(ub)
 	if f.cap < int(d.max) and GameState.mat("scroll_upgrade") > 0:
 		v.add_child(UIKit.button("Apply Scroll of Upgrade (raise cap)", func(): GameState.apply_sou(id)))
+
+func _recipe_slots(v: VBoxContainer, id: String, title: String) -> void:
+	var rs: Array = DB.recipes.get(id, [])
+	if rs.is_empty(): return
+	v.add_child(UIKit.header(title))
+	var g := slot_grid(v)
+	for r in rs:
+		var out: String = r.get("out", r.get("out_mat", ""))
+		var why: String = GameState.can_craft(id, r.id)
+		var lines: Array = [cost_row(r.cost)]
+		var od: Dictionary = DB.item(out) if r.has("out") else DB.materials.get(out, {})
+		if od.has("desc"): lines.append(od.desc)
+		if r.has("out") and od.has("dmg"): lines.append("Dmg %d  Str %d" % [od.dmg, od.get("str", 10)])
+		if r.has("out") and od.has("dr"): lines.append("DR %d  Str %d" % [od.dr, od.get("str", 10)])
+		var have := "" if r.has("out") else str(GameState.mat(out))
+		g.add_child(item_slot(out, have, "", func(): info(out, r.name, lines, [["Make", func(): GameState.craft(id, r.id), why]]),
+			Color.WHITE if why == "" else Color(1, 1, 1, 0.45), "6bff6b" if why == "" else ""))
 
 func _page_facility(page: String, id: String) -> void:
 	var v := _p(page)
 	_facility_header(v, id)
-	v.add_child(UIKit.header("Recipes"))
-	for r in DB.recipes.get(id, []):
-		var out: String = r.get("out", r.get("out_mat", ""))
-		var row := UIKit.vbox(v)
-		row.add_child(UIKit.icon_row(out, "%s  -  %s" % [r.name, GameState.cost_text(r.cost)], 0.9))
-		row.add_child(UIKit.action("Make", func(): GameState.craft(id, r.id), GameState.can_craft(id, r.id)))
+	_recipe_slots(v, id, "Recipes (tap for details)")
 	if id == "blacksmith":
 		v.add_child(UIKit.header("Upgrade & repair (cap +%d)" % GameState.facility_level("blacksmith")))
+		var g2 := slot_grid(v)
 		for g in GameState.gear:
 			var t: String = DB.item(g.id).type
 			if not (t in ["weapon", "armor"]): continue
-			if g.cracked:
-				v.add_child(UIKit.action("Repair %s (%s)" % [GameState.gear_name(g), GameState.cost_text(GameState.repair_cost(g.uid))],
-					func(): GameState.repair(g.uid), "" if GameState.can_afford(GameState.repair_cost(g.uid)) else "need " + GameState.cost_text(GameState.repair_cost(g.uid))))
-			else:
-				v.add_child(UIKit.action("Upgrade %s (%s)" % [GameState.gear_name(g), GameState.cost_text(GameState.item_upgrade_cost(g.uid))],
-					func(): GameState.upgrade_item(g.uid), GameState.can_upgrade_item(g.uid)))
+			var cracked: bool = g.get("cracked", false)
+			var cost: Dictionary = GameState.repair_cost(g.uid) if cracked else GameState.item_upgrade_cost(g.uid)
+			var why: String = ("" if GameState.can_afford(cost) else "need " + GameState.cost_text(cost)) if cracked else GameState.can_upgrade_item(g.uid)
+			var lines := gear_lines(g)
+			if not cracked and g.known: lines.push_front("+%d  ->  +%d" % [g.lvl, g.lvl + 1])
+			lines.push_front(cost_row(cost))
+			g2.add_child(item_slot(gear_icon(g), "", "+%d" % g.lvl if g.lvl > 0 and g.known else "", func():
+				info(gear_icon(g), GameState.gear_name(g), lines, [["Repair" if cracked else "Upgrade", func(): (GameState.repair(g.uid) if cracked else GameState.upgrade_item(g.uid)), why]]),
+				Color(1, 0.55, 0.5) if cracked else Color.WHITE, "6bff6b" if why == "" else ""))
 	if id == "enchanter":
-		v.add_child(UIKit.header("Identification queue (%d min each)" % int(GameState.identify_seconds() / 60)))
+		v.add_child(UIKit.header("Identifying (%d min each)" % int(GameState.identify_seconds() / 60)))
+		if GameState.id_queue.is_empty(): v.add_child(UIKit.label("Nothing queued. Tap an unknown item below.", 0.8, Color("9a9488")))
 		for q in GameState.id_queue:
 			var g := GameState.gear_by_uid(q.uid)
 			var left := maxf(0.0, float(q.ready_at) - GameState.now())
-			v.add_child(UIKit.label("%s - %d:%02d left" % [GameState.gear_name(g), int(left) / 60, int(left) % 60], 0.9))
-		for g in GameState.gear:
-			if g.known: continue
-			if GameState.id_queue.any(func(q): return q.uid == g.uid): continue
-			v.add_child(UIKit.button("Queue %s for identification" % GameState.gear_name(g), func(): GameState.enqueue_identify(g.uid)))
+			var row := UIKit.hbox(v)
+			row.add_child(UIKit.icon(gear_icon(g)))
+			var cv := UIKit.vbox(row); cv.size_flags_horizontal = SIZE_EXPAND_FILL
+			cv.add_child(UIKit.label("%s   %d:%02d" % [GameState.gear_name(g), int(left) / 60, int(left) % 60], 0.85))
+			var pb := ProgressBar.new(); pb.max_value = 1.0; pb.step = 0.0; pb.show_percentage = false
+			pb.value = clampf(1.0 - left / maxf(1.0, GameState.identify_seconds()), 0.0, 1.0); pb.custom_minimum_size.y = UIKit.font_size * 0.5
+			cv.add_child(pb)
+		var unk := GameState.gear.filter(func(g): return not g.known and not GameState.id_queue.any(func(q): return q.uid == g.uid))
+		if not unk.is_empty():
+			v.add_child(UIKit.header("Unknown items"))
+			var ug := slot_grid(v)
+			for g in unk:
+				ug.add_child(item_slot(gear_icon(g), "", "?", func(): info(gear_icon(g), GameState.gear_name(g), gear_lines(g), [["Queue for identification", func(): GameState.enqueue_identify(g.uid), ""]])))
 		if not GameState.id_queue.is_empty():
 			var t := Timer.new(); t.wait_time = 1.0; t.autostart = true; v.add_child(t)
-			t.timeout.connect(func(): if tabs.current_tab == TAB_ORDER.find("Enchanter"): _page_facility("Enchanter", "enchanter"))
+			t.timeout.connect(func(): if open_name == "Enchanter" and info_layer == null: _fill_window())
 
 func _page_guild() -> void:
 	var v := _p("Guild")
 	_facility_header(v, "guild")
-	v.add_child(UIKit.header("Supplies"))
-	for r in DB.recipes.guild:
-		v.add_child(UIKit.action("%s (%s)" % [r.name, GameState.cost_text(r.cost)], func(): GameState.craft("guild", r.id), GameState.can_craft("guild", r.id)))
+	_recipe_slots(v, "guild", "Supplies (tap to buy)")
 	v.add_child(UIKit.header("Offline Patrols (max %dh)" % int(GameState.patrol_max_hours())))
-	v.add_child(UIKit.label("Idle heroes patrol a cleared biome in real time and bring back upgrade fuel. Yield scales with power vs the biome's Strength gate.", 0.85, Color("bdb3a0")))
+	v.add_child(UIKit.label("Idle heroes patrol a cleared biome in real time and bring back upgrade fuel.", 0.8, Color("bdb3a0")))
 	for c in GameState.heroes:
 		var h: Dictionary = GameState.heroes[c]
 		if not h.unlocked: continue
-		var card := UIKit.card(); var cv := UIKit.vbox(card); v.add_child(card)
+		var card := UIKit.card(); var row := UIKit.hbox(card); v.add_child(card)
+		var tr := TextureRect.new(); tr.texture = _hero_tex(c); tr.texture_filter = TEXTURE_FILTER_NEAREST
+		tr.custom_minimum_size = Vector2(HERO_FRAME) * maxf(2.0, floorf(UIKit.font_size / 8.0)); tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE; row.add_child(tr)
+		var cv := UIKit.vbox(row); cv.size_flags_horizontal = SIZE_EXPAND_FILL
 		if h.patrol.is_empty():
-			cv.add_child(UIKit.label("%s - idle" % DB.heroes[c].name))
+			cv.add_child(UIKit.label("%s - idle" % DB.heroes[c].name, 0.9))
+			var bf := HFlowContainer.new(); cv.add_child(bf)
 			for b in DB.biomes:
-				cv.add_child(UIKit.action("Patrol the %s (efficiency %d%%)" % [DB.biomes[b].name, int(GameState.patrol_efficiency(c, b) * 100)],
-					func(): GameState.start_patrol(c, b), GameState.can_patrol(c, b)))
+				if GameState.can_patrol(c, b) != "" and not GameState.can_patrol(c, b).begins_with("need"): continue
+				var pb := UIKit.button("%s %d%%" % [DB.biomes[b].name, int(GameState.patrol_efficiency(c, b) * 100)], func(): GameState.start_patrol(c, b), GameState.can_patrol(c, b) == "", GameState.can_patrol(c, b))
+				bf.add_child(pb)
+			if bf.get_child_count() == 0: cv.add_child(UIKit.label("Clear a biome first.", 0.8, Color("9a9488")))
 		else:
 			var y: Dictionary = GameState.patrol_preview(c)
-			var parts := []
+			cv.add_child(UIKit.label("%s - patrolling %.1fh / %dh" % [DB.heroes[c].name, y._hours, int(GameState.patrol_max_hours())], 0.9))
+			var pr := ProgressBar.new(); pr.max_value = GameState.patrol_max_hours(); pr.step = 0.0; pr.value = float(y._hours); pr.show_percentage = false
+			pr.custom_minimum_size.y = UIKit.font_size * 0.5; cv.add_child(pr)
+			var yf := HFlowContainer.new(); cv.add_child(yf)
 			for k in y:
-				if not String(k).begins_with("_") and int(y[k]) > 0: parts.append("%d %s" % [y[k], DB.mat_name(k)])
-			cv.add_child(UIKit.label("%s - patrolling %.1fh: %s%s" % [DB.heroes[c].name, y._hours, ", ".join(parts) if parts else "nothing yet",
-				", %d curios" % y._curios if y._curios > 0 else ""]))
+				if not String(k).begins_with("_") and int(y[k]) > 0: yf.add_child(UIKit.res_chip(k, str(y[k]), 0.8))
+			if y._curios > 0: yf.add_child(UIKit.label("+%d curios" % y._curios, 0.8))
 			cv.add_child(UIKit.button("Recall & collect", func(): GameState.collect_patrol(c)))
-
-func _page_settings() -> void:
-	SettingsPanel.build(_p("Settings"))
 
 # ------------------------------------------------------------ Journal (meta-progression + codex)
 var journal_view := "progress"
@@ -244,7 +542,8 @@ func _page_journal() -> void:
 	var v := _p("Journal")
 	var sw := HFlowContainer.new(); v.add_child(sw)
 	for t in [["progress", "Progress"], ["codex", "Codex"]]:
-		var b := UIKit.button(("> " if journal_view == t[0] else "") + t[1], func(): journal_view = t[0]; _page_journal())
+		var b := UIKit.button(t[1], func(): journal_view = t[0]; _fill_window())
+		if journal_view != t[0]: UIKit.secondary(b)
 		b.custom_minimum_size.x = UIKit.font_size * 7; sw.add_child(b)
 	if journal_view == "codex": CodexView.build(v, portrait); return
 	var done := GameState.milestones_claimed.size()
@@ -265,14 +564,14 @@ func _page_journal() -> void:
 	var lines := ["Expeditions: %d (%d extracted, %d deaths)" % [st.runs, st.extractions, st.deaths], "Deepest floor: %d" % st.deepest_floor,
 		"Monsters defeated: %d   Goo: %d   Tengu: %d" % [st.kills, st.goo_kills, st.tengu_kills],
 		"Hidden traps found: %d   Hidden doors: %d   Potions brewed: %d" % [st.traps_found, st.hidden_doors, st.potions_brewed]]
-	for l in lines: v.add_child(UIKit.label(l, 0.9))
+	for l in lines: v.add_child(UIKit.label(l, 0.85))
 
 func _progress_card(title: String, desc: String, have: int, goal: int, reward: String, done: bool) -> Control:
 	var card := UIKit.card(); var cv := UIKit.vbox(card)
 	cv.add_child(UIKit.label(("[done] " if done else "") + title, 1.0, Color("6bff6b") if done else Color("ffd27a")))
-	cv.add_child(UIKit.label(desc, 0.85, Color("bdb3a0")))
+	cv.add_child(UIKit.label(desc, 0.8, Color("bdb3a0")))
 	if not done:
 		var bar := ProgressBar.new(); bar.max_value = goal; bar.value = mini(have, goal); bar.show_percentage = false
-		bar.custom_minimum_size.y = UIKit.font_size * 0.8; cv.add_child(bar)
+		bar.custom_minimum_size.y = UIKit.font_size * 0.6; cv.add_child(bar)
 		cv.add_child(UIKit.label("%d / %d   %s" % [mini(have, goal), goal, reward], 0.8))
 	return card

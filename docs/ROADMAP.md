@@ -12,6 +12,14 @@
 - [x] Dwarf City floors 16-20 + King of Dwarves (v0.15.0).
 - [x] Demon Halls 21-25 + Yog-Dzewa (v0.17.0; fists/phases not yet).
 - [x] King of Dwarves lifelink + 3 phases (v0.18.0).
+- [x] Items with ID: rings, artifacts, unknown potions/scrolls (v0.19.0). Wands remain class staffs.
+- [x] SPD door open/close + grass layering and trampling (v0.19.1).
+- [x] Surface Camp hub: camp scene, hero portraits, biome picker, item-slot grids, upgrade previews (v0.20.0).
+- [ ] Camp: long-press item compare, animated NPC idles from SPD anim tables, facility art per level.
+- [ ] Alchemy at Camp (brew from found unknown potions / seeds, SPD-style pot UI).
+- [ ] More special rooms (vault, library, garden, sacrificial).
+- [ ] Perf pass (lighting rect count, camp scene redraw only on change).
+- [ ] Yog-Dzewa fists + phases.
 - [ ] Talent icons (talent_icons.png), toolbar/status pane art.
 - [ ] Rogue without subclass still 0/10 in the Caves (subclass is the intended fix).
 - [x] Guided first-fight tutorial (v0.11.0).

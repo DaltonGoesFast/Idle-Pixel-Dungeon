@@ -29,11 +29,12 @@ func _process(_d: float) -> void:
 		5:
 			_check(main.screen.get_script().resource_path.ends_with("camp_screen.gd"), "starts in camp")
 			_check(main.tip_open() and main.tips.queue[0].id == "welcome", "first run shows the welcome tutorial")
-			for i in main.screen.tabs.get_tab_count(): main.screen.tabs.current_tab = i
-			main.screen.journal_view = "codex"; main.screen.rebuild()
+			for pg in main.screen.PAGE_ORDER: main.screen.open_page(pg)
+			main.screen.journal_view = "codex"; main.screen.open_page("Journal")
 			_check(main.screen.pages["Journal"].get_child_count() > 3, "journal codex renders")
 			GameState.set_setting("text_scale", 1.3); GameState.set_setting("text_scale", 1.0)
 			_check(UIKit.font_size > 0, "text size change relayouts")
+			main.screen.close_page()
 			main.screen.chosen_hero = classes[0]
 			main.screen._start()
 		8:
@@ -147,7 +148,7 @@ func _drive() -> void:
 					print("  Yog-Dzewa defeated through the UI, extracting")
 					var hc: String = GameState.run.hero
 					GameState.end_run("extract"); main.show_camp()
-					main.screen.rebuild()
+					main.screen.chosen_hero = hc; main.screen.open_page("Heroes")
 					var btn = _find_button(main.screen.pages["Heroes"], "Become ")
 					_check(btn != null, "Heroes page offers subclass choices")
 					if btn: btn.pressed.emit()

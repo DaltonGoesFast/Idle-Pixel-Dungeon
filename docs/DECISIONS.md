@@ -207,3 +207,14 @@ This ports SPD's DungeonTileSheet/DungeonWallsTilemap door handling:
 - Open/closed is derived from occupancy every frame, so it can't get stuck.
 - Tall grass trodden on becomes short grass (SPD HIGH_GRASS→GRASS). It no longer blocks sight, and `combat.trampled` is saved.
 - The tall-grass overhang is drawn in the ground pass, so it no longer cuts off the top of characters.
+
+## 82. Surface Camp hub redesign (v0.20.0)
+- The tab strip is replaced by a drawn camp scene (`camp_scene.gd`): a night sky with SPD surface clouds and a grass clearing with a campfire, drawn with sewer tiles at an integer scale.
+  - Facility NPCs use SPD sprites: Blacksmith → Forge, Wandmaker → Enchanter, Shopkeeper → Guild, alchemy pot tile → Alchemy, chest → Stash.
+  - Tapping one opens its page as an SPD chrome window.
+  - A red "!" badge marks an affordable upgrade or a finished identification.
+- Under the scene: portrait hero slots with level badges, a biome picker and a big Delve button. The scene is stacked on the cover and side by side on the inner screen, which also gets quick-access buttons.
+  - The picker lets a hero start in Sewers, or in the biome after any biome they've cleared; the run starts on that biome's first floor.
+- Lists are SPD-style item-slot grids (translucent square, count bottom-right, +N top-left, green frame = actionable). Tapping a slot opens an info window with stats, a cost row (unaffordable amounts in red) and the action.
+- Facility windows show the NPC, Lv/cap with a level bar and a "Next:" upgrade preview. Identification and patrols show progress bars.
+- The pixel font now disables subpixel positioning and hinting. Headless screenshots render at half device resolution, so 1-px glyphs (i) can drop out there but not on the device.

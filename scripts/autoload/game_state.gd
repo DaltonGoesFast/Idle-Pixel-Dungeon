@@ -651,10 +651,11 @@ func start_run(c: String, loadout: Dictionary, biome := "sewers", seed := -1) ->
 		if k == "potion_healing": n = mini(n, belt_size())
 		sup[k] = n; add_mat(k, -n)
 	var s := hero_stats(c)
-	run = {"hero": c, "biome": biome, "floor": 1, "progress": 0.0, "torch": 100.0, "satiety": 100.0,
+	var f0 := int(DB.biomes[biome].floors[0])
+	run = {"hero": c, "biome": biome, "floor": f0, "progress": 0.0, "torch": 100.0, "satiety": 100.0,
 		"hp": s.ht, "pack": {}, "pack_gear": [], "supplies": sup, "seed": seed if seed >= 0 else int(now()) % 100000,
 		"events": [], "next_event": 0, "gather": 0, "starve": 0, "milestones_done": [], "pending_loot": 0, "boss_dead": false}
-	stats.runs += 1; note_floor(1)
+	stats.runs += 1; note_floor(f0)
 	say("%s descends into the %s." % [s.name, DB.biomes[biome].name]); touch(); return true
 
 func pack_add(id: String, n: int) -> void:

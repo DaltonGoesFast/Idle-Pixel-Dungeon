@@ -17,20 +17,32 @@ func _ready() -> void:
 	GameState.add_mat("iron_ore", 20); GameState.add_mat("gold", 200)
 	main = load("res://scenes/main.tscn").instantiate(); add_child(main)
 	for sz in SIZES:
-		plan.append([sz, "camp", func(): main.show_camp()])
-		plan.append([sz, "forge", func(): main.show_camp(); main.screen.tabs.current_tab = 3])
+		plan.append([sz, "camp", func(): main.show_camp(); main.screen.close_page()])
+		plan.append([sz, "camp_expedition", func(): main.show_camp(); main.screen.open_page("Delve")])
+		plan.append([sz, "camp_heroes", func(): main.show_camp(); main.screen.open_page("Heroes")])
+		plan.append([sz, "camp_stash", func(): main.show_camp(); main.screen.open_page("Stash")])
+		plan.append([sz, "forge", func(): main.show_camp(); main.screen.open_page("Forge")])
+		plan.append([sz, "camp_forge_info", func():
+			main.show_camp(); main.screen.open_page("Forge")
+			var r: Dictionary = DB.recipes.blacksmith[0]
+			main.screen.info(r.out, r.name, [main.screen.cost_row(r.cost), "A sample recipe."], [["Make", func(): pass, ""]])])
+		plan.append([sz, "camp_alchemy", func(): main.show_camp(); main.screen.open_page("Alchemy")])
+		plan.append([sz, "camp_enchanter", func():
+			var u: int = GameState.add_gear("ring_wealth", false); GameState.add_gear("ring_evasion", false); GameState.enqueue_identify(u)
+			main.show_camp(); main.screen.open_page("Enchanter")])
+		plan.append([sz, "camp_guild", func(): main.show_camp(); main.screen.open_page("Guild")])
 		plan.append([sz, "journal", func():
 			GameState.stats.extractions = 1; GameState.stats.kills = 37; GameState.touch()
-			main.show_camp(); main.screen.tabs.current_tab = main.screen.TAB_ORDER.find("Journal")])
+			main.show_camp(); main.screen.open_page("Journal")])
 		plan.append([sz, "codex", func():
 			for m in ["rat", "snake", "gnoll", "crab", "goo"]: GameState.discover("mob:" + m)
 			GameState.discover("trap:worn_dart")
-			main.show_camp(); main.screen.journal_view = "codex"; main.screen.tabs.current_tab = main.screen.TAB_ORDER.find("Journal")
+			main.show_camp(); main.screen.journal_view = "codex"; main.screen.open_page("Journal")
 			main.screen.rebuild()])
 		plan.append([sz, "tip", func():
 			main.show_camp(); main.tips.push("welcome")])
 		plan.append([sz, "tip_closed", func(): main.tips.skip_all(); GameState.settings.tutorial = false])
-		plan.append([sz, "settings", func(): main.show_camp(); main.screen.tabs.current_tab = main.screen.TAB_ORDER.find("Settings")])
+		plan.append([sz, "settings", func(): main.show_camp(); main.screen.open_page("Settings")])
 		plan.append([sz, "delve", func():
 			if GameState.run.is_empty(): GameState.start_run("warrior", {"ration": 1, "torch": 1, "potion_healing": 1}, "sewers", 5)
 			main.show_delve(); main.delve.running = false

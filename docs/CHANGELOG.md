@@ -6,6 +6,12 @@
 
 
 
+## 0.20.0
+- New Surface Camp hub: a drawn camp scene where you tap the NPCs to open the Forge, Enchanter, Alchemy, Guild and Stash.
+- Hub controls: portrait hero selector, biome picker (start past biomes you have cleared) and a big Delve button.
+- Facility windows show upgrade previews and progress bars. Items appear in SPD item-slot grids; tap a slot for info.
+- New screenshot steps for every Camp window.
+
 ## 0.19.1
 - Fix: doors now open while a character stands in them, with SPD door frames layered over the occupant.
 - Fix: tall grass no longer cuts off the tops of characters. Grass you walk through is trampled to short grass, as in SPD.

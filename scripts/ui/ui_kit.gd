@@ -226,6 +226,7 @@ static func make_theme(fs: int) -> Theme:
 		pixel_font = load("res://assets/fonts/pixel_font.ttf")
 		pixel_font.antialiasing = TextServer.FONT_ANTIALIASING_NONE
 		pixel_font.hinting = TextServer.HINTING_NONE
+		pixel_font.subpixel_positioning = TextServer.SUBPIXEL_POSITIONING_DISABLED
 		var sys := SystemFont.new()   # glyphs the pixel font lacks (project custom_font is the pixel font itself)
 		sys.font_names = PackedStringArray(["sans-serif"])
 		pixel_font.fallbacks = [sys]
