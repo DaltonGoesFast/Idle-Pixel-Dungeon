@@ -51,12 +51,19 @@ func _process(_d: float) -> void:
 		print("UI SMOKE: timeout at stage ", stage, " screen ", main.screen.get_script().resource_path, " run ", GameState.run.get("biome"), " f", GameState.run.get("floor"), " pending ", main.delve.pending if main.delve else "-")
 		if main.screen.get("combat") != null: print("  last log: ", main.screen.combat.log_lines.slice(-6))
 		get_tree().quit(1)
+var guided_checked := false
 
 func _drive() -> void:
 	var s = main.screen
 	if s.get_script().resource_path.ends_with("combat_screen.gd"):
 		if not s.finished and s.grid.tileset != DB.biomes[GameState.run.biome].tile:
 			_check(false, "fights use the biome's tileset")
+		if stage == 0 and not guided_checked and not s.finished:
+			guided_checked = true
+			_check(s.guide >= 1 and s.guide_label.text.begins_with("Step"), "first fight is guided")
+			_check(s.guide != 1 or s.grid.hint_cell.x >= 0, "guided step 1 highlights a tile")
+		if stage > 0 and s.guide > 0 and not s.finished and "guided_fight" in GameState.tutorial_done:
+			_check(false, "guided fight only once")
 		if not s.finished:
 			s._do_bot()
 			if stage == 0 and s.combat.log_lines.size() >= 3 and not s.finished and not resumed:
@@ -127,6 +134,7 @@ func _drive() -> void:
 				GameState.add_mat("potion_healing", 3); s.loadout.potion_healing = 3; GameState.facilities.alchemy.level = 3
 			s.chosen_hero = classes[ci]; s._start(); main.delve.fast = true
 			return
+		_check("guided_fight" in GameState.tutorial_done, "guided first fight completed and remembered")
 		for t in ["welcome", "delve_bar", "first_fight", "floor_done"]:
 			_check(tips_seen.has(t), "tutorial tip shown: " + t)
 		_check(not main.tip_open() and "welcome" in GameState.tutorial_done, "tips are remembered once dismissed")

@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.11.0 — 2026-10-14
+- **Guided first fight**: the first non-boss fight on a save shows a 3-step banner (Move -> Attack -> Finish) with a glowing tile marking exactly what to tap; ranged heroes skip straight to step 3 once they hit. It never blocks input, ends with a short recap, is remembered, honours "Skip all tips", and replays with "Replay the tutorial tips".
+- Tests: UI smoke checks the guided fight appears, highlights a tile, completes and is not shown again.
+
 ## v0.10.0 — 2026-10-14
 - **Tengu's Mask**: beating Tengu with a class grants its mask; choose one of two permanent SPD subclasses in Camp -> Heroes.
 - Subclasses (simple versions): Warrior Berserker (rage +30% below half HP) / Gladiator (combo +1 per hit, max +3); Mage Battlemage (every 2nd melee hit restores a staff charge) / Warlock (kills heal 35% of the foe's max HP); Rogue Assassin (surprise +1x, +1 Cloak) / Freerunner (attacks 20% faster, +1 DR, +1 Cloak); Huntress Sniper (bow +1, ignores DR) / Warden (+2 Barrier, +1 DR, tall grass heals).

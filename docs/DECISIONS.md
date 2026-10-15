@@ -118,3 +118,6 @@ SPD gives the subclass choice for Tengu's Mask; we grant the mask on the class's
 
 ## 62. Subclass balance (cavesrun, 10 seeds)
 Warrior base 7 / Berserker 10 / Gladiator 8; Huntress 5 / Sniper 8 / Warden 8; Mage 4 / Battlemage 10 / Warlock 4; Rogue 0 / Assassin 7 / Freerunner 8. Subclasses are a reward for beating Tengu, so being stronger than base is intended. Warlock shows no gain in the sim (the bot's Mage dies to darkness/attrition on floors 11-13, not single fights); left as a known issue rather than over-tuning blind. A test asserts the best Rogue subclass reaches >= 4/10.
+
+## 63. Guided first fight: a banner + glowing tile, never an input lock
+A scripted fight with locked input would need its own room and code path that could break real play. Instead the real first fight gets a step banner and reuses the Hint highlight (path_step toward the enemy, then the adjacent enemy). Progress is read from the fight state, so any action order works; completion is stored as tutorial_done "guided_fight" and resets with "Replay the tutorial tips".

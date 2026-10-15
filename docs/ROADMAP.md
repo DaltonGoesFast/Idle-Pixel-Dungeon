@@ -6,7 +6,7 @@
 - [x] Caves biome, floors 11-15, DM-300 (v0.9.0).
 - [x] Tengu's Mask + 2 subclasses per class (v0.10.0); Rogue Caves 0 -> 7-8/10.
 - [ ] Warlock shows no sim gain; Mage base Caves 4/10.
-- [ ] Guided first-fight tutorial.
+- [x] Guided first-fight tutorial (v0.11.0).
 - [ ] Playtest pass on the Fold 6: tap targets, text sizes, delve speed (`DelveScreen.SPEED`), fight length.
 - [x] Save/restore in-progress fights (v0.4.0).
 - [x] Prison biome + Tengu (v0.5.0).

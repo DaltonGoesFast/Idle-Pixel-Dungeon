@@ -55,3 +55,8 @@ Compatibility renderer (OpenGL ES 3) on all platforms; `canvas_items` stretch wi
 - **Recipe / special room / door:** JSON only (`recipes.json`, `events.json`). Rewards: material ids, `item` (known gear id) or `item_unknown` (`ring`/`wand`).
 - **Hero class:** add to `heroes.json` + an ability branch in `CombatScreen._refresh`/`Combat`. See ROADMAP for Rogue/Huntress notes.
 - **Biome:** add to `biomes.json`, copy SPD's `tiles_<biome>.png`, give GridView the tile sheet (currently hard-wired to sewers - TODO).
+
+## Subclasses and guided fight (v0.10-0.11)
+- `heroes.json` `subclasses`: flat stat modifiers applied in `GameState.hero_stats()`; an optional `perk` is copied onto the combat hero and handled in `Combat._melee_dmg/_melee_perks/_kill/_end_hero_turn`.
+- `GameState.heroes[c].mask/subclass` (defaults merged into old saves by `from_dict`), `can_choose_subclass/choose_subclass`; Tengu's Mask is granted in `record_boss_kill`.
+- `CombatScreen.guide` drives the guided first fight from fight state (`_guide_update`), using `GridView.hint_cell` for the glowing tile.

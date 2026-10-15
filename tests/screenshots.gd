@@ -35,6 +35,10 @@ func _ready() -> void:
 			main.show_delve(); main.delve.running = false
 			for i in 30: Delve.advance(GameState, 1.0)
 			main.delve.pending = {"kind": "door", "door": DB.doors[0]}; main.delve._show_card()])
+		plan.append([sz, "guided", func():
+			GameState.settings.tutorial = true; GameState.tutorial_done = ["first_fight", "welcome", "delve_bar"]
+			main.start_combat(Delve.combat_event(GameState.run, Delve.rng_for(GameState.run, 3), ["rat"]), func(_r): pass)
+			GameState.settings.tutorial = false])
 		plan.append([sz, "combat", func():
 			main.start_combat(Delve.combat_event(GameState.run, Delve.rng_for(GameState.run, 3), ["gnoll", "crab"]), func(_r): pass)
 			for i in 3: main.screen._do_bot()])

@@ -22,6 +22,9 @@ var heal := 10
 var auto := false
 var _auto_t := 0.0
 var finished := false
+## Guided first fight (v0.11.0, DECISIONS #63): 0 = off, 1 move, 2 attack, 3 finish, 4 done
+var guide := 0
+var guide_label: Label
 
 ## `saved` (optional) = Combat.to_dict() from GameState.run.active_fight when resuming after the app was killed.
 func setup(ev: Dictionary, done: Callable, saved := {}) -> void:
@@ -45,6 +48,10 @@ func _ready() -> void:
 	grid.set_combat(combat)
 	side = UIKit.vbox(split); side.size_flags_horizontal = SIZE_EXPAND_FILL; side.size_flags_vertical = SIZE_EXPAND_FILL
 	side.add_child(UIKit.header("BOSS: " + DB.mobs[event.mobs[0]].name if event.get("boss", false) else "Combat"))
+	if not event.get("boss", false) and bool(GameState.settings.get("tutorial", true)) and not ("guided_fight" in GameState.tutorial_done):
+		guide = 1
+		guide_label = UIKit.label("", 1.0, Color("9fd3ff")); guide_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		side.add_child(guide_label)
 	status = UIKit.label(""); side.add_child(status)
 	buttons = HFlowContainer.new(); side.add_child(buttons)
 	log_scroll = ScrollContainer.new(); log_scroll.size_flags_vertical = SIZE_EXPAND_FILL
@@ -92,6 +99,7 @@ func _refresh() -> void:
 	if int(h.get("poison", 0)) > 0: line += "\nPOISONED: -1 HP per turn for %d turns" % int(h.poison)
 	if combat.surprise_ready(): line += "\nIn cover: your next attack is a SURPRISE (x%.1f, no DR, knockback)" % float(h.surprise_mult)
 	status.text = line
+	_guide_update()
 	if main and not finished:
 		if combat.surprise_ready(): main.tip("surprise")
 		if not combat.danger.is_empty(): main.tip("telegraph")
@@ -113,6 +121,33 @@ func _refresh() -> void:
 	_btn("Hint", _hint)
 	_btn("Auto: ON" if auto else "Auto", func(): auto = not auto; _refresh())
 	_refresh_log()
+
+## Guided first fight: a step banner + a glowing tile showing exactly what to tap. Never blocks input.
+func _guide_update() -> void:
+	if guide == 0 or guide_label == null: return
+	var h := combat.hero
+	var foes := combat.enemies()
+	var adj := foes.filter(func(e): return Combat.cheb(e.pos, h.pos) == 1)
+	if finished:
+		if guide < 4:
+			guide = 4
+			if not ("guided_fight" in GameState.tutorial_done): GameState.tutorial_done.append("guided_fight")
+		guide_label.text = "Tutorial complete! Fights are won by positioning: fight in doorways, step off red tiles, and use your class ability." if combat.won else "You fell - that's part of learning. Gear cracks, but the Camp keeps everything you banked."
+		return
+	if guide <= 2 and (combat.kills > 0 or foes.any(func(e): return e.hp < e.ht)): guide = 3
+	if guide == 1 and not adj.is_empty(): guide = 2
+	match guide:
+		1:
+			guide_label.text = "Step 1/3 - Move: tap the glowing tile to step toward the enemy. Each action costs time; enemies act on the same clock."
+			if not foes.is_empty():
+				var st = combat.path_step(h.pos, foes[0].pos, true, true, true)
+				if st != null: grid.hint_cell = st
+		2:
+			guide_label.text = "Step 2/3 - Attack: tap the glowing enemy next to you."
+			grid.hint_cell = adj[0].pos if not adj.is_empty() else Vector2i(-1, -1)
+		3:
+			guide_label.text = "Step 3/3 - Finish it! Blue bar = Barrier (soaks hits first, refills each fight). Red tiles = an attack is coming: step off. Stuck? Tap Hint."
+	grid.queue_redraw()
 
 func _refresh_log() -> void:
 	log_label.clear()
