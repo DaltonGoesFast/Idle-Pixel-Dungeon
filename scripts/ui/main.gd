@@ -127,7 +127,8 @@ func tip_open() -> bool:
 func _toast(text: String) -> void:
 	# in a fight, toasts go to the combat log instead of floating over the arena/log (DECISIONS #75)
 	if screen != null and screen.get("combat") != null and screen.has_method("_refresh"):
-		if not screen.combat.over: screen.combat._log(text); screen._refresh()
+		screen.combat._log(text)
+		if not screen.combat.over: screen._refresh()
 		return
 	# a screen with a window/log open handles the message itself instead of floating (DECISIONS #83, #106)
 	if screen != null and screen.has_method("window_toast") and screen.window_toast(text): return

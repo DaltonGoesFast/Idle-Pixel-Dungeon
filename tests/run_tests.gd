@@ -1423,19 +1423,46 @@ func test_encounter_summary(gs) -> void:
 	check(not scr._summary_open(), "OK closes the result window")
 	gs.run.hp = 20
 	gs.run.fights_won = 0
-	scr._after_fight({"kind": "combat", "mobs": ["rat"]}, {"won": true, "hp": 14, "loot": 5, "fallen_loot": 2, "xp": 1, "boss_killed": false, "kills": 1, "traps_found": 0, "trap_ids": [], "potions_used": 1}, {})
+	var fight_ev := Delve.combat_event(gs.run, Delve.rng_for(gs.run, 1), ["rat"])
+	var cs = load("res://scripts/ui/combat_screen.gd").new()
+	cs.setup(fight_ev, func(res): scr._after_fight(fight_ev, res, {}))
+	add_child(cs)
+	cs.combat.hero.hp = 14; cs.combat.loot = 5; cs.combat.fallen_loot = 2; cs.combat.xp = 1; cs.combat.kills = 1
+	cs.potions_used = 1; cs.combat.over = true; cs.combat.won = true
+	cs._act(func(): pass)
+	var vcard: Node = cs.buttons.get_node_or_null("VictoryResults")
+	txt = _node_text(vcard)
+	check(vcard != null and _find_btn(vcard, "Continue") != null and txt.contains("Victory") and txt.contains("Got") and txt.contains("Lost") and txt.contains("+5 Gold") and txt.contains("-6 HP") and txt.contains("-1 Potion of Healing") and txt.contains("+2 Gold on the next floor") and txt.contains("+1 XP"), "post-battle Continue card lists loot, damage, a potion drunk, and fallen gold")
+	gs.settings.full_auto = true
+	var done_state := {"called": false}
+	cs.on_done = func(res): done_state.called = true; scr._after_fight(fight_ev, res, {})
+	cs._process(2.0)
+	check(not done_state.called, "auto battle does not auto-click Continue on the post-battle victory results")
+	cs._finish()
+	check(done_state.called and not scr._summary_open(), "clicking Continue finishes the fight without opening a second victory popup")
+	cs.queue_free()
+	# Clean victory with nothing lost omits the Lost category on the post-battle Continue card.
+	gs.settings.full_auto = false
+	var cs_clean = load("res://scripts/ui/combat_screen.gd").new()
+	cs_clean.setup(fight_ev, func(_r): pass)
+	add_child(cs_clean)
+	cs_clean.combat.loot = 5; cs_clean.combat.xp = 1; cs_clean.combat.kills = 1
+	cs_clean.combat.over = true; cs_clean.combat.won = true
+	cs_clean._act(func(): pass)
+	var clean_txt := _node_text(cs_clean.buttons.get_node_or_null("VictoryResults"))
+	check(clean_txt.contains("Victory") and clean_txt.contains("Got") and not clean_txt.contains("Lost"), "post-battle victory results hide the Lost category when nothing was lost")
+	cs_clean.queue_free()
+	scr._open_summary("Free cache", PackedStringArray(["+14 Gold", "+13 XP"]), PackedStringArray())
 	txt = _node_text(scr.get_node("EncounterSummary"))
-	check(txt.contains("Victory") and txt.contains("+5 Gold") and txt.contains("-6 HP") and txt.contains("-1 Potion of Healing") and txt.contains("+2 Gold on the next floor") and txt.contains("+1 XP"), "fight window lists loot, damage, a potion drunk, and fallen gold")
-	scr._accept_summary()
-	scr._open_summary("Victory", PackedStringArray(["+14 Gold", "+13 XP"]), PackedStringArray())
+	check(txt.contains("Got") and not txt.contains("Lost"), "results popup hides the Lost category when nothing was lost")
 	var list: ScrollContainer = scr.get_node("EncounterSummary").find_child("SummaryList", true, false)
-	check(list.custom_minimum_size.y >= 5.0 * UIKit.font_size * 1.5, "a short victory gives each line room")
+	check(list.custom_minimum_size.y >= 3.0 * UIKit.font_size * 1.5, "a short summary gives each line room")
 	await get_tree().process_frame
 	var bar := list.get_v_scroll_bar()
-	check(bar.max_value <= bar.page + 1.0, "a short victory fits without a scrollbar")
+	check(bar.max_value <= bar.page + 1.0, "a short summary fits without a scrollbar")
 	scr._accept_summary()
 	gs.settings.full_auto = true
-	scr._open_summary("Victory", PackedStringArray(), PackedStringArray())
+	scr._open_summary("Free cache", PackedStringArray(), PackedStringArray())
 	scr._process(2.0)
 	check(scr._summary_open(), "auto battle does not click through the result window")
 	scr._accept_summary()
@@ -1656,12 +1683,11 @@ func test_facility_cap(gs) -> void:
 	gs.facilities.guild.level = 2; gs.facilities.guild.cap = 1
 	gs.from_dict(JSON.parse_string(JSON.stringify(gs.to_dict())))
 	check(int(gs.facilities.guild.cap) == 2, "loading a save repairs cap < level")
-	# hero slots show the level, the line under them adds Str (DECISIONS #124); tapping a second time opens Heroes
+	# hero slots show Lv + Str; tapping a second time opens Heroes
 	gs.heroes.mage.unlocked = true; gs.heroes.mage.level = 4; gs.heroes.mage.str = 12
 	var cs = load("res://scripts/ui/camp_screen.gd").new(); add_child(cs)
 	var m_slot: Button = cs._hero_slot("mage")
-	check(_node_text(m_slot).contains("Lv4"), "hero slot shows level (%s)" % _node_text(m_slot))
-	check(cs.hero_line("mage").contains("Lv4") and cs.hero_line("mage").contains("Str 12"), "hero line shows level and Str (%s)" % cs.hero_line("mage"))
+	check(_node_text(m_slot).contains("Lv4") and _node_text(m_slot).contains("Str 12"), "hero slot shows level and Str (%s)" % _node_text(m_slot))
 	m_slot.pressed.emit()
 	check(cs.chosen_hero == "mage" and cs.open_name == "", "first tap selects the hero")
 	var m_slot2: Button = cs._hero_slot("mage")

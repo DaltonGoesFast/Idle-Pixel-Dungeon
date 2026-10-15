@@ -8,6 +8,7 @@ var main: Control
 var combat: Combat
 var on_done: Callable
 var event: Dictionary
+var reward: Dictionary = {}
 var split: BoxContainer
 var grid
 var side: VBoxContainer
@@ -24,6 +25,8 @@ var auto := false
 var _auto_t := 0.0
 var _low_hp_stopped := false
 var finished := false
+var _applied := false
+var _summary := {}
 ## Guided first fight (v0.11.0, DECISIONS #63): 0 = off, 1 move, 2 attack, 3 finish, 4 done
 var bag_open := false
 var bag_host: VBoxContainer
@@ -33,7 +36,9 @@ var guide_label: Label
 ## `saved` (optional) = Combat.to_dict() from GameState.run.active_fight when resuming after the app was killed.
 func setup(ev: Dictionary, done: Callable, saved := {}) -> void:
 	event = ev; on_done = done
+	_applied = false; _summary = {}
 	var run: Dictionary = GameState.run
+	reward = ev.get("reward", run.get("active_fight", {}).get("reward", {}))
 	var hs: Dictionary = GameState.hero_stats(run.hero)
 	if saved.is_empty():
 		combat = Delve.new_combat(GameState, ev)
@@ -42,6 +47,10 @@ func setup(ev: Dictionary, done: Callable, saved := {}) -> void:
 		combat._log("(fight resumed)")
 	potions = int(run.supplies.get("potion_healing", 0))
 	heal = GameState.potion_heal(run.hero)
+	if combat.over:
+		finished = true; auto = false
+		if combat.won: _ensure_victory_summary()
+		return
 	# Auto Battle plays the fight itself: the combat Auto toggle starts on (unless already close to dying).
 	if bool(GameState.settings.get("full_auto", false)):
 		if combat.close_to_dying(): _stop_auto_low_hp()
@@ -90,14 +99,10 @@ func apply_layout(portrait: bool, s: Vector2) -> void:
 		grid.size_flags_vertical = SIZE_FILL
 	_refresh()
 
-var _fin_t := 0.0
 func _process(d: float) -> void:
 	if main and main.tip_open(): return
-	if finished and GameState.settings.get("full_auto", false):
-		_fin_t += d
-		if _fin_t > 1.2: _fin_t = -999.0; _finish()   # Auto Battle presses Continue
-		return
-	if auto and not finished:
+	if finished: return
+	if auto:
 		_auto_t += d
 		if _auto_t > 0.35:
 			_auto_t = 0.0; _do_bot()
@@ -139,6 +144,7 @@ func _refresh() -> void:
 	if int(h.get("poison", 0)) > 0: line += "\nPOISONED: -1 HP per turn for %d turns" % int(h.poison)
 	if combat.surprise_ready(): line += "\nIn cover: your next attack is a SURPRISE (x%.1f, no DR, knockback)" % float(h.surprise_mult)
 	status.text = line
+	status.visible = not finished
 	_guide_update()
 	if main and not finished:
 		if combat.surprise_ready(): main.tip("surprise")
@@ -146,7 +152,7 @@ func _refresh() -> void:
 		if combat.traps.values().any(func(t): return not t.hidden): main.tip("trap")
 	UIKit.clear(buttons)
 	if finished:
-		_result_buttons(); _refresh_log(); return
+		_result_buttons(); _refresh_log(); _refresh_bag(); return
 	_btn("Wait", func(): _act(func(): combat.hero_wait()))
 	if "shove" in h.abilities:
 		_btn("Shove: ON" if mode == "shove" else "Shove", func(): mode = "" if mode == "shove" else "shove"; grid.mode = mode; _refresh())
@@ -249,6 +255,7 @@ func _act(f: Callable) -> void:
 	_persist()
 	if combat.over and not finished:
 		finished = true; auto = false
+		if combat.won: _ensure_victory_summary()
 		Sfx.play("levelup" if combat.won else "death")
 	else:
 		_check_low_hp_stop()
@@ -307,20 +314,63 @@ func _do_bot() -> void:
 		"search": _act(func(): combat.hero_search())
 		"tap": _act(func(): if not combat.hero_tap(s.pos, s.mode): combat.hero_wait())
 
+func _ensure_victory_summary() -> void:
+	if not _summary.is_empty(): return
+	var res := result()
+	if not GameState.run.is_empty():
+		var before := Delve.ledger(GameState)
+		var lvl: int = GameState.heroes[GameState.run.hero].level
+		Delve.apply_fight_result(GameState, event, res, reward)
+		_applied = true
+		if int(GameState.heroes[GameState.run.hero].level) > lvl:
+			GameState.run.talent_prompted = false
+		_summary = Delve.fight_changes(before, Delve.ledger(GameState), res)
+		if Delve.close_to_dying(GameState) and GameState.settings.get("full_auto", false):
+			_stop_auto_low_hp()
+		GameState.run.erase("active_fight")
+		SaveSystem.save_game()
+	else:
+		var got := PackedStringArray()
+		var lost := PackedStringArray()
+		if combat.loot > 0: got.append("+%d Gold" % combat.loot)
+		if combat.fallen_loot > 0: got.append("+%d Gold on the next floor" % combat.fallen_loot)
+		if combat.xp > 0: got.append("+%d XP" % combat.xp)
+		if potions_used > 0: lost.append("-%d %s" % [potions_used, DB.display_name("potion_healing")])
+		_summary = {"got": got, "lost": lost}
+
 func _result_buttons() -> void:
 	if combat.won:
-		var txt := "Victory! +%d gold, +%d xp" % [combat.loot, combat.xp]
-		if combat.fallen_loot > 0: txt += " (%d fell to the next floor)" % combat.fallen_loot
-		buttons.add_child(UIKit.label(txt, 1.0, Color("ffd27a")))
-		_btn("Continue", _finish)
+		_ensure_victory_summary()
+		var card := UIKit.card()
+		card.name = "VictoryResults"
+		card.size_flags_horizontal = SIZE_EXPAND_FILL
+		buttons.add_child(card)
+		var box := UIKit.vbox(card, int(UIKit.font_size * 0.25))
+		box.size_flags_horizontal = SIZE_EXPAND_FILL
+		box.add_child(UIKit.header("Victory"))
+		_result_section(box, "Got", _summary.got, GameState.LOG_COLORS.positive)
+		if not _summary.lost.is_empty():
+			_result_section(box, "Lost", _summary.lost, GameState.LOG_COLORS.negative)
+		var b := UIKit.button("Continue", _finish)
+		b.custom_minimum_size.x = UIKit.font_size * 6.5
+		UIKit.as_toolbar(b)
+		box.add_child(b)
 	else:
 		buttons.add_child(UIKit.label("Defeat... the pack is lost and your gear cracks.", 1.0, Color("ff7070")))
 		_btn("Wake at Camp", _finish)
 
+func _result_section(parent: Node, heading: String, lines: PackedStringArray, color: Color) -> void:
+	parent.add_child(UIKit.label(heading, 1.0, color))
+	if lines.is_empty():
+		parent.add_child(UIKit.label("Nothing", 0.9, Color("9a8f7c")))
+		return
+	for s in lines:
+		parent.add_child(UIKit.label(s, 0.9, color))
+
 func result() -> Dictionary:
 	return {"won": combat.won, "hp": combat.hero.hp, "loot": combat.loot, "fallen_loot": combat.fallen_loot, "xp": combat.xp,
 		"boss_killed": combat.boss_killed, "potions_used": potions_used, "kills": combat.kills, "traps_found": combat.traps_found,
-		"trap_ids": combat.trap_ids_seen}
+		"trap_ids": combat.trap_ids_seen, "applied": _applied}
 
 func _finish() -> void:
 	GameState.run.erase("active_fight")

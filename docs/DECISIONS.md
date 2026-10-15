@@ -348,11 +348,11 @@ Deep campaign sims had the Rogue dying 26 times in 120 expeditions (Warrior 8, M
 
 ## 124. Camp layout: scene first, one job per window
 The hub stacked a wrapping resource bar, a short scene, portraits that repeated Lv/Str, a second stats line, biome buttons with floor ranges, and (wide only) a button grid that duplicated the NPCs. Now:
-- The resource strip is one row that scrolls sideways. The scene takes the free space; the dock under it (beside it when wide) holds portraits (face + level), one stats line, destination chips (biome name, floors in the tooltip) and Delve, which sits at the dock's foot. The extra Heroes button and the wide quick-access grid are gone: tap the selected portrait for Heroes, the NPCs for facilities.
+- The resource strip is one row that scrolls sideways. The scene takes the free space; the dock under it (beside it when wide) holds portraits (face + Lv/Str), one stats line, destination chips (biome name, floors in the tooltip) and Delve, which sits at the dock's foot. On the wide dock the empty middle holds the same patrol cards as the Guild (send / recall); the cover stays lean. The extra Heroes button and the wide quick-access grid are gone: tap the selected portrait for Heroes, the NPCs for facilities.
 - CampScene: the sky is capped at 2.5 tiles and spots are placed as fractions of the ground, so a tall cover screen is mostly clearing. Name plates show the page name only; facility level moved to a small badge on the sprite's top-left (the "!" stays top-right). test_camp_npc_hits still covers sprite and plate hits.
 - Windows have a footer under the scroller for the page's main action: Descend on Expedition, Upgrade (cost left, button right, reason underneath) and Apply Scroll of Upgrade on facilities.
 - Stash (Materials / Potions & scrolls / Gear), Forge (Craft / Upgrade & repair / Rings) and Guild (Supplies / Patrols) split into sections with Journal-style buttons; the choice is remembered while the app runs and a switch scrolls to the top.
-- Recipe slots (Forge, Guild, Enchanter, Alchemy) are wider and captioned with the recipe name minus its verb ("Ration Crate", "Leather"), so slots are told apart without opening them.
+- Recipe slots (Forge, Guild, Enchanter) are wider and captioned with the recipe name minus its verb ("Ration Crate", "Leather"). Alchemy recipes are a list of icon + full name (no truncated grid captions).
 - Journal lists open milestones as cards and folds finished ones into one "Completed (N)" line. A locked class on the Heroes page shows its unlock progress card instead of a stats card.
 
 ## 125. Delve screen: corridor first, cards as windows over it

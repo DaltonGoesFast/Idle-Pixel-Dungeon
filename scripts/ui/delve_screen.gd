@@ -523,19 +523,18 @@ func _after_fight(ev: Dictionary, res: Dictionary, reward: Dictionary) -> void:
 	pending = {}
 	var before := Delve.ledger(GameState)
 	var lvl: int = GameState.heroes[GameState.run.hero].level
-	if not Delve.apply_fight_result(GameState, ev, res, reward):
-		Sfx.play("death")
-		if main: main.end_combat()
-		var loss: Dictionary = Delve.defeat_changes(GameState, before, res)
-		_open_summary("Defeat", loss.got, loss.lost, _defeat_ok, true, loss.note)
-		return
-	if GameState.heroes[GameState.run.hero].level > lvl:
-		Sfx.play("levelup"); GameState.run.talent_prompted = false
-	var gain := Delve.fight_changes(before, Delve.ledger(GameState), res)
+	if not res.get("applied", false):
+		if not Delve.apply_fight_result(GameState, ev, res, reward):
+			Sfx.play("death")
+			if main: main.end_combat()
+			var loss: Dictionary = Delve.defeat_changes(GameState, before, res)
+			_open_summary("Defeat", loss.got, loss.lost, _defeat_ok, true, loss.note)
+			return
+		if GameState.heroes[GameState.run.hero].level > lvl:
+			Sfx.play("levelup"); GameState.run.talent_prompted = false
 	if Delve.close_to_dying(GameState) and GameState.settings.get("full_auto", false):
 		_stop_auto_low_hp()
 	if main: main.end_combat()
-	_open_summary("Victory", gain.got, gain.lost)
 
 func _defeat_ok() -> void:
 	GameState.end_run("death")
@@ -748,13 +747,14 @@ func _build_summary() -> void:
 	var rows := _summary_row_count()
 	var want := float(rows) * line_h + float(maxi(rows - 1, 0)) * float(gap) + UIKit.font_size * 0.45
 	var reserved := UIKit.btn_height() + pad * 2.0 + float(gap) * 2.0 + UIKit.font_size * (3.2 if _summary_note != "" else 1.8)
-	var room := maxf(line_h * 4.0, vs.y - 2.0 * float(m) - reserved)
+	var room := maxf(line_h * float(maxi(rows, 2)), vs.y - 2.0 * float(m) - reserved)
 	sc.custom_minimum_size = Vector2(0, minf(want, room))
 	box.add_child(sc)
 	var inner := UIKit.vbox(sc, gap)
 	inner.size_flags_horizontal = SIZE_EXPAND_FILL
 	_summary_section(inner, "Got", _summary_got, GameState.LOG_COLORS.positive, line_h)
-	_summary_section(inner, "Lost", _summary_lost, GameState.LOG_COLORS.negative, line_h)
+	if not _summary_lost.is_empty():
+		_summary_section(inner, "Lost", _summary_lost, GameState.LOG_COLORS.negative, line_h)
 	var measured := inner.get_combined_minimum_size().y
 	if measured > sc.custom_minimum_size.y and measured < want * 2.2:
 		sc.custom_minimum_size.y = minf(measured + UIKit.font_size * 0.25, room)
@@ -767,7 +767,10 @@ func _build_summary() -> void:
 	tw.tween_property(card, "modulate:a", 1.0, 0.15)
 
 func _summary_row_count() -> int:
-	return 2 + maxi(_summary_got.size(), 1) + maxi(_summary_lost.size(), 1)
+	var n := 1 + maxi(_summary_got.size(), 1)
+	if not _summary_lost.is_empty():
+		n += 1 + _summary_lost.size()
+	return n
 
 func _summary_line(text: String, scale: float, color: Color, line_h: float) -> Label:
 	var l := UIKit.label(text, scale, color)

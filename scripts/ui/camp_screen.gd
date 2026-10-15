@@ -94,7 +94,8 @@ func _build_side() -> void:
 		hr.add_child(_hero_slot(c))
 	var h: Dictionary = GameState.heroes[chosen_hero]
 	side.add_child(UIKit.label(hero_line(chosen_hero), 0.85, Color("ffd27a")))
-	if not h.patrol.is_empty(): side.add_child(UIKit.label("On patrol - recall at the Guild.", 0.8, Color("c9a96e")))
+	if not h.patrol.is_empty() and portrait:
+		side.add_child(UIKit.label("On patrol - recall at the Guild.", 0.8, Color("c9a96e")))
 	# biome picker (start at any biome after the one this hero has cleared)
 	side.add_child(UIKit.label("Destination", 0.8, Color("bdb3a0")))
 	var bf := HFlowContainer.new(); side.add_child(bf)
@@ -108,7 +109,12 @@ func _build_side() -> void:
 		bf.add_child(bb)
 		if not (b in ok): break   # show only the next locked one
 	if not portrait:
-		var gap := Control.new(); gap.size_flags_vertical = SIZE_EXPAND_FILL; side.add_child(gap)
+		# wide dock: fill the empty middle with patrols (cover stays lean; Guild still has the full page)
+		var sc := ScrollContainer.new(); sc.size_flags_vertical = SIZE_EXPAND_FILL
+		sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED; side.add_child(sc)
+		var pv := UIKit.vbox(sc); pv.size_flags_horizontal = SIZE_EXPAND_FILL
+		pv.add_child(UIKit.label("Patrols (max %dh)" % int(GameState.patrol_max_hours()), 0.8, Color("bdb3a0")))
+		_patrol_list(pv)
 	var go := UIKit.action("Delve: %s" % DB.biomes[chosen_biome].name, func(): open_page("Delve"), GameState.can_start_run(chosen_hero))
 	go.custom_minimum_size.y = UIKit.btn_height() * 1.4
 	side.add_child(go)
@@ -121,7 +127,7 @@ func hero_line(c: String) -> String:
 func _hero_slot(c: String) -> Control:
 	var h: Dictionary = GameState.heroes[c]
 	var b := Button.new(); b.focus_mode = FOCUS_NONE
-	var sz := UIKit.font_size * 3.4; var ht := UIKit.font_size * 3.6
+	var sz := UIKit.font_size * 3.4; var ht := UIKit.font_size * 4.0
 	b.custom_minimum_size = Vector2(sz, ht)
 	var sel := c == chosen_hero
 	for st in ["normal", "hover", "pressed", "disabled"]:
@@ -133,13 +139,13 @@ func _hero_slot(c: String) -> Control:
 		if c == chosen_hero: open_page("Heroes")
 		else: chosen_hero = c; rebuild())
 	var tr := UIKit.pixel(_hero_tex(c), maxi(1, int(sz * 0.62 / 15.0)))
-	tr.set_anchors_and_offsets_preset(PRESET_FULL_RECT); tr.offset_bottom = -int(UIKit.font_size * 0.95)
+	tr.set_anchors_and_offsets_preset(PRESET_FULL_RECT); tr.offset_bottom = -int(UIKit.font_size * 1.55)
 	if not h.unlocked: tr.modulate = Color(0, 0, 0, 0.75)
 	b.add_child(tr)
-	var lv := UIKit.label("Lv%d" % h.level if h.unlocked else "?", 0.75, Color("ffffaa"))
-	lv.autowrap_mode = TextServer.AUTOWRAP_OFF
+	var lv := UIKit.label(("Lv%d\nStr %d" % [h.level, h.str]) if h.unlocked else "?", 0.75, Color("ffffaa"))
+	lv.add_theme_constant_override("line_spacing", -int(UIKit.font_size * 0.1))
 	lv.set_anchors_and_offsets_preset(PRESET_BOTTOM_WIDE); lv.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	lv.offset_top = -UIKit.font_size * 1.1; lv.mouse_filter = MOUSE_FILTER_IGNORE; b.add_child(lv)
+	lv.offset_top = -UIKit.font_size * 1.75; lv.mouse_filter = MOUSE_FILTER_IGNORE; b.add_child(lv)
 	return b
 
 func _hero_tex(c: String) -> Texture2D:
@@ -845,15 +851,21 @@ func _alchemy_pot(v: VBoxContainer) -> void:
 		if GameState.craft("alchemy", r.id): Sfx.play("drink"), why)
 	brew.custom_minimum_size.y = UIKit.btn_height() * 1.2; pv.add_child(brew)
 	v.add_child(UIKit.header("Recipes"))
-	var g := slot_grid(v, CAPTION_CELL)
+	# list (not a captioned grid): full names, no ellipsis
 	for x in rs:
 		var o2: String = x.get("out", x.get("out_mat", ""))
 		var ok := GameState.can_craft("alchemy", x.id) == ""
 		var ukey := ""
 		for k in x.cost:
 			if DB.materials.get(k, {}).get("unknown", false): ukey = k
-		g.add_child(item_slot(ukey if ukey != "" else o2, "", "", func(): alch_sel = x.id; _fill_window(), Color.WHITE if ok else Color(1, 1, 1, 0.45),
-			"ffff66" if x.id == alch_sel else ("6bff6b" if ok else ""), {}, "", short_name(recipe_name(x))))
+		var rid: String = x.id
+		var rr := UIKit.hbox(v)
+		var ic := UIKit.icon(ukey if ukey != "" else o2); ic.size_flags_vertical = SIZE_SHRINK_CENTER; rr.add_child(ic)
+		var b := UIKit.button(recipe_name(x), func(): alch_sel = rid; _fill_window())
+		b.alignment = HORIZONTAL_ALIGNMENT_LEFT; b.size_flags_horizontal = SIZE_EXPAND_FILL
+		if rid != alch_sel: UIKit.secondary(b)
+		if not ok: b.modulate = Color(1, 1, 1, 0.55)
+		rr.add_child(b)
 
 func _page_facility(page: String, id: String) -> void:
 	var v := _p(page)
@@ -925,6 +937,10 @@ func _page_guild() -> void:
 		return
 	v.add_child(UIKit.header("Offline Patrols (max %dh)" % int(GameState.patrol_max_hours())))
 	v.add_child(UIKit.label("Idle heroes patrol a cleared biome in real time and bring back upgrade fuel.", 0.8, Color("bdb3a0")))
+	_patrol_list(v)
+
+## One card per unlocked hero: idle biome buttons, or progress + Recall. Used by Guild and the wide camp dock.
+func _patrol_list(v: Control) -> void:
 	for c in GameState.heroes:
 		var h: Dictionary = GameState.heroes[c]
 		if not h.unlocked: continue
