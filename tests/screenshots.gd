@@ -12,6 +12,7 @@ const RENDER_SCALE := 2
 var plan := []
 
 func _ready() -> void:
+	if OS.has_environment("SHOT_DIR"): out = OS.get_environment("SHOT_DIR")
 	DirAccess.make_dir_recursive_absolute(out)
 	SaveSystem.autosave = false; SaveSystem.path = "user://shots.json"
 	GameState.new_game()
@@ -64,14 +65,16 @@ func _ready() -> void:
 				GameState.add_gear(rid, true); GameState.add_gear(rid, false)
 			var cr: int = GameState.add_gear("ring_might", true); GameState.gear_by_uid(cr).cracked = true
 			GameState.add_mat("potion_toxic", 1); GameState.add_mat("scroll_upgrade", 1)
-			main.show_camp(); main.screen.open_page("Stash")])
+			main.show_camp(); main.screen.section["Stash"] = "gear"; main.screen.open_page("Stash")])
 		plan.append([sz, "forge", func():
 			GameState.add_mat("iron_ore", 40); GameState.add_mat("dark_gold", 5); GameState.add_mat("gold", 100)
 			GameState.facilities.blacksmith.level = 3
 			var a: int = GameState.add_gear("shortsword", true, 0); var b: int = GameState.add_gear("cloth_armor", true, 1)
 			GameState.gear_by_uid(a).cracked = true; GameState.gear_by_uid(b).cracked = true
 			var rg: int = GameState.add_gear("ring_wealth", true); GameState.gear_by_uid(rg).cracked = true
-			main.show_camp(); main.screen.open_page("Forge")])
+			main.show_camp(); main.screen.section["Forge"] = "upgrade"; main.screen.open_page("Forge")])
+		plan.append([sz, "forge_craft", func():
+			main.show_camp(); main.screen.section["Forge"] = "craft"; main.screen.open_page("Forge")])
 		plan.append([sz, "camp_forge_info", func():
 			main.show_camp(); main.screen.open_page("Forge")
 			var uid: int = GameState.add_gear("mace", true, 0)

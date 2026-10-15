@@ -6,13 +6,14 @@ extends Control
 
 signal picked(page: String)
 
-const SPOTS := [   # page, sprite, frame w, frame h, x frac, y frac (feet), label
-	["Forge", "blacksmith", 13, 16, 0.17, 0.50, "Forge"],
-	["Enchanter", "wandmaker", 12, 14, 0.83, 0.50, "Enchanter"],
-	["Alchemy", "_pot", 16, 16, 0.22, 0.90, "Alchemy"],
-	["Guild", "shopkeeper", 14, 14, 0.78, 0.90, "Guild"],
-	["Stash", "_chest", 16, 16, 0.50, 0.95, "Stash"],
+const SPOTS := [   # page, sprite, frame w, frame h, x frac, y frac of the ground (feet), label
+	["Forge", "blacksmith", 13, 16, 0.17, 0.42, "Forge"],
+	["Enchanter", "wandmaker", 12, 14, 0.83, 0.42, "Enchanter"],
+	["Alchemy", "_pot", 16, 16, 0.18, 0.97, "Alchemy"],
+	["Guild", "shopkeeper", 14, 14, 0.82, 0.97, "Guild"],
+	["Stash", "_chest", 16, 16, 0.50, 0.97, "Stash"],
 ]
+const FIRE_Y := 0.5   # campfire height, as a fraction of the ground
 const FAC := {"Forge": "blacksmith", "Enchanter": "enchanter", "Alchemy": "alchemy", "Guild": "guild"}
 var hero := "warrior"
 var t := 0.0
@@ -52,16 +53,23 @@ func k() -> float:
 func _tile(r: Rect2, idx: int, tx: Texture2D = null) -> void:
 	draw_texture_rect_region(tx if tx else tiles, r, Rect2((idx % 16) * 16, (idx / 16) * 16, 16, 16))
 
+## Sky height: about two tiles at most, so a short panel is mostly ground where the NPCs stand.
+func sky_height() -> float:
+	return floorf(minf(size.y * 0.28, 16.0 * k() * 2.5))
+
+## A point at fraction `fy` of the ground (0 = horizon, 1 = bottom edge).
+func ground_y(fy: float) -> float:
+	var top := sky_height()
+	return top + (size.y - top) * fy
+
 func spot_rect(s: Array) -> Rect2:
 	var kk := k()
 	var sz := Vector2(s[2], s[3]) * kk * (1.5 if s[1].begins_with("_") else 2.0)
-	var feet := Vector2(size.x * float(s[4]), size.y * float(s[5]) - UIKit.font_size * 1.1)
+	var feet := Vector2(size.x * float(s[4]), ground_y(float(s[5])) - UIKit.font_size * 1.1)
 	return Rect2((feet - Vector2(sz.x / 2.0, sz.y)).floor(), sz)
 
 func _spot_label(s: Array) -> String:
-	var lbl: String = s[6]
-	if FAC.has(s[0]): lbl += " Lv%d" % GameState.facility_level(FAC[s[0]])
-	return lbl
+	return s[6]
 
 ## Dark name plate drawn under the sprite. It has to be part of the click target: the plate hangs
 ## below the sprite padding, and long names (Enchanter, Alchemy) are wider than the sprite.
@@ -92,7 +100,7 @@ func spot_at(p: Vector2) -> String:
 
 func _draw() -> void:
 	var kk := k(); var cs := 16.0 * kk
-	var sky_h := floorf(size.y * 0.28)
+	var sky_h := sky_height()
 	# night sky + stars + drifting SPD clouds (surface.png 88,0 / 88,20 / 88,42)
 	draw_rect(Rect2(0, 0, size.x, sky_h), Color("1d2342"))
 	draw_rect(Rect2(0, sky_h * 0.55, size.x, sky_h * 0.45), Color("2b3157"))
@@ -109,7 +117,7 @@ func _draw() -> void:
 	var cols := int(ceil(size.x / cs)) + 1
 	var rows := int(ceil((size.y - sky_h) / cs)) + 1
 	var ox := floorf((size.x - cols * cs) / 2.0)
-	var fire := Vector2(size.x * 0.5, size.y * 0.62)
+	var fire := Vector2(size.x * 0.5, ground_y(FIRE_Y))
 	draw_rect(Rect2(0, sky_h, size.x, size.y - sky_h), Color("2f4a22"))
 	for y in rows:
 		for x in cols:
@@ -156,11 +164,18 @@ func _draw() -> void:
 				var an: Array = NPC_IDLE[s[1]]; var fl: Array = an[1]
 				var frame: int = fl[int((t + s[4] * 3.0) * float(an[0])) % fl.size()]
 				draw_texture_rect_region(_sprite(s[1]), sr, Rect2(frame * fw, 0, fw, s[3]))
-		# name plate: SPD-ish yellow text with a dark backing; facility level as "Lv2"
+		# name plate: SPD-ish yellow text with a dark backing
 		var lbl := _spot_label(s)
 		var lr := label_rect(s)
 		draw_rect(lr, Color(0, 0, 0, 0.55))
 		draw_string(font, lr.position + Vector2(kk * 2, fs * 0.9), lbl, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color("ffff44") if _has_news(s[0]) else Color.WHITE)
+		if FAC.has(s[0]):   # facility level: small dark badge on the sprite's top-left corner
+			var bfs := UIKit.font_px(UIKit.font_size * 0.75)
+			var lv := str(GameState.facility_level(FAC[s[0]]))
+			var tw := font.get_string_size(lv, HORIZONTAL_ALIGNMENT_LEFT, -1, bfs).x if font else bfs * 0.6
+			var br := Rect2((sr.position - Vector2(kk * 2, kk * 2)).floor(), Vector2(tw + kk * 4, bfs * 1.1).floor())
+			draw_rect(br, Color(0, 0, 0, 0.7)); draw_rect(br, Color("ffd27a"), false, maxf(1.0, kk * 0.5))
+			draw_string(font, br.position + Vector2(kk * 2, bfs * 0.85), lv, HORIZONTAL_ALIGNMENT_LEFT, -1, bfs, Color("ffd27a"))
 		if _has_news(s[0]):   # "!" badge: something ready (identified item, affordable upgrade)
 			var bp := Vector2(sr.end.x - kk * 2, sr.position.y - kk * 2)
 			draw_circle(bp, kk * 3.5, Color("ff5a2a")); draw_string(font, bp + Vector2(-fs * 0.18, fs * 0.33), "!", HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color.WHITE)

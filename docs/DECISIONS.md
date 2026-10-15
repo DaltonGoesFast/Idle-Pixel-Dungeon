@@ -345,3 +345,12 @@ Heroes levelled without limit: a 40-expedition Full Auto campaign reached Lv103 
 
 ## 121. Rogue: SPD cloak charges
 Deep campaign sims had the Rogue dying 26 times in 120 expeditions (Warrior 8, Mage 7, Huntress 9), most of it at Goo, with Sewers-only progress on one seed. SPD's Cloak of Shadows has chargeCap = min(level + 3, 10), i.e. 3 at +0; ours had 2. Cloak charges are now 3 per fight (data/heroes.json). Rogue deaths in the same sim: 26 -> 6 (40 runs x 3 seeds), 7 -> 3 (12 x 3). test_rogue_cloak.
+
+## 124. Camp layout: scene first, one job per window
+The hub stacked a wrapping resource bar, a short scene, portraits that repeated Lv/Str, a second stats line, biome buttons with floor ranges, and (wide only) a button grid that duplicated the NPCs. Now:
+- The resource strip is one row that scrolls sideways. The scene takes the free space; the dock under it (beside it when wide) holds portraits (face + level), one stats line, destination chips (biome name, floors in the tooltip) and Delve, which sits at the dock's foot. The extra Heroes button and the wide quick-access grid are gone: tap the selected portrait for Heroes, the NPCs for facilities.
+- CampScene: the sky is capped at 2.5 tiles and spots are placed as fractions of the ground, so a tall cover screen is mostly clearing. Name plates show the page name only; facility level moved to a small badge on the sprite's top-left (the "!" stays top-right). test_camp_npc_hits still covers sprite and plate hits.
+- Windows have a footer under the scroller for the page's main action: Descend on Expedition, Upgrade (cost left, button right, reason underneath) and Apply Scroll of Upgrade on facilities.
+- Stash (Materials / Potions & scrolls / Gear), Forge (Craft / Upgrade & repair / Rings) and Guild (Supplies / Patrols) split into sections with Journal-style buttons; the choice is remembered while the app runs and a switch scrolls to the top.
+- Recipe slots (Forge, Guild, Enchanter, Alchemy) are wider and captioned with the recipe name minus its verb ("Ration Crate", "Leather"), so slots are told apart without opening them.
+- Journal lists open milestones as cards and folds finished ones into one "Completed (N)" line. A locked class on the Heroes page shows its unlock progress card instead of a stats card.

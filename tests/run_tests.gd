@@ -1656,11 +1656,12 @@ func test_facility_cap(gs) -> void:
 	gs.facilities.guild.level = 2; gs.facilities.guild.cap = 1
 	gs.from_dict(JSON.parse_string(JSON.stringify(gs.to_dict())))
 	check(int(gs.facilities.guild.cap) == 2, "loading a save repairs cap < level")
-	# hero slots show Lv + Str; tapping a second time opens Heroes
+	# hero slots show the level, the line under them adds Str (DECISIONS #124); tapping a second time opens Heroes
 	gs.heroes.mage.unlocked = true; gs.heroes.mage.level = 4; gs.heroes.mage.str = 12
 	var cs = load("res://scripts/ui/camp_screen.gd").new(); add_child(cs)
 	var m_slot: Button = cs._hero_slot("mage")
-	check(_node_text(m_slot).contains("Lv4") and _node_text(m_slot).contains("Str 12"), "hero slot shows level and Str (%s)" % _node_text(m_slot))
+	check(_node_text(m_slot).contains("Lv4"), "hero slot shows level (%s)" % _node_text(m_slot))
+	check(cs.hero_line("mage").contains("Lv4") and cs.hero_line("mage").contains("Str 12"), "hero line shows level and Str (%s)" % cs.hero_line("mage"))
 	m_slot.pressed.emit()
 	check(cs.chosen_hero == "mage" and cs.open_name == "", "first tap selects the hero")
 	var m_slot2: Button = cs._hero_slot("mage")
@@ -1687,6 +1688,8 @@ func test_crate_slot(gs) -> void:
 	check("x3" in ta and "4" in ta, "crate slot shows x3 and the stash count (%s)" % [ta])
 	check(not ("x3" in tb) and "4" in tb, "single Ration slot has no pack tag (%s)" % [tb])
 	check(ta != tb, "crate and single Ration slots differ")
+	check("Ration Crate" in ta and "Ration" in tb, "recipe slots are captioned with their short name (%s / %s)" % [ta, tb])
+	check(cs.short_name("Forge Leather Armor") == "Leather" and cs.short_name("Brew Potion of Healing") == "Healing", "short recipe names drop the verb")
 	var lines: Array = cs._recipe_lines(crate)
 	check(lines.any(func(x): return x is String and x.begins_with("Gives 3 Ration")), "crate info says it gives 3 Rations")
 	for n in lines: if n is Node: n.free()
