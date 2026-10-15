@@ -50,7 +50,7 @@ func _p(name: String) -> VBoxContainer:
 # ------------------------------------------------------------ Delve (loadout & start)
 func _page_delve() -> void:
 	var v := _p("Delve")
-	v.add_child(UIKit.label("Choose a hero, pack supplies, and descend into the Sewers (floors 1-5, Goo waits on 5). Extract at the floor-5 campfire or with a Scroll of Passage; dying loses the pack."))
+	v.add_child(UIKit.label("Choose a hero, pack supplies, and descend into the Sewers (floors 1-5, Goo waits on 5). After Goo you may extract or press on into the Prison (6-10, Tengu). Extract at a boss campfire or with a Scroll of Passage; dying loses the pack."))
 	var hb := HFlowContainer.new(); v.add_child(hb)
 	for c in GameState.heroes:
 		var h: Dictionary = GameState.heroes[c]
@@ -193,8 +193,9 @@ func _page_guild() -> void:
 		var card := UIKit.card(); var cv := UIKit.vbox(card); v.add_child(card)
 		if h.patrol.is_empty():
 			cv.add_child(UIKit.label("%s - idle" % DB.heroes[c].name))
-			cv.add_child(UIKit.action("Patrol the Sewers (efficiency %d%%)" % int(GameState.patrol_efficiency(c, "sewers") * 100),
-				func(): GameState.start_patrol(c, "sewers"), GameState.can_patrol(c, "sewers")))
+			for b in DB.biomes:
+				cv.add_child(UIKit.action("Patrol the %s (efficiency %d%%)" % [DB.biomes[b].name, int(GameState.patrol_efficiency(c, b) * 100)],
+					func(): GameState.start_patrol(c, b), GameState.can_patrol(c, b)))
 		else:
 			var y: Dictionary = GameState.patrol_preview(c)
 			var parts := []

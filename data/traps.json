@@ -1,0 +1,33 @@
+{
+ "_note": "Traps (SPD levels/traps/*.java). sprite = index into assets/tiles/terrain_features.png (color + shape*16). Mobs know where traps are and avoid them, but knockback can push them in.",
+ "worn_dart": {
+  "name": "Worn Dart Trap",
+  "dmg": 3,
+  "sprite": 87,
+  "desc": "Fires a dart: 3 damage (DR applies).",
+  "spd": "dmg 1-4"
+ },
+ "gripping": {
+  "name": "Gripping Trap",
+  "dmg": 2,
+  "root": 1.0,
+  "sprite": 7,
+  "desc": "Snaps shut: 2 damage and the victim loses its next turn.",
+  "spd": "cripple + bleed"
+ },
+ "teleport": {
+  "name": "Teleportation Trap",
+  "sprite": 4,
+  "desc": "Teleports the victim to the far side of the room.",
+  "spd": "random teleport",
+  "teleport": true
+ },
+ "poison_dart": {
+  "name": "Poison Dart Trap",
+  "dmg": 1,
+  "poison": 4,
+  "sprite": 83,
+  "desc": "Poison: 1 damage now and 1 per turn for 4 turns (ignores DR and Barrier).",
+  "spd": "poison 4+depth/2"
+ }
+}

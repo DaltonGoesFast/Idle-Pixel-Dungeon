@@ -11,6 +11,9 @@ const MOVE_TIME := 0.12
 var combat: Combat
 var tex := {}
 var tiles: Texture2D
+var features: Texture2D     # SPD terrain_features.png (trap sprites)
+var tileset := "tiles_sewers"
+var rings := []             # search pulses [{pos, r, t}]
 var anim_t := 0.0
 var disp := {}          # uid -> Vector2 (cell-space display position)
 var flash := {}         # uid -> seconds remaining
@@ -24,7 +27,8 @@ var lunge := {}         # uid -> {dir: Vector2, t}
 func _ready() -> void:
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	mouse_filter = Control.MOUSE_FILTER_STOP
-	tiles = load("res://assets/tiles/tiles_sewers.png")
+	tiles = load("res://assets/tiles/%s.png" % tileset)
+	features = load("res://assets/tiles/terrain_features.png")
 	resized.connect(queue_redraw)
 
 func sprite(name: String) -> Texture2D:
@@ -50,6 +54,7 @@ func play_events(evs: Array) -> void:
 					"block": col = Color("bbbbbb"); txt = "block"
 					"surprise": col = Color("ffd27a"); txt += "!"
 					"magic": col = Color("c08bff")
+					"poison": col = Color("8be04e")
 				floaters.append({"pos": Vector2(e.pos), "text": txt, "color": col, "t": 0.0})
 				Sfx.play("hit_strong" if e.kind == "surprise" else ("hit_magic" if e.kind == "magic" else "hit"), 1.0)
 			"heal":
@@ -63,7 +68,12 @@ func play_events(evs: Array) -> void:
 			"telegraph": Sfx.play("alert")
 			"shock": blasts.append({"pos": Vector2(e.pos), "t": 0.0, "shock": true})
 			"burn": blasts.append({"pos": Vector2(e.pos), "t": 0.0, "fire": true}); Sfx.play("burning")
-			"move": if e.uid == combat.hero.uid: Sfx.play("step", 1.1)
+			"move":
+				if e.get("blink", false): disp[e.uid] = Vector2(e.to)  # teleports snap, no slide
+				elif e.uid == combat.hero.uid: Sfx.play("step", 1.1)
+			"trap": blasts.append({"pos": Vector2(e.pos), "t": 0.0, "trap": true})
+			"reveal": floaters.append({"pos": Vector2(e.pos), "text": "!", "color": Color("ffd27a"), "t": 0.0})
+			"search": rings.append({"pos": Vector2(e.pos), "r": float(e.r), "t": 0.0})
 			"sfx": Sfx.play(e.name)
 			"attack":
 				for u in combat.units:
@@ -89,6 +99,8 @@ func _process(d: float) -> void:
 	streaks = streaks.filter(func(s): return s.t < 0.25)
 	for b in blasts: b.t += d
 	blasts = blasts.filter(func(b): return b.t < 0.35)
+	for r in rings: r.t += d
+	rings = rings.filter(func(r): return r.t < 0.5)
 	queue_redraw()
 
 func cell_size() -> float:
@@ -115,6 +127,11 @@ func _draw() -> void:
 			_tile(r, TILE_IDX[t])
 			if t == Combat.T.CHASM: draw_rect(r, Color(0, 0, 0, 0.6))
 			if t == Combat.T.WATER: draw_rect(r, Color(0.25, 0.45, 0.8, 0.45 + 0.05 * sin(anim_t * 2.0 + x + y)))
+	# revealed traps (SPD sprite); hidden ones are drawn as plain floor
+	for k in combat.traps:
+		if not combat.traps[k].hidden:
+			var idx := int(DB.traps[combat.traps[k].id].sprite)
+			draw_texture_rect_region(features, cell_rect(Vector2(k)), Rect2((idx % 16) * 16, (idx / 16) * 16, 16, 16))
 	# reachable / targetable highlights
 	var hp: Vector2i = combat.hero.pos
 	if not combat.over:
@@ -124,7 +141,8 @@ func _draw() -> void:
 			if u != null and u != combat.hero:
 				draw_rect(cell_rect(Vector2(n)).grow(-2), Color(1, 0.8, 0.3, 0.7) if mode == "shove" else Color(1, 0.4, 0.3, 0.6), false, 3.0)
 			elif combat.passable(n) and u == null:
-				draw_rect(cell_rect(Vector2(n)).grow(-2), Color(1, 1, 1, 0.16), false, 2.0)
+				var warn := combat.visible_trap(n)
+				draw_rect(cell_rect(Vector2(n)).grow(-2), Color(1, 0.6, 0.2, 0.5) if warn else Color(1, 1, 1, 0.16), false, 2.0)
 		if mode == "bolt" or not combat.hero.bolt.is_empty():
 			for e in combat.enemies():
 				if combat.can_bolt(e.pos) and Combat.cheb(e.pos, hp) > 1:
@@ -164,8 +182,12 @@ func _draw() -> void:
 		draw_line(a, a.lerp(b, clampf(s.t / 0.12, 0, 1)), sc, maxf(3, cs * 0.08))
 	for b in blasts:
 		var c := Color(1, 0.6, 0.1, 1.0 - b.t / 0.35) if b.get("fire", false) else Color(1, 0.3, 0.2, 1.0 - b.t / 0.35)
+		if b.get("trap", false): c = Color(1, 0.9, 0.3, 1.0 - b.t / 0.35)
 		if b.get("shock", false): c = Color(0.7, 0.9, 1.0, 1.0 - b.t / 0.35)
 		draw_rect(cell_rect(b.pos).grow(b.t * cs * 0.3), c, false, 3.0)
+	for r in rings:
+		var c := cell_rect(r.pos).get_center()
+		draw_arc(c, (0.5 + r.r) * cs * clampf(r.t / 0.4, 0, 1), 0, TAU, 48, Color(1, 0.85, 0.4, 1.0 - r.t / 0.5), 3.0)
 	var font := get_theme_default_font()
 	var fs := int(maxf(14, cs * 0.38))
 	for f in floaters:

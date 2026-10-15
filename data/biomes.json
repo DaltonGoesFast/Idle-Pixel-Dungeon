@@ -92,6 +92,129 @@
    "arcane_resin": 1,
    "gold": 15
   },
-  "patrol_curio_every_hours": 3
+  "patrol_curio_every_hours": 3,
+  "traps": [
+   "worn_dart",
+   "gripping",
+   "teleport"
+  ],
+  "boss_room": 0,
+  "next": "prison",
+  "secret_cache": {
+   "gold": 12,
+   "seeds": 2,
+   "iron_key": 1
+  }
+ },
+ "prison": {
+  "name": "Prison",
+  "floors": [
+   6,
+   10
+  ],
+  "str_gate": 12,
+  "tile": "tiles_prison",
+  "music": "prison_1",
+  "boss_music": "prison_boss",
+  "boss": "tengu",
+  "boss_floor": 10,
+  "boss_room": 1,
+  "traps": [
+   "worn_dart",
+   "gripping",
+   "teleport",
+   "poison_dart"
+  ],
+  "strength_potions_at": [
+   [
+    7,
+    50
+   ],
+   [
+    9,
+    50
+   ]
+  ],
+  "event_weights": {
+   "combat": 5,
+   "door": 2,
+   "special": 3
+  },
+  "patrol_yield_per_hour": {
+   "iron_ore": 5,
+   "dark_gold": 1,
+   "arcane_resin": 2,
+   "dew": 3,
+   "gold": 25
+  },
+  "patrol_curio_every_hours": 2,
+  "encounter_sets": [
+   {
+    "min_floor": 6,
+    "mobs": [
+     "skeleton"
+    ]
+   },
+   {
+    "min_floor": 6,
+    "mobs": [
+     "thief",
+     "rat"
+    ]
+   },
+   {
+    "min_floor": 6,
+    "mobs": [
+     "dm100"
+    ]
+   },
+   {
+    "min_floor": 7,
+    "mobs": [
+     "skeleton",
+     "thief"
+    ]
+   },
+   {
+    "min_floor": 7,
+    "mobs": [
+     "guard"
+    ]
+   },
+   {
+    "min_floor": 8,
+    "mobs": [
+     "dm100",
+     "skeleton"
+    ]
+   },
+   {
+    "min_floor": 8,
+    "mobs": [
+     "guard",
+     "thief"
+    ]
+   },
+   {
+    "min_floor": 9,
+    "mobs": [
+     "guard",
+     "dm100"
+    ]
+   },
+   {
+    "min_floor": 9,
+    "mobs": [
+     "skeleton",
+     "skeleton",
+     "thief"
+    ]
+   }
+  ],
+  "secret_cache": {
+   "gold": 20,
+   "dark_gold": 1,
+   "iron_key": 1
+  }
  }
 }

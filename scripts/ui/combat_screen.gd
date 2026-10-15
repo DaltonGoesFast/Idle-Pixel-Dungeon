@@ -28,11 +28,10 @@ func setup(ev: Dictionary, done: Callable, saved := {}) -> void:
 	event = ev; on_done = done
 	var run: Dictionary = GameState.run
 	var hs: Dictionary = GameState.hero_stats(run.hero)
-	combat = Combat.new()
 	if saved.is_empty():
-		combat.setup(ev.room, hs, int(run.hp), ev.mobs, Delve.darkness(run))
+		combat = Delve.new_combat(GameState, ev)
 	else:
-		combat.from_dict(saved)
+		combat = Combat.new(); combat.from_dict(saved)
 		combat._log("(fight resumed)")
 	potions = int(run.supplies.get("potion_healing", 0))
 	heal = int(DB.materials.potion_healing.heal)
@@ -40,10 +39,12 @@ func setup(ev: Dictionary, done: Callable, saved := {}) -> void:
 func _ready() -> void:
 	split = BoxContainer.new(); add_child(split); split.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
 	split.add_theme_constant_override("separation", 12)
-	grid = GridView.new(); grid.tapped.connect(_on_cell); split.add_child(grid)
+	grid = GridView.new(); grid.tapped.connect(_on_cell)
+	if not GameState.run.is_empty(): grid.tileset = DB.biomes[GameState.run.biome].tile
+	split.add_child(grid)
 	grid.set_combat(combat)
 	side = UIKit.vbox(split); side.size_flags_horizontal = SIZE_EXPAND_FILL; side.size_flags_vertical = SIZE_EXPAND_FILL
-	side.add_child(UIKit.header("BOSS: Goo" if event.get("boss", false) else "Combat"))
+	side.add_child(UIKit.header("BOSS: " + DB.mobs[event.mobs[0]].name if event.get("boss", false) else "Combat"))
 	status = UIKit.label(""); side.add_child(status)
 	buttons = HFlowContainer.new(); side.add_child(buttons)
 	log_scroll = ScrollContainer.new(); log_scroll.size_flags_vertical = SIZE_EXPAND_FILL
@@ -86,6 +87,7 @@ func _refresh() -> void:
 		if h.bolt.get("infinite", false): line += "\nTap any enemy in sight to shoot %s (%d dmg)" % [h.bolt.name, h.bolt.dmg]
 		else: line += "\nStaff charges %d/%d (%s, %d dmg, ignores DR)" % [h.charges, h.bolt.charges, h.bolt.name, h.bolt.dmg]
 	if combat.hidden(): line += "\nHIDDEN in shadows - enemies can't find you"
+	if int(h.get("poison", 0)) > 0: line += "\nPOISONED: -1 HP per turn for %d turns" % int(h.poison)
 	if combat.surprise_ready(): line += "\nIn cover: your next attack is a SURPRISE (x%.1f, no DR, knockback)" % float(h.surprise_mult)
 	status.text = line
 	UIKit.clear(buttons)
@@ -100,6 +102,7 @@ func _refresh() -> void:
 		_btn("Cloak (%d)" % h.cloak_charges, func(): _act(func(): combat.hero_cloak()), int(h.cloak_charges) > 0 and not combat.hidden())
 	if not h.bolt.is_empty() and not h.bolt.get("infinite", false):
 		_btn("Bolt (%d)" % h.charges, func(): mode = "" if mode == "bolt" else "bolt"; grid.mode = mode; _refresh(), h.charges > 0)
+	_btn("Search" if not h.get("searched", false) else "Search again", func(): _act(func(): combat.hero_search()))
 	_btn("Potion (%d)" % (potions - potions_used), _drink, potions - potions_used > 0 and h.hp < h.ht)
 	_btn("Hint", _hint)
 	_btn("Auto: ON" if auto else "Auto", func(): auto = not auto; _refresh())
@@ -116,6 +119,9 @@ func _on_cell(c: Vector2i) -> void:
 	var u = combat.unit_at(c)
 	if u != null and u != combat.hero and Combat.cheb(c, combat.hero.pos) > 1 and not combat.can_bolt(c):
 		_inspect(u); return
+	if u == null and combat.visible_trap(c) and Combat.cheb(c, combat.hero.pos) > 1:
+		var tr: Dictionary = DB.traps[combat.traps[c].id]
+		GameState.say("%s: %s Enemies avoid traps, but you can shove or slam them in." % [tr.name, tr.desc]); return
 	var m := mode
 	_act(func():
 		if combat.hero_tap(c, m):
@@ -134,6 +140,7 @@ func _inspect(u: Dictionary) -> void:
 	match u.get("ability", ""):
 		"throw": extra = " Throws a spear at range %d-%d (red tile, %d dmg)." % [u.throw_range[0], u.throw_range[1], int(u.dmg) + int(u.throw_bonus)]
 		"pump": extra = " Every %d actions slams all adjacent tiles for x%d." % [u.pump_every, u.pump_mult]
+		_: extra = " " + Codex.ability_text(u)
 	GameState.say("%s: HP %d/%d, dmg %d, DR %d, %s.%s" % [u.name, u.hp, u.ht, u.dmg, u.dr, spd, extra])
 
 func _act(f: Callable) -> void:
@@ -165,6 +172,7 @@ func _do_bot() -> void:
 		"wait": _act(func(): combat.hero_wait())
 		"cloak": _act(func(): if not combat.hero_cloak(): combat.hero_wait())
 		"slam": _act(func(): if not combat.hero_slam(): combat.hero_wait())
+		"search": _act(func(): combat.hero_search())
 		"tap": _act(func(): if not combat.hero_tap(s.pos, s.mode): combat.hero_wait())
 
 func _result_buttons() -> void:

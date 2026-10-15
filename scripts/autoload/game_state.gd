@@ -122,7 +122,8 @@ func hero_stats(c: String) -> Dictionary:
 	var s := {"class": c, "name": def.name, "sprite": def.sprite, "fw": def.fw, "fh": def.fh,
 		"ht": int(def.base_ht) + int(def.ht_per_level) * (int(h.level) - 1),
 		"dmg": dmg, "dr": dr, "barrier_max": barrier, "delay": float(wd.get("delay", 1.0)),
-		"surprise_mult": float(wd.get("surprise_mult", 1.5)), "abilities": def.abilities}
+		"surprise_mult": float(wd.get("surprise_mult", 1.5)), "abilities": def.abilities,
+		"search_radius": int(def.get("search_radius", 1)), "keen_eyes": def.get("keen_eyes", false)}
 	if "bolt" in def.abilities and h.wand != "":
 		var wn := DB.item(h.wand)
 		s.bolt = {"dmg": int(wn.bolt_dmg) + int(h.level) / 2, "charges": int(wn.charges), "recharge": int(wn.recharge),

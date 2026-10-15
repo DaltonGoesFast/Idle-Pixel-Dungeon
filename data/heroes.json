@@ -16,7 +16,8 @@
    "slam"
   ],
   "unlocked_by_default": true,
-  "desc": "Tank & displacement. Broken Seal grants extra Barrier; Shove pushes a foe 1 tile; Slam (1/fight) hits all adjacent foes and knocks them back - into chasms if you line it up."
+  "desc": "Tank & displacement. Broken Seal grants extra Barrier; Shove pushes a foe 1 tile; Slam (1/fight) hits all adjacent foes and knocks them back - into chasms if you line it up.",
+  "search_radius": 1
  },
  "mage": {
   "name": "Mage",
@@ -35,7 +36,8 @@
   ],
   "unlocked_by_default": false,
   "unlock": "Defeat Goo (Sewers boss) with any hero.",
-  "desc": "Zone control. The Mage's Staff fires its imbued wand as a bolt that ignores DR."
+  "desc": "Zone control. The Mage's Staff fires its imbued wand as a bolt that ignores DR.",
+  "search_radius": 1
  },
  "rogue": {
   "name": "Rogue",
@@ -56,7 +58,9 @@
   "cloak_ticks": 2.0,
   "unlocked_by_default": false,
   "unlock": "Reach floor 4 of the Sewers with any hero.",
-  "desc": "Stealth & assassination. Cloak of Shadows hides you for 2 ticks: enemies lose track and your next hit is a Surprise (dagger x2)."
+  "desc": "Stealth & assassination. Cloak of Shadows (2 charges per fight) hides you for 2 ticks: enemies lose track and your next hit is a Surprise (dagger x2). Keen eyes: spots hidden traps next to her as she moves and searches wider.",
+  "search_radius": 2,
+  "keen_eyes": true
  },
  "huntress": {
   "name": "Huntress",
@@ -75,6 +79,7 @@
   ],
   "unlocked_by_default": false,
   "unlock": "Brew 5 potions at the Alchemy Pot.",
-  "desc": "Geometry & overwatch. The Spirit Bow fires unlimited arrows at any enemy in line of sight (DR applies; Surprise from cover)."
+  "desc": "Geometry & overwatch. The Spirit Bow fires unlimited arrows at any enemy in line of sight (DR applies; Surprise from cover). Searches a wider area for hidden traps.",
+  "search_radius": 2
  }
 }

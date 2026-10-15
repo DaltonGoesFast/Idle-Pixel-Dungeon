@@ -10,6 +10,8 @@ const SATIETY_DRAIN := 0.4    # per 1% progress
 const TORCH_RESTORE := 60.0
 const RATION_RESTORE := 70.0
 const FLOOR_REST_HEAL := 0.2  # fraction of HT healed when descending
+const SEARCH_TORCH := 10.0    # torch spent searching a cleared floor for hidden doors
+const SEARCH_CHANCE := 50     # % to find a hidden door (Rogue: always)
 
 static func biome(run: Dictionary) -> Dictionary:
 	return DB.biomes[run.biome]
@@ -92,12 +94,28 @@ static func build_event(run: Dictionary, ev: Dictionary) -> Dictionary:
 	var r := rng_for(run, 10 + int(ev.salt))
 	match ev.kind:
 		"boss":
-			return {"kind": "combat", "boss": true, "room": DB.boss_rooms[0], "mobs": [biome(run).boss]}
+			return {"kind": "combat", "boss": true, "room": DB.boss_rooms[int(biome(run).get("boss_room", 0))], "mobs": [biome(run).boss]}
 		"door":
-			return {"kind": "door", "door": DB.doors[r.randi() % DB.doors.size()]}
+			var ds := _for_biome(DB.doors, run)
+			return {"kind": "door", "door": ds[r.randi() % ds.size()]}
 		"special":
-			return {"kind": "special", "special": DB.specials[r.randi() % DB.specials.size()]}
+			var ss := _for_biome(DB.specials, run)
+			return {"kind": "special", "special": ss[r.randi() % ss.size()]}
 	return combat_event(run, r)
+
+static func _for_biome(list: Array, run: Dictionary) -> Array:
+	return list.filter(func(x): return run.biome in x.get("biomes", [run.biome]))
+
+## Rooms used for ordinary fights: the shared set plus the biome's own rooms.
+static func room_pool(run: Dictionary) -> Array:
+	return DB.rooms + DB.biome_rooms.get(run.biome, [])
+
+## Build a Combat for an event in the current run (shared by CombatScreen and RunSim).
+static func new_combat(gs, ev: Dictionary) -> Combat:
+	var run: Dictionary = gs.run
+	var c := Combat.new()
+	c.setup(ev.room, gs.hero_stats(run.hero), int(run.hp), ev.mobs, darkness(run), biome(run).get("traps", []))
+	return c
 
 static func combat_event(run: Dictionary, r: RandomNumberGenerator, mobs := []) -> Dictionary:
 	if mobs.is_empty():
@@ -105,7 +123,8 @@ static func combat_event(run: Dictionary, r: RandomNumberGenerator, mobs := []) 
 		# prefer encounters introduced recently so floors feel different
 		var pick: Dictionary = sets[r.randi() % sets.size()]
 		mobs = pick.mobs
-	return {"kind": "combat", "room": DB.rooms[r.randi() % DB.rooms.size()], "mobs": mobs}
+	var rooms := room_pool(run)
+	return {"kind": "combat", "room": rooms[r.randi() % rooms.size()], "mobs": mobs}
 
 static func pay_possible(gs, cost: Dictionary) -> bool:
 	var run: Dictionary = gs.run
@@ -113,6 +132,8 @@ static func pay_possible(gs, cost: Dictionary) -> bool:
 		var n := int(cost[k])
 		if k == "hp":
 			if int(run.hp) <= n: return false
+		elif k == "torch_fuel":
+			if float(run.torch) < n: return false
 		elif int(run.supplies.get(k, 0)) + int(run.pack.get(k, 0)) + (gs.mat(k) if k == "iron_key" else 0) < n:
 			return false
 	return true
@@ -124,6 +145,7 @@ static func pay(gs, cost: Dictionary) -> bool:
 	for k in cost:
 		var n := int(cost[k])
 		if k == "hp": run.hp -= n; continue
+		if k == "torch_fuel": run.torch = float(run.torch) - n; continue
 		var from_sup := mini(n, int(run.supplies.get(k, 0)))
 		if from_sup > 0: run.supplies[k] -= from_sup; n -= from_sup
 		var from_pack := mini(n, int(run.pack.get(k, 0)))
@@ -146,7 +168,9 @@ static func reward(gs, rw: Dictionary) -> String:
 				run.pack_gear.append(_new_gear(gs, rw[k], true))
 				parts.append(DB.item(rw[k]).name)
 			_:
-				gs.pack_add(k, int(rw[k]))
+				if k in ["torch", "ration"]:
+					run.supplies[k] = int(run.supplies.get(k, 0)) + int(rw[k])  # usable right away
+				else: gs.pack_add(k, int(rw[k]))
 				parts.append("%d %s" % [rw[k], DB.mat_name(k)])
 	return ", ".join(parts)
 
@@ -154,6 +178,32 @@ static func _new_gear(gs, id: String, known: bool) -> Dictionary:
 	var g := {"uid": gs.next_uid, "id": id, "lvl": 0, "cracked": false, "known": known}
 	gs.next_uid += 1
 	return g
+
+## Search a cleared floor for a hidden door (once per floor). Returns the message to show.
+static func search_floor(gs) -> String:
+	var run: Dictionary = gs.run
+	if int(run.get("searched_floor", 0)) == int(run.floor) or float(run.torch) < SEARCH_TORCH: return ""
+	run.searched_floor = int(run.floor)
+	run.torch = float(run.torch) - SEARCH_TORCH
+	var found: bool = run.hero == "rogue" or rng_for(run, 31).randi_range(1, 100) <= SEARCH_CHANCE
+	if not found: return "You search every wall... nothing this time."
+	return "A hidden door! Secret cache: " + reward(gs, biome(run).secret_cache)
+
+static func can_search_floor(run: Dictionary) -> bool:
+	return int(run.get("searched_floor", 0)) != int(run.floor) and float(run.torch) >= SEARCH_TORCH
+
+## At a boss campfire: the next biome, or "" if this is the deepest one in the build.
+static func next_biome(run: Dictionary) -> String:
+	var n: String = biome(run).get("next", "")
+	return n if DB.biomes.has(n) else ""
+
+## Leave the boss campfire for the next biome (keeps the pack - nothing is banked).
+static func continue_deeper(gs) -> void:
+	var run: Dictionary = gs.run
+	run.biome = next_biome(run)
+	run.boss_dead = false
+	descend(gs)
+	gs.say("You enter the %s. Traps lurk on these floors - search before you step." % biome(run).name)
 
 ## Move to the next floor: heal a little, recover chasm loot.
 static func descend(gs) -> void:

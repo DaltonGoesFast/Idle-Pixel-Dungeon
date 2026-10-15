@@ -22,27 +22,33 @@ Assets used (all from Shattered Pixel Dungeon, GPL-3.0): hero sprites (warrior, 
 
 ### Door Choices
 
-| Id | Door A | Door B |
-|---|---|---|
-| ozone | Door A: Smells of ozone (combat) | Door B: Locked (chest) |
-| scratch | Door A: Frantic scratching (combat) | Door B: Damp, quiet (special) |
-| glint | Door A: A metallic glint (combat) | Door B: Barred (1 Iron Key) (chest) |
+| Id | Biomes | Door A | Door B |
+|---|---|---|---|
+| ozone | sewers, prison | Door A: Smells of ozone (combat) | Door B: Locked (chest) |
+| scratch | sewers, prison | Door A: Frantic scratching (combat) | Door B: Damp, quiet (special) |
+| glint | sewers, prison | Door A: A metallic glint (combat) | Door B: Barred (1 Iron Key) (chest) |
+| cells | prison | Door A: Rattling bones (combat) | Door B: A guard's footlocker (1 Iron Key) (chest) |
+| workshop | prison | Door A: Humming machinery (combat) | Door B: A quiet storeroom (special) |
 
 ### Special rooms (UI cards)
 
-| Id | Title | Options |
-|---|---|---|
-| piranha | Piranha Pool | Wade in (-5 HP) / Distract with a Ration / Leave |
-| sacrificial_fire | Sacrificial Fire | Offer blood (-4 HP) / Leave |
-| statue | Animated Statue | Challenge it (fight) / Leave |
-| barricade | Barricade | Burn it (1 Torch) / Smash it (-3 HP) / Leave |
-| garden | Overgrown Garden | Forage |
+| Id | Biomes | Title | Options |
+|---|---|---|---|
+| piranha | sewers, prison | Piranha Pool | Wade in (-5 HP) / Distract with a Ration / Leave |
+| sacrificial_fire | sewers, prison | Sacrificial Fire | Offer blood (-4 HP) / Leave |
+| statue | sewers, prison | Animated Statue | Challenge it (fight) / Leave |
+| barricade | sewers, prison | Barricade | Burn it (1 Torch) / Smash it (-3 HP) / Leave |
+| garden | sewers, prison | Overgrown Garden | Forage |
+| trapped_hall | sewers, prison | Trapped Corridor | Search for a safe path (-10 torch) / Disarm the plates (Rogue) / Run through (-5 HP) / Leave |
+| odd_wall | sewers, prison | Suspicious Wall | Search the wall (-8 torch) / Leave |
+| cell_block | prison | Locked Cell | Unlock (1 Iron Key) / Pry the bars (-6 HP) / Leave |
+| armory | prison | Guard Armory | Scavenge / Leave |
 
 ### Arenas
 
-7 handcrafted 8x8 rooms + 1 boss room (data/rooms.json). Legend: # wall . floor " tall grass + door _ chasm ~ shallow water (conducts lightning) H hero start, 1-4 enemy spawn slots (filled in order), B boss
+7 shared 8x8 rooms, 4 prison-only, 2 boss rooms (data/rooms.json). Legend: # wall . floor " tall grass + door _ chasm ~ shallow water (conducts lightning) H hero start, 1-4 enemy spawn slots (filled in order), B boss ^ visible trap, ? hidden trap (type from the biome's trap pool)
 
-Room 0:
+Shared room 0:
 ```
 ########
 #H.."..#
@@ -54,7 +60,7 @@ Room 0:
 ########
 ```
 
-Room 1:
+Shared room 1:
 ```
 ###+####
 #H."...#
@@ -66,19 +72,19 @@ Room 1:
 ########
 ```
 
-Room 2:
+Shared room 2:
 ```
 ########
 #H.....#
 #."..1.#
 ##+##..#
-#....__#
+#..?.__#
 #.2..__#
-#.."..3#
+#."^..3#
 ########
 ```
 
-Room 3:
+Shared room 3:
 ```
 ########
 #H.""..#
@@ -90,7 +96,7 @@ Room 3:
 ########
 ```
 
-Room 4:
+Shared room 4:
 ```
 #+######
 #H...."#
@@ -102,19 +108,19 @@ Room 4:
 ########
 ```
 
-Room 5:
+Shared room 5:
 ```
 ########
 #H..+..#
 #...#.1#
 #"..#..#
-#####+##
+###?#+##
 #2.....#
-#..__.3#
+#..__^3#
 ########
 ```
 
-Room 6:
+Shared room 6:
 ```
 ########
 #H..~~.#
@@ -126,7 +132,55 @@ Room 6:
 ########
 ```
 
-Room 7:
+prison room 0:
+```
+########
+#H.#...#
+#..#.1.#
+#.?..^.#
+#..##..#
+#.^..?.#
+#2...3.#
+########
+```
+
+prison room 1:
+```
+########
+#H....1#
+#.#..#.#
+#..?...#
+#.^.~~.#
+#.#.~#.#
+#2..?.3#
+########
+```
+
+prison room 2:
+```
+###+####
+#H..^..#
+#.##.#1#
+#.#..?.#
+#...#..#
+#?#..^.#
+#2...#3#
+########
+```
+
+prison room 3:
+```
+########
+#H.?..^#
+#......#
+#.#__#.#
+#.#__#1#
+#..?...#
+#2.^..3#
+########
+```
+
+Boss room 0:
 ```
 ########
 #H...."#
@@ -135,6 +189,18 @@ Room 7:
 #...B..#
 #__..__#
 #"...."#
+########
+```
+
+Boss room 1:
+```
+########
+#H.....#
+#.#..#.#
+#..^...#
+#...B.^#
+#.#..#.#
+#..?...#
 ########
 ```
 <!-- /GENERATED -->

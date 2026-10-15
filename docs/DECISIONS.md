@@ -49,3 +49,24 @@ Adjacent AoE + knockback, cooldown-based. Gives Warrior a crowd answer without s
 
 ## 39. Lightning conducts through water, including to the hero
 Matches SPD's spirit (lightning + water risk). The hero takes half damage so it's a positioning puzzle, not a trap.
+
+## 40. The "Goo spike" was mostly the bot cornering itself
+All v0.4 sim deaths were at Goo with potions unused. Tracing a fight showed the bot dodging a slam into a corner, getting slammed again with no exit, and drinking only at <= 7 HP (a pump hits for 12+). Fixes: the dodge score now values escape tiles, and heal threshold = max(7, 2x nearby incoming damage). Then Goo was retuned so it is not trivial: HT 70, pump every 4 actions (every 3 below half HP), enraged dmg 6. The early fight is gentler (time to learn the telegraph), the second half is the real test.
+
+## 41. Rogue buff = keen eyes, not more cloak
+With the fixed bot, Rogue clears the Sewers 9/10 with 2 cloak charges (3 charges was 10/10 - too much). The buff is utility that fits the class and the new trap system: the Rogue reveals adjacent hidden traps as she moves, searches radius 2, always finds hidden doors on a floor search, and has a Rogue-only disarm option in Trapped Corridors.
+
+## 42. Traps are deterministic and one-shot
+Room templates mark `^` (visible) and `?` (hidden); the trap type comes from the biome's pool indexed by tile position, so the same room in the same biome always has the same traps (seeded, reproducible, testable). Traps fire once. Mobs know all traps (SPD behaviour) and path around them, which makes traps a hero tool: push enemies onto them.
+
+## 43. Searching costs time, hidden doors cost torch
+In combat, Search takes 2 ticks (a real trade-off with enemies approaching). Between floors, the hidden-door search costs 10 torch - the delve's scarce resource - for a 50% chance at a secret cache (Rogue 100%). Both are optional, so ignoring them is never a trap for new players.
+
+## 44. Prison is a continuation, not a separate expedition
+At the Goo campfire you choose: extract (bank everything) or press on into the Prison with an unbanked pack. This matches the GDD's push-your-luck extraction loop. A Scroll of Passage still extracts from anywhere. The next campfire (after Tengu) only extracts because Caves aren't built yet.
+
+## 45. Prison numbers
+SPD Prison mobs scaled the same way as the Sewers (HT x~0.8, damage collapsed to the average and trimmed where 100% accuracy made them brutal). SPD instant effects became telegraphs: Skeleton's death explosion is a 1-tick 3x3 red area, DM-100's zap a 1-tick red tile, Tengu's shuriken and bombs red tiles. Target hero (GDD): 12-13 Str with tier-2/3 gear. The sim confirms a Lv5 Warrior with Shortsword+1 / Leather+1 wins 99/99 Prison fights and beats Tengu with 2 potions; a Lv1 hero with forged tier-2 gear clears Sewers+Prison in one run 3-10/10 depending on class (Mage is the weakest - Tengu's blinks waste its limited charges).
+
+## 46. Release grouping
+v0.5.0 ships items 1-3 of the overnight list together (balance, traps/hidden doors, Prison + Tengu) because Prison rooms are where traps matter and the balance changes were tuned against both. Settings/music/meta-progression = v0.6.0, onboarding/codex = v0.7.0.

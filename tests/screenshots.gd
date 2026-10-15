@@ -31,7 +31,16 @@ func _ready() -> void:
 			GameState.start_run("huntress", {}, "sewers", 9); main.show_delve(); main.delve.running = false
 			main.start_combat(Delve.combat_event(GameState.run, Delve.rng_for(GameState.run, 4), ["crab", "rat"]), func(_r): pass)
 			for i in 2: main.screen._do_bot()])
+		plan.append([sz, "prison", func():
+			GameState.run.biome = "prison"; GameState.run.floor = 7
+			main.start_combat({"kind": "combat", "room": DB.biome_rooms.prison[0], "mobs": ["guard", "dm100", "skeleton"]}, func(_r): pass)
+			main.screen._act(func(): main.screen.combat.hero_search())
+			for i in 2: main.screen._do_bot()])
+		plan.append([sz, "tengu", func():
+			main.start_combat({"kind": "combat", "boss": true, "room": DB.boss_rooms[1], "mobs": ["tengu"]}, func(_r): pass)
+			for i in 4: main.screen._do_bot()])
 		plan.append([sz, "boss", func():
+			GameState.run.biome = "sewers"
 			main.start_combat({"kind": "combat", "boss": true, "room": DB.boss_rooms[0], "mobs": ["goo"]}, func(_r): pass)
 			for i in 3: main.screen._do_bot()])
 

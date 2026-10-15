@@ -2,11 +2,14 @@
 
 ## Next up (suggested order)
 - [ ] Playtest pass on the Fold 6: tap targets, text sizes, delve speed (`DelveScreen.SPEED`), fight length.
-- [ ] Save/restore in-progress fights (DECISIONS #21).
-- [ ] Prison biome (floors 6-10): `tiles_prison.png`, Prison mobs (skeleton, thief, DM-100, guard), Tengu boss, make GridView's tile sheet come from the biome.
-- [ ] Rogue (Cloak of Shadows: break line of sight -> guaranteed surprise) and Huntress (Spirit Bow: ranged, ricochet, overwatch tiles) classes; unlock milestones (GDD Q D).
-- [ ] Warrior leap/slam ability with telegraphed landing; Mage wand variety (frost slows, lightning chains through water).
-- [ ] Water conducts lightning, traps (SPD trap tiles), more room templates (10x10 variant).
+- [x] Save/restore in-progress fights (v0.4.0).
+- [x] Prison biome + Tengu (v0.5.0).
+- [x] Traps, searching, hidden doors (v0.5.0).
+- [ ] Caves biome (floors 11-15, DM-300) - the Tengu campfire currently only extracts.
+- [ ] Tengu's Mask / subclasses (GDD Q D).
+- [ ] Mage vs Tengu: blinks waste charges (deeprun 3/10). Consider letting bolts recharge faster in boss fights or a Mage-specific hint.
+- [ ] Huntress overwatch tiles, Mage frost wand (slow).
+- [ ] More room templates (10x10 variant).
 - [ ] Enchantments on a deterministic trigger (e.g. every 3rd hit / on surprise) - GDD Q E.
 - [ ] Item comparison UI, gear icons on equip buttons, tooltips/long-press info.
 - [ ] Settings: delve speed, left-handed layout, reduce motion.
@@ -15,7 +18,7 @@
 - [ ] Release signing + Play Store AAB (needs gradle build + NDK).
 
 ## Known gaps / stubs
-- Only Sewers (floors 1-5) and Goo exist; the floor-5 campfire ends the run.
+- Sewers (1-5, Goo) and Prison (6-10, Tengu) exist; the Tengu campfire ends the run.
 - Offline Patrols don't auto-assign the active hero when the app closes (GDD Phase C, second half).
 - Facility levels beyond what recipes use: Guild Lv only affects patrol hours; Enchanter Lv only ID speed.
 - Dew is collected but only used by patrols/future recipes.

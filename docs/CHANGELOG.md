@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.5.0 — 2026-10-14
+- **Traps** (SPD Worn Dart, Gripping, Teleportation, Poison Dart) on the combat grid: `^` visible, `?` hidden. Anyone stepping on one fires it once. Mobs know where traps are and path around them, but shove/slam/surprise knockback can push them in. Tap a revealed trap to inspect it.
+- **Search** button in fights (2 ticks): reveals hidden traps nearby. Rogue (keen eyes) spots adjacent hidden traps as she moves; Rogue and Huntress search a wider radius.
+- **Hidden doors**: every cleared floor offers "Search for hidden doors (-10 torch)" - 50% chance (Rogue: always) of a secret cache. New special cards: Trapped Corridor (Rogue-only disarm option), Suspicious Wall.
+- **Prison biome (floors 6-10)**: SPD Prison tiles and music, 4 new Prison rooms full of traps, Skeleton (telegraphed bone burst on death), Crazy Thief (steals gold and flees), DM-100 (telegraphed zap), Prison Guard (chain pull). After Goo, the campfire offers "Extract" or "Descend into the Prison" (nothing is banked until you extract).
+- **Tengu** (floor 10 boss): telegraphed shurikens, blinks to the far side every 15 HP lost; below half HP lobs 3x3 bombs with a 2-tick fuse that also hurt other mobs.
+- Prison-only Door Choices and specials (Locked Cell, Guard Armory); Offline Patrols work in every cleared biome.
+- **Balance**: Goo pumps every 4 actions (every 3 below half HP) and has 70 HT, so the danger ramps up instead of spiking at the start. CombatBot no longer dodges into corners and drinks potions based on incoming damage. Rogue gains keen eyes + wider search.
+- Torches/rations found in the delve go straight into usable supplies.
+- Tests: 95 checks (traps, poison, search, keen eyes, Prison fights, Tengu, skeleton burst, deep runs); UI smoke now fights Tengu through the real UI with the Prison tileset.
+
 ## v0.4.0 — 2026-10-14
 - **Warrior Slam**: new ability that hits every adjacent enemy and knocks them back (and into chasms, for a kill).
 - **Mid-fight save/resume**: the fight state is serialized into the run, so killing the app mid-fight resumes on the same turn.

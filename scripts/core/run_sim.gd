@@ -4,7 +4,8 @@ class_name RunSim
 extends RefCounted
 
 ## Returns {result: "extract"|"death", floor, level, hp, fights, gold}
-static func play(gs, hero: String, loadout: Dictionary, seed: int) -> Dictionary:
+## deep = true: continue past the Goo campfire into the Prison instead of extracting.
+static func play(gs, hero: String, loadout: Dictionary, seed: int, deep := false) -> Dictionary:
 	gs.start_run(hero, loadout, "sewers", seed)
 	var fights := 0
 	var guard := 0
@@ -13,7 +14,10 @@ static func play(gs, hero: String, loadout: Dictionary, seed: int) -> Dictionary
 		var run: Dictionary = gs.run
 		if Delve.floor_done(run):
 			if Delve.is_campfire(run):
+				if deep and Delve.next_biome(run) != "":
+					Delve.continue_deeper(gs); continue
 				var out := _summary(gs, "extract", fights); gs.end_run("extract"); return out
+			if Delve.can_search_floor(run) and float(run.torch) > 40.0: Delve.search_floor(gs)
 			Delve.descend(gs); continue
 		var ev := Delve.advance(gs, 1.0)
 		if ev.is_empty(): continue
@@ -31,6 +35,7 @@ static func play(gs, hero: String, loadout: Dictionary, seed: int) -> Dictionary
 				var picked := false
 				for o in ev.special.options:
 					if o.has("fight") or not o.has("reward"): continue
+					if o.has("requires_class") and o.requires_class != hero: continue
 					var cost: Dictionary = o.get("cost", {})
 					if cost.has("hp") and int(run.hp) < 12: continue
 					if Delve.pay(gs, cost): Delve.reward(gs, o.reward); picked = true; break
@@ -38,8 +43,7 @@ static func play(gs, hero: String, loadout: Dictionary, seed: int) -> Dictionary
 		if ev.kind != "combat": continue
 		fights += 1
 		if ev.get("boss", false): run["boss_entry"] = "Lv%d hp%d/%d pots%d" % [gs.heroes[hero].level, run.hp, gs.hero_stats(hero).ht, int(run.supplies.get("potion_healing", 0))]
-		var c := Combat.new()
-		c.setup(ev.room, gs.hero_stats(hero), int(run.hp), ev.mobs, Delve.darkness(run))
+		var c := Delve.new_combat(gs, ev)
 		var pots := int(run.supplies.get("potion_healing", 0))
 		var r := CombatBot.play(c, pots, int(DB.materials.potion_healing.heal))
 		run.supplies.potion_healing = pots - int(r.potions_used)
@@ -50,4 +54,4 @@ static func play(gs, hero: String, loadout: Dictionary, seed: int) -> Dictionary
 
 static func _summary(gs, result: String, fights: int) -> Dictionary:
 	return {"result": result, "floor": int(gs.run.floor), "level": int(gs.heroes[gs.run.hero].level), "hp": int(gs.run.hp),
-		"fights": fights, "gold": int(gs.run.pack.get("gold", 0)), "boss_entry": gs.run.get("boss_entry", "")}
+		"fights": fights, "biome": gs.run.biome, "gold": int(gs.run.pack.get("gold", 0)), "boss_entry": gs.run.get("boss_entry", "")}

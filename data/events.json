@@ -24,7 +24,11 @@
      "iron_ore": 3,
      "arcane_resin": 1
     }
-   }
+   },
+   "biomes": [
+    "sewers",
+    "prison"
+   ]
   },
   {
    "id": "scratch",
@@ -43,7 +47,11 @@
    "b": {
     "text": "Door B: Damp, quiet",
     "kind": "special"
-   }
+   },
+   "biomes": [
+    "sewers",
+    "prison"
+   ]
   },
   {
    "id": "glint",
@@ -68,6 +76,61 @@
      "item_unknown": "ring",
      "gold": 5
     }
+   },
+   "biomes": [
+    "sewers",
+    "prison"
+   ]
+  },
+  {
+   "id": "cells",
+   "biomes": [
+    "prison"
+   ],
+   "a": {
+    "text": "Door A: Rattling bones",
+    "kind": "combat",
+    "mobs": [
+     "skeleton",
+     "skeleton"
+    ],
+    "reward": {
+     "dark_gold": 2,
+     "gold": 10
+    }
+   },
+   "b": {
+    "text": "Door B: A guard's footlocker (1 Iron Key)",
+    "kind": "chest",
+    "cost": {
+     "iron_key": 1
+    },
+    "reward": {
+     "gold": 25,
+     "iron_ore": 4,
+     "ration": 1
+    }
+   }
+  },
+  {
+   "id": "workshop",
+   "biomes": [
+    "prison"
+   ],
+   "a": {
+    "text": "Door A: Humming machinery",
+    "kind": "combat",
+    "mobs": [
+     "dm100",
+     "dm100"
+    ],
+    "reward": {
+     "item_unknown": "wand"
+    }
+   },
+   "b": {
+    "text": "Door B: A quiet storeroom",
+    "kind": "special"
    }
   }
  ],
@@ -98,6 +161,10 @@
     {
      "text": "Leave"
     }
+   ],
+   "biomes": [
+    "sewers",
+    "prison"
    ]
   },
   {
@@ -118,6 +185,10 @@
     {
      "text": "Leave"
     }
+   ],
+   "biomes": [
+    "sewers",
+    "prison"
    ]
   },
   {
@@ -137,6 +208,10 @@
     {
      "text": "Leave"
     }
+   ],
+   "biomes": [
+    "sewers",
+    "prison"
    ]
   },
   {
@@ -166,6 +241,10 @@
     {
      "text": "Leave"
     }
+   ],
+   "biomes": [
+    "sewers",
+    "prison"
    ]
   },
   {
@@ -179,6 +258,131 @@
       "seeds": 2,
       "dew": 3
      }
+    }
+   ],
+   "biomes": [
+    "sewers",
+    "prison"
+   ]
+  },
+  {
+   "id": "trapped_hall",
+   "biomes": [
+    "sewers",
+    "prison"
+   ],
+   "title": "Trapped Corridor",
+   "text": "Pressure plates line the floor. Something valuable glints at the far end.",
+   "options": [
+    {
+     "text": "Search for a safe path (-10 torch)",
+     "cost": {
+      "torch_fuel": 10
+     },
+     "reward": {
+      "gold": 10,
+      "iron_ore": 2
+     }
+    },
+    {
+     "text": "Disarm the plates (Rogue)",
+     "requires_class": "rogue",
+     "reward": {
+      "gold": 12,
+      "iron_ore": 3,
+      "arcane_resin": 1
+     }
+    },
+    {
+     "text": "Run through (-5 HP)",
+     "cost": {
+      "hp": 5
+     },
+     "reward": {
+      "gold": 10,
+      "iron_ore": 2
+     }
+    },
+    {
+     "text": "Leave"
+    }
+   ]
+  },
+  {
+   "id": "odd_wall",
+   "biomes": [
+    "sewers",
+    "prison"
+   ],
+   "title": "Suspicious Wall",
+   "text": "A draft whistles through a crack in the stonework. A hidden door?",
+   "options": [
+    {
+     "text": "Search the wall (-8 torch)",
+     "cost": {
+      "torch_fuel": 8
+     },
+     "reward": {
+      "item_unknown": "ring",
+      "gold": 8
+     },
+     "secret": true
+    },
+    {
+     "text": "Leave"
+    }
+   ]
+  },
+  {
+   "id": "cell_block",
+   "biomes": [
+    "prison"
+   ],
+   "title": "Locked Cell",
+   "text": "A prisoner's belongings lie in a locked cell.",
+   "options": [
+    {
+     "text": "Unlock (1 Iron Key)",
+     "cost": {
+      "iron_key": 1
+     },
+     "reward": {
+      "item_unknown": "wand",
+      "dark_gold": 2
+     }
+    },
+    {
+     "text": "Pry the bars (-6 HP)",
+     "cost": {
+      "hp": 6
+     },
+     "reward": {
+      "dark_gold": 1,
+      "gold": 10
+     }
+    },
+    {
+     "text": "Leave"
+    }
+   ]
+  },
+  {
+   "id": "armory",
+   "biomes": [
+    "prison"
+   ],
+   "title": "Guard Armory",
+   "text": "An abandoned weapons rack. Most of it has rusted away.",
+   "options": [
+    {
+     "text": "Scavenge",
+     "reward": {
+      "iron_ore": 5,
+      "torch": 1
+     }
+    },
+    {
+     "text": "Leave"
     }
    ]
   }

@@ -37,6 +37,8 @@ func _process(_d: float) -> void:
 func _drive() -> void:
 	var s = main.screen
 	if s.get_script().resource_path.ends_with("combat_screen.gd"):
+		if GameState.run.biome == "prison" and not s.finished and s.grid.tileset != "tiles_prison":
+			_check(false, "prison fights use the prison tileset")
 		if not s.finished:
 			s._do_bot()
 			if stage == 0 and s.combat.log_lines.size() >= 3 and not s.finished and not resumed:
@@ -63,8 +65,20 @@ func _drive() -> void:
 			"combat": s._fight(p, {})
 			"door": s._choose_door(p.door.a)
 			"special": s._special_option(p.special.options.back())
+			"campfire":
+				_check(GameState.run.biome == "prison", "campfire reached after Tengu")
+				print("  Tengu defeated through the UI, extracting")
+				GameState.end_run("extract"); main.show_camp()
 			"floor_done":
-				if int(GameState.run.floor) >= 2:
+				if Delve.can_search_floor(GameState.run):
+					s._show_card()
+					GameState.say(Delve.search_floor(GameState)); s._show_card()
+					_check(not Delve.can_search_floor(GameState.run), "floor search is once per floor")
+				if ci == classes.size() - 1 and GameState.run.biome == "sewers":
+					# last class: jump to Prison floor 9 and fight Tengu on 10 through the real UI
+					GameState.run.biome = "prison"; GameState.run.floor = 9
+					Delve.descend(GameState); s.pending = {}; s._show_card()
+				elif int(GameState.run.floor) >= 2:
 					GameState.run.supplies.scroll_passage = 1; s._refresh_controls()
 					GameState.end_run("extract"); main.show_camp()
 				else:
@@ -74,6 +88,10 @@ func _drive() -> void:
 		print("  %s run done" % classes[ci])
 		ci += 1
 		if ci < classes.size():
+			if ci == classes.size() - 1:
+				var h: Dictionary = GameState.heroes[classes[ci]]
+				h.level = 7; h.str = 13; h.weapon = GameState.add_gear("shortsword", true, 2); h.armor = GameState.add_gear("leather_armor", true, 2)
+				GameState.add_mat("potion_healing", 3); s.loadout.potion_healing = 3; GameState.facilities.alchemy.level = 3
 			s.chosen_hero = classes[ci]; s._start(); main.delve.fast = true
 			return
 		print("UI SMOKE: PASS (fights=%d, stash gold=%d)" % [stage, GameState.mat("gold")])

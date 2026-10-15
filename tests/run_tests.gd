@@ -19,6 +19,8 @@ func _ready() -> void:
 	test_rules(gs)
 	test_balance(gs)
 	test_boss(gs)
+	test_traps(gs)
+	test_prison(gs)
 	test_fullrun(gs)
 	test_delve(gs)
 	test_camp(gs)
@@ -87,7 +89,7 @@ func test_balance(gs) -> void:
 	check(wins == total, "starting Warrior beats every sewer encounter with sensible tactics")
 	# door fights
 	for dd in DB.doors:
-		if dd.a.kind == "combat":
+		if dd.a.kind == "combat" and "sewers" in dd.get("biomes", ["sewers"]):
 			var c := Combat.new(); c.setup(DB.rooms[2], hs, hs.ht, dd.a.mobs)
 			check(CombatBot.play(c).won, "door fight %s winnable" % dd.id)
 	var st := Combat.new(); st.setup(DB.rooms[0], hs, hs.ht, ["statue"])
@@ -172,6 +174,96 @@ func test_fullrun(gs) -> void:
 			else: deaths.append("f%d %s" % [r.floor, r.boss_entry])
 		print("  %s: cleared %d/10 (avg Lv at clear %.1f) deaths at %s" % [cls, wins, float(lv) / maxf(1, wins), deaths])
 		check(wins >= 5, "%s clears the Sewers in at least half the seeded runs" % cls)
+	print("[deeprun] Lv1 hero with forged tier-2 gear, Sewers + Prison in one expedition (6 rations, 8 torches, 4 potions), 10 seeds")
+	for cls in ["warrior", "mage", "rogue", "huntress"]:
+		var wins := 0; var deaths := []
+		for seed in 10:
+			gs.new_game()
+			for c in gs.heroes: gs.heroes[c].unlocked = true
+			gs.add_mat("potion_healing", 2); gs.add_mat("ration", 4); gs.add_mat("torch", 6); gs.facilities.alchemy.level = 3
+			_kit_tier2(gs, cls)
+			var r := RunSim.play(gs, cls, {"ration": 6, "torch": 8, "potion_healing": 4}, 2000 + seed, true)
+			if r.result == "extract" and r.biome == "prison": wins += 1
+			else: deaths.append("f%d" % r.floor)
+		print("  %s: cleared Prison %d/10, ended at %s" % [cls, wins, deaths])
+		check(wins >= 2, "%s can clear the Prison in a single deep run sometimes" % cls)
+
+func test_traps(gs) -> void:
+	print("[traps]")
+	gs.new_game()
+	var hs := warrior(gs)
+	var room := ["########", "#H^....#", "#.?....#", "#......#", "#......#", "#.....1#", "#......#", "########"]
+	var c := Combat.new(); c.setup(room, hs, hs.ht, ["rat"], false, ["worn_dart"])
+	check(c.traps.size() == 2 and c.visible_trap(Vector2i(2, 1)) and not c.visible_trap(Vector2i(2, 2)), "room parses visible + hidden traps")
+	var hp0: int = c.hero.hp; var b0: int = c.hero.barrier
+	c.hero_tap(Vector2i(2, 1))
+	check(not c.traps.has(Vector2i(2, 1)) and (c.hero.hp < hp0 or c.hero.barrier < b0), "stepping on a trap fires it once")
+	check(c.hero_search() and c.visible_trap(Vector2i(2, 2)), "search reveals adjacent hidden traps")
+	# mobs path around traps; knockback pushes them in
+	var c2 := Combat.new(); c2.setup(room, hs, hs.ht, ["rat"], false, ["gripping"])
+	var m = c2.enemies()[0]; m.pos = Vector2i(3, 1); c2.hero.pos = Vector2i(1, 1)
+	c2.traps.erase(Vector2i(2, 2))
+	c2.knockback(m, Vector2i(-1, 0))
+	check(m.pos == Vector2i(2, 1) and not c2.traps.has(Vector2i(2, 1)) and m.hp < m.ht, "knockback onto a trap triggers it")
+	var c3 := Combat.new(); c3.setup(room, hs, hs.ht, ["rat"], false, ["teleport"])
+	c3.hero_tap(Vector2i(2, 1))
+	check(Combat.cheb(c3.hero.pos, Vector2i(6, 5)) >= 4 or c3.hero.pos != Vector2i(2, 1), "teleport trap moves the hero away")
+	var c4 := Combat.new(); c4.setup(room, hs, hs.ht, ["rat"], false, ["poison_dart"])
+	c4.hero.barrier = 0; c4.hero_tap(Vector2i(2, 1))
+	var hp1: int = c4.hero.hp
+	c4.hero_wait(); c4.hero_wait()
+	check(c4.hero.hp <= hp1 - 2, "poison ticks 1/turn through DR")
+	var rs := Combat.new(); rs.from_dict(c.to_dict())
+	check(rs.traps.size() == c.traps.size(), "traps survive save/restore")
+	gs.heroes.rogue.unlocked = true
+	var rh: Dictionary = gs.hero_stats("rogue")
+	var c5 := Combat.new(); c5.setup(room, rh, rh.ht, ["rat"], false, ["worn_dart"])
+	c5.hero_tap(Vector2i(1, 2))
+	check(c5.visible_trap(Vector2i(2, 2)), "Rogue's keen eyes spot adjacent hidden traps while moving")
+
+func test_prison(gs) -> void:
+	print("[prison] Lv5 Warrior, Str 12, Shortsword+1 / Leather+1 (GDD: Prison = 12-13 Str, tier 2-3) vs every Prison fight")
+	gs.new_game()
+	var w: Dictionary = gs.heroes.warrior
+	w.level = 5; w.str = 12; w.weapon = gs.add_gear("shortsword", true, 1); w.armor = gs.add_gear("leather_armor", true, 1)
+	var hs := warrior(gs)
+	var b: Dictionary = DB.biomes.prison
+	var wins := 0; var total := 0; var worst := 999
+	for set in b.encounter_sets:
+		for room in DB.rooms + DB.biome_rooms.prison:
+			var c := Combat.new(); c.setup(room, hs, hs.ht, set.mobs, false, b.traps)
+			var r := CombatBot.play(c)
+			total += 1
+			if r.won: wins += 1; worst = mini(worst, r.hp)
+	print("  warrior Lv5: %d/%d wins, lowest end HP %d/%d" % [wins, total, worst, hs.ht])
+	check(wins >= total * 0.95, "Lv5 Warrior wins >= 95% of Prison fights")
+	var tw := 0
+	for room_i in 3:
+		var c := Combat.new(); c.setup(DB.boss_rooms[1], hs, hs.ht, ["tengu"], false, b.traps)
+		var r := CombatBot.play(c, 2, 10)
+		if r.won: tw += 1
+		if room_i == 0: print("  Tengu vs Lv5 Warrior + 2 potions: won=%s hp=%d turns=%d" % [r.won, r.hp, r.turns])
+	check(tw >= 1, "Tengu is beatable by a Lv5 Warrior with 2 potions")
+	var t := Combat.new(); t.setup(DB.boss_rooms[1], hs, hs.ht, ["tengu"], false, b.traps)
+	var tg = t.enemies()[0]
+	var p0: Vector2i = tg.pos
+	t.hit_mob(tg, 16, false, true)
+	check(tg.pos != p0, "Tengu blinks away after losing 15 HP")
+	tg.hp = 40; t.hero.pos = Vector2i(1, 1); tg.pos = Vector2i(5, 5); tg.bombs = 2
+	t.hero_wait(); t.hero_wait()  # hero wins the tie at t=1, Tengu acts before t=2
+	check(t.danger.size() >= 3, "enraged Tengu telegraphs a 3x3 bomb")
+	var sk := Combat.new(); sk.setup(DB.rooms[0], hs, hs.ht, ["skeleton", "rat"])
+	var s0 = sk.enemies()[0]
+	sk.hit_mob(s0, 99, false, true)
+	check(sk.danger.size() >= 6, "Skeleton death telegraphs a bone burst")
+
+## The kit a player can forge after a couple of Sewers clears (see docs/BALANCE.md "Prison readiness").
+func _kit_tier2(gs, cls: String) -> void:
+	var h: Dictionary = gs.heroes[cls]
+	h.armor = gs.add_gear("leather_armor", true, 1)
+	match cls:
+		"warrior", "huntress": h.weapon = gs.add_gear("shortsword", true, 1)
+		"rogue": h.weapon = gs.add_gear("dagger", true, 2)
 
 func test_delve(gs) -> void:
 	print("[delve]")

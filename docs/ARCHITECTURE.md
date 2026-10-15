@@ -19,6 +19,12 @@
 - **`CombatBot`**: `suggest(combat)` returns the next sensible action (dodge telegraphs > heal when low > chasm shove > bolt > attack the fastest kill > approach). Used by tests, the **Hint** button and **Auto**.
 - **`Delve`**: static functions over `GameState.run`: `plan_floor`, `advance(gs, pct)` (drain, auto-supplies, gathering, starvation, Strength milestones, event triggers), `build_event`, `combat_event`, `pay`/`pay_possible`, `reward`, `descend`.
 
+## Traps & biomes
+- `data/traps.json` defines trap effects; `data/biomes.json` gives each biome a trap pool, encounter sets, boss + boss room, music, tileset, secret cache and `next` biome.
+- `Combat.setup(..., pool)` parses `^`/`?` from the room and assigns trap types from the pool by position. All unit relocations go through `Combat._place()`, which fires traps (so moves, knockback and the Guard's chain all trigger them).
+- `Delve.new_combat(gs, ev)` is the one place a fight is built from an event (CombatScreen and RunSim both use it). `Delve.continue_deeper()` switches `run.biome` at a boss campfire.
+- `scripts/core/codex.gd` (class `Codex`) turns mob data into player-facing ability text (inspect toasts, Codex tab).
+
 ## The run dictionary (`GameState.run`)
 `hero, biome, floor, progress, torch, satiety, hp, pack{mat:n}, pack_gear[], supplies{ration,torch,potion_healing,scroll_passage,...}, seed, events[], next_event, gather, starve, milestones_done[], pending_loot, boss_dead`.
 It is saved with the account, so closing the app mid-delve resumes on the Delve Bar (a fight in progress is not saved; you resume just after the event triggered - see DECISIONS.md).

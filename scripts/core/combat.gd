@@ -8,6 +8,8 @@
 ##  - Surprise: attacking from a door or tall-grass tile = x surprise_mult (1.5, dagger 2.0), ignores DR, knockback.
 ##  - Telegraphs: red danger tiles resolve at a known time; step off them.
 ##  - Knockback into a chasm kills instantly (loot halved, recovered next floor).
+##  - Traps (data/traps.json): '^' visible, '?' hidden until searched. Anyone stepping on one triggers it
+##    (one-shot). Mobs know trap locations and path around them, but knockback can push them in.
 class_name Combat
 extends RefCounted
 
@@ -30,17 +32,21 @@ var over := false
 var won := false
 var boss_killed := false
 var _uid := 0
+var traps := {}                 # Vector2i -> {"id": String, "hidden": bool}
+var trap_pool: Array = ["worn_dart", "gripping", "teleport"]
 
 ## room_rows: Array[String] 8x8; hs: GameState.hero_stats(); mob_ids fill spawn slots 1..4 in order (B = boss).
-func setup(room_rows: Array, hs: Dictionary, hp: int, mob_ids: Array, darkness := false) -> void:
-	terrain.clear(); units.clear(); danger.clear(); log_lines.clear(); events.clear()
+func setup(room_rows: Array, hs: Dictionary, hp: int, mob_ids: Array, darkness := false, pool := []) -> void:
+	terrain.clear(); units.clear(); danger.clear(); log_lines.clear(); events.clear(); traps.clear()
+	if not pool.is_empty(): trap_pool = pool
 	time = 0.0; loot = 0; fallen_loot = 0; xp = 0; over = false; won = false; boss_killed = false; _uid = 0
 	hero = {"uid": _next_uid(), "id": "hero", "name": hs.name, "hp": hp, "ht": hs.ht, "dmg": hs.dmg, "dr": hs.dr,
 		"barrier": 0 if darkness else hs.barrier_max, "barrier_max": hs.barrier_max, "delay": hs.delay, "next": 0.0,
 		"pos": Vector2i.ZERO, "sprite": hs.sprite, "fw": hs.fw, "fh": hs.fh, "surprise_mult": hs.get("surprise_mult", 1.5),
 		"abilities": hs.get("abilities", []), "bolt": hs.get("bolt", {}), "charges": 0, "recharge_t": 0.0, "hero": true,
 		"cloak": hs.get("cloak", {}), "cloak_charges": int(hs.get("cloak", {}).get("charges", 0)), "hidden_until": -1.0,
-		"slams": 1 if "slam" in hs.get("abilities", []) else 0}
+		"slams": 1 if "slam" in hs.get("abilities", []) else 0, "search_radius": int(hs.get("search_radius", 1)),
+		"poison": 0, "keen_eyes": hs.get("keen_eyes", false)}
 	if not hero.bolt.is_empty(): hero.charges = hero.bolt.charges
 	units.append(hero)
 	var slots := {}
@@ -58,6 +64,9 @@ func setup(room_rows: Array, hs: Dictionary, hp: int, mob_ids: Array, darkness :
 				"H": hero.pos = Vector2i(x, y)
 				"1","2","3","4": slots[int(ch) - 1] = Vector2i(x, y)
 				"B": slots[0] = Vector2i(x, y)
+				"^", "?":
+					# trap type: deterministic from position so the same room always has the same traps
+					traps[Vector2i(x, y)] = {"id": trap_pool[(x * 7 + y * 3) % trap_pool.size()], "hidden": ch == "?"}
 			row.append(t)
 		terrain.append(row)
 	for i in mob_ids.size():
@@ -74,7 +83,9 @@ func to_dict() -> Dictionary:
 	var dz := []
 	for d in danger:
 		var e: Dictionary = d.duplicate(); e.pos = [d.pos.x, d.pos.y]; dz.append(e)
-	return {"terrain": terrain, "units": us, "danger": dz, "time": time, "log": Array(log_lines), "loot": loot,
+	var tr := []
+	for k in traps: tr.append({"pos": [k.x, k.y], "id": traps[k].id, "hidden": traps[k].hidden})
+	return {"terrain": terrain, "units": us, "danger": dz, "traps": tr, "trap_pool": trap_pool, "time": time, "log": Array(log_lines), "loot": loot,
 		"fallen_loot": fallen_loot, "xp": xp, "over": over, "won": won, "boss_killed": boss_killed, "uid": _uid}
 
 func from_dict(d: Dictionary) -> void:
@@ -84,13 +95,16 @@ func from_dict(d: Dictionary) -> void:
 	for u in d.units:
 		var x: Dictionary = u.duplicate(true)
 		x.pos = Vector2i(int(u.pos[0]), int(u.pos[1]))
-		for k in ["uid", "hp", "ht", "dmg", "dr", "barrier", "barrier_max", "charges", "cloak_charges", "cooldown", "acts", "exp", "loot"]:
+		for k in ["uid", "hp", "ht", "dmg", "dr", "barrier", "barrier_max", "charges", "cloak_charges", "cooldown", "acts", "exp", "loot", "pump_count", "poison", "search_radius", "stolen", "slams", "bombs", "blinks", "steal_gold"]:
 			if x.has(k): x[k] = int(x[k])
 		units.append(x)
 		if x.has("hero"): hero = x
 	danger = []
 	for e in d.danger:
 		var y: Dictionary = e.duplicate(); y.pos = Vector2i(int(e.pos[0]), int(e.pos[1])); y.dmg = int(e.dmg); y.uid = int(e.uid); danger.append(y)
+	traps = {}
+	for t in d.get("traps", []): traps[Vector2i(int(t.pos[0]), int(t.pos[1]))] = {"id": t.id, "hidden": t.hidden}
+	trap_pool = Array(d.get("trap_pool", trap_pool))
 	time = float(d.time); log_lines = PackedStringArray(d.log); loot = int(d.loot); fallen_loot = int(d.fallen_loot)
 	xp = int(d.xp); over = d.over; won = d.won; boss_killed = d.boss_killed; _uid = int(d.uid); events = []
 
@@ -101,7 +115,7 @@ func _next_uid() -> int:
 func spawn(id: String, p: Vector2i) -> Dictionary:
 	var m: Dictionary = DB.mobs[id].duplicate(true)
 	m.id = id; m.uid = _next_uid(); m.hp = int(m.ht); m.pos = p; m.next = float(m.delay); m.cooldown = 0; m.acts = 0
-	m.charging = false
+	m.charging = false; m.poison = 0
 	units.append(m)
 	return m
 
@@ -133,6 +147,9 @@ func enemies() -> Array:
 func passable(p: Vector2i) -> bool:
 	var t := tile(p)
 	return t != T.WALL and t != T.CHASM
+
+func visible_trap(p: Vector2i) -> bool:
+	return traps.has(p) and not traps[p].hidden
 
 func is_danger(p: Vector2i) -> bool:
 	for d in danger:
@@ -213,6 +230,8 @@ func hit_mob(m: Dictionary, raw: int, surprise := false, magic := false) -> void
 		_kill(m, false)
 	elif surprise and not m.get("boss", false):
 		knockback(m, m.pos - hero.pos)
+	elif m.get("ability", "") == "tengu":
+		_tengu_hurt(m)
 
 func knockback(m: Dictionary, dir: Vector2i) -> void:
 	dir = Vector2i(signi(dir.x), signi(dir.y))
@@ -224,6 +243,7 @@ func knockback(m: Dictionary, dir: Vector2i) -> void:
 		var from: Vector2i = m.pos
 		m.pos = dest
 		_ev({"t": "move", "uid": m.uid, "from": from, "to": dest})
+		_ev({"t": "sfx", "name": "falling"})
 		_log("%s is knocked into the chasm!" % m.name)
 		_kill(m, true)
 	elif t == T.WALL or unit_at(dest) != null:
@@ -232,12 +252,88 @@ func knockback(m: Dictionary, dir: Vector2i) -> void:
 		_ev({"t": "hit", "uid": m.uid, "amount": 1, "kind": "hp", "pos": m.pos})
 		if m.hp <= 0: _kill(m, false)
 	else:
-		_ev({"t": "move", "uid": m.uid, "from": m.pos, "to": dest})
-		m.pos = dest
+		_place(m, dest)
+
+## Move a unit (hero or mob) and fire any trap on the destination tile.
+func _place(u: Dictionary, dest: Vector2i) -> void:
+	_ev({"t": "move", "uid": u.uid, "from": u.pos, "to": dest})
+	u.pos = dest
+	if u == hero and hero.get("keen_eyes", false): _reveal(dest, 1, false)
+	if traps.has(dest): _trigger(dest, u)
+
+func _trigger(p: Vector2i, u: Dictionary) -> void:
+	var tr: Dictionary = DB.traps[traps[p].id]
+	traps.erase(p)
+	_log("%s triggers a %s!" % [u.name, tr.name])
+	_ev({"t": "trap", "pos": p}); _ev({"t": "sfx", "name": "trap"})
+	var is_hero := u == hero
+	if tr.has("dmg"):
+		if is_hero: hit_hero(int(tr.dmg), tr.name)
+		else: _trap_hit(u, int(tr.dmg))
+	if u.hp <= 0: return
+	if tr.has("root"):
+		u.next = float(u.next) + float(tr.root); _log("%s is held fast." % u.name)
+	if tr.has("poison"):
+		u.poison = int(u.get("poison", 0)) + int(tr.poison); _ev({"t": "sfx", "name": "debuff"})
+	if tr.get("teleport", false):
+		var far := _farthest_free(hero.pos if not is_hero else _nearest_enemy_pos())
+		_ev({"t": "sfx", "name": "teleport"})
+		_ev({"t": "move", "uid": u.uid, "from": u.pos, "to": far, "blink": true})
+		u.pos = far
+
+func _trap_hit(m: Dictionary, dmg: int) -> void:
+	var d := maxi(0, dmg - int(m.dr))
+	m.hp -= d
+	_ev({"t": "hit", "uid": m.uid, "amount": d, "kind": "hp", "pos": m.pos})
+	_log("%s takes %d." % [m.name, d])
+	if m.hp <= 0: _kill(m, false)
+
+## Poison ticks once per action of its victim: 1 damage, ignores DR and Barrier.
+func _tick_poison(u: Dictionary) -> void:
+	if int(u.get("poison", 0)) <= 0: return
+	u.poison -= 1
+	if u == hero:
+		hero.hp -= 1
+		_ev({"t": "hit", "uid": hero.uid, "amount": 1, "kind": "poison", "pos": hero.pos})
+		if hero.hp <= 0:
+			hero.hp = 0; over = true; won = false; _log("%s succumbs to poison..." % hero.name)
+			_ev({"t": "die", "uid": hero.uid, "pos": hero.pos})
+	else:
+		u.hp -= 1
+		_ev({"t": "hit", "uid": u.uid, "amount": 1, "kind": "poison", "pos": u.pos})
+		if u.hp <= 0: _kill(u, false)
+
+## Reveal hidden traps within radius. Returns how many were found.
+func _reveal(center: Vector2i, radius: int, loud := true) -> int:
+	var n := 0
+	for k in traps:
+		if traps[k].hidden and cheb(k, center) <= radius:
+			traps[k].hidden = false; n += 1
+			_ev({"t": "reveal", "pos": k})
+	if n > 0:
+		_log("Found %d hidden trap%s!" % [n, "" if n == 1 else "s"]); _ev({"t": "sfx", "name": "secret"})
+	elif loud: _log("You search but find nothing.")
+	return n
+
+func _nearest_enemy_pos() -> Vector2i:
+	var best := hero.pos as Vector2i; var bd := 999
+	for e in enemies():
+		if cheb(e.pos, hero.pos) < bd: bd = cheb(e.pos, hero.pos); best = e.pos
+	return best
+
+## Free, trap-free tile farthest from `from` (ties: lowest y, then x) - deterministic.
+func _farthest_free(from: Vector2i) -> Vector2i:
+	var best := from; var bd := -1
+	for y in SIZE:
+		for x in SIZE:
+			var c := Vector2i(x, y)
+			if not passable(c) or unit_at(c) != null or traps.has(c) or is_danger(c): continue
+			if cheb(c, from) > bd: bd = cheb(c, from); best = c
+	return best
 
 func _kill(m: Dictionary, chasm: bool) -> void:
 	m.hp = 0
-	var l := int(m.loot)
+	var l := int(m.loot) + int(m.get("stolen", 0))
 	xp += int(m.exp)
 	if chasm:
 		fallen_loot += int(l / 2.0)
@@ -249,8 +345,15 @@ func _kill(m: Dictionary, chasm: bool) -> void:
 		_ev({"t": "die", "uid": m.uid, "pos": m.pos})
 	danger = danger.filter(func(d): return d.uid != m.uid)
 	if m.get("boss", false): boss_killed = true
+	# Skeleton: bones burst a moment after death (telegraphed 3x3)
+	if m.get("ability", "") == "bone_burst" and not chasm:
+		for d in [Vector2i.ZERO] + DIRS:
+			if tile(m.pos + d) != T.WALL:
+				danger.append({"pos": m.pos + d, "dmg": int(m.burst_dmg), "at": time + float(m.burst_delay), "src": "Bone shards", "uid": -m.uid})
+		_log("%s's bones start to rattle! (red tiles)" % m.name); _ev({"t": "telegraph", "uid": m.uid})
 	if enemies().is_empty():
 		over = true; won = true
+		danger.clear()
 		_log("Room cleared!")
 
 ## Lightning conducts through connected shallow water: everyone standing in it (hero included!) takes damage.
@@ -308,8 +411,7 @@ func hero_tap(p: Vector2i, mode := "") -> bool:
 		_end_hero_turn(float(hero.delay))
 		return true
 	if passable(p) and u == null:
-		_ev({"t": "move", "uid": hero.uid, "from": hero.pos, "to": p})
-		hero.pos = p
+		_place(hero, p)
 		_end_hero_turn(1.0)
 		return true
 	return false
@@ -362,6 +464,18 @@ func _break_cloak() -> void:
 		hero.hidden_until = -1.0
 		_log("%s strikes from the shadows!" % hero.name)
 
+## Search: 2 ticks, reveals hidden traps within the hero's search radius (Rogue/Huntress see further).
+func hero_search() -> bool:
+	if over: return false
+	hero.searched = true
+	_log("%s searches carefully..." % hero.name); _ev({"t": "sfx", "name": "scan"}); _ev({"t": "search", "pos": hero.pos, "r": int(hero.search_radius) + 1})
+	_reveal(hero.pos, int(hero.search_radius) + 1)
+	_end_hero_turn(2.0)
+	return true
+
+func hidden_trap_count() -> int:
+	return traps.values().filter(func(t): return t.hidden).size()
+
 func hero_wait() -> void:
 	if over: return
 	_log("%s waits." % hero.name)
@@ -376,7 +490,8 @@ func hero_heal(amount: int) -> void:
 
 func _end_hero_turn(cost: float) -> void:
 	hero.next += cost
-	run_until_hero()
+	_tick_poison(hero)
+	if not over: run_until_hero()
 
 ## Advance the deterministic clock until it is the hero's turn again.
 func run_until_hero() -> void:
@@ -413,6 +528,9 @@ func _resolve_danger() -> void:
 			danger.erase(d)
 			_ev({"t": "blast", "pos": d.pos})
 			if hero.pos == d.pos: hit_hero(d.dmg, d.src)
+			elif d.get("hits_mobs", false):
+				var u = unit_at(d.pos)
+				if u != null and u != hero: _trap_hit(u, int(d.dmg))
 			if over: return
 	# a mob that finished charging stops charging
 	for m in enemies():
@@ -420,7 +538,11 @@ func _resolve_danger() -> void:
 
 func _mob_act(m: Dictionary) -> void:
 	m.acts += 1
+	_tick_poison(m)
+	if m.hp <= 0 or over: return
 	if m.charging: return  # waits for its telegraph to resolve
+	if m.has("hp_flee") and int(m.get("stolen", 0)) > 0:
+		_flee(m); return
 	match m.get("ability", ""):
 		"throw":
 			var rng: Array = m.throw_range
@@ -431,8 +553,33 @@ func _mob_act(m: Dictionary) -> void:
 				_ev({"t": "telegraph", "uid": m.uid})
 				return
 			m.cooldown = maxi(0, m.cooldown - 1)
+		"zap":
+			# DM-100: telegraphed lightning bolt (ignores DR); conducts through water to the hero
+			if not hidden() and m.cooldown <= 0 and cheb(m.pos, hero.pos) >= 2 and cheb(m.pos, hero.pos) <= 4 and line_clear(m.pos, hero.pos):
+				danger.append({"pos": hero.pos, "dmg": int(m.zap_dmg), "at": m.next + 1.0, "src": m.name + "'s lightning", "uid": m.uid})
+				m.cooldown = int(m.zap_cooldown)
+				_log("%s crackles with energy! (red tile)" % m.name)
+				_ev({"t": "telegraph", "uid": m.uid}); _ev({"t": "sfx", "name": "chargeup"})
+				return
+			m.cooldown = maxi(0, m.cooldown - 1)
+		"chain":
+			# Prison Guard: once per fight, yanks the hero next to it
+			if not hidden() and m.cooldown <= 0 and cheb(m.pos, hero.pos) >= 2 and cheb(m.pos, hero.pos) <= 3 and line_clear(m.pos, hero.pos):
+				var pts := _line(hero.pos, m.pos)
+				var dest: Vector2i = pts[pts.size() - 2]
+				if passable(dest) and unit_at(dest) == null:
+					m.cooldown = 999
+					_log("%s's chain drags %s in!" % [m.name, hero.name]); _ev({"t": "sfx", "name": "chains"})
+					_place(hero, dest)
+					return
+		"tengu":
+			if _tengu_act(m): return
 		"pump":
-			if m.acts % int(m.pump_every) == 0:
+			var every := int(m.pump_every)
+			if int(m.hp) * 2 <= int(m.ht) and m.has("pump_every_enraged"): every = int(m.pump_every_enraged)
+			m.pump_count = int(m.get("pump_count", 0)) + 1
+			if m.pump_count >= every:
+				m.pump_count = 0
 				var dmg := int(m.dmg) * int(m.pump_mult)
 				for d in DIRS:
 					var p: Vector2i = m.pos + d
@@ -448,14 +595,63 @@ func _mob_act(m: Dictionary) -> void:
 	if cheb(m.pos, hero.pos) == 1:
 		_ev({"t": "attack", "uid": m.uid, "to": hero.pos})
 		hit_hero(int(m.dmg), m.name)
+		if m.get("ability", "") == "steal" and int(m.get("stolen", 0)) == 0 and not over:
+			m.stolen = int(m.steal_gold)
+			_log("%s snatches %d gold and runs! Kill it to get it back." % [m.name, m.stolen]); _ev({"t": "sfx", "name": "gold"})
 		return
-	var step = path_step(m.pos, hero.pos)
+	var step = path_step(m.pos, hero.pos, false, true)
 	if step != null:
-		_ev({"t": "move", "uid": m.uid, "from": m.pos, "to": step})
-		m.pos = step
+		_place(m, step)
+
+## Thief: after stealing, runs to the tile farthest from the hero.
+func _flee(m: Dictionary) -> void:
+	var best = null; var bd := cheb(m.pos, hero.pos)
+	for d in DIRS:
+		var n: Vector2i = m.pos + d
+		if passable(n) and unit_at(n) == null and not traps.has(n) and cheb(n, hero.pos) > bd: bd = cheb(n, hero.pos); best = n
+	if best != null: _place(m, best)
+	elif cheb(m.pos, hero.pos) == 1: hit_hero(int(m.dmg), m.name)
+
+## Tengu (SPD Prison boss). Phase 1: throws telegraphed shurikens from range, blinks away after being hurt.
+## Phase 2 (<= half HP): also lobs bombs - a 3x3 red area that blows up 2 ticks later (bombs hurt mobs too).
+## Returns true if it used its turn.
+func _tengu_act(m: Dictionary) -> bool:
+	if hidden(): return false
+	var d := cheb(m.pos, hero.pos)
+	var enraged := int(m.hp) * 2 <= int(m.ht)
+	m.bombs = int(m.get("bombs", 0)) + 1
+	if enraged and m.bombs >= int(m.bomb_every):
+		m.bombs = 0
+		for o in [Vector2i.ZERO] + DIRS:
+			if tile(hero.pos + o) != T.WALL:
+				danger.append({"pos": hero.pos + o, "dmg": int(m.bomb_dmg), "at": m.next + 2.0, "src": "Tengu's bomb", "uid": m.uid, "hits_mobs": true})
+		_log("Tengu lobs a bomb! (2 ticks - get clear of the red area)")
+		_ev({"t": "telegraph", "uid": m.uid}); _ev({"t": "sfx", "name": "blast"})
+		return true
+	if d >= 2 and m.cooldown <= 0 and line_clear(m.pos, hero.pos):
+		danger.append({"pos": hero.pos, "dmg": int(m.throw_dmg), "at": m.next + 1.0, "src": "Tengu's shuriken", "uid": m.uid})
+		m.cooldown = int(m.throw_cooldown)
+		_log("Tengu readies a shuriken! (red tile)")
+		_ev({"t": "telegraph", "uid": m.uid}); _ev({"t": "sfx", "name": "hit_stab"})
+		return true
+	m.cooldown = maxi(0, int(m.cooldown) - 1)
+	return false
+
+## Called after Tengu takes damage: every `blink_every` HP lost it teleports to the far side of the arena.
+func _tengu_hurt(m: Dictionary) -> void:
+	var lost := int(m.ht) - int(m.hp)
+	var marks := lost / int(m.blink_every)
+	if marks > int(m.get("blinks", 0)) and m.hp > 0:
+		m.blinks = marks
+		var far := _farthest_free(hero.pos)
+		_log("Tengu vanishes in a puff of smoke!"); _ev({"t": "sfx", "name": "puff"})
+		_ev({"t": "move", "uid": m.uid, "from": m.pos, "to": far, "blink": true})
+		m.pos = far
+		danger = danger.filter(func(z): return z.uid != m.uid or z.get("hits_mobs", false))
 
 ## First step of a shortest 8-way path from `from` to a tile adjacent to `to`. null if none.
-func path_step(from: Vector2i, to: Vector2i, avoid_danger := false):
+## avoid_traps: mobs know every trap; known_only restricts that to revealed traps (hero-side pathing).
+func path_step(from: Vector2i, to: Vector2i, avoid_danger := false, avoid_traps := false, known_only := false):
 	var prev := {from: from}
 	var q := [from]
 	while not q.is_empty():
@@ -468,6 +664,7 @@ func path_step(from: Vector2i, to: Vector2i, avoid_danger := false):
 			var n: Vector2i = c + d
 			if prev.has(n) or not passable(n) or unit_at(n) != null: continue
 			if avoid_danger and is_danger(n): continue
+			if avoid_traps and traps.has(n) and not (known_only and traps[n].hidden): continue
 			prev[n] = c; q.append(n)
 	return null
 

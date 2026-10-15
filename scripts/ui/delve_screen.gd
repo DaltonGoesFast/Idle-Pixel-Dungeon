@@ -187,7 +187,9 @@ func _card_special() -> void:
 	for o in sp.options:
 		var cost: Dictionary = o.get("cost", {})
 		var ok := cost.is_empty() or Delve.pay_possible(GameState, cost)
-		v.add_child(UIKit.action(o.text, func(): _special_option(o), "" if ok else "can't afford"))
+		var why := "" if ok else "can't afford"
+		if o.has("requires_class") and o.requires_class != GameState.run.hero: why = "%s only" % DB.heroes[o.requires_class].name
+		v.add_child(UIKit.action(o.text, func(): _special_option(o), why))
 
 func _special_option(o: Dictionary) -> void:
 	if o.has("fight"):
@@ -195,7 +197,7 @@ func _special_option(o: Dictionary) -> void:
 		_fight(ev, o.get("reward", {})); return
 	if o.has("cost") and not Delve.pay(GameState, o.cost): return
 	if o.has("reward"):
-		Sfx.play("item"); GameState.say(Delve.reward(GameState, o.reward))
+		Sfx.play("secret" if o.get("secret", false) else "item"); GameState.say(Delve.reward(GameState, o.reward))
 	pending = {}; _show_card(); GameState.touch()
 
 func _floor_cleared() -> void:
@@ -206,10 +208,25 @@ func _floor_cleared() -> void:
 
 func _card_floor() -> void:
 	var run: Dictionary = GameState.run
-	var v := _card("Floor %d cleared" % run.floor, "Descending heals %d%% of max HP. Extraction is only possible at the floor-5 campfire or with a Scroll of Passage." % int(Delve.FLOOR_REST_HEAL * 100))
+	var v := _card("Floor %d cleared" % run.floor, "Descending heals %d%% of max HP. Extraction is only possible at a boss campfire or with a Scroll of Passage." % int(Delve.FLOOR_REST_HEAL * 100))
+	if int(run.get("searched_floor", 0)) != int(run.floor):
+		var hint := " (Rogue: always finds it)" if run.hero == "rogue" else " (%d%% chance)" % Delve.SEARCH_CHANCE
+		v.add_child(UIKit.action("Search for hidden doors (-%d torch)%s" % [int(Delve.SEARCH_TORCH), hint], func():
+			var msg := Delve.search_floor(GameState)
+			Sfx.play("secret" if msg.begins_with("A hidden") else "scan"); GameState.say(msg); _show_card(); GameState.touch(),
+			"" if Delve.can_search_floor(run) else "not enough torch"))
 	v.add_child(UIKit.button("Descend to floor %d" % (int(run.floor) + 1), func():
 		Sfx.play("descend"); Delve.descend(GameState); pending = {}; _show_card()))
 
 func _card_campfire() -> void:
-	var v := _card("Campfire", "Goo is defeated. The way to the Prison is not open yet in this build - rest and extract with 100% of your pack.")
+	var run: Dictionary = GameState.run
+	var boss: String = DB.mobs[DB.biomes[run.biome].boss].name
+	var nb := Delve.next_biome(run)
+	var txt := "%s is defeated. Rest here and extract with 100%% of your pack" % boss
+	if nb != "": txt += ", or press on into the %s (floors %d-%d, %d Str recommended) - nothing is banked until you extract." % [DB.biomes[nb].name, DB.biomes[nb].floors[0], DB.biomes[nb].floors[1], DB.biomes[nb].str_gate]
+	else: txt += ". This is the deepest biome in this build."
+	var v := _card("Campfire", txt)
 	v.add_child(UIKit.button("Extract to Camp", func(): Sfx.play("mastery"); GameState.end_run("extract"); main.show_camp()))
+	if nb != "":
+		v.add_child(UIKit.button("Descend into the %s" % DB.biomes[nb].name, func():
+			Sfx.play("descend"); Delve.continue_deeper(GameState); pending = {}; Sfx.music(DB.biomes[GameState.run.biome].music); _show_card()))
