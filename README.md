@@ -2,7 +2,7 @@
 
 A hybrid semi-idle dungeon-management RPG and deterministic tactical roguelite built in **Godot 4.7** on top of
 [Shattered Pixel Dungeon](https://github.com/00-Evan/shattered-pixel-dungeon)'s art, sounds and stats.
-Design doc: `docs/GDD.txt`. Targets Android (Galaxy Z Fold 6 cover + inner screens) and desktop.
+Design doc: `docs/GDD.txt`. Targets Android (Galaxy Z Fold 6 cover + inner screens) and desktop. An iOS export produces an Xcode project for TestFlight (`docs/BUILD_IOS.md`).
 
 **Loop:** Surface Camp (craft, equip, identify, patrol) -> Delve Bar (UI-driven exploration with torch/satiety drain,
 Door Choices, special-room cards) -> 8x8 deterministic combat (fixed damage, DR + Barrier, telegraphs, surprise attacks,
@@ -27,13 +27,13 @@ Open the folder in the Godot 4.7 editor (standard build, not .NET) or in Cursor 
 | `scenes/main.tscn` | Entry scene |
 | `tests/` | Headless test scenes + screenshot capture |
 | `tools/` | `build.sh`, `verify_apk.sh`, `gen_docs.py` |
-| `docs/` | Architecture, decisions, balance, content, testing, Android build, roadmap, changelog |
+| `docs/` | Architecture, decisions, balance, content, testing, Android and iOS builds, roadmap, changelog |
 
 ## Docs
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - how the code fits together
 - [docs/DECISIONS.md](docs/DECISIONS.md) - design calls made where the GDD was open
 - [docs/BALANCE.md](docs/BALANCE.md) / [docs/CONTENT.md](docs/CONTENT.md) - numbers and content (partly generated)
-- [docs/TESTING.md](docs/TESTING.md), [docs/BUILD_ANDROID.md](docs/BUILD_ANDROID.md), [docs/ROADMAP.md](docs/ROADMAP.md), [docs/CHANGELOG.md](docs/CHANGELOG.md)
+- [docs/TESTING.md](docs/TESTING.md), [docs/BUILD_ANDROID.md](docs/BUILD_ANDROID.md), [docs/BUILD_IOS.md](docs/BUILD_IOS.md), [docs/ROADMAP.md](docs/ROADMAP.md), [docs/CHANGELOG.md](docs/CHANGELOG.md)
 
 ## License
 GPL-3.0 (see `LICENSE`) because it reuses Shattered Pixel Dungeon assets and values. Credits in `CREDITS.md`.

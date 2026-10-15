@@ -13,6 +13,10 @@ mkdir -p builds/linux builds/windows
 VER="$(grep -m1 '^version/name=' export_presets.cfg | cut -d'"' -f2)"
 PVER="$(grep -m1 '^config/version=' project.godot | cut -d'"' -f2)"
 if [ "$VER" != "$PVER" ]; then echo "VERSION MISMATCH export_presets=$VER project.godot=$PVER -> FAIL"; exit 1; fi
+IOS_VER="$(grep -m1 '^application/short_version=' export_presets.cfg | cut -d'"' -f2)"
+IOS_CODE="$(grep -m1 '^application/version=' export_presets.cfg | cut -d'"' -f2)"
+CODE="$(grep -m1 '^version/code=' export_presets.cfg | cut -d'=' -f2)"
+if [ "$IOS_VER" != "$VER" ] || [ "$IOS_CODE" != "$CODE" ]; then echo "VERSION MISMATCH ios=$IOS_VER ($IOS_CODE) android=$VER ($CODE) -> FAIL"; exit 1; fi
 godot --headless --path . --export-debug "Android" "builds/spd-tactics-v$VER.apk"
 godot --headless --path . --export-debug "Linux" "builds/linux/spd-tactics.x86_64"
 godot --headless --path . --export-debug "Windows Desktop" "builds/windows/spd-tactics.exe"

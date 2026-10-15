@@ -8,6 +8,8 @@ export_credentials.cfg
 builds
 *.apk
 *.aab
+*.ipa
+*.mobileprovision
 *.idsig
 *.keystore
 *.jks

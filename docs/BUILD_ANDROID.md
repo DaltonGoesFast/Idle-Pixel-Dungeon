@@ -15,10 +15,10 @@
 - arm64-v8a only, `screen/immersive_mode=true`, `edge_to_edge=true`, orientation **sensor** (project setting `display/window/handheld/orientation=6`).
 - Gradle build **off** (plain APK from the official template). `custom_template/*` must stay empty - see DECISIONS.md #2.
 - `include_filter="data/*.json"` is required: JSON isn't a Godot resource and is otherwise left out of the pack.
-- Bump `version/code` (integer, must increase) and `version/name` for every release.
+- Bump `version/code` (integer, must increase) and `version/name` for every release. Keep the iOS preset's `application/short_version` and `application/version` in step with those (see `docs/BUILD_IOS.md`).
 
 ## Installing
 Sideload: copy the APK to the phone and open it (allow "install unknown apps"), or `adb install -r builds/spd-tactics-vX.apk`. Builds are signed with the same debug key, so updates install over each other. A release build needs a real keystore (Project > Export > Release keystore) and `--export-release`.
 
 ## iOS
-Templates are installed, but exporting/signing iOS needs a Mac with Xcode.
+See [BUILD_IOS.md](BUILD_IOS.md). Export produces an Xcode project; signing and TestFlight happen on a Mac.
