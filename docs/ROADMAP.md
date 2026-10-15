@@ -17,7 +17,7 @@
 - [x] Surface Camp hub: camp scene, hero portraits, biome picker, item-slot grids, upgrade previews (v0.20.0).
 - [x] Camp: long-press compare, SPD NPC idles, paperdoll, talents pane, alchemy pot (v0.21.0).
 - [ ] Camp: facility art per level.
-- [ ] Alchemy: recipes using found unknown potions (pot UI done in v0.21.0).
+- [x] Alchemy recipes using found potions/scrolls (v0.22.0).
 - [ ] More special rooms (vault, library, garden, sacrificial).
 - [ ] Perf pass (lighting rect count, camp scene redraw only on change).
 - [ ] Yog-Dzewa fists + phases.

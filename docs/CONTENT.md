@@ -20,6 +20,12 @@ Assets used (all from Shattered Pixel Dungeon, GPL-3.0): hero sprites (warrior, 
 | blacksmith | Forge Plate Armor | 22 iron_ore, 9 dark_gold | plate_armor | 3 |
 | alchemy | Brew Potion of Healing | 2 seeds | potion_healing | 1 |
 | alchemy | Brew Starter Elixir | 5 seeds, 2 arcane_resin | elixir_starter | 2 |
+| alchemy | Neutralise Toxic Gas | 1 potion_toxic, 1 seeds | potion_healing | 1 |
+| alchemy | Thin Shielding into Healing | 1 potion_shielding, 1 seeds | potion_healing | 1 |
+| alchemy | Distil Experience | 1 potion_experience, 2 seeds | elixir_starter | 2 |
+| alchemy | Rebind Teleportation | 1 scroll_teleport, 1 seeds | scroll_passage | 1 |
+| alchemy | Render Identify to Resin | 1 scroll_identify | arcane_resin | 1 |
+| alchemy | Render Mapping to Resin | 1 scroll_mapping | arcane_resin | 1 |
 | enchanter | Scribe Scroll of Passage | 2 arcane_resin, 20 gold | scroll_passage | 1 |
 | guild | Buy Ration | 10 gold | ration | 1 |
 | guild | Buy Torch | 8 gold | torch | 1 |

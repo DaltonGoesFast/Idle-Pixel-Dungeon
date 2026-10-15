@@ -111,6 +111,68 @@
     "arcane_resin": 2
    },
    "min_level": 2
+  },
+  {
+   "id": "transmute_toxic",
+   "name": "Neutralise Toxic Gas",
+   "out_mat": "potion_healing",
+   "out_n": 2,
+   "cost": {
+    "potion_toxic": 1,
+    "seeds": 1
+   },
+   "min_level": 1
+  },
+  {
+   "id": "transmute_shielding",
+   "name": "Thin Shielding into Healing",
+   "out_mat": "potion_healing",
+   "out_n": 2,
+   "cost": {
+    "potion_shielding": 1,
+    "seeds": 1
+   },
+   "min_level": 1
+  },
+  {
+   "id": "distill_experience",
+   "name": "Distil Experience",
+   "out_mat": "elixir_starter",
+   "cost": {
+    "potion_experience": 1,
+    "seeds": 2
+   },
+   "min_level": 2
+  },
+  {
+   "id": "transmute_teleport",
+   "name": "Rebind Teleportation",
+   "out_mat": "scroll_passage",
+   "cost": {
+    "scroll_teleport": 1,
+    "seeds": 1
+   },
+   "min_level": 1
+  },
+  {
+   "id": "render_identify",
+   "name": "Render Identify to Resin",
+   "out_mat": "arcane_resin",
+   "out_n": 2,
+   "cost": {
+    "scroll_identify": 1
+   },
+   "min_level": 1
+  },
+  {
+   "id": "render_mapping",
+   "name": "Render Mapping to Resin",
+   "out_mat": "arcane_resin",
+   "out_n": 1,
+   "cost": {
+    "scroll_mapping": 1
+   },
+   "min_level": 1
   }
  ],
  "enchanter": [

@@ -232,3 +232,10 @@ This ports SPD's DungeonTileSheet/DungeonWallsTilemap door handling:
 - Tapping a slot shows its item and a swap list filtered to that slot, with stat deltas (green better, red worse). At Camp the list comes from the stash, via a hero_stats preview with the item swapped in. In a delve it comes from the pack, via compare_equip and delve_equip, and a swap costs the turn in combat.
 - A derived-stats grid sits next to the doll: HP, Dmg, DR, Barrier, Speed, Str, XP, Search, plus bolt, subclass and a Talents link.
 - It is used by the Camp Heroes window and the in-delve backpack. On the cover the stats go under the doll; on the inner screen they go to the right.
+
+## 85. Paperdoll fixes, alchemy with found potions (v0.22.0)
+- The delve paperdoll goes side by side whenever width > 0.7 × height. The Fold inner screen is roughly square, so the old 1.1 threshold never triggered.
+- The misc slot is removed rather than faked. This game has no throwables, and belt supplies already have quick-use buttons in the backpack.
+- Six alchemy recipes use found potions/scrolls: Toxic Gas or Shielding (+1 seed) → 2 Healing; Experience → Starter Elixir; Teleportation → Scroll of Passage; Identify/Mapping → Arcane Resin.
+  - Brewing with an unidentified ingredient identifies it. Until then the recipe reads "Brew the <appearance>" so the name doesn't spoil the ID.
+- Delve Backpack/Talents/Settings panels also take toasts inside the panel.

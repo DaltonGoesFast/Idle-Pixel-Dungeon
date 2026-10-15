@@ -515,8 +515,12 @@ func craft(fac: String, rid: String) -> bool:
 	if can_craft(fac, rid) != "": return false
 	var r := recipe(fac, rid)
 	pay(r.cost)
+	# brewing with an unidentified potion/scroll reveals what it was (SPD alchemy, DECISIONS #85)
+	for k in r.cost:
+		if DB.materials.get(k, {}).get("unknown", false) and not is_mat_known(k): identify_mat(k)
+	var n := int(r.get("out_n", 1))
 	if r.has("out"): add_gear(r.out); say("Forged " + DB.display_name(r.out) + ".")
-	else: add_mat(r.out_mat, 1); say("Made " + DB.mat_name(r.out_mat) + ".")
+	else: add_mat(r.out_mat, n); say("Made %s%s." % [DB.mat_name(r.out_mat), " x%d" % n if n > 1 else ""])
 	if fac == "alchemy": stats.potions_brewed += 1
 	check_unlocks()
 	touch(); return true

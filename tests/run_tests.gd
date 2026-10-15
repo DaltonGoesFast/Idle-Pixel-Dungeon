@@ -743,6 +743,11 @@ func test_identify(gs) -> void:
 	check(not gs.delve_use_pack("scroll_teleport"), "can't use what you don't have")
 	var d: Dictionary = gs.to_dict(); gs.ided = {}; gs.from_dict(d)
 	check(gs.is_mat_known("potion_shielding"), "identification persists")
+	gs.end_run("extract")
+	gs.add_mat("potion_toxic", 1); gs.add_mat("seeds", 1)
+	var hp0: int = gs.mat("potion_healing")
+	check(not gs.is_mat_known("potion_toxic") and gs.craft("alchemy", "transmute_toxic"), "brew with an unknown potion")
+	check(gs.mat("potion_healing") == hp0 + 2 and gs.is_mat_known("potion_toxic"), "alchemy yields x2 and identifies the ingredient")
 
 
 func test_doors_grass(gs) -> void:

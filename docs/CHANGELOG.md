@@ -6,6 +6,11 @@
 
 
 
+## 0.22.0
+- The delve character screen is side by side on the inner screen. The unused misc slot is removed.
+- 6 alchemy recipes for found potions and scrolls; brewing with an unknown ingredient identifies it.
+- Toasts show inside delve panels too.
+
 ## 0.21.0
 - New Diablo-style character screen (paperdoll) in the Camp Heroes window and the delve backpack, with slot swaps and stat deltas.
 - Camp NPCs play their SPD idle animations. Hold an item to compare it with what your hero has equipped.

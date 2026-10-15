@@ -1,6 +1,6 @@
 ## Paperdoll: Diablo-style character screen (DECISIONS #84), used by the Camp Heroes window and the in-delve backpack.
 ## A big hero sprite (its row picks the armor tier, as SPD's HeroSprite does) sits between two columns of SPD item slots:
-## weapon/ring/staff on the left, armor/artifact/class item on the right, with "misc" below. A derived-stats panel
+## weapon/ring/staff on the left, armor/artifact/class item on the right, with no spare misc slot (removed in v0.22.0, DECISIONS #85). A derived-stats panel
 ## goes beside the doll (inner) or under it (cover). Tapping a slot shows its item and a swap list filtered to that
 ## slot, with stat deltas: from the stash at Camp, from the pack mid-delve.
 class_name Paperdoll
@@ -40,8 +40,6 @@ static func build(parent: Control, c: String, wide: bool, mode: String, refresh:
 	plinth.add_child(hero); plinth.size_flags_vertical = Control.SIZE_SHRINK_CENTER; row.add_child(plinth)
 	var rc := UIKit.vbox(); row.add_child(rc)
 	for s in RIGHT: rc.add_child(_slot(c, s, mode, refresh))
-	var mr := HBoxContainer.new(); mr.alignment = BoxContainer.ALIGNMENT_CENTER; dv.add_child(mr)
-	mr.add_child(_slot(c, "misc", mode, refresh))
 	# --- stats
 	var right := UIKit.vbox(); right.size_flags_horizontal = Control.SIZE_EXPAND_FILL; outer.add_child(right)
 	right.add_child(stats_panel(c, on_talents))
@@ -135,7 +133,6 @@ static func _detail(c: String, s: String, mode: String, refresh: Callable, on_eq
 		if it.get("cracked", false): v.add_child(UIKit.label("Cracked - repair at the Forge.", 0.8, Color("ff6a5a")))
 		if mode == "delve" and not d.get("heirloom", false):
 			v.add_child(UIKit.button("Unequip", func(): GameState.delve_unequip(s); refresh.call(), not GameState.backpack_full(), "backpack full"))
-	if s == "misc": v.add_child(UIKit.label("Spare slot for SPD's second misc item (not used yet).", 0.8, Color("9a9488"))); return card
 	if s == "class": return card
 	# swap candidates, filtered to this slot
 	var want := "wand" if s == "staff" else s

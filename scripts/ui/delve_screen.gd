@@ -130,6 +130,8 @@ func _open_panel(kind: String) -> void:
 	if not pending.is_empty() and pending.kind == "combat": return
 	if not pending.is_empty() and not (pending.kind in ["backpack", "talents", "settings"]): _under = pending
 	running = false; pending = {"kind": kind}; _refresh_controls(); _show_card()
+	if main:
+		for t in main.toast_box.get_children(): t.queue_free()
 
 func _close_panel() -> void:
 	pending = _under; _under = {}
@@ -289,3 +291,11 @@ func _card_campfire() -> void:
 	if nb != "":
 		v.add_child(UIKit.button("Descend into the %s" % DB.biomes[nb].name, func():
 			Sfx.play("descend"); Delve.continue_deeper(GameState); pending = {}; main.play_floor_music(); _show_card()))
+
+## main._toast: while a Backpack/Talents/Settings panel is open the message goes into the panel, not over it (DECISIONS #85).
+func window_toast(text: String) -> bool:
+	if pending.is_empty() or not (pending.kind in ["backpack", "talents", "settings"]) or card_host == null: return false
+	var l := UIKit.label(text, 0.85, Color("ffff88")); l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	card_host.add_child(l); card_host.move_child(l, 0)
+	var tw := l.create_tween(); tw.tween_interval(3.5); tw.tween_property(l, "modulate:a", 0.0, 0.6); tw.tween_callback(l.queue_free)
+	return true

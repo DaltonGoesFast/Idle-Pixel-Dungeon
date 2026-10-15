@@ -39,7 +39,9 @@ func _ready() -> void:
 			main.show_camp(); main.screen.open_page("Forge")
 			var r: Dictionary = DB.recipes.blacksmith[0]
 			main.screen.info(r.out, r.name, [main.screen.cost_row(r.cost), "A sample recipe."], [["Make", func(): pass, ""]])])
-		plan.append([sz, "camp_alchemy", func(): main.show_camp(); main.screen.open_page("Alchemy")])
+		plan.append([sz, "camp_alchemy", func():
+			GameState.add_mat("potion_toxic", 1); GameState.add_mat("seeds", 3)
+			main.show_camp(); main.screen.alch_sel = "transmute_toxic"; main.screen.open_page("Alchemy")])
 		plan.append([sz, "camp_enchanter", func():
 			var u: int = GameState.add_gear("ring_wealth", false); GameState.add_gear("ring_evasion", false); GameState.enqueue_identify(u)
 			main.show_camp(); main.screen.open_page("Enchanter")])

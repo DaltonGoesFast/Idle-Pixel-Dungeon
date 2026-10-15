@@ -520,6 +520,11 @@ func _recipe_slots(v: VBoxContainer, id: String, title: String) -> void:
 			Color.WHITE if why == "" else Color(1, 1, 1, 0.45), "6bff6b" if why == "" else ""))
 
 var alch_sel := ""
+## Recipe names would give away an unidentified ingredient, so those read "Brew the <appearance>" until it is known.
+func recipe_name(r: Dictionary) -> String:
+	for k in r.cost:
+		if DB.materials.get(k, {}).get("unknown", false) and not GameState.is_mat_known(k): return "Brew the " + DB.mat_name(k)
+	return r.name
 ## SPD WndAlchemy-style pot: ingredient slots -> arrow -> result slot, with Brew underneath; recipes to pick below.
 func _alchemy_pot(v: VBoxContainer) -> void:
 	var rs: Array = DB.recipes.get("alchemy", [])
@@ -530,7 +535,7 @@ func _alchemy_pot(v: VBoxContainer) -> void:
 	var why: String = GameState.can_craft("alchemy", r.id)
 	var pot := UIKit.card(); v.add_child(pot)
 	var pv := UIKit.vbox(pot)
-	pv.add_child(UIKit.label(r.name, 1.0, Color("ffd27a")))
+	pv.add_child(UIKit.label(recipe_name(r), 1.0, Color("ffd27a")))
 	var row := HBoxContainer.new(); row.alignment = BoxContainer.ALIGNMENT_CENTER; pv.add_child(row)
 	row.add_theme_constant_override("separation", int(UIKit.font_size * 0.3))
 	for k in r.cost:
@@ -540,7 +545,8 @@ func _alchemy_pot(v: VBoxContainer) -> void:
 		row.add_child(sl)
 	var arrow := UIKit.label("=>", 1.5, Color("ffd27a")); arrow.autowrap_mode = TextServer.AUTOWRAP_OFF; arrow.size_flags_vertical = SIZE_SHRINK_CENTER; row.add_child(arrow)
 	var od: Dictionary = DB.item(out) if r.has("out") else DB.materials.get(out, {})
-	row.add_child(item_slot(out, "" if r.has("out") else str(GameState.mat(out)), "", func(): info(out, r.name, [od.get("desc", "")]), Color.WHITE, "ffd27a"))
+	var on := int(r.get("out_n", 1))
+	row.add_child(item_slot(out, "x%d" % on if on > 1 else "", "", func(): info(out, DB.mat_name(out), [od.get("desc", ""), "In stash: %d" % GameState.mat(out)]), Color.WHITE, "ffd27a"))
 	if od.has("desc"): pv.add_child(UIKit.label(od.desc, 0.8, Color("bdb3a0")))
 	var brew := UIKit.action("Brew", func():
 		if GameState.craft("alchemy", r.id): Sfx.play("drink"), why)
@@ -550,7 +556,10 @@ func _alchemy_pot(v: VBoxContainer) -> void:
 	for x in rs:
 		var o2: String = x.get("out", x.get("out_mat", ""))
 		var ok := GameState.can_craft("alchemy", x.id) == ""
-		g.add_child(item_slot(o2, "", "", func(): alch_sel = x.id; _fill_window(), Color.WHITE if ok else Color(1, 1, 1, 0.45),
+		var ukey := ""
+		for k in x.cost:
+			if DB.materials.get(k, {}).get("unknown", false): ukey = k
+		g.add_child(item_slot(ukey if ukey != "" else o2, "", "", func(): alch_sel = x.id; _fill_window(), Color.WHITE if ok else Color(1, 1, 1, 0.45),
 			"ffff66" if x.id == alch_sel else ("6bff6b" if ok else "")))
 
 func _page_facility(page: String, id: String) -> void:

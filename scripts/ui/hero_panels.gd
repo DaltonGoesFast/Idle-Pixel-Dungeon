@@ -93,8 +93,8 @@ static func backpack(parent: Control, refresh: Callable, in_combat := false, on_
 			var b := UIKit.button("Use %s (%d)" % [DB.mat_name(k), n], func(): GameState.delve_use(k); refresh.call(), n > 0)
 			b.custom_minimum_size.x = UIKit.font_size * 7; flow.add_child(b)
 	# equipped: the same paperdoll as the Camp Heroes window, swapping from the pack (DECISIONS #84)
-	var vs := v.get_viewport_rect().size if v.is_inside_tree() else Vector2(1, 2)
-	Paperdoll.build(v, c, vs.x > vs.y * 1.1, "delve", refresh, Callable(), on_equip_in_combat)
+	var vs: Vector2 = (Engine.get_main_loop() as SceneTree).root.get_visible_rect().size
+	Paperdoll.build(v, c, vs.x > vs.y * 0.7, "delve", refresh, Callable(), on_equip_in_combat)
 	# unknown / found potions and scrolls (use identifies them, DECISIONS #80)
 	if not in_combat:
 		var cons: Array = GameState.unknown_mats().filter(func(k): return int(run.pack.get(k, 0)) > 0)
