@@ -941,6 +941,21 @@ func test_rooms_surprise(gs) -> void:
 	check(Delve.fill_mobs(["rat", "snake"], small).size() == 2, "8x8 fill keeps encounter length")
 	var need := Delve.room_slot_count(big)
 	check(Delve.fill_mobs(["rat", "snake"], big).size() == need and need >= 2, "12x12 fill repeats the set")
+	# 8x8 rooms never grow an encounter, whatever their slot count (a lone crab stays one crab, DECISIONS #137)
+	var grew := 0
+	for rm8 in DB.rooms + DB.biome_rooms.get("sewers", []):
+		if Delve.fill_mobs(["crab"], rm8).size() != 1 or Delve.fill_mobs(["statue"], rm8).size() != 1: grew += 1
+	check(grew == 0, "8x8 rooms keep single-mob encounters single")
+	var rng8 := RandomNumberGenerator.new(); rng8.seed = 137
+	var crab_ok := true
+	for i in 30:
+		var ev8: Dictionary = Delve.combat_event({"biome": "sewers", "floor": 2}, rng8, ["crab"])
+		if ev8.mobs.size() != 1: crab_ok = false
+	check(crab_ok, "Sewers crab encounter spawns one crab")
+	# a large room with more slots than mobs still repeats the set
+	var big4 := ["##########", "#H.......#", "#........#", "#....1...#", "#........#", "#...2....#", "#........#", "#.....3..#", "#.4......#", "##########"]
+	check(Delve.is_large_room(big4) and not Delve.is_large_room(small), "10x10 is large, 8x8 is not")
+	check(Delve.fill_mobs(["rat"], big4) == ["rat", "rat", "rat", "rat"], "large room fills every slot")
 	# snake fights only roll rooms with a door
 	var rng := RandomNumberGenerator.new(); rng.randomize()
 	for i in 20:

@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Fights in 8x8 rooms no longer grow: since the larger-rooms change, a lone Sewers crab became three crabs (and a statue three statues) whenever the 8x8 had three spawn slots, so most first runs died on floors 1-4. Only 10x10/12x12 rooms repeat the encounter to fill their slots, as DECISIONS #134 describes (+tests).
 
 ## 0.29.0
 - In-game Update on Android and Windows: Camp / Settings checks GitHub releases, downloads the APK or zip, and on Android opens the system Install screen. iOS stays on TestFlight; `tools/upload_testflight.sh` archives and uploads on a Mac. Android export uses Gradle so the updater can request install permission (+tests).
