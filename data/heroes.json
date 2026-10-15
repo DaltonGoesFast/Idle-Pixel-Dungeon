@@ -127,7 +127,7 @@
   ],
   "unlocked_by_default": false,
   "unlock": "Brew 5 potions at the Alchemy Pot.",
-  "desc": "Geometry & overwatch. The Spirit Bow fires unlimited arrows at any enemy in line of sight (DR applies; Surprise from cover). Searches a wider area for hidden traps.",
+  "desc": "Geometry & overwatch. The Spirit Bow fires unlimited arrows at enemies past arm's length in line of sight (DR applies; Surprise when they lose sight of you). Searches a wider area for hidden traps.",
   "search_radius": 2,
   "unlock_rule": {
    "stat": "potions_brewed",

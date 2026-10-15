@@ -24,7 +24,8 @@
   "sprite": "snake",
   "fw": 12,
   "fh": 11,
-  "spd": "HT 4, dmg 1-4"
+  "evade_unless_surprise": true,
+  "spd": "HT 4, dmg 1-4; only hit by surprise attacks"
  },
  "gnoll": {
   "name": "Gnoll Scout",

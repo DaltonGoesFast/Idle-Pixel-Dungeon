@@ -1,4 +1,4 @@
-## GridView: draws the 8x8 arena with SPD tiles/sprites (nearest filter, integer scale) and juice:
+## GridView: draws the arena (8/10/12) with SPD tiles/sprites (nearest filter, integer scale) and juice:
 ## tweened movement, hit flash, floating damage numbers, bolt streaks, pulsing red danger tiles.
 ## Emits `tapped(cell)`. Visual state is driven by Combat.drain_events().
 extends Control
@@ -34,6 +34,8 @@ var dying := []          # [{sprite, fw, fh, pos, flip, t}] SPD die animation th
 var last_units := {}     # uid -> unit snapshot (for die anims after removal)
 var buff_icons: Texture2D
 var variance := {}       # Vector2i -> 0..99 (SPD tileVariance)
+var door_tween := {}     # Vector2i -> {open: bool, t: float} open/close flash
+var _door_was := {}      # last-frame occupancy for door tween
 
 # SPD DungeonTileSheet indices (xy(x,y) = (x-1) + 16*(y-1))
 const S_FLOOR := 0; const S_FLOOR_ALT1 := 6; const S_FLOOR_ALT2 := 12
@@ -69,10 +71,13 @@ func set_combat(c: Combat) -> void:
 	if anims.is_empty():
 		var f := FileAccess.open("res://data/anims.json", FileAccess.READ)
 		if f: anims = JSON.parse_string(f.get_as_text())
-	ustate.clear(); dying.clear(); variance.clear()
+	ustate.clear(); dying.clear(); variance.clear(); door_tween.clear(); _door_was.clear()
 	var rng := RandomNumberGenerator.new(); rng.seed = hash(str(c.terrain))
-	for y in range(-2, Combat.SIZE + 2):
-		for x in range(-2, Combat.SIZE + 2): variance[Vector2i(x, y)] = rng.randi() % 100
+	for y in range(-2, c.h + 2):
+		for x in range(-2, c.w + 2): variance[Vector2i(x, y)] = rng.randi() % 100
+
+func _aw() -> int: return combat.w if combat != null else Combat.SIZE
+func _ah() -> int: return combat.h if combat != null else Combat.SIZE
 
 ## SPD anim control: play(uid, "attack"|"run"|"idle"), with facing from a horizontal delta.
 func _play(uid: int, a: String, dx := 0.0) -> void:
@@ -154,6 +159,17 @@ func play_events(evs: Array) -> void:
 func _process(d: float) -> void:
 	anim_t += d
 	if combat:
+		for y in combat.h:
+			for x in combat.w:
+				var c := Vector2i(x, y)
+				if combat.tile(c) != Combat.T.DOOR: continue
+				var now := combat.unit_at(c) != null
+				if _door_was.get(c, now) != now:
+					door_tween[c] = {"open": now, "t": 0.0}
+				_door_was[c] = now
+		for k in door_tween.keys():
+			door_tween[k].t += d
+			if door_tween[k].t >= MOVE_TIME: door_tween.erase(k)
 		for u in combat.units:
 			var target := Vector2(u.pos)
 			var cur: Vector2 = disp.get(u.uid, target)
@@ -203,17 +219,19 @@ func light_radius() -> float:
 ## SPD-style camera: the arena plus a half-tile wall border fills the view; cells snap to whole
 ## multiples of the 16 px art (integer zoom) whenever the screen allows it (DECISIONS #72).
 func cell_size() -> float:
-	var raw := floorf(minf(size.x, size.y) / (Combat.SIZE + 0.3))
+	var side := float(maxi(_aw(), _ah()))
+	var raw := floorf(minf(size.x, size.y) / (side + 0.3))
 	if raw < 16.0: return raw
 	var snapped := floorf(raw / 16.0) * 16.0
 	# integer zoom unless it would waste >15% of the screen; then 1/4-pixel steps (still nearest-filtered)
 	return snapped if snapped >= raw * 0.9 else floorf(raw / 4.0) * 4.0
 
 func origin() -> Vector2:
-	var cs := cell_size() * Combat.SIZE
-	var slack := size - Vector2(cs, cs)
+	var cs := cell_size()
+	var arena := Vector2(cs * _aw(), cs * _ah())
+	var slack := size - arena
 	# most vertical slack goes on top so the raised top wall face is visible (SPD rooms read from their top wall)
-	return Vector2(slack.x / 2.0, minf(slack.y * 0.8, cell_size() * 0.75)).floor()
+	return Vector2(slack.x / 2.0, minf(slack.y * 0.8, cs * 0.75)).floor()
 
 func cell_rect(p: Vector2) -> Rect2:
 	var cs := cell_size()
@@ -222,12 +240,18 @@ func cell_rect(p: Vector2) -> Rect2:
 # ---- SPD terrain stitching (DungeonTileSheet / DungeonTerrainTilemap / DungeonWallsTilemap) ----
 # Cells outside the arena are walls (a SPD room border); beyond that NULL_TILE also stitches as wall.
 func _t(c: Vector2i) -> int:
-	if c.x < 0 or c.y < 0 or c.x >= Combat.SIZE or c.y >= Combat.SIZE: return Combat.T.WALL
+	if c.x < 0 or c.y < 0 or c.x >= _aw() or c.y >= _ah(): return Combat.T.WALL
 	return combat.terrain[c.y][c.x]
 
 func _is_wall(c: Vector2i) -> bool: return _t(c) == Combat.T.WALL
 func _is_door(c: Vector2i) -> bool: return _t(c) == Combat.T.DOOR
-func _door_open(c: Vector2i) -> bool: return combat != null and _is_door(c) and combat.unit_at(c) != null
+func _door_open(c: Vector2i) -> bool:
+	if combat == null or not _is_door(c): return false
+	var occ := combat.unit_at(c) != null
+	# brief open/close: hold the previous frame for half a move, then settle (tests see settled without _process)
+	if door_tween.has(c) and float(door_tween[c].t) < MOVE_TIME * 0.45:
+		return not bool(door_tween[c].open)
+	return occ
 func _water_stitch(c: Vector2i) -> bool:
 	var t := _t(c); return t == Combat.T.FLOOR or t == Combat.T.GRASS or t == Combat.T.DOOR
 
@@ -260,7 +284,7 @@ func terrain_visual(c: Vector2i) -> int:
 			return S_RAISED_DOOR_OPEN if _door_open(c) else S_RAISED_DOOR
 		Combat.T.WALL:
 			var below := c + Vector2i(0, 1)
-			if _is_wall(below) or below.y > Combat.SIZE: return -1
+			if _is_wall(below) or below.y > _ah(): return -1
 			var r := S_RAISED_WALL_DOOR if _is_door(below) else (S_RAISED_WALL_ALT if v < 50 else S_RAISED_WALL)
 			if not _is_wall(c + Vector2i(1, 0)): r += 1
 			if not _is_wall(c + Vector2i(-1, 0)): r += 2
@@ -276,7 +300,11 @@ func wall_visual(c: Vector2i) -> int:
 	var below := c + Vector2i(0, 1)
 	if _is_wall(c):
 		if not _is_wall(below):
-			if _is_door(below): return -1 if _door_open(below) else S_DOOR_SIDEWAYS
+			if _is_door(below):
+				# Sideways door only when there is wall under the door; otherwise front overhang
+				if _is_wall(below + Vector2i(0, 1)):
+					return -1 if _door_open(below) else S_DOOR_SIDEWAYS
+				return S_DOOR_OVERHANG_OPEN if _door_open(below) else S_DOOR_OVERHANG
 			return -1
 		var r := S_WALL_INTERNAL
 		if not _is_wall(c + Vector2i(1, 0)): r += 1
@@ -297,7 +325,7 @@ func wall_visual(c: Vector2i) -> int:
 ## covers the head of a character standing in the grass or the cell above (DECISIONS #81).
 func grass_overhang(c: Vector2i) -> int:
 	var below := c + Vector2i(0, 1)
-	if _is_wall(c) or _t(below) != Combat.T.GRASS or below.y >= Combat.SIZE: return -1
+	if _is_wall(c) or _t(below) != Combat.T.GRASS or below.y >= _ah(): return -1
 	return S_GRASS_OVERHANG_ALT if int(variance.get(below, 50)) < 50 else S_GRASS_OVERHANG
 
 ## SPD FogOfWar-like darkness 0..1 at a cell corner (bilinear blend between cells like SPD's fog texture).
@@ -309,7 +337,7 @@ func _visible(c: Vector2i) -> bool:
 	var key := [combat.hero.pos, combat.terrain.hash(), combat.units.size()]
 	if key != _vis_key:
 		_vis_key = key; _vis.clear()
-	if not _vis.has(c): _vis[c] = combat.line_clear(combat.hero.pos, c)
+	if not _vis.has(c): _vis[c] = combat.sees(combat.hero.pos, c)
 	return _vis[c]
 
 func _corner_dark(cx: int, cy: int, ctr: Vector2, lr: float) -> float:
@@ -317,7 +345,7 @@ func _corner_dark(cx: int, cy: int, ctr: Vector2, lr: float) -> float:
 	for o in [Vector2i(-1, -1), Vector2i(0, -1), Vector2i(-1, 0), Vector2i(0, 0)]:
 		var c: Vector2i = Vector2i(cx, cy) + o
 		var dk := 0.0
-		if c.x < 0 or c.y < 0 or c.x >= Combat.SIZE or c.y >= Combat.SIZE: dk = 0.55
+		if c.x < 0 or c.y < 0 or c.x >= _aw() or c.y >= _ah(): dk = 0.55
 		elif not _is_wall(c) and not _visible(c): dk = 0.55   # SPD "visited" (seen, not in view)
 		acc += dk
 	var fog := acc / 4.0
@@ -329,10 +357,10 @@ func _draw() -> void:
 	if combat == null: return
 	var cs := cell_size()
 	var ps := cs / 16.0
-	var lo := -2; var hi := Combat.SIZE + 1
+	var lo := -2; var hi_x := _aw() + 1; var hi_y := _ah() + 1
 	# 1. ground layer
-	for y in range(lo, hi + 1):
-		for x in range(lo, hi + 1):
+	for y in range(lo, hi_y + 1):
+		for x in range(lo, hi_x + 1):
 			var c := Vector2i(x, y)
 			var t := _t(c)
 			var r := cell_rect(Vector2(x, y))
@@ -343,10 +371,15 @@ func _draw() -> void:
 			if v >= 0: _tile(r, v)
 			elif t == Combat.T.WALL and _is_wall(c + Vector2i(0, 1)): _tile(r, S_WALL_INTERNAL + 15)  # solid fill under wall tops
 			if t == Combat.T.GRASS:
+				# blades + overhang share one offset; floor strip (bottom 6 art px) stays put
 				var sway := roundf(sin(anim_t * 1.7 + x * 0.9 + y * 0.5) * 0.6) * ps
-				_tile(Rect2(r.position + Vector2(sway, 0), r.size), grass_visual(c))
+				_tile_grass(r, grass_visual(c), sway)
 			var go := grass_overhang(c)
-			if go >= 0: _tile(r, go)
+			if go >= 0:
+				var sway2 := 0.0
+				if _t(c + Vector2i(0, 1)) == Combat.T.GRASS:
+					sway2 = roundf(sin(anim_t * 1.7 + x * 0.9 + (y + 1) * 0.5) * 0.6) * ps
+				_tile(Rect2(r.position + Vector2(sway2, 0), r.size), go)
 	# 2. terrain features: revealed traps
 	for k in combat.traps:
 		if not combat.traps[k].hidden:
@@ -398,18 +431,18 @@ func _draw() -> void:
 		_health_bar(u, top, scale)
 		_status_icons(u, top, scale)
 	# 5. walls layer over characters (SPD perspective wall tops / overhangs)
-	for y in range(lo, hi + 1):
-		for x in range(lo, hi + 1):
+	for y in range(lo, hi_y + 1):
+		for x in range(lo, hi_x + 1):
 			var wv := wall_visual(Vector2i(x, y))
 			if wv >= 0: _tile(cell_rect(Vector2(x, y)), wv)
 	# 6. fog of war + torchlight: smooth per-corner blend (SPD FogOfWar texture is bilinear)
 	if lighting and lr < 50.0:
 		var ctr := hero_disp + Vector2(0.5, 0.5)
 		var dark := {}
-		for y in range(lo, hi + 2):
-			for x in range(lo, hi + 2): dark[Vector2i(x, y)] = _corner_dark(x, y, ctr, lr)
-		for y in range(lo, hi + 1):
-			for x in range(lo, hi + 1):
+		for y in range(lo, hi_y + 2):
+			for x in range(lo, hi_x + 2): dark[Vector2i(x, y)] = _corner_dark(x, y, ctr, lr)
+		for y in range(lo, hi_y + 1):
+			for x in range(lo, hi_x + 1):
 				var a: float = dark[Vector2i(x, y)]; var b: float = dark[Vector2i(x + 1, y)]
 				var c2: float = dark[Vector2i(x + 1, y + 1)]; var d2: float = dark[Vector2i(x, y + 1)]
 				if a + b + c2 + d2 <= 0.0: continue
@@ -500,10 +533,19 @@ func _status_icons(u: Dictionary, top: Vector2, scale: float) -> void:
 func _tile(r: Rect2, idx: int) -> void:
 	draw_texture_rect_region(tiles, r, Rect2((idx % 16) * 16, (idx / 16) * 16, 16, 16))
 
+## Tall grass: bottom 6 art pixels stay put (floor), top 10 sway with the overhang.
+func _tile_grass(r: Rect2, idx: int, sway: float) -> void:
+	var sx := (idx % 16) * 16; var sy := int(idx / 16) * 16
+	var ps := r.size.x / 16.0
+	var floor_h := 6.0 * ps
+	var blade_h := 10.0 * ps
+	draw_texture_rect_region(tiles, Rect2(r.position + Vector2(0, blade_h), Vector2(r.size.x, floor_h)), Rect2(sx, sy + 10, 16, 6))
+	draw_texture_rect_region(tiles, Rect2(r.position + Vector2(sway, 0), Vector2(r.size.x, blade_h)), Rect2(sx, sy, 16, 10))
+
 func _gui_input(e: InputEvent) -> void:
 	if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT:
 		var c: Vector2 = ((e.position - origin()) / cell_size()).floor()
 		var cell := Vector2i(c)
-		if cell.x >= 0 and cell.y >= 0 and cell.x < Combat.SIZE and cell.y < Combat.SIZE:
+		if cell.x >= 0 and cell.y >= 0 and cell.x < _aw() and cell.y < _ah():
 			tapped.emit(cell)
 		accept_event()

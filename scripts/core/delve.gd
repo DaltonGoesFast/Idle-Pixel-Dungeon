@@ -130,9 +130,65 @@ static func build_event(run: Dictionary, ev: Dictionary) -> Dictionary:
 static func _for_biome(list: Array, run: Dictionary) -> Array:
 	return list.filter(func(x): return run.biome in x.get("biomes", [run.biome]))
 
-## Rooms used for ordinary fights: the shared set plus the biome's own rooms.
+## Rooms used for ordinary fights. Sewers/Prison keep shared 8x8s; later biomes use larger maps only.
 static func room_pool(run: Dictionary) -> Array:
-	return DB.rooms + DB.biome_rooms.get(run.biome, [])
+	var biome_id := String(run.biome)
+	var own: Array = DB.biome_rooms.get(biome_id, [])
+	match biome_id:
+		"sewers":
+			return DB.rooms + own
+		"prison":
+			return DB.rooms + own + own   # 10x10s listed twice so they show up often
+		"caves", "city", "halls":
+			return own if not own.is_empty() else DB.rooms
+		_:
+			return DB.rooms + own
+
+## Digit spawn slots (1-8) in a room map. Boss marker B counts as one slot.
+static func room_slot_count(room: Array) -> int:
+	var n := 0
+	for row in room:
+		for i in String(row).length():
+			var ch := String(row)[i]
+			if ch in "12345678B": n += 1
+	return n
+
+## True when the room has a real doorway (floor/grass on two opposite sides, walls on the other two).
+static func room_has_door(room: Array) -> bool:
+	var hh := room.size()
+	if hh == 0: return false
+	var ww := String(room[0]).length()
+	for y in hh:
+		var row := String(room[y])
+		for x in ww:
+			if row[x] != "+": continue
+			var n := _room_ch(room, x, y - 1); var s := _room_ch(room, x, y + 1)
+			var e := _room_ch(room, x + 1, y); var w := _room_ch(room, x - 1, y)
+			var ns_open := _room_open(n) and _room_open(s)
+			var ew_open := _room_open(e) and _room_open(w)
+			var ns_wall := n == "#" and s == "#"
+			var ew_wall := e == "#" and w == "#"
+			if (ns_open and ew_wall) or (ew_open and ns_wall): return true
+	return false
+
+static func _room_ch(room: Array, x: int, y: int) -> String:
+	if y < 0 or y >= room.size(): return "#"
+	var row := String(room[y])
+	if x < 0 or x >= row.length(): return "#"
+	return row[x]
+
+static func _room_open(ch: String) -> bool:
+	return ch != "#" and ch != "_"
+
+## Repeat the encounter's own mobs until every spawn slot is filled (large rooms only grow this way).
+static func fill_mobs(mobs: Array, room: Array) -> Array:
+	var need := room_slot_count(room)
+	if need <= mobs.size() or mobs.is_empty(): return mobs
+	var out: Array = mobs.duplicate()
+	var i := 0
+	while out.size() < need:
+		out.append(mobs[i % mobs.size()]); i += 1
+	return out
 
 ## Build a Combat for an event in the current run (shared by CombatScreen and RunSim).
 static func new_combat(gs, ev: Dictionary) -> Combat:
@@ -175,7 +231,11 @@ static func combat_event(run: Dictionary, r: RandomNumberGenerator, mobs := []) 
 		var pick: Dictionary = sets[r.randi() % sets.size()]
 		mobs = pick.mobs
 	var rooms := room_pool(run)
-	return {"kind": "combat", "room": rooms[r.randi() % rooms.size()], "mobs": mobs}
+	if "snake" in mobs:
+		var with_door: Array = rooms.filter(func(rm): return room_has_door(rm))
+		if not with_door.is_empty(): rooms = with_door
+	var room: Array = rooms[r.randi() % rooms.size()]
+	return {"kind": "combat", "room": room, "mobs": fill_mobs(mobs, room)}
 
 static func pay_possible(gs, cost: Dictionary) -> bool:
 	var run: Dictionary = gs.run

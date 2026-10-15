@@ -30,6 +30,7 @@ func _ready() -> void:
 	test_render(gs)
 	test_identify(gs)
 	test_doors_grass(gs)
+	test_rooms_surprise(gs)
 	test_paperdoll(gs)
 	test_specials(gs)
 	test_icon_centering(gs)
@@ -88,7 +89,7 @@ func test_rules(gs) -> void:
 	check(c.hero.barrier == b0 - 1 and c.hero.hp == hs.ht, "chip rule: fully blocked hit removes 1 barrier")
 	c.hero.barrier = 2; c.hit_hero(int(c.hero.dr) + 5, "t")
 	check(c.hero.barrier == 0 and c.hero.hp == hs.ht - 3, "barrier absorbs then spills to HP")
-	var m = c.enemies()[0]; m.pos = Vector2i(5, 2)  # next to chasm at (4,2)? room0 chasm at x3-4,y2-3
+	var m = c.enemies()[0]; m.pos = Vector2i(5, 4)  # next to room0 chasm at (3,4)/(4,4)
 	c.knockback(m, Vector2i(-1, 0))
 	check(m.hp == 0 and c.fallen_loot > 0, "knockback into chasm kills & halves loot")
 	# determinism
@@ -103,11 +104,11 @@ func test_rules(gs) -> void:
 	t.hero_wait(); t.hero_wait()
 	# crab acts at 0.5, 1.0, 1.5 (hero wins the tie at 2.0) -> 3 hits in 2 hero ticks
 	check(hp0 - (t.hero.hp + t.hero.barrier) == 3 * maxi(1, int(crab.dmg) - int(t.hero.dr)), "fast crab acts every 0.5 ticks")
-	# surprise from grass
+	# surprise when the foe lost sight (SPD surprisedBy), not from standing on grass
 	var s := Combat.new(); s.setup(DB.rooms[0], hs, hs.ht, ["gnoll"])
-	s.hero.pos = Vector2i(4, 1)  # grass tile in room0
-	check(s.tile(s.hero.pos) == Combat.T.GRASS, "room0 (4,1) is grass")
-	var g = s.enemies()[0]; g.pos = Vector2i(5, 1)
+	check(s.tile(Vector2i(4, 1)) == Combat.T.GRASS, "room0 (4,1) is grass")
+	var g = s.enemies()[0]; g.pos = Vector2i(5, 1); g.seen_hero = false
+	s.hero.pos = Vector2i(4, 1)
 	s.hero_tap(g.pos)
 	check(g.hp == int(g.ht) - int(hs.dmg * 1.5), "surprise ignores DR, x1.5")
 	check(g.pos == Vector2i(6, 1), "surprise knockback")
@@ -162,7 +163,7 @@ func test_balance(gs) -> void:
 	# warrior slam knocks a crowd back
 	var sl := Combat.new(); var ws := warrior(gs); sl.setup(DB.rooms[0], ws, ws.ht, ["rat", "rat"])
 	var r1 = sl.enemies()[0]; var r2 = sl.enemies()[1]
-	sl.hero.pos = Vector2i(3, 4); r1.pos = Vector2i(3, 3); r2.pos = Vector2i(4, 4)   # chasm at (3,2)? room0 rows 2-3 x3-4
+	sl.hero.pos = Vector2i(4, 6); r1.pos = Vector2i(4, 5); r2.pos = Vector2i(5, 6)  # slam knocks r1 into chasm (4,4)
 	check(sl.hero_slam(), "warrior can slam")
 	check(r1.hp <= 0, "slam knocks a rat into the chasm")
 	check(not sl.hero_slam(), "slam is once per fight")
@@ -184,12 +185,17 @@ func test_balance(gs) -> void:
 	var rs2 := Combat.new(); rs2.from_dict(snap)
 	CombatBot.play(sv); CombatBot.play(rs2)
 	check(sv.log_lines == rs2.log_lines, "restored fight plays out identically")
-	# huntress arrows are unlimited and respect DR
+	# huntress arrows are unlimited and respect DR (no point-blank; clear LOS south of start)
 	var hu: Dictionary = gs.hero_stats("huntress")
-	var hc := Combat.new(); hc.setup(DB.rooms[0], hu, hu.ht, ["crab"])
-	var cr = hc.enemies()[0]
+	var hc := Combat.new(); hc.setup(DB.rooms[0], hu, int(hu.ht), ["crab"])
+	hc.hero.pos = Vector2i(1, 4); var cr = hc.enemies()[0]
+	cr.pos = Vector2i(1, 5)
+	check(not hc.can_bolt(cr.pos), "spirit bow refuses point-blank")
+	cr.pos = Vector2i(1, 6); cr.next = 999.0   # hold still so each shot stays at range 2
+	check(hc.can_bolt(cr.pos), "spirit bow can shoot at range 2")
+	var bow_dmg := maxi(0, int(hu.bolt.dmg) - int(cr.dr))
 	for i in 3: hc.hero_bolt(cr.pos)
-	check(cr.hp == int(cr.ht) - 3 * maxi(0, int(hu.bolt.dmg) - int(cr.dr)) or cr.hp <= 0 or Combat.cheb(cr.pos, hc.hero.pos) == 1, "arrows unlimited, DR applies")
+	check(cr.hp == int(cr.ht) - 3 * bow_dmg or cr.hp <= 0, "arrows unlimited, DR applies")
 
 func test_boss(gs) -> void:
 	print("[boss]")
@@ -283,8 +289,8 @@ func test_prison(gs) -> void:
 	var b: Dictionary = DB.biomes.prison
 	var wins := 0; var total := 0; var worst := 999
 	for set in b.encounter_sets:
-		for room in DB.rooms + DB.biome_rooms.prison:
-			var c := Combat.new(); c.setup(room, hs, hs.ht, set.mobs, false, b.traps)
+		for room in Delve.room_pool({"biome": "prison"}):
+			var c := Combat.new(); c.setup(room, hs, hs.ht, Delve.fill_mobs(set.mobs, room), false, b.traps)
 			var r := CombatBot.play(c)
 			total += 1
 			if r.won: wins += 1; worst = mini(worst, r.hp)
@@ -319,8 +325,8 @@ func test_caves(gs) -> void:
 	var b: Dictionary = DB.biomes.caves
 	var wins := 0; var total := 0; var worst := 999
 	for set in b.encounter_sets:
-		for room in DB.rooms + DB.biome_rooms.caves:
-			var c := Combat.new(); c.setup(room, hs, hs.ht, set.mobs, false, b.traps)
+		for room in DB.biome_rooms.caves:
+			var c := Combat.new(); c.setup(room, hs, hs.ht, Delve.fill_mobs(set.mobs, room), false, b.traps)
 			var r := CombatBot.play(c)
 			total += 1
 			if r.won: wins += 1; worst = mini(worst, r.hp)
@@ -354,8 +360,8 @@ func test_city(gs) -> void:
 	var b: Dictionary = DB.biomes.city
 	var wins := 0; var total := 0; var worst := 999
 	for set in b.encounter_sets:
-		for room in DB.rooms + DB.biome_rooms.city:
-			var c := Combat.new(); c.setup(room, hs, hs.ht, set.mobs, false, b.traps)
+		for room in DB.biome_rooms.city:
+			var c := Combat.new(); c.setup(room, hs, hs.ht, Delve.fill_mobs(set.mobs, room), false, b.traps)
 			var r := CombatBot.play(c)
 			total += 1
 			if r.won: wins += 1; worst = mini(worst, r.hp)
@@ -441,7 +447,7 @@ func test_meta(gs, ss) -> void:
 	CombatBot.play(c)
 	var k0: int = gs.stats.kills
 	Delve.apply_fight_result(gs, ev, {"won": c.won, "hp": c.hero.hp, "loot": c.loot, "fallen_loot": 0, "xp": c.xp, "boss_killed": false, "kills": c.kills, "traps_found": 2, "trap_ids": ["gripping"]}, {})
-	check(gs.stats.kills == k0 + 1 and gs.stats.traps_found == 2 and gs.seen.has("trap:gripping"), "fight results update kills / traps / codex")
+	check(gs.stats.kills == k0 + int(c.kills) and gs.stats.traps_found == 2 and gs.seen.has("trap:gripping"), "fight results update kills / traps / codex")
 	gs.end_run("abandon")
 	# save v1 -> v2 migration back-fills Goo kills
 	var old := {"version": 1, "state": {"stats": {"runs": 3, "deaths": 1}, "boss_kills": {"warrior": ["sewers"], "huntress": ["sewers"]}}}
@@ -757,8 +763,8 @@ func test_halls(gs) -> void:
 	check(DB.biomes.city.next == "halls" and b.boss == "yog", "Demon Halls follow the City, Yog-Dzewa is the boss")
 	var wins := 0; var total := 0; var worst := 999
 	for set in b.encounter_sets:
-		for room in DB.rooms + DB.biome_rooms.halls:
-			var c := Combat.new(); c.setup(room, hs, hs.ht, set.mobs, false, b.traps)
+		for room in DB.biome_rooms.halls:
+			var c := Combat.new(); c.setup(room, hs, hs.ht, Delve.fill_mobs(set.mobs, room), false, b.traps)
 			var r := CombatBot.play(c)
 			total += 1
 			if r.won: wins += 1; worst = mini(worst, r.hp)
@@ -870,7 +876,112 @@ func test_doors_grass(gs) -> void:
 	check(gv.terrain_visual(Vector2i(2, 6)) in [2, 8], "trampled grass draws as SPD short grass")
 	var c2 := Combat.new(); c2.setup(DB.rooms[0], warrior(gs), 20, ["rat"]); c2.from_dict(c.to_dict())
 	check(c2.trampled.has(Vector2i(2, 6)), "trampled grass survives save/load")
+	# front door under a wall cap draws the front overhang, not the sideways cap
+	for y in c.h:
+		for x in c.w: c.terrain[y][x] = Combat.T.FLOOR
+	c.terrain[0][4] = Combat.T.DOOR
+	c.hero.pos = Vector2i(1, 6); c.enemies()[0].pos = Vector2i(7, 7)
+	check(gv.wall_visual(Vector2i(4, -1)) in [224, 225], "top-border door uses front overhang")
 	gv.free()
+
+func test_rooms_surprise(gs) -> void:
+	print("[rooms/surprise]")
+	# every map is square 8/10/12, walled rim, flood-fill from H to every spawn, real doors when present
+	var all := []
+	for rm in DB.rooms: all.append(rm)
+	for rm in DB.boss_rooms: all.append(rm)
+	for b in DB.biome_rooms:
+		for rm in DB.biome_rooms[b]: all.append(rm)
+	for rm in all:
+		var hgt: int = rm.size(); var wid: int = String(rm[0]).length()
+		check(wid == hgt and wid in [8, 10, 12], "room is square 8/10/12")
+		var ok_rim := true; var hx := -1; var hy := -1; var slots := []
+		for y in hgt:
+			var row := String(rm[y])
+			check(row.length() == wid, "room rows equal width")
+			for x in wid:
+				var ch := row[x]
+				if x == 0 or y == 0 or x == wid - 1 or y == hgt - 1:
+					if ch != "#": ok_rim = false
+				if ch == "H": hx = x; hy = y
+				if ch in "12345678B": slots.append(Vector2i(x, y))
+		check(ok_rim, "room rim is walls")
+		check(hx >= 0, "room has hero start")
+		# flood-fill floor from H
+		var seen := {}; var q := [Vector2i(hx, hy)]
+		seen[Vector2i(hx, hy)] = true
+		while not q.is_empty():
+			var p: Vector2i = q.pop_front()
+			for d in Combat.DIRS:
+				var n: Vector2i = p + d
+				if seen.has(n) or n.x < 0 or n.y < 0 or n.x >= wid or n.y >= hgt: continue
+				var ch2 := String(rm[n.y])[n.x]
+				if ch2 == "#" or ch2 == "_": continue
+				seen[n] = true; q.append(n)
+		for sl in slots: check(seen.has(sl), "spawn reachable from H")
+	# every + must be a real threshold (floor/grass on two opposite sides, walls on the other two)
+	for rm2 in all:
+		var h2: int = rm2.size(); var w2: int = String(rm2[0]).length()
+		for y3 in h2:
+			for x3 in w2:
+				if String(rm2[y3])[x3] != "+": continue
+				var n := "#" if y3 == 0 else String(rm2[y3 - 1])[x3]
+				var s := "#" if y3 == h2 - 1 else String(rm2[y3 + 1])[x3]
+				var e := "#" if x3 == w2 - 1 else String(rm2[y3])[x3 + 1]
+				var ww := "#" if x3 == 0 else String(rm2[y3])[x3 - 1]
+				var ns_open := n != "#" and n != "_" and s != "#" and s != "_"
+				var ew_open := e != "#" and e != "_" and ww != "#" and ww != "_"
+				var ns_wall := n == "#" and s == "#"
+				var ew_wall := e == "#" and ww == "#"
+				check((ns_open and ew_wall) or (ew_open and ns_wall), "door is a real threshold")
+	# 8x8 encounter is not lengthened; 12x12 slot count is filled by repeating the set
+	var small: Array = DB.rooms[0]
+	var big: Array = DB.biome_rooms.halls[0]
+	check(Delve.fill_mobs(["rat", "snake"], small).size() == 2, "8x8 fill keeps encounter length")
+	var need := Delve.room_slot_count(big)
+	check(Delve.fill_mobs(["rat", "snake"], big).size() == need and need >= 2, "12x12 fill repeats the set")
+	# snake fights only roll rooms with a door
+	var rng := RandomNumberGenerator.new(); rng.randomize()
+	for i in 20:
+		var ev: Dictionary = Delve.combat_event({"biome": "sewers", "floor": 1}, rng, ["snake", "rat"])
+		check(Delve.room_has_door(ev.room), "snake encounter gets a door room")
+	# door surprise: foe with seen_hero false takes a surprise in the doorway
+	var hs := warrior(gs)
+	var room := ["########", "#H..#..#", "#...#..#", "#...+..#", "#...#1.#", "#......#", "#......#", "########"]
+	var c := Combat.new(); c.setup(room, hs, hs.ht, ["snake"])
+	var sn = c.enemies()[0]
+	c.hero.pos = Vector2i(4, 3)
+	c.hero_tap(Vector2i(5, 3))
+	check(c.door_closed(Vector2i(4, 3)), "door closes behind the hero")
+	sn.pos = Vector2i(4, 3); sn.seen_hero = false; c.hero.pos = Vector2i(5, 3)
+	check(c.surprise_against(sn), "lost-sight foe is surprise-ready")
+	c.hero_tap(sn.pos)
+	check(sn.hp <= 0, "doorway surprise kills the snake")
+	# plain hit misses a snake
+	var c2 := Combat.new(); c2.setup(room, hs, hs.ht, ["snake"])
+	var sn2 = c2.enemies()[0]; sn2.pos = c2.hero.pos + Vector2i(1, 0); sn2.seen_hero = true
+	var hp1: int = sn2.hp
+	c2.hero_tap(sn2.pos)
+	check(sn2.hp == hp1, "snake slips a normal melee hit")
+	# mage bolt also misses without surprise (clear LOS south of the start)
+	var ms: Dictionary = gs.hero_stats("mage")
+	var c3 := Combat.new(); c3.setup(room, ms, int(ms.ht), ["snake"])
+	c3.hero.pos = Vector2i(1, 5)
+	var sn3 = c3.enemies()[0]; sn3.pos = Vector2i(3, 5); sn3.seen_hero = true
+	var hp2: int = sn3.hp
+	c3.hero_bolt(sn3.pos)
+	check(sn3.hp == hp2, "snake slips a wand bolt")
+	# grass blocks sight
+	var c4 := Combat.new(); c4.setup(DB.rooms[0], hs, hs.ht, ["rat"])
+	check(not c4.sees(Vector2i(1, 1), Vector2i(5, 1)), "tall grass at (4,1) blocks sight across the row")
+	# wand can zap adjacent; spirit bow cannot
+	var c5 := Combat.new(); c5.setup(room, ms, int(ms.ht), ["rat"])
+	var rt = c5.enemies()[0]; rt.pos = c5.hero.pos + Vector2i(1, 0)
+	check(c5.can_bolt(rt.pos), "wand can zap adjacent")
+	# bot kills a snake via surprise
+	var c6 := Combat.new(); c6.setup(room, hs, hs.ht, ["snake"])
+	var r: Dictionary = CombatBot.play(c6, 0, 10, 120)
+	check(r.won, "bot kills a snake with door/grass surprise")
 
 func test_paperdoll(gs) -> void:
 	print("[paperdoll]")

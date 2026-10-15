@@ -47,7 +47,7 @@
   },
   "surprise": {
    "title": "Surprise attack!",
-   "text": "You're standing in tall grass or a doorway. Your next attack is a Surprise: x1.5 damage, ignores armor, and knocks the enemy back - into a chasm for an instant kill."
+   "text": "Step through a doorway so it closes behind you, or circle a tall-grass tile so the foe loses sight of you. Your next hit is a Surprise: x1.5 damage, ignores armor, and knocks them back - into a chasm for an instant kill. Snakes slip every hit that is not a Surprise."
   },
   "telegraph": {
    "title": "Red tiles = danger",

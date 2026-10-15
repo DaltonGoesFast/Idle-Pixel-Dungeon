@@ -66,7 +66,7 @@ Assets used (all from Shattered Pixel Dungeon, GPL-3.0): hero sprites (warrior, 
 
 ### Arenas
 
-7 shared 8x8 rooms, 4 prison-only, 4 caves-only, 4 city-only, 4 halls-only, 5 boss rooms (data/rooms.json). Legend: # wall . floor " tall grass + door _ chasm ~ shallow water (conducts lightning) H hero start, 1-4 enemy spawn slots (filled in order), B boss ^ visible trap, ? hidden trap (type from the biome's trap pool)
+Shared 8x8 rooms (Sewers/Prison), plus biome pools: Sewers adds 8x8 multi-chamber maps, Prison/Caves 10x10, City 10x10 and 12x12, Halls 12x12. Boss arenas grow with the biome (Goo/Tengu 10x10, DM-300/King/Yog 12x12). Large rooms fill extra spawn slots by repeating the rolled encounter. Legend: # wall . floor " tall grass + door _ chasm ~ shallow water (conducts lightning) H hero start, 1-8 enemy spawn slots (filled in order), B boss ^ visible trap, ? hidden trap (type from the biome's trap pool). Every + is a real doorway (open on two opposite sides, walls on the other two).
 
 Shared room 0:
 ```
