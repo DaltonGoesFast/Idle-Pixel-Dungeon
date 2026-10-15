@@ -78,6 +78,8 @@ static func _slot(c: String, s: String, mode: String, refresh: Callable) -> Butt
 	if not it.is_empty() and not it.has("pseudo") and it.known and int(it.lvl) > 0:
 		var l := UIKit.label("+%d" % it.lvl, 0.75, Color("66ffff")); l.autowrap_mode = TextServer.AUTOWRAP_OFF
 		l.position = Vector2(UIKit.font_size * 0.15, 0); l.mouse_filter = Control.MOUSE_FILTER_IGNORE; b.add_child(l)
+	if not it.is_empty() and not it.has("pseudo"):
+		UIKit.add_str_label(b, it.id, int(GameState.heroes[c].str), it)
 	b.tooltip_text = s.capitalize() + ": " + (("empty" if it.is_empty() else (it.name if it.has("pseudo") else GameState.gear_name(it))))
 	b.pressed.connect(func(): Sfx.play("click"); sel_slot = "" if sel_slot == s else s; refresh.call())
 	return b

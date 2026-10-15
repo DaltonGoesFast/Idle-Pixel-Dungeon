@@ -185,6 +185,35 @@ static func gear_badge(g: Dictionary) -> String:
 	if g.is_empty() or g.get("pseudo", false) or not g.get("known", true): return ""
 	return String(DB.item(String(g.get("id", ""))).get("badge", ""))
 
+## SPD ItemSlot strength requirement text: ":10" when known, "10?" when unidentified, "" for items without a Str requirement.
+static func str_text(id: String, gear := {}) -> String:
+	if gear.get("pseudo", false): return ""
+	var item_id := String(gear.get("id", id))
+	if not DB.items.has(item_id) or not DB.item(item_id).has("str"): return ""
+	var req := int(DB.item(item_id).str)
+	return (":%d" if gear.get("known", true) else "%d?") % req
+
+## SPD ItemSlot strength requirement colour: red (DEGRADED) above hero's Str, orange (WARNING) when unidentified, white otherwise.
+static func str_color(id: String, hero_str: int, gear := {}) -> Color:
+	if not gear.get("known", true): return Color("ff8800")
+	var item_id := String(gear.get("id", id))
+	return Color("ff4444") if int(DB.item(item_id).get("str", 0)) > hero_str else Color.WHITE
+
+## Add the top-right SPD strength requirement label to an item slot button (weapons and armor only).
+static func add_str_label(slot: Control, id: String, hero_str: int, gear := {}) -> Label:
+	var txt := str_text(id, gear)
+	if txt == "": return null
+	var l := label(txt, 0.75, str_color(id, hero_str, gear))
+	l.name = "StrReq"
+	l.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
+	l.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	l.autowrap_mode = TextServer.AUTOWRAP_OFF
+	l.offset_right = -font_size * 0.15
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	slot.add_child(l)
+	return l
+
 ## SPD item icon at an integer scale of the 16-px cell (`px` rounds down to a multiple of 16), centred on its
 ## visible pixels (DECISIONS #89). `badge` is an ItemSpriteSheet.Icons name drawn in the top-right; an empty
 ## badge follows a material's or item's identification (potions, scrolls, and rings keep their colour/rune/gem and gain the glyph).

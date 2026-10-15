@@ -428,6 +428,7 @@ func item_slot(id: String, br: String, tl: String, cb: Callable, tint := Color.W
 	if tl != "":
 		var l2 := UIKit.label(tl, 0.75, Color("66ffff")); l2.position = Vector2(UIKit.font_size * 0.15, 0); l2.autowrap_mode = TextServer.AUTOWRAP_OFF
 		l2.mouse_filter = MOUSE_FILTER_IGNORE; b.add_child(l2)
+	UIKit.add_str_label(b, id, int(GameState.heroes.get(chosen_hero, {}).get("str", 10)), gear)
 	if gear.is_empty():
 		b.pressed.connect(func(): Sfx.play("click"); cb.call())
 		return b
