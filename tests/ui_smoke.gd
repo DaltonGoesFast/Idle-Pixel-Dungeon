@@ -130,9 +130,21 @@ func _drive() -> void:
 					GameState.run.hp = GameState.hero_stats(GameState.run.hero).ht
 					GameState.run.supplies.potion_healing = 4
 					GameState.run.floor = 19; Delve.descend(GameState); s._show_card()
+				elif GameState.run.biome == "city":
+					print("  King of Dwarves defeated through the UI, continuing into the Demon Halls")
+					s._show_card()
+					_check(Delve.next_biome(GameState.run) == "halls", "King campfire offers the Demon Halls")
+					Delve.continue_deeper(GameState); s.pending = {}; main.play_floor_music()
+					_check(GameState.run.biome == "halls" and int(GameState.run.floor) == 21, "continue enters Halls floor 21")
+					var hh2: Dictionary = GameState.heroes[GameState.run.hero]
+					hh2.level = 18; hh2.str = 18
+					hh2.weapon = GameState.add_gear("greatsword", true, 2); hh2.armor = GameState.add_gear("plate_armor", true, 2)
+					GameState.run.hp = GameState.hero_stats(GameState.run.hero).ht
+					GameState.run.supplies.potion_healing = 5
+					GameState.run.floor = 24; Delve.descend(GameState); s._show_card()
 				else:
-					_check(GameState.run.biome == "city", "campfire reached after the King of Dwarves")
-					print("  King of Dwarves defeated through the UI, extracting")
+					_check(GameState.run.biome == "halls", "campfire reached after Yog-Dzewa")
+					print("  Yog-Dzewa defeated through the UI, extracting")
 					var hc: String = GameState.run.hero
 					GameState.end_run("extract"); main.show_camp()
 					main.screen.rebuild()

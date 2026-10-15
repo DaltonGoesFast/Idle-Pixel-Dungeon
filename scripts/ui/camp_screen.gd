@@ -14,6 +14,14 @@ const MAX_SUPPLY := 10   # torches / rations per expedition (a 15-floor dive nee
 ## SPD icons.png on the camp tabs (DECISIONS #75)
 const TAB_ICONS := {"Delve": "enter", "Heroes": "rankings", "Stash": "backpack_lrg", "Forge": "challenge", "Alchemy": "alchemy",
 	"Enchanter": "scroll", "Guild": "badges", "Journal": "journal", "Settings": "prefs"}
+## Width test for icon-only tabs (DECISIONS #78).
+func icon_only_tabs() -> bool:
+	return get_viewport_rect().size.x < UIKit.font_size * 34.0
+
+## Icon-only mode: only the selected tab shows its label.
+func _name_selected_tab(i: int) -> void:
+	for k in tabs.get_tab_count(): tabs.set_tab_title(k, TAB_ORDER[k] if k == i else "")
+
 const TAB_ORDER := ["Delve", "Heroes", "Stash", "Forge", "Alchemy", "Enchanter", "Guild", "Journal", "Settings"]
 
 func _ready() -> void:
@@ -22,6 +30,7 @@ func _ready() -> void:
 	var title := UIKit.header("Surface Camp   " + UIKit.version())
 	root_box.add_child(title)
 	summary = HFlowContainer.new(); root_box.add_child(summary)
+	summary.add_theme_constant_override("h_separation", int(UIKit.font_size * 0.9))
 	tabs = TabContainer.new(); tabs.size_flags_vertical = SIZE_EXPAND_FILL
 	root_box.add_child(tabs)
 	for t in TAB_ORDER:
@@ -29,8 +38,13 @@ func _ready() -> void:
 		sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 		var v := UIKit.vbox(sc); v.size_flags_horizontal = SIZE_EXPAND_FILL
 		tabs.add_child(sc); pages[t] = v
-		if TAB_ICONS.has(t): tabs.set_tab_icon(tabs.get_tab_count() - 1, UIKit.spd_icon(TAB_ICONS[t]))
+		var ti := tabs.get_tab_count() - 1
+		if TAB_ICONS.has(t): tabs.set_tab_icon(ti, UIKit.spd_icon(TAB_ICONS[t]))
+		# narrow screens (Fold cover): icon-only tabs so all 9 fit without scrolling; the selected tab keeps its name
+		if icon_only_tabs(): tabs.set_tab_title(ti, ""); tabs.set_tab_tooltip(ti, t)
 	GameState.changed.connect(rebuild)
+	if icon_only_tabs():
+		tabs.tab_changed.connect(_name_selected_tab); (func(): _name_selected_tab(tabs.current_tab)).call_deferred()
 	tabs.tab_changed.connect(func(i: int):
 		var t: String = TAB_ORDER[i].to_lower()
 		if main: main.tip("camp_" + t))
@@ -45,7 +59,7 @@ func rebuild() -> void:
 	UIKit.clear(summary)
 	for k in ["gold", "iron_ore", "dark_gold", "seeds", "arcane_resin", "dew", "scroll_upgrade"]:
 		if GameState.mat(k) > 0 or k in ["gold", "iron_ore", "seeds"]:
-			var r := UIKit.icon_row(k, str(GameState.mat(k)), 0.9); summary.add_child(r)
+			summary.add_child(UIKit.res_chip(k, str(GameState.mat(k)), 0.9))
 	_page_delve(); _page_heroes(); _page_stash()
 	_page_facility("Forge", "blacksmith"); _page_facility("Alchemy", "alchemy"); _page_facility("Enchanter", "enchanter")
 	_page_guild(); _page_journal(); _page_settings()

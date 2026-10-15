@@ -5,6 +5,12 @@
 
 
 
+
+## v0.18.0 — King phases
+- King of Dwarves: lifelinked to his Risen Dwarves (takes 2/3 damage while they live), enrages at half HP, throne cracks at 1/4 (no more summons).
+- Camp tabs fit the cover screen (icons, selected tab named).
+- Full 25-floor run simulated in tests; UI smoke test plays through the Halls to Yog-Dzewa.
+
 ## v0.17.0 — Demon Halls
 - New biome: Demon Halls, floors 21-25, after the Dwarf City. Succubus, Ripper Demon, Evil Eye, Scorpio.
 - Final boss Yog-Dzewa: never moves, hatches larva, sweeps your row and column with its gaze.

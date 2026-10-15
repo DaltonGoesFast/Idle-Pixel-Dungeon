@@ -75,7 +75,7 @@ GDD target: 12-13 Str, tier 2-3 gear. Two Sewers Strength potions take a fresh h
 | Dwarf Warlock | 34 | 7 | 3 | 1.0 | 10 | 9 | HT 70, dmg 12-18, DR 0-8; shadow bolt 12-18 + weakness | HT 34; shadow bolt = 1-tick red tile, 9 dmg ignoring DR, every 2 actions |
 | Dwarf Monk | 34 | 5 | 3 | 0.5 | 10 | 8 | HT 70, dmg 12-25, fast attacks, DR 0-2; disarms | HT 34, dmg 5, acts twice per tick |
 | Golem | 75 | 15 | 7 | 1.5 | 14 | 12 | HT 120, dmg 25-30, DR 0-12; slow | HT 75, dmg 15, DR 7, acts every 1.5 ticks |
-| King of Dwarves | 150 | 8 | 5 | 1.0 | 40 | 150 | HT 300, dmg 15-25, DR 0-10; summons, lifelinks, 3 phases | HT 150, dmg 8, DR 5. Every 3 actions (2 when enraged below half HP, +3 dmg) alternates: marks up to 2 tiles where Risen Dwarves appear in 2 ticks (4 dmg if you stand there; only when none are left) and a shadow blast (3x3 on you, 2 ticks, 8 ignoring DR). No phases/lifelink. |
+| King of Dwarves | 140 | 8 | 5 | 1.0 | 40 | 150 | HT 300, dmg 15-25, DR 0-10; summons, lifelinks, 3 phases | HT 140, dmg 8, DR 5. Phase 1 (>1/2 HP): every 3 actions alternates raising 2 Risen Dwarves (only when none are left) and a shadow blast (3x3 on you, 2 ticks, 8 ignoring DR); living dwarves lifelink him (he takes 2/3 damage). Phase 2 (<=1/2): +3 dmg. Phase 3 (<=1/4): throne cracks - no more summons, blasts only. |
 | Risen Dwarf | 18 | 6 | 2 | 1.0 | 2 | 0 | summon | weak summon of the Dwarf King |
 | Succubus | 70 | 16 | 5 | 1.0 | 12 | 14 | HT 80, dmg 25-30, DR 0-10; charm, lifesteal, blink | HT 70, dmg 16, DR 5; heals 5 per bite |
 | Ripper Demon | 40 | 14 | 3 | 0.6 | 10 | 10 | HT 60, dmg 15-25, DR 0-4; leaps, fast | HT 40, dmg 14, DR 3, acts every 0.6 ticks |

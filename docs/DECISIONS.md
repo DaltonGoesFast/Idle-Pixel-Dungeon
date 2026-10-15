@@ -185,3 +185,14 @@ Once the bot could escape multi-tile telegraphs, every Caves sim rose to 9-10/10
 - Yog-Dzewa (HT 240, DR 6, dmg 16): immobile; every 3 actions (2 below half HP, +1 larva) alternates larva on 2 marked tiles (only when none are left) and a gaze beam over the hero's row and column (2-tick fuse, 14 ignoring DR). A single diagonal step escapes the beam. No fists/phases yet.
 - Tier 5 gear: Greatsword (dmg 20, Str 18) and Plate Armor (DR 5 / barrier 5, Str 18), Blacksmith Lv3 recipes.
 - Balance (sim): Lv18 Warrior, Str 18, Greatsword+2/Plate+2 wins 88/88 Halls fights (lowest 13/105 HP) and Yog 4/4 with 3 potions (ends ~10 HP).
+
+## 78. v0.18.0 — icon-only camp tabs on narrow screens
+- When the viewport is narrower than 34 x font size (Fold cover), camp tabs show SPD icons only; the selected tab adds its label. All 9 fit without scrolling. Camp resource header uses res_chip spacing.
+
+## 79. v0.18.0 — King of Dwarves lifelink + 3 phases
+- Phase 1 (>1/2 HP): summons / shadow blast every 3 actions; while Risen Dwarves live he is lifelinked and takes 2/3 damage.
+- Phase 2 (<=1/2): +3 dmg. Phase 3 (<=1/4): throne cracks, no more summons (lifelink ends once his dwarves die).
+- Ability cadence stays 3 in every phase: a 2-action cadence with 2-tick blasts left the hero no turn to strike (sim: Lv21 tier-5 heroes died with 120 HP without landing a hit). HT 150 -> 140.
+- A heal-per-dwarf lifelink was tried and dropped (King out-healed all damage).
+- Sim: Lv14 tier-4 Warrior wins 6/6 King seeds with 3 potions; cityrun 6/6 Warrior, 5/6 Huntress; hallsrun (floors 1-25 in one run, Lv16 tier-5) 3/4.
+- UI smoke now continues King -> Demon Halls -> Yog-Dzewa -> extract.

@@ -317,11 +317,16 @@ func test_city(gs) -> void:
 			if r.won: wins += 1; worst = mini(worst, r.hp)
 	print("  warrior Lv14: %d/%d wins, lowest end HP %d/%d" % [wins, total, worst, hs.ht])
 	check(wins >= total * 0.9, "Lv14 tier-4 Warrior wins >= 90% of City fights")
-	var kc := Combat.new(); kc.setup(DB.boss_rooms[b.boss_room], hs, hs.ht, ["dking"], false, b.traps)
-	var kr := CombatBot.play(kc, 3, gs.potion_heal("warrior"))
-	print("  King of Dwarves vs Lv14 Warrior + 3 potions: won=%s hp=%d turns=%d king=%d" % [kr.won, kr.hp, kr.turns, kc.units.filter(func(u): return u.get("boss", false))[0].hp])
-	if OS.has_environment("SIM_DEBUG"): print("    ", "\n    ".join(kc.log_lines.slice(-40)))
-	check(kr.won, "the King of Dwarves is beatable by a Lv14 tier-4 Warrior with 3 potions")
+	var kw := 0
+	for sd in 6:
+		seed(1300 + sd)
+		var kc := Combat.new(); kc.setup(DB.boss_rooms[b.boss_room], hs, hs.ht, ["dking"], false, b.traps)
+		var kr := CombatBot.play(kc, 3, gs.potion_heal("warrior"))
+		if kr.won: kw += 1
+		if sd == 0 and OS.has_environment("SIM_DEBUG"): print("    ", "\n    ".join(kc.log_lines.slice(-70)))
+		if sd == 0: print("  King of Dwarves vs Lv14 Warrior + 3 potions: won=%s hp=%d turns=%d king=%d" % [kr.won, kr.hp, kr.turns, kc.units.filter(func(u): return u.get("boss", false))[0].hp])
+	print("  King wins %d/6" % kw)
+	check(kw >= 3, "the King of Dwarves is beatable by a Lv14 tier-4 Warrior with 3 potions (>= 3/6)")
 	var d := Combat.new(); d.setup(DB.boss_rooms[b.boss_room], hs, 999, ["dking"])
 	var k = d.enemies()[0]
 	var spawned := false; var blasted := false
@@ -331,6 +336,15 @@ func test_city(gs) -> void:
 		if d.danger.any(func(z): return z.get("src", "") == "Shadow blast"): blasted = true
 	check(spawned and blasted, "the King telegraphs both raise-dead and shadow blast")
 	check(d.enemies().any(func(e): return e.get("summoned", false)), "Risen Dwarves appear after the telegraph")
+	var before := int(k.hp)
+	d.hit_mob(k, 30, false, true)
+	check(before - int(k.hp) == 20, "lifelink: the King takes 2/3 damage while his dwarves live")
+	k.hp = int(k.ht) / 5; k.abil = 0; k.abil_n = 0
+	for e in d.enemies():
+		if e.get("summoned", false): e.hp = 0
+	d.units = d.units.filter(func(u): return u.hp > 0 or u.has("hero"))
+	for i in 9: d.hero_wait()
+	check(k.get("phase3", false) and not d.danger.any(func(z): return z.has("spawn")), "phase 3: the throne cracks and the King stops summoning")
 	k.hp = 1; d.hit_mob(k, 999, false, true)
 	check(d.over and d.won, "minions crumble when the King dies")
 	for cls in ["warrior", "huntress"]:
@@ -688,3 +702,17 @@ func test_halls(gs) -> void:
 	check(y.pos == start, "Yog-Dzewa never moves")
 	y.hp = 1; d.hit_mob(y, 999, false, true)
 	check(d.over and d.won, "larva die with Yog")
+	var hw := 0; var ends := []
+	for seed in 4:
+		gs.new_game()
+		for cc in gs.heroes: gs.heroes[cc].unlocked = true
+		gs.facilities.alchemy.level = 4
+		gs.add_mat("potion_healing", 8); gs.add_mat("ration", 16); gs.add_mat("torch", 16)
+		var hh: Dictionary = gs.heroes.warrior
+		hh.level = 16; hh.str = 18; hh.mask = true; hh.subclass = DB.heroes.warrior.subclasses.keys()[0]
+		hh.armor = gs.add_gear("plate_armor", true, 1); hh.weapon = gs.add_gear("greatsword", true, 1)
+		var rr := RunSim.play(gs, "warrior", {"ration": 16, "torch": 16, "potion_healing": 8}, 7000 + seed, true, "halls")
+		if rr.result == "extract" and rr.biome == "halls": hw += 1
+		else: ends.append("f%d L%d" % [rr.floor, rr.level])
+	print("  [hallsrun] warrior Lv16 tier-5 + subclass, floors 1-25 in one run: cleared Halls %d/4, ended at %s" % [hw, ends])
+	check(hw >= 1, "a tier-5 Warrior can clear floors 1-25 in one run (>= 1/4)")

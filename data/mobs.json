@@ -328,7 +328,7 @@
  },
  "dking": {
   "name": "King of Dwarves",
-  "ht": 150,
+  "ht": 140,
   "dmg": 8,
   "dr": 5,
   "delay": 1.0,
@@ -345,7 +345,7 @@
   "summon_n": 2,
   "blast_dmg": 8,
   "spd": "HT 300, dmg 15-25, DR 0-10; summons, lifelinks, 3 phases",
-  "tuned": "HT 150, dmg 8, DR 5. Every 3 actions (2 when enraged below half HP, +3 dmg) alternates: marks up to 2 tiles where Risen Dwarves appear in 2 ticks (4 dmg if you stand there; only when none are left) and a shadow blast (3x3 on you, 2 ticks, 8 ignoring DR). No phases/lifelink."
+  "tuned": "HT 140, dmg 8, DR 5. Phase 1 (>1/2 HP): every 3 actions alternates raising 2 Risen Dwarves (only when none are left) and a shadow blast (3x3 on you, 2 ticks, 8 ignoring DR); living dwarves lifelink him (he takes 2/3 damage). Phase 2 (<=1/2): +3 dmg. Phase 3 (<=1/4): throne cracks - no more summons, blasts only."
  },
  "ghoul_minion": {
   "name": "Risen Dwarf",

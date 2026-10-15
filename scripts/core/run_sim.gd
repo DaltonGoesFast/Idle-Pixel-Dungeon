@@ -53,6 +53,7 @@ static func play(gs, hero: String, loadout: Dictionary, seed: int, deep := false
 		var res := {"won": c.won, "hp": c.hero.hp, "loot": c.loot, "fallen_loot": c.fallen_loot, "xp": c.xp, "boss_killed": c.boss_killed, "kills": c.kills, "traps_found": c.traps_found, "trap_ids": c.trap_ids_seen}
 		if not res.won and OS.has_environment("SIM_DEBUG"):  # SIM_DEBUG=1 godot ... run_tests.tscn: explain every death
 			print("    died f%d L%d vs %s hp_in=%d torch=%d sat=%d pots=%d" % [run.floor, gs.heroes[hero].level, ev.mobs, int(run.hp), int(run.torch), int(run.satiety), pots])
+			if OS.get_environment("SIM_DEBUG") == "2": print("      ", "\n      ".join(c.log_lines.slice(-30)))
 		if not Delve.apply_fight_result(gs, ev, res, reward):
 			var out := _summary(gs, "death", fights); gs.end_run("death"); return out
 	var o := _summary(gs, "timeout", fights); gs.end_run("abandon"); return o

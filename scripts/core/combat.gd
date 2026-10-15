@@ -229,6 +229,10 @@ func hit_mob(m: Dictionary, raw: int, surprise := false, magic := false) -> void
 	if surprise: dmg = int(raw * float(hero.surprise_mult))
 	elif magic: dmg = raw
 	else: dmg = maxi(0, raw - int(m.dr))
+	# King of Dwarves lifelink (SPD): while his risen dwarves live, he takes 2/3 damage (DECISIONS #79)
+	if m.get("ability", "") == "dking" and dmg > 0 and _king_linked():
+		dmg = int(ceil(dmg * 2.0 / 3.0))
+		_log("The lifelink absorbs a third of the blow!")
 	m.hp -= dmg
 	_log("%s%s takes %d." % ["SURPRISE! " if surprise else "", m.name, dmg])
 	_ev({"t": "hit", "uid": m.uid, "amount": dmg, "kind": "surprise" if surprise else ("magic" if magic else "hp"), "pos": m.pos})
@@ -752,17 +756,30 @@ func _dm300_act(m: Dictionary) -> bool:
 ##  raise the dead - marks 2 free tiles near the hero; 2 ticks later Risen Dwarves appear there (4 dmg if you stand on one);
 ##  shadow blast - 3x3 on the hero, 2 ticks (one step can't clear a 3x3 in 1), blast_dmg ignoring DR.
 ## Below half HP he ENRAGES once (+3 dmg, abilities every `ability_every_super`). Minions die with him.
+func _king_linked() -> bool:
+	return enemies().any(func(e): return e.get("summoned", false) and e.hp > 0)
+
+## King of Dwarves, 3 phases (DECISIONS #79):
+##   1 (> 1/2 HP) raise dead / shadow blast every 3 actions; risen dwarves lifelink him (he takes 2/3 damage)
+##   2 (<= 1/2)   enraged: +3 dmg
+##   3 (<= 1/4)   the throne cracks: no more summons, blasts only, lifelink gone
 func _dking_act(m: Dictionary) -> bool:
 	if hidden(): return false
-	var enr := int(m.hp) * 2 <= int(m.ht)
-	if enr and not m.get("enraged", false):
+	var phase := 1
+	if int(m.hp) * 4 <= int(m.ht): phase = 3
+	elif int(m.hp) * 2 <= int(m.ht): phase = 2
+	var enr := false   # fixed cadence: faster blasts left the hero no turn to strike back (DECISIONS #79)
+	if phase >= 2 and not m.get("enraged", false):
 		m.enraged = true; m.dmg = int(m.dmg) + 3
-		_log("The King of Dwarves roars in fury! (+3 dmg, abilities come faster)"); _ev({"t": "sfx", "name": "chargeup"}); _ev({"t": "telegraph", "uid": m.uid})
+		_log("The King of Dwarves roars in fury! (phase 2: +3 dmg)"); _ev({"t": "sfx", "name": "chargeup"}); _ev({"t": "telegraph", "uid": m.uid})
+	if phase == 3 and not m.get("phase3", false):
+		m.phase3 = true
+		_log("The King's throne cracks! (phase 3: no more summons, his lifelink is broken)"); _ev({"t": "sfx", "name": "hit_crush"}); _ev({"t": "telegraph", "uid": m.uid})
 	m.abil = int(m.get("abil", 0)) + 1
 	if m.abil < int(m.ability_every_super if enr else m.ability_every): return false
 	m.abil = 0
 	m.abil_n = int(m.get("abil_n", 0)) + 1
-	if m.abil_n % 2 == 1 and enemies().filter(func(e): return e.get("summoned", false)).is_empty():
+	if not m.get("phase3", false) and m.abil_n % 2 == 1 and enemies().filter(func(e): return e.get("summoned", false)).is_empty():
 		var spots := []
 		for d in DIRS + [Vector2i(2, 0), Vector2i(-2, 0), Vector2i(0, 2), Vector2i(0, -2)]:
 			var q: Vector2i = hero.pos + d
