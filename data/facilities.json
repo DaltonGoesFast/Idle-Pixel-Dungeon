@@ -8,7 +8,7 @@
    "gold": 50
   },
   "max": 3,
-  "desc": "Forge & upgrade gear (+1 per level cap), repair cracked gear."
+  "desc": "Forge & upgrade gear (+1 per level cap), repair cracked gear, melt spare rings."
  },
  "alchemy": {
   "name": "Alchemy Pot",

@@ -629,6 +629,88 @@ func _gear_forge_info(g: Dictionary, lines: Array, why: String) -> void:
 	info(gear_icon(g), GameState.gear_name(g), lines + [qty_picker(GameState.upgrade_max(uid), func(n): return GameState.upgrade_cost_n(uid, n), "Upgrade",
 		func(n): GameState.upgrade_item_n(uid, n), why)])
 
+## Every copy of one ring: melt one, melt the spares, or repair a cracked copy.
+func _open_ring_stack(id: String) -> void:
+	var list: Array = GameState.rings_of(id)
+	if list.is_empty(): return
+	var known_n := 0
+	var cracked_n := 0
+	var equipped: PackedStringArray = []
+	var sample: Dictionary = list[0]
+	var cracked_uid := 0
+	for g in list:
+		if g.known:
+			known_n += 1; sample = g
+		if g.get("cracked", false):
+			cracked_n += 1
+			if cracked_uid == 0: cracked_uid = int(g.uid)
+		var who := GameState.equipped_by(int(g.uid))
+		if who != "": equipped.append(DB.heroes[who].name)
+	var all_known := known_n == list.size()
+	var d: Dictionary = DB.item(id)
+	var title: String = d.name if all_known else d.get("unknown_name", "Ring")
+	var lines: Array = []
+	if all_known:
+		for l in gear_lines(sample):
+			var s := String(l)
+			if s.begins_with("Equipped") or s.begins_with("Cracked"): continue
+			lines.append(l)
+	elif known_n == 0:
+		lines.append("Unidentified. The Enchanter can identify it.")
+	else:
+		lines.append("%d of %d identified." % [known_n, list.size()])
+	lines.append("Owned: %d" % list.size())
+	if not equipped.is_empty(): lines.append("Equipped: " + ", ".join(equipped))
+	if cracked_n > 0: lines.append("Cracked: %d" % cracked_n)
+	lines.append("Each breaks down into %s." % GameState.cost_text(GameState.ring_break_yield()))
+	var acts: Array = []
+	if cracked_uid != 0:
+		var rc: Dictionary = GameState.repair_cost(cracked_uid)
+		var why_r: String = "" if GameState.can_afford(rc) else "need " + GameState.cost_text(rc)
+		var fix: int = cracked_uid
+		acts.append(["Repair", func(): GameState.repair(fix), why_r])
+	var one: int = GameState.breakable_ring(id)
+	if one != 0:
+		var melt: int = one
+		acts.append(["Break down", func():
+			if GameState.break_ring(melt): Sfx.play("shatter"), ""])
+	else:
+		acts.append(["Break down", func(): pass, "all equipped"])
+	var rid := id
+	var extra_n: int = GameState.ring_extras_of(rid).size()
+	if extra_n > 0:
+		acts.append(["Break down extras (%d)" % extra_n, func():
+			if GameState.break_rings(GameState.ring_extras_of(rid)): Sfx.play("shatter"), ""])
+	info(id, title, lines, acts)
+
+func _ring_forge_section(v: VBoxContainer) -> void:
+	v.add_child(UIKit.header("Break down rings"))
+	v.add_child(UIKit.label("A spare ring melts into %s. Extras keeps every worn ring and one spare of each." % GameState.cost_text(GameState.ring_break_yield()), 0.8, Color("bdb3a0")))
+	var extras: Array = GameState.ring_extras()
+	if not extras.is_empty():
+		var rw := UIKit.hbox(v)
+		var rl := UIKit.label("Extras: %d" % extras.size(), 0.85, Color("ffd27a"))
+		rl.size_flags_vertical = SIZE_SHRINK_CENTER; rl.autowrap_mode = TextServer.AUTOWRAP_OFF; rw.add_child(rl)
+		var yl := UIKit.label(GameState.cost_text(GameState.cost_mul(GameState.ring_break_yield(), extras.size())), 0.85, Color("6bff6b"))
+		yl.size_flags_horizontal = SIZE_EXPAND_FILL; rw.add_child(yl)
+		var ba := UIKit.action("Break down extras", func():
+			if GameState.break_ring_extras(): Sfx.play("shatter"), "")
+		ba.name = "BreakExtras"; v.add_child(ba)
+	var ids: Array = []
+	for g in GameState.gear:
+		if DB.item(g.id).type == "ring" and not (g.id in ids): ids.append(g.id)
+	if ids.is_empty():
+		v.add_child(UIKit.label("No rings to break down.", 0.8, Color("9a9488")))
+		return
+	ids.sort()
+	var g2 := slot_grid(v)
+	for id in ids:
+		var rid := String(id)
+		var list: Array = GameState.rings_of(rid)
+		var one: Dictionary = list[0] if list.size() == 1 else {}
+		var frame := "6bff6b" if GameState.ring_extras_of(rid).size() > 0 else ""
+		g2.add_child(item_slot(rid, str(list.size()) if list.size() > 1 else "", "", func(): _open_ring_stack(rid), Color.WHITE, frame, one))
+
 var alch_sel := ""
 ## Recipe names would give away an unidentified ingredient, so those read "Brew the <appearance>" until it is known.
 func recipe_name(r: Dictionary) -> String:
@@ -691,13 +773,15 @@ func _page_facility(page: String, id: String) -> void:
 		for g in GameState.gear:
 			var t: String = DB.item(g.id).type
 			var cracked: bool = g.get("cracked", false)
-			# weapons/armor upgrade here; cracked rings and artifacts come here to be repaired (DECISIONS #98)
-			if not (t in ["weapon", "armor"]) and not (cracked and t in ["ring", "artifact"]): continue
+			# weapons/armor upgrade here; cracked artifacts come here to be repaired.
+			# Rings have their own section below (DECISIONS #98, #107).
+			if not (t in ["weapon", "armor"]) and not (cracked and t == "artifact"): continue
 			var cost: Dictionary = GameState.repair_cost(g.uid) if cracked else GameState.item_upgrade_cost(g.uid)
 			var why: String = ("" if GameState.can_afford(cost) else "need " + GameState.cost_text(cost)) if cracked else GameState.can_upgrade_item(g.uid)
 			var uid: int = int(g.uid)
 			g2.add_child(item_slot(gear_icon(g), "", "+%d" % g.lvl if g.lvl > 0 and g.known else "", func(): _open_gear_forge(uid),
 				Color(1, 0.55, 0.5) if cracked else Color.WHITE, "6bff6b" if why == "" else "", g))
+		_ring_forge_section(v)
 	if id == "enchanter":
 		v.add_child(UIKit.header("Identifying (%d min each)" % int(GameState.identify_seconds() / 60)))
 		if GameState.id_queue.is_empty(): v.add_child(UIKit.label("Nothing queued. Tap an unknown item below.", 0.8, Color("9a9488")))

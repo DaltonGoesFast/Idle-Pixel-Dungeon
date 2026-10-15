@@ -689,6 +689,99 @@ func repair_all() -> bool:
 		if repair(g.uid): n += 1
 	say("Repaired %d item%s." % [n, "" if n == 1 else "s"]); touch(); return true
 
+# ---------------------------------------------------------------- breaking down spare rings (DECISIONS #107)
+## A ring melts into a little gold (the band) and resin (the gem). Small on purpose: patrols hand rings out.
+func ring_break_yield() -> Dictionary:
+	return {"gold": 5, "arcane_resin": 1}
+
+func _is_ring(g: Dictionary) -> bool:
+	return not g.is_empty() and DB.item(g.id).type == "ring"
+
+## Higher means keep it. Worn rings always stay; then intact, then identified, then upgrade level.
+func _ring_keep_score(g: Dictionary) -> int:
+	var s := int(g.lvl)
+	if g.known: s += 10
+	if not g.get("cracked", false): s += 100
+	if equipped_by(int(g.uid)) != "": s += 1000
+	return s
+
+func rings_of(id: String) -> Array:
+	var out: Array = []
+	for g in gear:
+		if g.id == id and _is_ring(g): out.append(g)
+	return out
+
+## Unequipped copies past one spare of each ring. Worn rings are never extras.
+func ring_extras() -> Array:
+	var groups := {}
+	for g in gear:
+		if not _is_ring(g): continue
+		if not groups.has(g.id): groups[g.id] = []
+		groups[g.id].append(g)
+	var extras: Array = []
+	for id in groups:
+		var list: Array = groups[id]
+		list.sort_custom(func(a, b): return _ring_keep_score(a) > _ring_keep_score(b))
+		var spare := false
+		for g in list:
+			if equipped_by(int(g.uid)) != "": continue
+			if not spare:
+				spare = true
+				continue
+			extras.append(g)
+	return extras
+
+func ring_extras_of(id: String) -> Array:
+	var out: Array = []
+	for g in ring_extras():
+		if g.id == id: out.append(g)
+	return out
+
+func can_break_ring(uid: int) -> String:
+	var g := gear_by_uid(uid)
+	if not _is_ring(g): return "not a ring"
+	var who := equipped_by(uid)
+	if who != "": return "equipped by " + DB.heroes[who].name
+	return ""
+
+## The unequipped copy of this ring to melt first: the most worn-out one, so the spare stays.
+func breakable_ring(id: String) -> int:
+	var worst: Dictionary = {}
+	for g in rings_of(id):
+		if can_break_ring(int(g.uid)) != "": continue
+		if worst.is_empty() or _ring_keep_score(g) < _ring_keep_score(worst): worst = g
+	return int(worst.uid) if not worst.is_empty() else 0
+
+func _forget_gear(uid: int) -> void:
+	var g := gear_by_uid(uid)
+	if g.is_empty(): return
+	gear.erase(g)
+	for i in range(id_queue.size() - 1, -1, -1):
+		if int(id_queue[i].uid) == uid: id_queue.remove_at(i)
+
+## Melt these rings. Skips anything worn or not a ring. One toast for the whole batch.
+func break_rings(list: Array) -> bool:
+	var picking: Array = []
+	for g in list:
+		if can_break_ring(int(g.uid)) == "": picking.append(g)
+	if picking.is_empty(): return false
+	var n := picking.size()
+	var single := gear_name(picking[0]) if n == 1 else ""
+	for g in picking: _forget_gear(int(g.uid))
+	var y := cost_mul(ring_break_yield(), n)
+	for k in y: add_mat(k, int(y[k]))
+	if n == 1: say("Broke down %s: %s." % [single, cost_text(y)], "positive")
+	else: say("Broke down %d rings: %s." % [n, cost_text(y)], "positive")
+	touch(); return true
+
+func break_ring(uid: int) -> bool:
+	var g := gear_by_uid(uid)
+	if g.is_empty(): return false
+	return break_rings([g])
+
+func break_ring_extras() -> bool:
+	return break_rings(ring_extras())
+
 ## Drink a Starter Elixir at the elevator: raises a level-1 hero to the Sewers baseline (Lv3).
 func use_elixir(c: String) -> bool:
 	var h: Dictionary = heroes[c]

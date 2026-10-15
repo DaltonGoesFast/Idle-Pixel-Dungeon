@@ -43,7 +43,9 @@ func _ready() -> void:
 	await test_menu_toast(gs)
 	test_log_and_sounds(gs)
 	test_ring_contexts(gs)
+	test_item_badges(gs)
 	test_forge_bulk(gs)
+	test_break_rings(gs)
 	test_all_icons(gs)
 	test_delve(gs)
 	test_camp(gs)
@@ -1076,9 +1078,52 @@ func test_forge_bulk(gs) -> void:
 	check(gs.cracked_gear().is_empty(), "no cracked gear left")
 	check(gs.can_repair_all() == "nothing to repair", "Repair all is disabled when nothing is cracked")
 
-## Rings show their SPD gem sprite in every UI context (stash slot, Forge, paperdoll, delve backpack, compare
-## rows), including cracked and unknown ones and old-save ids; a cracked ring is repairable at the Forge and by
-## Repair all.
+## Spare rings melt into a little gold and resin. Extras keeps every worn ring and one spare of each.
+func test_break_rings(gs) -> void:
+	print("[break rings]")
+	gs.new_game()
+	var gold0: int = gs.mat("gold"); var resin0: int = gs.mat("arcane_resin")
+	var only: int = gs.add_gear("ring_might", true)
+	check(gs.ring_extras().is_empty() and gs.breakable_ring("ring_might") == only, "a single ring is a spare, not an extra")
+	check(gs.break_ring(only) and gs.gear_by_uid(only).is_empty(), "breaking down removes the ring")
+	check(gs.mat("gold") == gold0 + 5 and gs.mat("arcane_resin") == resin0 + 1, "one ring yields 5 gold and 1 resin")
+	check(gs.can_break_ring(gs.add_gear("shortsword")) == "not a ring" and not gs.break_ring(gs.gear.filter(func(g): return g.id == "shortsword")[0].uid), "weapons don't break down")
+	# worn rings stay; the worst unequipped copy melts first; one spare of each type is kept
+	var worn: int = gs.add_gear("ring_might", true)
+	gs.equip("warrior", worn)
+	var cracked: int = gs.add_gear("ring_might", true); gs.gear_by_uid(cracked).cracked = true
+	var unknown: int = gs.add_gear("ring_might", false)
+	var other: int = gs.add_gear("ring_tenacity", true)
+	var other2: int = gs.add_gear("ring_tenacity", true)
+	check(gs.can_break_ring(worn) == "equipped by Warrior" and not gs.break_ring(worn), "a worn ring can't be broken down")
+	check(gs.breakable_ring("ring_might") == cracked, "the cracked copy is melted before the intact one")
+	var extras: Array = gs.ring_extras()
+	check(extras.size() == 2, "two piles leave two extras (one spare each)")
+	var ids := {}
+	for g in extras: ids[g.uid] = g.id
+	check(ids.get(cracked, "") == "ring_might" and (ids.get(other, "") == "ring_tenacity" or ids.get(other2, "") == "ring_tenacity"), "extras are the cracked might and one tenacity")
+	check(not ids.has(worn) and not ids.has(unknown), "the worn ring and the best spare are kept")
+	gs.enqueue_identify(unknown)
+	var before_g: int = gs.mat("gold"); var before_r: int = gs.mat("arcane_resin")
+	check(gs.break_ring_extras() and gs.gear_by_uid(cracked).is_empty(), "Break down extras melts the spare copies")
+	check(gs.gear_by_uid(worn).uid == worn and gs.heroes.warrior.ring == worn, "the equipped ring stays equipped")
+	check(not gs.gear_by_uid(unknown).is_empty() and gs.id_queue.size() == 1 and int(gs.id_queue[0].uid) == unknown, "the kept spare stays, including its identification")
+	var left_tenacity := 0
+	for g in gs.gear:
+		if g.id == "ring_tenacity": left_tenacity += 1
+	check(left_tenacity == 1, "one Ring of Tenacity is kept")
+	check(gs.mat("gold") == before_g + 10 and gs.mat("arcane_resin") == before_r + 2, "two rings yield 10 gold and 2 resin")
+	check(gs.ring_extras().is_empty() and not gs.break_ring_extras(), "nothing left to call extras")
+	# melting a queued ring drops it from the desk
+	var queued: int = gs.add_gear("ring_energy", false)
+	gs.enqueue_identify(queued)
+	check(gs.break_ring(queued) and gs.id_queue.all(func(q): return int(q.uid) != queued), "a broken ring leaves the identification queue")
+
+func _slot_badge(root: Node) -> Texture2D:
+	for c in root.find_children("*", "PixelIcon", true, false):
+		if (c as PixelIcon).badge != null: return (c as PixelIcon).badge
+	return null
+
 func _ring_icons_in(root: Node, ring_idx: int) -> int:
 	var n := 0
 	var want := UIKit.item_rect(ring_idx)
@@ -1088,6 +1133,9 @@ func _ring_icons_in(root: Node, ring_idx: int) -> int:
 			n += 1
 	return n
 
+## Rings show their SPD gem sprite in every UI context (stash slot, Forge, paperdoll, delve backpack, compare
+## rows), including cracked and unknown ones and old-save ids; a cracked ring is repairable at the Forge and by
+## Repair all.
 func test_ring_contexts(gs) -> void:
 	print("[ring contexts]")
 	gs.new_game()
@@ -1102,11 +1150,16 @@ func test_ring_contexts(gs) -> void:
 				g.cracked = cracked
 				var slot: Button = cs.item_slot(cs.gear_icon(g), "", "", func(): pass, Color(1, 0.55, 0.5) if cracked else Color.WHITE, "", g)
 				if _ring_icons_in(slot, idx) != 1: bad.append("stash %s k%s c%s" % [rid, known, cracked])
+				var glyph: Texture2D = _slot_badge(slot)
+				var want := UIKit.badge_rect(String(DB.item(rid).badge))
+				if known and (glyph == null or not (glyph is AtlasTexture) or (glyph as AtlasTexture).region != want): bad.append("badge %s" % rid)
+				if not known and glyph != null: bad.append("spoiled %s" % rid)
 				slot.free()
 		# paperdoll ring slot
 		gs.heroes.warrior.ring = gs.add_gear(rid, true)
 		var ps: Button = Paperdoll._slot("warrior", "ring", "camp", func(): pass)
 		if _ring_icons_in(ps, idx) != 1: bad.append("paperdoll " + rid)
+		if _slot_badge(ps) == null: bad.append("paperdoll badge " + rid)
 		ps.free()
 	# delve backpack (carried rings) + legacy save id
 	gs.add_mat("ration", 1); gs.add_mat("torch", 1)
