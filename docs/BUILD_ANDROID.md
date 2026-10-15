@@ -10,7 +10,7 @@
 
 ## On your own machine
 1. Install the above, open the project in Godot, Editor > Editor Settings > Export > Android: set Java SDK path, Android SDK path and the debug keystore.
-2. First Gradle export: Project > Install Android Build Template… (or let `tools/build.sh` unpack `android_source.zip` into `android/build/`, which is gitignored).
+2. First Gradle export: Project > Install Android Build Template… (or let `tools/build.sh` unpack `android_source.zip` into `android/build/`, which is gitignored). Either way, `android/.build_version` must say `4.7.2.stable`, or Godot refuses the Gradle export with "no version info for it exists". The editor and build.sh both write it.
 3. Project > Export > Android > Export Project (debug) or run `tools/build.sh`.
 
 ## Preset notes (`export_presets.cfg`)

@@ -72,6 +72,7 @@ func _ready() -> void:
 	test_talents(gs)
 	test_backpack(gs)
 	test_updater()
+	test_build_script_android_template()
 	await test_touch_scroll()
 	await test_tip_fit()
 	print("TESTS: %d passed, %d failed -> %s" % [passes, fails, "PASS" if fails == 0 else "FAIL"])
@@ -1685,6 +1686,22 @@ func _find_btn(n: Node, text: String):
 		var r = _find_btn(ch, text)
 		if r: return r
 	return null
+
+## DECISIONS #140: build.sh stamps android/.build_version for this engine, or Godot refuses the Gradle export.
+func test_build_script_android_template() -> void:
+	print("[build.sh android template]")
+	var f := FileAccess.open("res://tools/build.sh", FileAccess.READ)
+	check(f != null, "tools/build.sh is readable")
+	if f == null: return
+	var sh := f.get_as_text()
+	var vi := Engine.get_version_info()
+	var want := "%d.%d.%d.%s" % [vi.major, vi.minor, vi.patch, vi.status]
+	check(sh.contains('ANDROID_TEMPLATE_VERSION="%s"' % want), "build.sh template version matches the engine (%s)" % want)
+	check(sh.contains("android/.build_version"), "build.sh writes android/.build_version")
+	check(sh.contains("android/build/.gdignore"), "build.sh keeps android/build out of the import scan")
+	var pf := ConfigFile.new()
+	if pf.load("res://export_presets.cfg") == OK and bool(pf.get_value("preset.0.options", "gradle_build/use_gradle_build", false)):
+		check(sh.contains("ensure_android_template\n"), "build.sh installs the template before the Gradle export")
 
 ## Version compare and release asset pick (no network).
 func test_updater() -> void:

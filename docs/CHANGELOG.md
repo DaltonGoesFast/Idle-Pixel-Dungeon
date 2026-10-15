@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- `tools/build.sh` Android export works on a fresh clone again: after the switch to Gradle (for the updater), the script unpacked `android_source.zip` but did not write `android/.build_version`, so Godot stopped with "Trying to build from a gradle built template, but no version info for it exists" and no APK was built. The script now stamps the version the way the editor's Install Android Build Template does, and stops with a clear message if `android/build` is from another Godot version (+test).
 
 ## 0.29.0
 - In-game Update on Android and Windows: Camp / Settings checks GitHub releases, downloads the APK or zip, and on Android opens the system Install screen. iOS stays on TestFlight; `tools/upload_testflight.sh` archives and uploads on a Mac. Android export uses Gradle so the updater can request install permission (+tests).

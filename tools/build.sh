@@ -8,8 +8,23 @@ cd "$(dirname "$0")/.."
 GODOT_BIN="${GODOT:-godot}"
 
 # Gradle Android export needs res://android/build from the 4.7.2 export templates (gitignored).
+# Mirrors Project > Install Android Build Template: Godot refuses a Gradle export unless
+# android/.build_version names this engine version ("no version info for it exists"), DECISIONS #140.
+ANDROID_TEMPLATE_VERSION="4.7.2.stable"
 ensure_android_template() {
-  if [ -d android/build ]; then return; fi
+  if [ -d android/build ]; then
+    local have
+    have="$(head -n1 android/.build_version 2>/dev/null || true)"
+    if [ -z "$have" ]; then
+      # unpacked by an older build.sh (zip only): stamp it so Godot accepts it
+      printf '%s\n' "$ANDROID_TEMPLATE_VERSION" > android/.build_version
+      echo "Stamped android/.build_version ($ANDROID_TEMPLATE_VERSION) for the existing android/build"
+    elif [ "$have" != "$ANDROID_TEMPLATE_VERSION" ]; then
+      echo "android/build is for Godot $have, not $ANDROID_TEMPLATE_VERSION. Reinstall it (Project > Install Android Build Template, or delete android/) -> FAIL"
+      exit 1
+    fi
+    return
+  fi
   local zip="${GODOT_ANDROID_SOURCE:-}"
   if [ -z "$zip" ]; then
     local d
@@ -26,7 +41,9 @@ ensure_android_template() {
   fi
   mkdir -p android/build
   unzip -q "$zip" -d android/build
-  echo "Installed Android build template into android/build from $zip"
+  printf '%s\n' "$ANDROID_TEMPLATE_VERSION" > android/.build_version
+  : > android/build/.gdignore
+  echo "Installed Android build template ($ANDROID_TEMPLATE_VERSION) into android/build from $zip"
 }
 
 "$GODOT_BIN" --headless --path . --import >/dev/null 2>&1 || true
