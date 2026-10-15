@@ -1,5 +1,12 @@
 # Changelog
 
+
+## v0.15.1
+- Version label on Camp and Settings (check you are on this build!).
+- SPD status pane (portrait, HP/Torch/Satiety or HP/Barrier bars) in delve and combat.
+- SPD toolbar buttons with icons; chrome progress bars, sliders and scrollbars; outlined pixel text.
+- Pixel font forced project-wide and snapped to whole-pixel sizes.
+
 ## v0.15.0 — 2026-10-15
 - **Dwarf City (floors 16-20)**: continue from the DM-300 campfire. SPD City tiles, water and music (city 1-3, boss), 4 new rooms and a boss arena; Prison/Caves door and special events now appear in the City too.
 - New mobs: **Dwarven Ghoul** (rises once with half HP 2 ticks after dying, red tile on the corpse, unless it was the last enemy), **Dwarf Warlock** (piercing shadow bolt), **Dwarf Monk** (attacks twice per tick), **Golem** (slow, huge hits, DR 7).

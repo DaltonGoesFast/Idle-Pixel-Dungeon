@@ -7,6 +7,7 @@ const TEXT_SIZES := [["Small", 0.85], ["Normal", 1.0], ["Large", 1.15], ["Huge",
 const DELVE_SPEEDS := [["Slow", 0.5], ["Normal", 1.0], ["Fast", 1.5], ["Faster", 2.0]]
 
 static func build(v: VBoxContainer, show_dev := true) -> void:
+	v.add_child(UIKit.label("SPD Tactics " + UIKit.version(), 0.8, Color("c9a96e")))
 	v.add_child(UIKit.header("Audio"))
 	for k in [["sfx", "Sound effects"], ["music", "Music"]]:
 		var row := UIKit.hbox(v)

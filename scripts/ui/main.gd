@@ -59,6 +59,7 @@ func _relayout() -> void:
 		margin.add_theme_constant_override("margin_" + p[0], int(clampf(p[1], 8.0, cap)))
 	var fs := int(clampf(minf(vs.x, vs.y) / 24.0 * float(GameState.settings.get("text_scale", 1.0)), 14, 60))
 	theme = UIKit.make_theme(fs)
+	get_window().theme = theme   # popups / anything parented outside Main inherit the SPD theme too
 	if screen: _layout_screen()
 	if tips and tips.is_open(): tips._render()
 

@@ -12,6 +12,7 @@ var split: BoxContainer
 var grid
 var side: VBoxContainer
 var status: Label
+var pane: StatusPane
 var buttons: HFlowContainer
 var log_scroll: ScrollContainer
 var log_label: RichTextLabel
@@ -57,6 +58,9 @@ func _ready() -> void:
 		guide = 1
 		guide_label = UIKit.label("", 1.0, Color("9fd3ff")); guide_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		side.add_child(guide_label)
+	pane = StatusPane.new(); side.add_child(pane)
+	var hs0 := combat.hero
+	pane.set_hero(String(hs0.sprite), int(hs0.fw), int(hs0.fh))
 	status = UIKit.label(""); side.add_child(status)
 	buttons = HFlowContainer.new(); side.add_child(buttons)
 	log_scroll = ScrollContainer.new(); log_scroll.size_flags_vertical = SIZE_EXPAND_FILL
@@ -88,15 +92,20 @@ func _process(d: float) -> void:
 		if _auto_t > 0.35:
 			_auto_t = 0.0; _do_bot()
 
+const BTN_ICONS := {"Wait": "wait", "Search": "search", "Search again": "search", "Bag": "backpack"}
 func _btn(text: String, cb: Callable, enabled := true) -> void:
 	var b := UIKit.button(text, cb, enabled)
 	b.custom_minimum_size.x = UIKit.font_size * 6.5
+	UIKit.as_toolbar(b, BTN_ICONS.get(text, ""))   # SPD toolbar slots for in-fight actions
 	buttons.add_child(b)
 
 func _refresh() -> void:
 	if status == null: return
 	var h := combat.hero
-	var line := "%s  HP %d/%d  Barrier %d/%d  DR %d  Dmg %d   t=%.1f" % [h.name, h.hp, h.ht, h.barrier, h.barrier_max, h.dr, h.dmg, combat.time]
+	pane.refresh("%s" % h.name, [
+		{"kind": "hp", "frac": float(h.hp) / float(h.ht), "text": "HP %d/%d" % [h.hp, h.ht]},
+		{"kind": "shield", "frac": float(h.barrier) / maxf(1.0, float(h.barrier_max)), "text": "Barrier %d/%d" % [h.barrier, h.barrier_max]}])
+	var line := "DR %d  Dmg %d   t=%.1f" % [h.dr, h.dmg, combat.time]
 	if not h.bolt.is_empty():
 		if h.bolt.get("infinite", false): line += "\nTap any enemy in sight to shoot %s (%d dmg)" % [h.bolt.name, h.bolt.dmg]
 		else: line += "\nStaff charges %d/%d (%s, %d dmg, ignores DR)" % [h.charges, h.bolt.charges, h.bolt.name, h.bolt.dmg]

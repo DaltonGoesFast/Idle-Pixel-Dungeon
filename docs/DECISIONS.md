@@ -143,3 +143,9 @@ Ghouls keep SPD's rule that they only stay dead when no other enemy is left (the
 
 ## 70. Smarter bot moved the balance numbers
 Once the bot could escape multi-tile telegraphs, every Caves sim rose to 9-10/10, so the bot had been dying to avoidable damage. Caves were retuned (Shaman and Spinner +1 damage, DM-300 HT 160) back to ~8/10 for base classes. Current tables are in BALANCE.md.
+
+## 71. v0.15.1 — "I don't see the UI changes" diagnosis + SPD hardening
+- Diagnosis: the v0.15.0 APK already contains pixel_font fontdata and chrome.png and verify_pack loads both; no StyleBoxFlat/LabelSettings/font overrides remain in scripts/. The reported screenshot (smooth sans, flat brown panels) matches pre-v0.13 builds, so the device was on an old install. To make this checkable, the version now shows in the Camp header and at the top of Settings, and build.sh fails if project.godot config/version != export preset version.
+- Hardening: project-level gui/theme/custom_font = pixel_font.ttf; the runtime theme is also set on the root Window; pixel font fallback is a SystemFont (avoids a cyclic fallback with the project font).
+- Integer pixel text: pixel_font draws 1 font pixel per 100 units of 2048/em, so all text sizes snap to multiples of 20.48 (UIKit.font_px).
+- SPD status pane (status_pane.png bg + hp/shield/exp bars + portrait) on Delve and Combat; toolbar.png slots + backpack/wait/search icons on control buttons; progress/slider/scrollbar use chrome.png.

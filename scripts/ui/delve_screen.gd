@@ -9,6 +9,7 @@ var box: VBoxContainer
 var title: Label
 var bar: ProgressBar
 var stats: VBoxContainer
+var pane: StatusPane
 var card_host: VBoxContainer
 var controls: HFlowContainer
 var running := true
@@ -18,6 +19,7 @@ var portrait := true
 
 func _ready() -> void:
 	box = UIKit.vbox(self); box.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
+	pane = StatusPane.new(); box.add_child(pane)
 	title = UIKit.header(""); box.add_child(title)
 	bar = ProgressBar.new(); bar.custom_minimum_size.y = UIKit.font_size * 1.6; bar.show_percentage = true; box.add_child(bar)
 	stats = UIKit.vbox(box)
@@ -71,11 +73,16 @@ func _refresh() -> void:
 	var s: Dictionary = GameState.hero_stats(run.hero)
 	title.text = "%s - Floor %d / %d" % [DB.biomes[run.biome].name, run.floor, DB.biomes[run.biome].floors[1]]
 	bar.value = run.progress
+	if pane.hero_sprite == null: pane.set_hero(s.sprite, int(s.fw), int(s.fh))
+	pane.refresh("%s  Lv%d" % [s.name, GameState.heroes[run.hero].level], [
+		{"kind": "hp", "frac": float(run.hp) / float(s.ht), "text": "HP %d/%d" % [run.hp, s.ht]},
+		{"kind": "exp", "frac": float(run.torch) / 100.0, "text": "Torch %d%%" % run.torch},
+		{"kind": "shield", "frac": float(run.satiety) / 100.0, "text": "Satiety %d%%" % run.satiety}])
 	UIKit.clear(stats)
-	var line := "%s Lv%d   HP %d/%d   Torch %d%%   Satiety %d%%" % [s.name, GameState.heroes[run.hero].level, run.hp, s.ht, run.torch, run.satiety]
-	if Delve.darkness(run): line += "   DARK: no Barrier in fights!"
-	if float(run.satiety) <= 0.0: line += "   STARVING"
-	stats.add_child(UIKit.label(line, 0.95))
+	var line := ""
+	if Delve.darkness(run): line += "DARK: no Barrier in fights!   "
+	if float(run.satiety) <= 0.0: line += "STARVING"
+	if line != "": stats.add_child(UIKit.label(line, 0.95, Color("ff7070")))
 	var flow := HFlowContainer.new(); stats.add_child(flow)
 	for k in run.supplies:
 		if int(run.supplies[k]) > 0: flow.add_child(UIKit.icon_row(k, str(run.supplies[k]), 0.85))
@@ -92,6 +99,7 @@ func _refresh_controls() -> void:
 	var w := UIKit.font_size * 7.0
 	var b1 := UIKit.button("Pause" if running else "Resume", func(): running = not running; _refresh_controls()); b1.custom_minimum_size.x = w
 	var b2 := UIKit.button("Speed x3" if not fast else "Speed x1", func(): fast = not fast; _refresh_controls()); b2.custom_minimum_size.x = w
+	UIKit.as_toolbar(b1); UIKit.as_toolbar(b2)
 	controls.add_child(b1); controls.add_child(b2)
 	if int(GameState.run.get("supplies", {}).get("scroll_passage", 0)) > 0:
 		var b3 := UIKit.button("Read Scroll of Passage (extract)", func():
@@ -99,13 +107,13 @@ func _refresh_controls() -> void:
 		controls.add_child(b3)
 	var nfree := GameState.talent_points_total_free(GameState.run.hero) if not GameState.run.is_empty() else 0
 	var bb := UIKit.button("Backpack %d/%d" % [GameState.backpack_used(), GameState.BACKPACK_SLOTS], func(): _open_panel("backpack")); bb.custom_minimum_size.x = w
-	controls.add_child(bb)
+	UIKit.as_toolbar(bb, "backpack"); controls.add_child(bb)
 	var bt := UIKit.button("Talents" + (" (%d!)" % nfree if nfree > 0 else ""), func(): _open_panel("talents")); bt.custom_minimum_size.x = w
-	controls.add_child(bt)
+	UIKit.as_toolbar(bt); controls.add_child(bt)
 	var b5 := UIKit.button("Settings", func(): _open_panel("settings")); b5.custom_minimum_size.x = w
-	controls.add_child(b5)
+	UIKit.as_toolbar(b5); controls.add_child(b5)
 	var b4 := UIKit.button("Abandon run", _confirm_abandon); b4.custom_minimum_size.x = w
-	controls.add_child(b4)
+	UIKit.as_toolbar(b4); controls.add_child(b4)
 
 ## Backpack / Talents cards pause the bar; closing resumes it.
 ## Opening over an encounter card (door, campfire...) remembers it and brings it back on close.

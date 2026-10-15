@@ -11,6 +11,8 @@ grep "UI SMOKE: PASS" /tmp/spd_smoke.log
 if grep -q "SCRIPT ERROR" /tmp/spd_tests.log /tmp/spd_smoke.log; then grep -m5 -A2 "SCRIPT ERROR" /tmp/spd_tests.log /tmp/spd_smoke.log; echo "SCRIPT ERRORS -> FAIL"; exit 1; fi
 mkdir -p builds/linux builds/windows
 VER="$(grep -m1 '^version/name=' export_presets.cfg | cut -d'"' -f2)"
+PVER="$(grep -m1 '^config/version=' project.godot | cut -d'"' -f2)"
+if [ "$VER" != "$PVER" ]; then echo "VERSION MISMATCH export_presets=$VER project.godot=$PVER -> FAIL"; exit 1; fi
 godot --headless --path . --export-debug "Android" "builds/spd-tactics-v$VER.apk"
 godot --headless --path . --export-debug "Linux" "builds/linux/spd-tactics.x86_64"
 godot --headless --path . --export-debug "Windows Desktop" "builds/windows/spd-tactics.exe"

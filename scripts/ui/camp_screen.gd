@@ -16,7 +16,7 @@ const TAB_ORDER := ["Delve", "Heroes", "Stash", "Forge", "Alchemy", "Enchanter",
 func _ready() -> void:
 	root_box = UIKit.vbox(self)
 	root_box.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
-	var title := UIKit.header("Surface Camp")
+	var title := UIKit.header("Surface Camp   " + UIKit.version())
 	root_box.add_child(title)
 	summary = HFlowContainer.new(); root_box.add_child(summary)
 	tabs = TabContainer.new(); tabs.size_flags_vertical = SIZE_EXPAND_FILL
