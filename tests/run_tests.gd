@@ -300,6 +300,18 @@ func test_meta(gs, ss) -> void:
 	gs.new_game(); gs.from_dict(d)
 	check(is_equal_approx(float(gs.settings.text_scale), 1.3) and gs.settings.haptics == false and "first_steps" in gs.milestones_claimed, "settings + milestones persist")
 	gs.settings.text_scale = 1.0; gs.settings.haptics = true
+	# tutorial bookkeeping
+	gs.settings.tutorial = true; gs.tutorial_done = []
+	check(gs.wants_tip("welcome") and not gs.wants_tip("no_such_tip"), "tips: known tip wanted once")
+	gs.tutorial_done.append("welcome")
+	check(not gs.wants_tip("welcome"), "tips: dismissed tip is not shown again")
+	gs.settings.tutorial = false
+	check(not gs.wants_tip("first_fight"), "tips: the setting turns every tip off")
+	gs.settings.tutorial = true
+	var tips_ok := true
+	for id in DB.tips:
+		for p in DB.tips[id].get("pages", [DB.tips[id]]): tips_ok = tips_ok and p.has("title") and p.has("text")
+	check(tips_ok and DB.tips.size() >= 15, "every tutorial page has a title and text")
 
 func test_delve(gs) -> void:
 	print("[delve]")

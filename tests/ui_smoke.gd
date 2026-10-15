@@ -8,21 +8,27 @@ var stage := 0
 var classes := ["warrior", "mage", "rogue", "huntress"]
 var ci := 0
 var resumed := false
+var tips_seen := {}
 
 func _ready() -> void:
 	SaveSystem.autosave = false
 	SaveSystem.wipe()
 	SaveSystem.path = "user://ui_smoke.json"
 	GameState.new_game()
+	GameState.settings.tutorial = true; GameState.tutorial_done.clear()
 	for c in GameState.heroes: GameState.heroes[c].unlocked = true
 	main = load("res://scenes/main.tscn").instantiate()
 	add_child(main)
 
 func _process(_d: float) -> void:
 	f += 1
+	if f > 5 and main and is_instance_valid(main) and main.tip_open():
+		tips_seen[main.tips.queue[0].id] = true
+		main.tips.next(); return
 	match f:
 		5:
 			_check(main.screen.get_script().resource_path.ends_with("camp_screen.gd"), "starts in camp")
+			_check(main.tip_open() and main.tips.queue[0].id == "welcome", "first run shows the welcome tutorial")
 			for i in main.screen.tabs.get_tab_count(): main.screen.tabs.current_tab = i
 			main.screen.journal_view = "codex"; main.screen.rebuild()
 			_check(main.screen.pages["Journal"].get_child_count() > 3, "journal codex renders")
@@ -101,6 +107,10 @@ func _drive() -> void:
 				GameState.add_mat("potion_healing", 3); s.loadout.potion_healing = 3; GameState.facilities.alchemy.level = 3
 			s.chosen_hero = classes[ci]; s._start(); main.delve.fast = true
 			return
+		for t in ["welcome", "delve_bar", "first_fight", "floor_done"]:
+			_check(tips_seen.has(t), "tutorial tip shown: " + t)
+		_check(not main.tip_open() and "welcome" in GameState.tutorial_done, "tips are remembered once dismissed")
+		print("  tutorial tips shown: ", tips_seen.keys())
 		print("UI SMOKE: PASS (fights=%d, stash gold=%d)" % [stage, GameState.mat("gold")])
 		SaveSystem.wipe()
 		get_tree().quit(0)

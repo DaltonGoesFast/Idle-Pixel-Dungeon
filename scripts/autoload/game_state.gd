@@ -25,6 +25,7 @@ var stats := STATS_DEFAULT.duplicate()
 var milestones_claimed: Array = []  # milestone ids already rewarded
 var seen: Dictionary = {}          # codex discoveries: "mob:rat", "trap:worn_dart", "item:dagger" -> true
 var tutorial_done: Array = []      # onboarding steps already shown
+var last_result := ""              # "extract" / "death" / "abandon" of the run that just ended (not saved)
 var run: Dictionary = {}           # empty when no expedition is active
 var time_offset := 0.0             # tests / debug can fast-forward wall-clock time
 var messages: PackedStringArray = []
@@ -373,6 +374,7 @@ func pack_add(id: String, n: int) -> void:
 ## result: "extract" keeps everything; "death" loses pack, cracks gear, resets hero; "abandon" loses pack.
 func end_run(result: String) -> void:
 	if run.is_empty(): return
+	last_result = result
 	var c: String = run.hero
 	var h: Dictionary = heroes[c]
 	# unused supplies always go back to the stash (they were never "found")
@@ -439,6 +441,10 @@ func check_milestones() -> Array:
 
 func add_stat(k: String, n: int) -> void:
 	stats[k] = int(stats.get(k, 0)) + n
+
+## Tutorial: should tip `id` be shown now?
+func wants_tip(id: String) -> bool:
+	return bool(settings.get("tutorial", true)) and DB.tips.has(id) and not (id in tutorial_done)
 
 ## Codex: remember that the player has encountered something.
 func discover(key: String) -> void:

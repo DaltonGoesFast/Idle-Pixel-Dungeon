@@ -5,6 +5,7 @@ extends Control
 const CampScreen := preload("res://scripts/ui/camp_screen.gd")
 const DelveScreen := preload("res://scripts/ui/delve_screen.gd")
 const CombatScreen := preload("res://scripts/ui/combat_screen.gd")
+const TipOverlay := preload("res://scripts/ui/tip_overlay.gd")
 
 var margin: MarginContainer
 var host: Control
@@ -12,6 +13,7 @@ var toast_box: VBoxContainer
 var screen: Control
 var delve: Control           # kept alive while a combat runs on top of it
 var portrait := true
+var tips: Control            # TipOverlay (tutorial cards above everything)
 var _id_timer := 0.0
 
 func _ready() -> void:
@@ -23,6 +25,7 @@ func _ready() -> void:
 	host = Control.new(); margin.add_child(host)
 	toast_box = VBoxContainer.new(); toast_box.set_anchors_preset(PRESET_CENTER_TOP)
 	toast_box.mouse_filter = Control.MOUSE_FILTER_IGNORE; add_child(toast_box)
+	tips = TipOverlay.new(); add_child(tips)
 	GameState.toast.connect(_toast)
 	GameState.settings_changed.connect(_relayout)
 	get_viewport().size_changed.connect(_relayout)
@@ -55,6 +58,7 @@ func _relayout() -> void:
 	var fs := int(clampf(minf(vs.x, vs.y) / 24.0 * float(GameState.settings.get("text_scale", 1.0)), 14, 60))
 	theme = UIKit.make_theme(fs)
 	if screen: _layout_screen()
+	if tips and tips.is_open(): tips._render()
 
 func content_size() -> Vector2:
 	var vs := get_viewport_rect().size
@@ -76,6 +80,11 @@ func show_camp() -> void:
 	if delve: delve.queue_free(); delve = null
 	var s := CampScreen.new(); s.main = self
 	_set_screen(s)
+	match GameState.last_result:
+		"death": tip("after_death")
+		"extract": tip("after_extract")
+	GameState.last_result = ""
+	if int(GameState.stats.runs) == 0: tip("welcome"); tip("camp_delve")
 	Sfx.music("theme_2" if int(GameState.stats.get("goo_kills", 0)) > 0 else "theme_1")
 
 func show_delve() -> void:
@@ -99,6 +108,13 @@ func start_combat(event: Dictionary, on_done: Callable, saved := {}) -> void:
 
 func end_combat() -> void:
 	show_delve()
+
+## Show a tutorial tip once (if tips are enabled). Screens pause while one is open.
+func tip(id: String) -> void:
+	if tips and GameState.wants_tip(id): tips.push(id)
+
+func tip_open() -> bool:
+	return tips != null and tips.is_open()
 
 func _toast(text: String) -> void:
 	var l := UIKit.label(text, 0.85)

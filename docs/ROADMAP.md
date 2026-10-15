@@ -1,6 +1,8 @@
 # Roadmap / TODO
 
 ## Next up (suggested order)
+- [ ] Real-device playtest on the Fold 6 (cover + inner): text sizes, tip card sizing at Huge text, haptic strength, Prison difficulty for a human player (the sim bot is better than a new player).
+- [ ] Mage vs Tengu (deeprun 3/10).
 - [ ] Playtest pass on the Fold 6: tap targets, text sizes, delve speed (`DelveScreen.SPEED`), fight length.
 - [x] Save/restore in-progress fights (v0.4.0).
 - [x] Prison biome + Tengu (v0.5.0).
@@ -23,4 +25,4 @@
 - Offline Patrols don't auto-assign the active hero when the app closes (GDD Phase C, second half).
 - Facility levels beyond what recipes use: Guild Lv only affects patrol hours; Enchanter Lv only ID speed.
 - Dew is collected but only used by patrols/future recipes.
-- No tutorial / onboarding text beyond tooltips and the Hint button.
+- Tutorial is tips only (v0.7.0); there is no guided first fight with forced moves.

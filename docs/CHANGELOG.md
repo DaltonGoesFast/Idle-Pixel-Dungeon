@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.7.0 — 2026-10-14
+- **First-run onboarding**: a 3-page welcome (the Camp -> Delve -> fight -> extract loop and what death costs) on a brand-new save, followed by a supplies tip on the Delve tab.
+- **Contextual tutorial tips** (17, data/tutorial.json) shown once each as a modal card: Delve Bar, first fight (2 pages), Surprise, red-tile telegraphs, traps, boss fights, Door Choices, special rooms, floor cleared / hidden doors, campfire, Forge, Journal, and what happens after a death or an extraction. The delve bar and Auto play pause while a tip is open.
+- "Next" / "Skip all tips" on every card; Settings has "Tutorial tips ON/OFF" and "Replay the tutorial tips".
+- Tests: 109 checks; the UI smoke test checks that the welcome appears on first run, that the core tips fire during real play, and that dismissed tips stay dismissed.
+
 ## v0.6.0 — 2026-10-14
 - **Settings** (Camp tab and an in-delve Settings card): SFX / music sliders with live percentages, **haptics** toggle (vibrates on damage, traps and telegraphs; Android VIBRATE permission added), **text size** (Small / Normal / Large / Huge, relayouts instantly), tutorial-tip toggles, and the Developer tools are now hidden behind a toggle.
 - **Music**: every biome rotates through its SPD tracks per floor (Sewers 1-3, Prison 1-2) with a crossfade; the Camp theme changes after your first Goo kill.

@@ -26,6 +26,9 @@ func _ready() -> void:
 		var v := UIKit.vbox(sc); v.size_flags_horizontal = SIZE_EXPAND_FILL
 		tabs.add_child(sc); pages[t] = v
 	GameState.changed.connect(rebuild)
+	tabs.tab_changed.connect(func(i: int):
+		var t: String = TAB_ORDER[i].to_lower()
+		if main: main.tip("camp_" + t))
 	rebuild()
 
 func apply_layout(p: bool, _size: Vector2) -> void:

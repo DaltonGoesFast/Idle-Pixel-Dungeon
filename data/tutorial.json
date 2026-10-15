@@ -1,0 +1,89 @@
+{
+ "_note": "Tutorial tips (first-run onboarding). Each id is shown once (GameState.tutorial_done) while Settings > Tutorial tips is on. pages = consecutive cards. Triggers live in code (main/camp/delve/combat screens); see docs/ARCHITECTURE.md.",
+ "tips": {
+  "welcome": {
+   "pages": [
+    {
+     "title": "Welcome to SPD Tactics",
+     "text": "The surface Camp is your home. From here your heroes delve into the dungeon, fight tactical battles, and bring loot back to grow the Camp."
+    },
+    {
+     "title": "The loop",
+     "text": "1. Pack supplies and pick a hero (Delve tab).\n2. The Delve Bar explores for you; encounters pop up as cards.\n3. Fights play out on an 8x8 grid where you control every move.\n4. Extract at a boss campfire (or with a Scroll of Passage) to bank your loot."
+    },
+    {
+     "title": "Death has a price",
+     "text": "If your hero falls, the unbanked pack is lost, gear cracks (repair it at the Forge) and the hero drops back to Lv1. Your Camp, stash and facilities are permanent."
+    }
+   ]
+  },
+  "camp_delve": {
+   "title": "Packing for a delve",
+   "text": "Torches keep the light on - in darkness you fight with no Barrier. Rations stop starvation. Potions heal mid-fight. Unused supplies come back to the stash."
+  },
+  "camp_forge": {
+   "title": "The Forge",
+   "text": "Spend Iron Ore and gold to forge better weapons and armor, upgrade them, and repair gear that cracked when a hero died. Higher tiers need more Strength."
+  },
+  "camp_journal": {
+   "title": "The Journal",
+   "text": "Milestones give one-time rewards for things you'll do anyway. The Codex fills in as you meet monsters, traps and items."
+  },
+  "delve_bar": {
+   "title": "The Delve Bar",
+   "text": "Your hero explores on their own. Watch the torch and satiety - they drain as you go and spare torches/rations are used automatically. Pause or speed up below."
+  },
+  "first_fight": {
+   "pages": [
+    {
+     "title": "Your first fight",
+     "text": "Tap a tile next to your hero to move, or tap an adjacent enemy to attack. Every hit lands for fixed damage - no dice. Enemies act on a clock: fast ones act twice per tick."
+    },
+    {
+     "title": "Barrier and armor",
+     "text": "The blue bar is Barrier: it soaks damage first and refills every fight. Armor's DR subtracts from every physical hit. Use Hint if you're stuck, or Auto to let the game play."
+    }
+   ]
+  },
+  "surprise": {
+   "title": "Surprise attack!",
+   "text": "You're standing in tall grass or a doorway. Your next attack is a Surprise: x1.5 damage, ignores armor, and knocks the enemy back - into a chasm for an instant kill."
+  },
+  "telegraph": {
+   "title": "Red tiles = danger",
+   "text": "A red tile shows exactly where an attack will land and when. Step off it before it resolves. Bosses telegraph their big moves too."
+  },
+  "trap": {
+   "title": "Traps",
+   "text": "That icon is a trap. Stepping on it fires it once. Monsters know where traps are and avoid them - but you can shove or knock them in. Use Search to reveal hidden ones."
+  },
+  "boss": {
+   "title": "Boss fight",
+   "text": "Bosses have big telegraphed attacks. Don't get cornered, step off red tiles, and drink a potion before you drop too low."
+  },
+  "door": {
+   "title": "Door Choice",
+   "text": "Two doors, two risks. Read the clues: a fight with a reward, a locked chest, or a quiet room. You can also ignore both."
+  },
+  "special": {
+   "title": "Special room",
+   "text": "Special rooms trade supplies, HP or time for rewards. Greyed-out options show what you're missing."
+  },
+  "floor_done": {
+   "title": "Floor cleared",
+   "text": "Descending heals a little. You can also spend torch to search for a hidden door with a secret cache - Rogues always find it."
+  },
+  "campfire": {
+   "title": "Campfire",
+   "text": "The boss is down. Extract to bank everything, or push deeper with an unbanked pack for bigger rewards."
+  },
+  "after_death": {
+   "title": "Back at Camp",
+   "text": "Your hero fell: the pack was lost and their gear cracked. Repair it at the Forge (Blacksmith), then try again - the Camp keeps everything you banked."
+  },
+  "after_extract": {
+   "title": "Loot banked",
+   "text": "Everything you carried is safe in the stash. Spend it on facility upgrades and gear, and check the Journal for milestone rewards."
+  }
+ }
+}

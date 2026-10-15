@@ -85,3 +85,9 @@ The cheats (unlock all, +materials, time skip, wipe) are behind a Settings toggl
 
 ## 51. Codex discovery is implicit
 Entries unlock when a mob appears in a fight, a trap is revealed/triggered/visible, or an item is identified/obtained. Heirlooms of unlocked heroes are always known. No separate "scan" action.
+
+## 52. Tutorial = contextual one-shot cards, not a scripted level
+A scripted tutorial run would have to be maintained alongside the real game. Instead, tips fire the first time the player meets a mechanic in a normal run (first fight, first red tile, first trap, first door...). They are data (`data/tutorial.json`), each shown once, and can be replayed or turned off. The welcome is 3 short pages; nothing blocks a player who already knows SPD ("Skip all tips").
+
+## 53. Tips pause the game
+While a tip card is open the Delve Bar stops and Auto play waits, so reading never costs progress or HP. Fights are turn-based, so nothing else needs pausing.

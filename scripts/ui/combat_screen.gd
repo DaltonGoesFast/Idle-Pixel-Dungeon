@@ -56,6 +56,7 @@ func _ready() -> void:
 	log_label = RichTextLabel.new(); log_label.fit_content = true; log_label.scroll_active = false
 	log_label.size_flags_horizontal = SIZE_EXPAND_FILL; log_scroll.add_child(log_label)
 	_refresh()
+	main.tip("boss" if event.get("boss", false) else "first_fight")
 
 func apply_layout(portrait: bool, s: Vector2) -> void:
 	split.vertical = portrait
@@ -69,6 +70,7 @@ func apply_layout(portrait: bool, s: Vector2) -> void:
 	_refresh()
 
 func _process(d: float) -> void:
+	if main and main.tip_open(): return
 	if auto and not finished:
 		_auto_t += d
 		if _auto_t > 0.35:
@@ -90,6 +92,10 @@ func _refresh() -> void:
 	if int(h.get("poison", 0)) > 0: line += "\nPOISONED: -1 HP per turn for %d turns" % int(h.poison)
 	if combat.surprise_ready(): line += "\nIn cover: your next attack is a SURPRISE (x%.1f, no DR, knockback)" % float(h.surprise_mult)
 	status.text = line
+	if main and not finished:
+		if combat.surprise_ready(): main.tip("surprise")
+		if not combat.danger.is_empty(): main.tip("telegraph")
+		if combat.traps.values().any(func(t): return not t.hidden): main.tip("trap")
 	UIKit.clear(buttons)
 	if finished:
 		_result_buttons(); _refresh_log(); return

@@ -37,6 +37,7 @@ func apply_layout(p: bool, s: Vector2) -> void:
 func on_shown() -> void:
 	if pending.is_empty() and GameState.run.has("pending_card"): pending = GameState.run.pending_card
 	_refresh(); _show_card()
+	main.tip("delve_bar")
 
 var _save_t := 0.0
 
@@ -46,6 +47,7 @@ func _process(delta: float) -> void:
 	_save_t += delta
 	if _save_t > 3.0:
 		_save_t = 0.0; SaveSystem.save_game()
+	if main and main.tip_open(): _refresh(); return
 	if running and pending.is_empty():
 		if Delve.floor_done(run):
 			_floor_cleared()
@@ -118,6 +120,7 @@ func _show_card() -> void:
 		var msgs := GameState.messages
 		for i in range(maxi(0, msgs.size() - 6), msgs.size()): log.add_child(UIKit.label(msgs[i], 0.8, Color("bdb3a0")))
 		return
+	if main and pending.kind in ["door", "special", "floor_done", "campfire"]: main.tip(pending.kind)
 	match pending.kind:
 		"combat": _card_combat()
 		"door": _card_door()

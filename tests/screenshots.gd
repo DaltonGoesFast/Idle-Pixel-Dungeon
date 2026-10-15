@@ -12,6 +12,7 @@ func _ready() -> void:
 	DirAccess.make_dir_recursive_absolute(out)
 	SaveSystem.autosave = false; SaveSystem.path = "user://shots.json"
 	GameState.new_game()
+	GameState.settings.tutorial = false
 	GameState.add_mat("iron_ore", 20); GameState.add_mat("gold", 200)
 	main = load("res://scenes/main.tscn").instantiate(); add_child(main)
 	for sz in SIZES:
@@ -25,6 +26,9 @@ func _ready() -> void:
 			GameState.discover("trap:worn_dart")
 			main.show_camp(); main.screen.journal_view = "codex"; main.screen.tabs.current_tab = main.screen.TAB_ORDER.find("Journal")
 			main.screen.rebuild()])
+		plan.append([sz, "tip", func():
+			main.show_camp(); main.tips.push("welcome")])
+		plan.append([sz, "tip_closed", func(): main.tips.skip_all(); GameState.settings.tutorial = false])
 		plan.append([sz, "settings", func(): main.show_camp(); main.screen.tabs.current_tab = main.screen.TAB_ORDER.find("Settings")])
 		plan.append([sz, "delve", func():
 			if GameState.run.is_empty(): GameState.start_run("warrior", {"ration": 1, "torch": 1, "potion_healing": 1}, "sewers", 5)

@@ -30,6 +30,11 @@
 - `GameState.stat_value(stat)` understands plain stats, `boss:<mob>` and `cleared:<biome>`; milestones and hero `unlock_rule`s both use it.
 - `scripts/ui/settings_panel.gd` (class `SettingsPanel`) builds the settings UI into any container; `scripts/ui/codex_view.gd` (class `CodexView`) builds the Codex. `Sfx.buzz()` = haptics, `Sfx.biome_track()` = per-floor music.
 
+## Tutorial
+- `data/tutorial.json` holds tips (`title`/`text` or `pages`). `Main.tip(id)` queues one if `GameState.wants_tip(id)`; `scripts/ui/tip_overlay.gd` draws the modal card above every screen and records `GameState.tutorial_done`.
+- Triggers: `Main.show_camp` (welcome, after_death/after_extract via `GameState.last_result`), Camp tab changes (`camp_<tab>`), `DelveScreen.on_shown`/`_show_card` (delve_bar, door, special, floor_done, campfire), `CombatScreen._ready`/`_refresh` (first_fight, boss, surprise, telegraph, trap).
+- Screens check `Main.tip_open()` to pause.
+
 ## The run dictionary (`GameState.run`)
 `hero, biome, floor, progress, torch, satiety, hp, pack{mat:n}, pack_gear[], supplies{ration,torch,potion_healing,scroll_passage,...}, seed, events[], next_event, gather, starve, milestones_done[], pending_loot, boss_dead`.
 It is saved with the account, so closing the app mid-delve resumes on the Delve Bar (a fight in progress is not saved; you resume just after the event triggered - see DECISIONS.md).
