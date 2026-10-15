@@ -666,7 +666,7 @@ func patch_up() -> bool:
 
 ## Relief supplies: a broke Camp (no rations or torches, can't buy one) gets 1 of each when a run starts.
 const RELIEF_GOLD := 10
-## Gold safety net (DECISIONS #107): a death never leaves the stash below enough gold for one Guild potion.
+## Gold safety net (DECISIONS #109): a death never leaves the stash below enough gold for one Guild potion.
 const SAFETY_GOLD := 30
 func needs_relief() -> bool:
 	return mat("ration") == 0 and mat("torch") == 0 and mat("gold") < RELIEF_GOLD
@@ -691,7 +691,7 @@ func repair_all() -> bool:
 		if repair(g.uid): n += 1
 	say("Repaired %d item%s." % [n, "" if n == 1 else "s"]); touch(); return true
 
-# ---------------------------------------------------------------- breaking down spare rings (DECISIONS #107)
+# ---------------------------------------------------------------- breaking down spare rings (DECISIONS #109)
 ## A ring melts into a little gold (the band) and resin (the gem). Small on purpose: patrols hand rings out.
 func ring_break_yield() -> Dictionary:
 	return {"gold": 5, "arcane_resin": 1}
