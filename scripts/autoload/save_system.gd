@@ -1,7 +1,7 @@
 ## SaveSystem: versioned JSON save in user://save.json, with atomic write + migration hook.
 extends Node
 
-const SAVE_VERSION := 1
+const SAVE_VERSION := 2
 var path := "user://save.json"
 var autosave := true
 
@@ -43,7 +43,15 @@ func load_game() -> bool:
 ## Upgrade old save layouts here. Each step bumps d.version by one.
 func migrate(d: Dictionary) -> Dictionary:
 	var v := int(d.get("version", 0))
-	# if v < 2: ...transform d.state...; v = 2
+	if v < 2:
+		# v0.6.0: meta-progression stats. Back-fill boss kill counters from the per-class boss list so
+		# existing players get their Goo milestone; everything else starts at 0.
+		var st: Dictionary = d.state.get("stats", {})
+		var goo := 0
+		for c in d.state.get("boss_kills", {}): if "sewers" in d.state.boss_kills[c]: goo += 1
+		st["goo_kills"] = maxi(int(st.get("goo_kills", 0)), goo)
+		d.state.stats = st
+		v = 2
 	d.version = v
 	return d
 

@@ -6,7 +6,7 @@ extends RefCounted
 static func ability_text(m: Dictionary) -> String:
 	match m.get("ability", ""):
 		"throw": return "Throws a spear at range %d-%d: red tile, %d dmg." % [m.throw_range[0], m.throw_range[1], int(m.dmg) + int(m.throw_bonus)]
-		"pump": return "Every %d actions (%s below half HP) pumps up and slams all adjacent tiles for x%d." % [m.pump_every, m.get("pump_every_enraged", m.pump_every), m.pump_mult]
+		"pump": return "Every %d actions (%s below half HP) pumps up and slams all adjacent tiles for x%d." % [int(m.pump_every), int(m.get("pump_every_enraged", m.pump_every)), int(m.pump_mult)]
 		"bone_burst": return "Bursts into bone shards %d tick after dying: 3x3 red area, %d dmg." % [int(m.burst_delay), m.burst_dmg]
 		"steal": return "Steals %d gold on its first hit, then runs. Kill it to get the gold back." % m.steal_gold
 		"zap": return "Zaps at range 2-4: red tile, %d dmg, every %d actions." % [m.zap_dmg, m.zap_cooldown]
@@ -27,4 +27,22 @@ static func mob_biomes(id: String) -> Array:
 	for b in DB.biomes:
 		var bd: Dictionary = DB.biomes[b]
 		if bd.boss == id or bd.encounter_sets.any(func(s): return id in s.mobs): out.append(bd.name)
+	if out.is_empty(): out.append("special rooms")
 	return out
+
+static func item_line(id: String) -> String:
+	var it: Dictionary = DB.items[id]
+	match it.type:
+		"weapon": return "tier %d weapon, %d dmg%s, %d Str" % [it.tier, it.dmg, (", %.1f ticks" % it.delay) if float(it.get("delay", 1.0)) != 1.0 else "", it.str]
+		"armor": return "tier %d armor, DR %d, +%d Barrier, %d Str" % [it.tier, it.dr, it.barrier, it.str]
+		"wand": return "wand, bolt %d dmg (ignores DR), %d charges%s%s" % [it.bolt_dmg, it.charges, ", burns grass" if it.get("burns_grass", false) else "", ", chains through water" if it.get("chains_water", false) else ""]
+		"ring": return "ring" + (", +%d dmg" % it.dmg_bonus if it.has("dmg_bonus") else "") + (", +%d Barrier" % it.barrier_bonus if it.has("barrier_bonus") else "")
+	if it.get("heirloom", false): return "heirloom: a permanent class item that never cracks"
+	return it.get("desc", it.type)
+
+## Known if seen, or if it's the heirloom of an unlocked hero.
+static func item_known(id: String) -> bool:
+	if GameState.seen.has("item:" + id): return true
+	for c in GameState.heroes:
+		if GameState.heroes[c].unlocked and DB.heroes[c].get("heirloom", "") == id: return true
+	return false

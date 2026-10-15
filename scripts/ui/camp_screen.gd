@@ -1,5 +1,5 @@
 ## CampScreen: the persistent Surface Camp. Tabs: Expedition, Heroes, Stash, Blacksmith, Alchemy,
-## Enchanter, Guild (supplies & patrols), Settings. Content is rebuilt from GameState on every change.
+## Enchanter, Guild (supplies & patrols), Journal (milestones, unlocks, codex), Settings. Content is rebuilt from GameState on every change.
 extends Control
 
 var main: Control
@@ -10,7 +10,7 @@ var pages := {}
 var loadout := {"ration": 2, "torch": 2, "potion_healing": 1, "scroll_passage": 0, "elixir_starter": 0}
 var chosen_hero := "warrior"
 var portrait := true
-const TAB_ORDER := ["Delve", "Heroes", "Stash", "Forge", "Alchemy", "Enchanter", "Guild", "Settings"]
+const TAB_ORDER := ["Delve", "Heroes", "Stash", "Forge", "Alchemy", "Enchanter", "Guild", "Journal", "Settings"]
 
 func _ready() -> void:
 	root_box = UIKit.vbox(self)
@@ -40,7 +40,7 @@ func rebuild() -> void:
 			var r := UIKit.icon_row(k, str(GameState.mat(k)), 0.9); summary.add_child(r)
 	_page_delve(); _page_heroes(); _page_stash()
 	_page_facility("Forge", "blacksmith"); _page_facility("Alchemy", "alchemy"); _page_facility("Enchanter", "enchanter")
-	_page_guild(); _page_settings()
+	_page_guild(); _page_journal(); _page_settings()
 
 func _p(name: String) -> VBoxContainer:
 	var v: VBoxContainer = pages[name]
@@ -206,21 +206,44 @@ func _page_guild() -> void:
 			cv.add_child(UIKit.button("Recall & collect", func(): GameState.collect_patrol(c)))
 
 func _page_settings() -> void:
-	var v := _p("Settings")
-	for k in ["sfx", "music"]:
-		v.add_child(UIKit.label("%s volume" % k.to_upper()))
-		var s := HSlider.new(); s.min_value = 0; s.max_value = 1; s.step = 0.05; s.value = GameState.settings[k]
-		s.custom_minimum_size.y = UIKit.btn_height()
-		s.value_changed.connect(func(x): GameState.settings[k] = x; Sfx.refresh_volume())
-		s.drag_ended.connect(func(_c): SaveSystem.save_game())
-		v.add_child(s)
-	v.add_child(UIKit.header("Developer"))
-	v.add_child(UIKit.button("Unlock all heroes", func():
-		for c in GameState.heroes: GameState.heroes[c].unlocked = true
-		GameState.touch()))
-	v.add_child(UIKit.button("+100 of every material", func():
-		for k in ["gold", "iron_ore", "dark_gold", "seeds", "arcane_resin", "iron_key", "ration", "torch", "potion_healing", "scroll_passage", "scroll_upgrade"]: GameState.add_mat(k, 100 if k == "gold" else 10)
-		GameState.touch()))
-	v.add_child(UIKit.button("Fast-forward 1 hour (timers)", func(): GameState.time_offset += 3600; GameState.tick_identify(); GameState.touch()))
-	v.add_child(UIKit.button("Wipe save (new game)", func(): SaveSystem.wipe()))
-	v.add_child(UIKit.label("Art, sounds and music: Shattered Pixel Dungeon by Evan Debenham (GPL-3.0). This game is GPL-3.0. See CREDITS.md.", 0.75, Color("9a8f7c")))
+	SettingsPanel.build(_p("Settings"))
+
+# ------------------------------------------------------------ Journal (meta-progression + codex)
+var journal_view := "progress"
+
+func _page_journal() -> void:
+	var v := _p("Journal")
+	var sw := HFlowContainer.new(); v.add_child(sw)
+	for t in [["progress", "Progress"], ["codex", "Codex"]]:
+		var b := UIKit.button(("> " if journal_view == t[0] else "") + t[1], func(): journal_view = t[0]; _page_journal())
+		b.custom_minimum_size.x = UIKit.font_size * 7; sw.add_child(b)
+	if journal_view == "codex": CodexView.build(v, portrait); return
+	var done := GameState.milestones_claimed.size()
+	v.add_child(UIKit.header("Milestones  %d / %d" % [done, DB.milestones.size()]))
+	for m in DB.milestones:
+		v.add_child(_progress_card(m.name, m.desc, GameState.stat_value(m.stat), int(m.goal), "Reward: " + GameState.cost_text(m.reward), m.id in GameState.milestones_claimed))
+	v.add_child(UIKit.header("Heroes"))
+	for c in GameState.heroes:
+		var h: Dictionary = GameState.heroes[c]
+		var rule: Dictionary = DB.heroes[c].get("unlock_rule", {})
+		var cleared: String = ", ".join(h.cleared.map(func(b): return DB.biomes[b].name)) if not h.cleared.is_empty() else "nothing yet"
+		if rule.is_empty() or h.unlocked:
+			v.add_child(_progress_card("%s - Lv%d" % [DB.heroes[c].name, h.level], "Cleared: %s" % cleared, 1, 1, "", true))
+		else:
+			v.add_child(_progress_card("%s (locked)" % DB.heroes[c].name, DB.heroes[c].unlock, GameState.stat_value(rule.stat), int(rule.goal), "Unlocks the class", false))
+	v.add_child(UIKit.header("Lifetime"))
+	var st: Dictionary = GameState.stats
+	var lines := ["Expeditions: %d (%d extracted, %d deaths)" % [st.runs, st.extractions, st.deaths], "Deepest floor: %d" % st.deepest_floor,
+		"Monsters defeated: %d   Goo: %d   Tengu: %d" % [st.kills, st.goo_kills, st.tengu_kills],
+		"Hidden traps found: %d   Hidden doors: %d   Potions brewed: %d" % [st.traps_found, st.hidden_doors, st.potions_brewed]]
+	for l in lines: v.add_child(UIKit.label(l, 0.9))
+
+func _progress_card(title: String, desc: String, have: int, goal: int, reward: String, done: bool) -> Control:
+	var card := UIKit.card(); var cv := UIKit.vbox(card)
+	cv.add_child(UIKit.label(("[done] " if done else "") + title, 1.0, Color("6bff6b") if done else Color("ffd27a")))
+	cv.add_child(UIKit.label(desc, 0.85, Color("bdb3a0")))
+	if not done:
+		var bar := ProgressBar.new(); bar.max_value = goal; bar.value = mini(have, goal); bar.show_percentage = false
+		bar.custom_minimum_size.y = UIKit.font_size * 0.8; cv.add_child(bar)
+		cv.add_child(UIKit.label("%d / %d   %s" % [mini(have, goal), goal, reward], 0.8))
+	return card

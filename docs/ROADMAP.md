@@ -12,8 +12,9 @@
 - [ ] More room templates (10x10 variant).
 - [ ] Enchantments on a deterministic trigger (e.g. every 3rd hit / on surprise) - GDD Q E.
 - [ ] Item comparison UI, gear icons on equip buttons, tooltips/long-press info.
+- [x] Settings: volume, haptics, text size (v0.6.0).
 - [ ] Settings: delve speed, left-handed layout, reduce motion.
-- [ ] Hide the Developer tab behind a debug flag for public builds.
+- [x] Developer tools hidden behind a Settings toggle (v0.6.0).
 - [ ] Proper launcher icons (adaptive + monochrome) and a splash.
 - [ ] Release signing + Play Store AAB (needs gradle build + NDK).
 

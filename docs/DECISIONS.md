@@ -69,4 +69,19 @@ At the Goo campfire you choose: extract (bank everything) or press on into the P
 SPD Prison mobs scaled the same way as the Sewers (HT x~0.8, damage collapsed to the average and trimmed where 100% accuracy made them brutal). SPD instant effects became telegraphs: Skeleton's death explosion is a 1-tick 3x3 red area, DM-100's zap a 1-tick red tile, Tengu's shuriken and bombs red tiles. Target hero (GDD): 12-13 Str with tier-2/3 gear. The sim confirms a Lv5 Warrior with Shortsword+1 / Leather+1 wins 99/99 Prison fights and beats Tengu with 2 potions; a Lv1 hero with forged tier-2 gear clears Sewers+Prison in one run 3-10/10 depending on class (Mage is the weakest - Tengu's blinks waste its limited charges).
 
 ## 46. Release grouping
-v0.5.0 ships items 1-3 of the overnight list together (balance, traps/hidden doors, Prison + Tengu) because Prison rooms are where traps matter and the balance changes were tuned against both. Settings/music/meta-progression = v0.6.0, onboarding/codex = v0.7.0.
+v0.5.0 ships items 1-3 of the overnight list together (balance, traps/hidden doors, Prison + Tengu) because Prison rooms are where traps matter and the balance changes were tuned against both. Settings/music/meta-progression = v0.6.0 (the Codex shipped here too: it shares the discovery data with the milestones), onboarding = v0.7.0.
+
+## 47. Milestones are account-wide, one-time, and pay into the stash
+The GDD's meta loop is Camp growth, so milestone rewards are materials (and the odd Scroll of Upgrade), not stat bonuses: they speed up facilities without adding a second power curve. Milestones are data (`data/milestones.json`, `stat` + `goal` + `reward`); `GameState.check_milestones()` runs on every `touch()`, so any code path that changes a stat grants them automatically.
+
+## 48. Class unlocks stay early
+The GDD example is "Rogue: reach Prison floor 8, Huntress: brew 10 potions". Now that the Prison exists that would be possible, but it would hide half the roster for many hours. Kept Rogue = floor 4, Huntress = 5 potions, Mage = beat Goo, moved into `heroes.json` `unlock_rule` so it is one edit to change.
+
+## 49. Text size scales the theme, not the viewport
+`text_scale` multiplies the base font size computed from the screen (clamped 14-60 px). Layout is rebuilt via `settings_changed`, so every screen reflows - important on the Fold cover screen where Huge text must still fit.
+
+## 50. Developer tools hidden by default
+The cheats (unlock all, +materials, time skip, wipe) are behind a Settings toggle so a player can't hit them by accident; still available on device for testing.
+
+## 51. Codex discovery is implicit
+Entries unlock when a mob appears in a fight, a trap is revealed/triggered/visible, or an item is identified/obtained. Heirlooms of unlocked heroes are always known. No separate "scan" action.

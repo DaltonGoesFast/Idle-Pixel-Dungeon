@@ -25,6 +25,7 @@ func _ready() -> void:
 	test_delve(gs)
 	test_camp(gs)
 	test_save(gs, ss)
+	test_meta(gs, ss)
 	print("TESTS: %d passed, %d failed -> %s" % [passes, fails, "PASS" if fails == 0 else "FAIL"])
 	get_tree().quit(1 if fails else 0)
 
@@ -264,6 +265,41 @@ func _kit_tier2(gs, cls: String) -> void:
 	match cls:
 		"warrior", "huntress": h.weapon = gs.add_gear("shortsword", true, 1)
 		"rogue": h.weapon = gs.add_gear("dagger", true, 2)
+
+func test_meta(gs, ss) -> void:
+	print("[meta]")
+	gs.new_game()
+	var gold0: int = gs.mat("gold")
+	gs.stats.extractions = 1; gs.touch()
+	check("first_steps" in gs.milestones_claimed and gs.mat("gold") == gold0 + 30, "milestone grants its reward once reached")
+	gs.touch()
+	check(gs.mat("gold") == gold0 + 30, "milestone rewards are only granted once")
+	check(gs.stat_value("cleared:sewers") == 0, "cleared:<biome> counts heroes")
+	gs.heroes.warrior.cleared.append("sewers"); gs.heroes.mage.cleared.append("sewers")
+	check(gs.stat_value("cleared:sewers") == 2, "cleared:<biome> counts every hero that cleared it")
+	check(not gs.heroes.mage.unlocked, "mage starts locked")
+	gs.record_boss_kill("warrior", "sewers")
+	check(gs.heroes.mage.unlocked and gs.stats.goo_kills == 1, "Goo kill unlocks the Mage via data rule")
+	# fight results feed lifetime stats + codex
+	gs.start_run("warrior", {}, "sewers", 3)
+	var ev := Delve.combat_event(gs.run, Delve.rng_for(gs.run, 1), ["rat"])
+	var c := Delve.new_combat(gs, ev)
+	check(gs.seen.has("mob:rat"), "codex: meeting a mob discovers it")
+	CombatBot.play(c)
+	var k0: int = gs.stats.kills
+	Delve.apply_fight_result(gs, ev, {"won": c.won, "hp": c.hero.hp, "loot": c.loot, "fallen_loot": 0, "xp": c.xp, "boss_killed": false, "kills": c.kills, "traps_found": 2, "trap_ids": ["gripping"]}, {})
+	check(gs.stats.kills == k0 + 1 and gs.stats.traps_found == 2 and gs.seen.has("trap:gripping"), "fight results update kills / traps / codex")
+	gs.end_run("abandon")
+	# save v1 -> v2 migration back-fills Goo kills
+	var old := {"version": 1, "state": {"stats": {"runs": 3, "deaths": 1}, "boss_kills": {"warrior": ["sewers"], "huntress": ["sewers"]}}}
+	var mig: Dictionary = ss.migrate(old)
+	check(int(mig.version) == 2 and int(mig.state.stats.goo_kills) == 2, "save v1 -> v2 migration back-fills goo_kills")
+	# settings survive a round trip
+	gs.settings.text_scale = 1.3; gs.settings.haptics = false
+	var d: Dictionary = JSON.parse_string(JSON.stringify(gs.to_dict()))
+	gs.new_game(); gs.from_dict(d)
+	check(is_equal_approx(float(gs.settings.text_scale), 1.3) and gs.settings.haptics == false and "first_steps" in gs.milestones_claimed, "settings + milestones persist")
+	gs.settings.text_scale = 1.0; gs.settings.haptics = true
 
 func test_delve(gs) -> void:
 	print("[delve]")

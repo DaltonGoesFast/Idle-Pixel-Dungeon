@@ -1,0 +1,113 @@
+{
+ "_note": "Account milestones (meta-progression). stat = key in GameState.stats (or boss:<mob>, cleared:<biome> counted over heroes). Rewards go to the stash once; checked on every state change.",
+ "milestones": [
+  {
+   "id": "first_steps",
+   "name": "First Steps",
+   "desc": "Complete an expedition (extract).",
+   "stat": "extractions",
+   "goal": 1,
+   "reward": {
+    "gold": 30,
+    "ration": 1
+   }
+  },
+  {
+   "id": "slime_time",
+   "name": "Slime Time",
+   "desc": "Defeat Goo.",
+   "stat": "boss:goo",
+   "goal": 1,
+   "reward": {
+    "iron_ore": 5,
+    "seeds": 3
+   }
+  },
+  {
+   "id": "deep_dive",
+   "name": "Deep Dive",
+   "desc": "Reach floor 6 (the Prison).",
+   "stat": "deepest_floor",
+   "goal": 6,
+   "reward": {
+    "torch": 2,
+    "gold": 40
+   }
+  },
+  {
+   "id": "trap_sense",
+   "name": "Trap Sense",
+   "desc": "Find 10 hidden traps.",
+   "stat": "traps_found",
+   "goal": 10,
+   "reward": {
+    "arcane_resin": 2
+   }
+  },
+  {
+   "id": "secret_keeper",
+   "name": "Secret Keeper",
+   "desc": "Discover 3 hidden doors.",
+   "stat": "hidden_doors",
+   "goal": 3,
+   "reward": {
+    "iron_key": 2,
+    "dark_gold": 1
+   }
+  },
+  {
+   "id": "brewer",
+   "name": "Master Brewer",
+   "desc": "Brew 10 potions.",
+   "stat": "potions_brewed",
+   "goal": 10,
+   "reward": {
+    "seeds": 5,
+    "potion_healing": 1
+   }
+  },
+  {
+   "id": "exterminator",
+   "name": "Exterminator",
+   "desc": "Defeat 100 monsters.",
+   "stat": "kills",
+   "goal": 100,
+   "reward": {
+    "gold": 80,
+    "iron_ore": 6
+   }
+  },
+  {
+   "id": "jailbreak",
+   "name": "Jailbreak",
+   "desc": "Defeat Tengu.",
+   "stat": "boss:tengu",
+   "goal": 1,
+   "reward": {
+    "dark_gold": 3,
+    "scroll_upgrade": 1
+   }
+  },
+  {
+   "id": "veteran",
+   "name": "Veteran",
+   "desc": "Complete 10 expeditions.",
+   "stat": "extractions",
+   "goal": 10,
+   "reward": {
+    "scroll_passage": 1,
+    "gold": 100
+   }
+  },
+  {
+   "id": "full_roster",
+   "name": "Full Roster",
+   "desc": "Clear the Sewers with all four heroes.",
+   "stat": "cleared:sewers",
+   "goal": 4,
+   "reward": {
+    "scroll_upgrade": 1
+   }
+  }
+ ]
+}

@@ -25,6 +25,7 @@ func _ready() -> void:
 	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED; box.add_child(sc)
 	card_host = UIKit.vbox(sc); card_host.size_flags_horizontal = SIZE_EXPAND_FILL
 	controls = HFlowContainer.new(); box.add_child(controls)
+	GameState.settings_changed.connect(func(): if pending.get("kind", "") == "settings": _show_card())
 	if Delve.floor_done(GameState.run) or GameState.run.events.is_empty(): pass
 	_refresh_controls()
 
@@ -86,6 +87,8 @@ func _refresh_controls() -> void:
 		var b3 := UIKit.button("Read Scroll of Passage (extract)", func():
 			GameState.run.supplies.scroll_passage -= 1; Sfx.play("read"); GameState.end_run("extract"); main.show_camp()); b3.custom_minimum_size.x = w * 2
 		controls.add_child(b3)
+	var b5 := UIKit.button("Settings", func(): running = false; pending = {"kind": "settings"}; _refresh_controls(); _show_card()); b5.custom_minimum_size.x = w
+	controls.add_child(b5)
 	var b4 := UIKit.button("Abandon run", _confirm_abandon); b4.custom_minimum_size.x = w
 	controls.add_child(b4)
 
@@ -106,7 +109,7 @@ func _show_card() -> void:
 	UIKit.clear(card_host)
 	# remember the open card in the save (an app kill must not skip an encounter)
 	if not GameState.run.is_empty():
-		if pending.is_empty() or pending.kind == "confirm_abandon": GameState.run.erase("pending_card")
+		if pending.is_empty() or pending.kind in ["confirm_abandon", "settings"]: GameState.run.erase("pending_card")
 		else: GameState.run.pending_card = pending
 	if pending.is_empty():
 		var hint := "Exploring... encounters every ~20-25%." if running else "Paused."
@@ -121,6 +124,10 @@ func _show_card() -> void:
 		"special": _card_special()
 		"floor_done": _card_floor()
 		"campfire": _card_campfire()
+		"settings":
+			var v := _card("Settings", "")
+			SettingsPanel.build(v, false)
+			v.add_child(UIKit.button("Close", func(): pending = {}; running = true; _refresh_controls(); _show_card()))
 		"confirm_abandon":
 			var v := _card("Abandon the expedition?", "Everything in your pack is lost. Unused supplies return to the stash.")
 			v.add_child(UIKit.button("Abandon", func(): GameState.end_run("abandon"); main.show_camp()))
@@ -196,6 +203,7 @@ func _special_option(o: Dictionary) -> void:
 		var ev := Delve.combat_event(GameState.run, Delve.rng_for(GameState.run, 55), o.fight)
 		_fight(ev, o.get("reward", {})); return
 	if o.has("cost") and not Delve.pay(GameState, o.cost): return
+	if o.get("secret", false): GameState.add_stat("hidden_doors", 1)
 	if o.has("reward"):
 		Sfx.play("secret" if o.get("secret", false) else "item"); GameState.say(Delve.reward(GameState, o.reward))
 	pending = {}; _show_card(); GameState.touch()
@@ -216,7 +224,7 @@ func _card_floor() -> void:
 			Sfx.play("secret" if msg.begins_with("A hidden") else "scan"); GameState.say(msg); _show_card(); GameState.touch(),
 			"" if Delve.can_search_floor(run) else "not enough torch"))
 	v.add_child(UIKit.button("Descend to floor %d" % (int(run.floor) + 1), func():
-		Sfx.play("descend"); Delve.descend(GameState); pending = {}; _show_card()))
+		Sfx.play("descend"); Delve.descend(GameState); pending = {}; main.play_floor_music(); _show_card()))
 
 func _card_campfire() -> void:
 	var run: Dictionary = GameState.run
@@ -229,4 +237,4 @@ func _card_campfire() -> void:
 	v.add_child(UIKit.button("Extract to Camp", func(): Sfx.play("mastery"); GameState.end_run("extract"); main.show_camp()))
 	if nb != "":
 		v.add_child(UIKit.button("Descend into the %s" % DB.biomes[nb].name, func():
-			Sfx.play("descend"); Delve.continue_deeper(GameState); pending = {}; Sfx.music(DB.biomes[GameState.run.biome].music); _show_card()))
+			Sfx.play("descend"); Delve.continue_deeper(GameState); pending = {}; main.play_floor_music(); _show_card()))

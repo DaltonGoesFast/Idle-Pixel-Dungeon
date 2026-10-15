@@ -25,6 +25,11 @@
 - `Delve.new_combat(gs, ev)` is the one place a fight is built from an event (CombatScreen and RunSim both use it). `Delve.continue_deeper()` switches `run.biome` at a boss campfire.
 - `scripts/core/codex.gd` (class `Codex`) turns mob data into player-facing ability text (inspect toasts, Codex tab).
 
+## Meta-progression, settings, codex
+- `GameState.stats` (lifetime counters), `milestones_claimed`, `seen` (codex), `tutorial_done`, `settings` are all in the save (format v2, see `SaveSystem.migrate`).
+- `GameState.stat_value(stat)` understands plain stats, `boss:<mob>` and `cleared:<biome>`; milestones and hero `unlock_rule`s both use it.
+- `scripts/ui/settings_panel.gd` (class `SettingsPanel`) builds the settings UI into any container; `scripts/ui/codex_view.gd` (class `CodexView`) builds the Codex. `Sfx.buzz()` = haptics, `Sfx.biome_track()` = per-floor music.
+
 ## The run dictionary (`GameState.run`)
 `hero, biome, floor, progress, torch, satiety, hp, pack{mat:n}, pack_gear[], supplies{ration,torch,potion_healing,scroll_passage,...}, seed, events[], next_event, gather, starve, milestones_done[], pending_loot, boss_dead`.
 It is saved with the account, so closing the app mid-delve resumes on the Delve Bar (a fight in progress is not saved; you resume just after the event triggered - see DECISIONS.md).

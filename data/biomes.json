@@ -104,7 +104,12 @@
    "gold": 12,
    "seeds": 2,
    "iron_key": 1
-  }
+  },
+  "music_tracks": [
+   "sewers_1",
+   "sewers_2",
+   "sewers_3"
+  ]
  },
  "prison": {
   "name": "Prison",
@@ -215,6 +220,10 @@
    "gold": 20,
    "dark_gold": 1,
    "iron_key": 1
-  }
+  },
+  "music_tracks": [
+   "prison_1",
+   "prison_2"
+  ]
  }
 }

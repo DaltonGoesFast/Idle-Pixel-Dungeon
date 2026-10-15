@@ -5,6 +5,7 @@ extends Node
 
 signal changed
 signal toast(text: String)
+signal settings_changed
 
 const PACK_MATS := ["gold","dew","iron_ore","dark_gold","seeds","arcane_resin","iron_key","potion_strength","scroll_upgrade"]
 const SUPPLY_KEYS := ["ration","torch","potion_healing","scroll_passage","elixir_starter"]
@@ -16,8 +17,14 @@ var heroes: Dictionary = {}        # class -> hero dict
 var facilities: Dictionary = {}    # id -> {level, cap}
 var id_queue: Array = []           # [{uid, ready_at}]
 var boss_kills: Dictionary = {}    # class -> [biome ids]  (first kill per class drops a Scroll of Upgrade)
-var settings := {"sfx": 0.8, "music": 0.5}
-var stats := {"potions_brewed": 0, "deepest_floor": 0, "runs": 0, "deaths": 0}
+## text_scale multiplies the UI font size; haptics = vibrate on hits/traps (Android); dev_tools shows the Developer section.
+var settings := {"sfx": 0.8, "music": 0.5, "haptics": true, "text_scale": 1.0, "dev_tools": false, "tutorial": true}
+const STATS_DEFAULT := {"potions_brewed": 0, "deepest_floor": 0, "runs": 0, "deaths": 0, "extractions": 0, "kills": 0,
+	"traps_found": 0, "hidden_doors": 0, "goo_kills": 0, "tengu_kills": 0}
+var stats := STATS_DEFAULT.duplicate()
+var milestones_claimed: Array = []  # milestone ids already rewarded
+var seen: Dictionary = {}          # codex discoveries: "mob:rat", "trap:worn_dart", "item:dagger" -> true
+var tutorial_done: Array = []      # onboarding steps already shown
 var run: Dictionary = {}           # empty when no expedition is active
 var time_offset := 0.0             # tests / debug can fast-forward wall-clock time
 var messages: PackedStringArray = []
@@ -34,13 +41,14 @@ func say(t: String) -> void:
 	toast.emit(t)
 
 func touch() -> void:
+	if not heroes.is_empty(): check_milestones()
 	changed.emit()
 
 # ---------------------------------------------------------------- setup
 func new_game() -> void:
 	mats = {"gold": 30, "ration": 2, "torch": 2, "potion_healing": 1, "iron_key": 1, "seeds": 2}
 	gear = []; next_uid = 1; id_queue = []; boss_kills = {}; run = {}; time_offset = 0.0
-	stats = {"potions_brewed": 0, "deepest_floor": 0, "runs": 0, "deaths": 0}
+	stats = STATS_DEFAULT.duplicate(); milestones_claimed = []; seen = {}; tutorial_done = []
 	facilities = {}
 	for f in DB.facilities: facilities[f] = {"level": 1, "cap": 1}
 	heroes = {}
@@ -52,6 +60,7 @@ func new_game() -> void:
 
 func add_gear(id: String, known := true, lvl := 0) -> int:
 	var g := {"uid": next_uid, "id": id, "lvl": lvl, "cracked": false, "known": known}
+	if known: seen["item:" + id] = true
 	next_uid += 1
 	gear.append(g)
 	return g.uid
@@ -283,7 +292,7 @@ func tick_identify() -> Array:
 		if float(q.ready_at) <= now():
 			var g := gear_by_uid(q.uid)
 			if not g.is_empty():
-				g.known = true; done.append(q.uid); say("Identified: " + gear_name(g))
+				g.known = true; seen["item:" + g.id] = true; done.append(q.uid); say("Identified: " + gear_name(g))
 			id_queue.erase(q)
 	if not done.is_empty(): touch()
 	return done
@@ -358,6 +367,7 @@ func start_run(c: String, loadout: Dictionary, biome := "sewers", seed := -1) ->
 	say("%s descends into the %s." % [s.name, DB.biomes[biome].name]); touch(); return true
 
 func pack_add(id: String, n: int) -> void:
+	if run.is_empty(): add_mat(id, n); return  # no expedition: straight to the stash
 	run.pack[id] = int(run.pack.get(id, 0)) + n
 
 ## result: "extract" keeps everything; "death" loses pack, cracks gear, resets hero; "abandon" loses pack.
@@ -371,6 +381,7 @@ func end_run(result: String) -> void:
 		"extract":
 			for k in run.pack: add_mat(k, int(run.pack[k]))
 			for g in run.pack_gear: gear.append(g)
+			stats.extractions += 1
 			say("Extracted! The pack is banked at Camp.")
 		"death":
 			stats.deaths += 1
@@ -392,17 +403,50 @@ func record_boss_kill(c: String, biome: String) -> bool:
 		kills.append(biome); boss_kills[c] = kills
 		pack_add("scroll_upgrade", 1)
 	if not (biome in heroes[c].cleared): heroes[c].cleared.append(biome)
+	var key: String = DB.biomes[biome].boss + "_kills"
+	if stats.has(key): stats[key] += 1
 	check_unlocks()
 	return first
 
 ## Class unlock milestones (DECISIONS.md #11, #31)
 func check_unlocks() -> void:
-	var rules := {"rogue": int(stats.deepest_floor) >= 4, "huntress": int(stats.potions_brewed) >= 5,
-		"mage": boss_kills.values().any(func(k): return "sewers" in k)}
-	for c in rules:
-		if heroes.has(c) and not heroes[c].unlocked and rules[c]:
+	for c in heroes:
+		var rule: Dictionary = DB.heroes[c].get("unlock_rule", {})
+		if rule.is_empty() or heroes[c].unlocked: continue
+		if stat_value(rule.stat) >= int(rule.goal):
 			heroes[c].unlocked = true
 			say("The %s has joined the Camp!" % DB.heroes[c].name)
+
+# ---------------------------------------------------------------- meta-progression
+## Progress toward a milestone stat (see data/milestones.json).
+func stat_value(stat: String) -> int:
+	if stat.begins_with("boss:"): return int(stats.get(stat.substr(5) + "_kills", 0))
+	if stat.begins_with("cleared:"):
+		var b := stat.substr(8)
+		return heroes.values().filter(func(h): return b in h.cleared).size()
+	return int(stats.get(stat, 0))
+
+## Grant every newly reached milestone (once). Returns the ids granted.
+func check_milestones() -> Array:
+	var got := []
+	for m in DB.milestones:
+		if m.id in milestones_claimed or stat_value(m.stat) < int(m.goal): continue
+		milestones_claimed.append(m.id); got.append(m.id)
+		for k in m.reward: add_mat(k, int(m.reward[k]))
+		say("Milestone: %s! Reward: %s" % [m.name, cost_text(m.reward)])
+		Sfx.play("badge")
+	return got
+
+func add_stat(k: String, n: int) -> void:
+	stats[k] = int(stats.get(k, 0)) + n
+
+## Codex: remember that the player has encountered something.
+func discover(key: String) -> void:
+	if not seen.has(key): seen[key] = true
+
+func set_setting(k: String, v) -> void:
+	settings[k] = v
+	settings_changed.emit()
 
 func note_floor(f: int) -> void:
 	if f > int(stats.deepest_floor):
@@ -411,7 +455,8 @@ func note_floor(f: int) -> void:
 # ---------------------------------------------------------------- persistence
 func to_dict() -> Dictionary:
 	return {"mats": mats, "gear": gear, "next_uid": next_uid, "heroes": heroes, "facilities": facilities,
-		"id_queue": id_queue, "boss_kills": boss_kills, "settings": settings, "run": run, "stats": stats}
+		"id_queue": id_queue, "boss_kills": boss_kills, "settings": settings, "run": run, "stats": stats,
+		"milestones_claimed": milestones_claimed, "seen": seen, "tutorial_done": tutorial_done}
 
 func from_dict(d: Dictionary) -> void:
 	new_game()
@@ -423,6 +468,8 @@ func from_dict(d: Dictionary) -> void:
 	id_queue = d.get("id_queue", []); boss_kills = d.get("boss_kills", {})
 	settings.merge(d.get("settings", {}), true); run = d.get("run", {})
 	stats.merge(d.get("stats", {}), true)
+	milestones_claimed = Array(d.get("milestones_claimed", [])); seen = d.get("seen", {}); tutorial_done = Array(d.get("tutorial_done", []))
+	settings.text_scale = float(settings.text_scale)
 	for k in stats: stats[k] = int(stats[k])
 	_fix_types()
 	touch()

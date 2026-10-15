@@ -24,6 +24,7 @@ func _ready() -> void:
 	toast_box = VBoxContainer.new(); toast_box.set_anchors_preset(PRESET_CENTER_TOP)
 	toast_box.mouse_filter = Control.MOUSE_FILTER_IGNORE; add_child(toast_box)
 	GameState.toast.connect(_toast)
+	GameState.settings_changed.connect(_relayout)
 	get_viewport().size_changed.connect(_relayout)
 	_relayout()
 	GameState.tick_identify()
@@ -51,7 +52,7 @@ func _relayout() -> void:
 	var cap := minf(vs.x, vs.y) * 0.2
 	for p in [["left", l], ["top", t], ["right", r], ["bottom", b]]:
 		margin.add_theme_constant_override("margin_" + p[0], int(clampf(p[1], 8.0, cap)))
-	var fs := int(clampf(minf(vs.x, vs.y) / 24.0, 16, 44))
+	var fs := int(clampf(minf(vs.x, vs.y) / 24.0 * float(GameState.settings.get("text_scale", 1.0)), 14, 60))
 	theme = UIKit.make_theme(fs)
 	if screen: _layout_screen()
 
@@ -75,14 +76,19 @@ func show_camp() -> void:
 	if delve: delve.queue_free(); delve = null
 	var s := CampScreen.new(); s.main = self
 	_set_screen(s)
-	Sfx.music("theme_1")
+	Sfx.music("theme_2" if int(GameState.stats.get("goo_kills", 0)) > 0 else "theme_1")
 
 func show_delve() -> void:
 	if delve == null:
 		delve = DelveScreen.new(); delve.main = self
 	_set_screen(delve)
 	delve.on_shown()
-	Sfx.music(DB.biomes[GameState.run.biome].music)
+	play_floor_music()
+
+## Biome music, rotating per floor.
+func play_floor_music() -> void:
+	if GameState.run.is_empty(): return
+	Sfx.music(Sfx.biome_track(DB.biomes[GameState.run.biome], int(GameState.run.floor)))
 
 ## Called by DelveScreen. on_done(result: Dictionary) gets {won, hp, loot, fallen_loot, xp, boss_killed, potions_used}.
 func start_combat(event: Dictionary, on_done: Callable, saved := {}) -> void:

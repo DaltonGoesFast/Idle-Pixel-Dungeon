@@ -187,7 +187,8 @@ func _result_buttons() -> void:
 
 func result() -> Dictionary:
 	return {"won": combat.won, "hp": combat.hero.hp, "loot": combat.loot, "fallen_loot": combat.fallen_loot, "xp": combat.xp,
-		"boss_killed": combat.boss_killed, "potions_used": potions_used}
+		"boss_killed": combat.boss_killed, "potions_used": potions_used, "kills": combat.kills, "traps_found": combat.traps_found,
+		"trap_ids": combat.trap_ids_seen}
 
 func _finish() -> void:
 	GameState.run.erase("active_fight")

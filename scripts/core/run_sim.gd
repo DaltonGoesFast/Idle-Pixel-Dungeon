@@ -47,7 +47,7 @@ static func play(gs, hero: String, loadout: Dictionary, seed: int, deep := false
 		var pots := int(run.supplies.get("potion_healing", 0))
 		var r := CombatBot.play(c, pots, int(DB.materials.potion_healing.heal))
 		run.supplies.potion_healing = pots - int(r.potions_used)
-		var res := {"won": c.won, "hp": c.hero.hp, "loot": c.loot, "fallen_loot": c.fallen_loot, "xp": c.xp, "boss_killed": c.boss_killed}
+		var res := {"won": c.won, "hp": c.hero.hp, "loot": c.loot, "fallen_loot": c.fallen_loot, "xp": c.xp, "boss_killed": c.boss_killed, "kills": c.kills, "traps_found": c.traps_found, "trap_ids": c.trap_ids_seen}
 		if not Delve.apply_fight_result(gs, ev, res, reward):
 			var out := _summary(gs, "death", fights); gs.end_run("death"); return out
 	var o := _summary(gs, "timeout", fights); gs.end_run("abandon"); return o

@@ -24,11 +24,18 @@ func _process(_d: float) -> void:
 		5:
 			_check(main.screen.get_script().resource_path.ends_with("camp_screen.gd"), "starts in camp")
 			for i in main.screen.tabs.get_tab_count(): main.screen.tabs.current_tab = i
+			main.screen.journal_view = "codex"; main.screen.rebuild()
+			_check(main.screen.pages["Journal"].get_child_count() > 3, "journal codex renders")
+			GameState.set_setting("text_scale", 1.3); GameState.set_setting("text_scale", 1.0)
+			_check(UIKit.font_size > 0, "text size change relayouts")
 			main.screen.chosen_hero = classes[0]
 			main.screen._start()
 		8:
 			_check(main.screen == main.delve, "delve screen shown")
 			main.delve.fast = true
+			main.delve.pending = {"kind": "settings"}; main.delve._show_card()
+			_check(main.delve.card_host.get_child_count() > 0, "delve settings card opens")
+			main.delve.pending = {}; main.delve.running = true; main.delve._show_card()
 		_:
 			if f > 8 and f < 12000: _drive()
 	if f == 12000:

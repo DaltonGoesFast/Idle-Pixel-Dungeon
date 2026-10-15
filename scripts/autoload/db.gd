@@ -15,6 +15,7 @@ var biomes: Dictionary
 var doors: Array
 var specials: Array
 var traps: Dictionary
+var milestones: Array
 var biome_rooms: Dictionary
 
 func _init() -> void:
@@ -32,6 +33,7 @@ func reload() -> void:
 	var r := _load("rooms")
 	rooms = r.rooms; boss_rooms = r.boss_rooms; biome_rooms = r.get("biome_rooms", {})
 	traps = _strip(_load("traps"))
+	milestones = _load("milestones").get("milestones", [])
 	biomes = _load("biomes")
 	var ev := _load("events")
 	doors = ev.doors; specials = ev.specials

@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.6.0 — 2026-10-14
+- **Settings** (Camp tab and an in-delve Settings card): SFX / music sliders with live percentages, **haptics** toggle (vibrates on damage, traps and telegraphs; Android VIBRATE permission added), **text size** (Small / Normal / Large / Huge, relayouts instantly), tutorial-tip toggles, and the Developer tools are now hidden behind a toggle.
+- **Music**: every biome rotates through its SPD tracks per floor (Sewers 1-3, Prison 1-2) with a crossfade; the Camp theme changes after your first Goo kill.
+- **Journal tab (meta-progression)**: 10 account milestones with progress bars and one-time stash rewards (data/milestones.json), class unlock progress (now data-driven `unlock_rule`s), per-hero biome clears and lifetime stats (kills, traps found, hidden doors, extractions...).
+- **Codex** (Journal -> Codex): bestiary with sprites and generated ability text, traps and items. Entries unlock when you meet them; unknown ones show as "???".
+- Save format v2 with a real migration step (back-fills Goo kills so existing saves earn their milestone).
+- Tests: 105 checks (milestones, unlock rules, stats/codex from fight results, v1->v2 migration, settings persistence); UI smoke opens the Codex, changes text size and opens the delve Settings card.
+
 ## v0.5.0 — 2026-10-14
 - **Traps** (SPD Worn Dart, Gripping, Teleportation, Poison Dart) on the combat grid: `^` visible, `?` hidden. Anyone stepping on one fires it once. Mobs know where traps are and path around them, but shove/slam/surprise knockback can push them in. Tap a revealed trap to inspect it.
 - **Search** button in fights (2 ticks): reveals hidden traps nearby. Rogue (keen eyes) spots adjacent hidden traps as she moves; Rogue and Huntress search a wider radius.

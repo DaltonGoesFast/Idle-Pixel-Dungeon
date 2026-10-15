@@ -17,6 +17,15 @@ func _ready() -> void:
 	for sz in SIZES:
 		plan.append([sz, "camp", func(): main.show_camp()])
 		plan.append([sz, "forge", func(): main.show_camp(); main.screen.tabs.current_tab = 3])
+		plan.append([sz, "journal", func():
+			GameState.stats.extractions = 1; GameState.stats.kills = 37; GameState.touch()
+			main.show_camp(); main.screen.tabs.current_tab = main.screen.TAB_ORDER.find("Journal")])
+		plan.append([sz, "codex", func():
+			for m in ["rat", "snake", "gnoll", "crab", "goo"]: GameState.discover("mob:" + m)
+			GameState.discover("trap:worn_dart")
+			main.show_camp(); main.screen.journal_view = "codex"; main.screen.tabs.current_tab = main.screen.TAB_ORDER.find("Journal")
+			main.screen.rebuild()])
+		plan.append([sz, "settings", func(): main.show_camp(); main.screen.tabs.current_tab = main.screen.TAB_ORDER.find("Settings")])
 		plan.append([sz, "delve", func():
 			if GameState.run.is_empty(): GameState.start_run("warrior", {"ration": 1, "torch": 1, "potion_healing": 1}, "sewers", 5)
 			main.show_delve(); main.delve.running = false

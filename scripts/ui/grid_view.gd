@@ -57,6 +57,7 @@ func play_events(evs: Array) -> void:
 					"poison": col = Color("8be04e")
 				floaters.append({"pos": Vector2(e.pos), "text": txt, "color": col, "t": 0.0})
 				Sfx.play("hit_strong" if e.kind == "surprise" else ("hit_magic" if e.kind == "magic" else "hit"), 1.0)
+				if e.uid == combat.hero.uid and int(e.amount) > 0: Sfx.buzz(60 if e.kind == "hp" else 25)
 			"heal":
 				floaters.append({"pos": Vector2(e.pos), "text": "+%d" % e.amount, "color": Color("6bff6b"), "t": 0.0}); Sfx.play("drink")
 			"die": Sfx.play("death" if e.uid == combat.hero.uid else "bones")
@@ -65,13 +66,13 @@ func play_events(evs: Array) -> void:
 				streaks.append({"from": Vector2(e.from), "to": Vector2(e.to), "t": 0.0, "magic": e.get("magic", true)})
 				Sfx.play("zap" if e.get("magic", true) else "atk_spiritbow")
 			"blast": blasts.append({"pos": Vector2(e.pos), "t": 0.0}); Sfx.play("hit_crush")
-			"telegraph": Sfx.play("alert")
+			"telegraph": Sfx.play("alert"); Sfx.buzz(20)
 			"shock": blasts.append({"pos": Vector2(e.pos), "t": 0.0, "shock": true})
 			"burn": blasts.append({"pos": Vector2(e.pos), "t": 0.0, "fire": true}); Sfx.play("burning")
 			"move":
 				if e.get("blink", false): disp[e.uid] = Vector2(e.to)  # teleports snap, no slide
 				elif e.uid == combat.hero.uid: Sfx.play("step", 1.1)
-			"trap": blasts.append({"pos": Vector2(e.pos), "t": 0.0, "trap": true})
+			"trap": blasts.append({"pos": Vector2(e.pos), "t": 0.0, "trap": true}); Sfx.buzz(80)
 			"reveal": floaters.append({"pos": Vector2(e.pos), "text": "!", "color": Color("ffd27a"), "t": 0.0})
 			"search": rings.append({"pos": Vector2(e.pos), "r": float(e.r), "t": 0.0})
 			"sfx": Sfx.play(e.name)

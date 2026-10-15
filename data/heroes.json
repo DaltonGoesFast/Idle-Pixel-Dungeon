@@ -37,7 +37,11 @@
   "unlocked_by_default": false,
   "unlock": "Defeat Goo (Sewers boss) with any hero.",
   "desc": "Zone control. The Mage's Staff fires its imbued wand as a bolt that ignores DR.",
-  "search_radius": 1
+  "search_radius": 1,
+  "unlock_rule": {
+   "stat": "boss:goo",
+   "goal": 1
+  }
  },
  "rogue": {
   "name": "Rogue",
@@ -60,7 +64,11 @@
   "unlock": "Reach floor 4 of the Sewers with any hero.",
   "desc": "Stealth & assassination. Cloak of Shadows (2 charges per fight) hides you for 2 ticks: enemies lose track and your next hit is a Surprise (dagger x2). Keen eyes: spots hidden traps next to her as she moves and searches wider.",
   "search_radius": 2,
-  "keen_eyes": true
+  "keen_eyes": true,
+  "unlock_rule": {
+   "stat": "deepest_floor",
+   "goal": 4
+  }
  },
  "huntress": {
   "name": "Huntress",
@@ -80,6 +88,10 @@
   "unlocked_by_default": false,
   "unlock": "Brew 5 potions at the Alchemy Pot.",
   "desc": "Geometry & overwatch. The Spirit Bow fires unlimited arrows at any enemy in line of sight (DR applies; Surprise from cover). Searches a wider area for hidden traps.",
-  "search_radius": 2
+  "search_radius": 2,
+  "unlock_rule": {
+   "stat": "potions_brewed",
+   "goal": 5
+  }
  }
 }

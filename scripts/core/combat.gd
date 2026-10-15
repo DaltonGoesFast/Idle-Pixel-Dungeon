@@ -34,10 +34,14 @@ var boss_killed := false
 var _uid := 0
 var traps := {}                 # Vector2i -> {"id": String, "hidden": bool}
 var trap_pool: Array = ["worn_dart", "gripping", "teleport"]
+var kills := 0                  # meta stats reported in the fight result
+var traps_found := 0
+var trap_ids_seen: Array = []   # codex: trap types revealed or triggered
 
 ## room_rows: Array[String] 8x8; hs: GameState.hero_stats(); mob_ids fill spawn slots 1..4 in order (B = boss).
 func setup(room_rows: Array, hs: Dictionary, hp: int, mob_ids: Array, darkness := false, pool := []) -> void:
 	terrain.clear(); units.clear(); danger.clear(); log_lines.clear(); events.clear(); traps.clear()
+	kills = 0; traps_found = 0; trap_ids_seen = []
 	if not pool.is_empty(): trap_pool = pool
 	time = 0.0; loot = 0; fallen_loot = 0; xp = 0; over = false; won = false; boss_killed = false; _uid = 0
 	hero = {"uid": _next_uid(), "id": "hero", "name": hs.name, "hp": hp, "ht": hs.ht, "dmg": hs.dmg, "dr": hs.dr,
@@ -67,6 +71,7 @@ func setup(room_rows: Array, hs: Dictionary, hp: int, mob_ids: Array, darkness :
 				"^", "?":
 					# trap type: deterministic from position so the same room always has the same traps
 					traps[Vector2i(x, y)] = {"id": trap_pool[(x * 7 + y * 3) % trap_pool.size()], "hidden": ch == "?"}
+					if ch == "^" and not (traps[Vector2i(x, y)].id in trap_ids_seen): trap_ids_seen.append(traps[Vector2i(x, y)].id)
 			row.append(t)
 		terrain.append(row)
 	for i in mob_ids.size():
@@ -85,7 +90,7 @@ func to_dict() -> Dictionary:
 		var e: Dictionary = d.duplicate(); e.pos = [d.pos.x, d.pos.y]; dz.append(e)
 	var tr := []
 	for k in traps: tr.append({"pos": [k.x, k.y], "id": traps[k].id, "hidden": traps[k].hidden})
-	return {"terrain": terrain, "units": us, "danger": dz, "traps": tr, "trap_pool": trap_pool, "time": time, "log": Array(log_lines), "loot": loot,
+	return {"terrain": terrain, "units": us, "danger": dz, "traps": tr, "trap_pool": trap_pool, "kills": kills, "traps_found": traps_found, "trap_ids_seen": trap_ids_seen, "time": time, "log": Array(log_lines), "loot": loot,
 		"fallen_loot": fallen_loot, "xp": xp, "over": over, "won": won, "boss_killed": boss_killed, "uid": _uid}
 
 func from_dict(d: Dictionary) -> void:
@@ -105,6 +110,7 @@ func from_dict(d: Dictionary) -> void:
 	traps = {}
 	for t in d.get("traps", []): traps[Vector2i(int(t.pos[0]), int(t.pos[1]))] = {"id": t.id, "hidden": t.hidden}
 	trap_pool = Array(d.get("trap_pool", trap_pool))
+	kills = int(d.get("kills", 0)); traps_found = int(d.get("traps_found", 0)); trap_ids_seen = Array(d.get("trap_ids_seen", []))
 	time = float(d.time); log_lines = PackedStringArray(d.log); loot = int(d.loot); fallen_loot = int(d.fallen_loot)
 	xp = int(d.xp); over = d.over; won = d.won; boss_killed = d.boss_killed; _uid = int(d.uid); events = []
 
@@ -263,6 +269,7 @@ func _place(u: Dictionary, dest: Vector2i) -> void:
 
 func _trigger(p: Vector2i, u: Dictionary) -> void:
 	var tr: Dictionary = DB.traps[traps[p].id]
+	if not (traps[p].id in trap_ids_seen): trap_ids_seen.append(traps[p].id)
 	traps.erase(p)
 	_log("%s triggers a %s!" % [u.name, tr.name])
 	_ev({"t": "trap", "pos": p}); _ev({"t": "sfx", "name": "trap"})
@@ -308,7 +315,8 @@ func _reveal(center: Vector2i, radius: int, loud := true) -> int:
 	var n := 0
 	for k in traps:
 		if traps[k].hidden and cheb(k, center) <= radius:
-			traps[k].hidden = false; n += 1
+			traps[k].hidden = false; n += 1; traps_found += 1
+			if not (traps[k].id in trap_ids_seen): trap_ids_seen.append(traps[k].id)
 			_ev({"t": "reveal", "pos": k})
 	if n > 0:
 		_log("Found %d hidden trap%s!" % [n, "" if n == 1 else "s"]); _ev({"t": "sfx", "name": "secret"})
@@ -333,6 +341,7 @@ func _farthest_free(from: Vector2i) -> Vector2i:
 
 func _kill(m: Dictionary, chasm: bool) -> void:
 	m.hp = 0
+	kills += 1
 	var l := int(m.loot) + int(m.get("stolen", 0))
 	xp += int(m.exp)
 	if chasm:

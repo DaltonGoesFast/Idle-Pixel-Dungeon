@@ -113,6 +113,7 @@ static func room_pool(run: Dictionary) -> Array:
 ## Build a Combat for an event in the current run (shared by CombatScreen and RunSim).
 static func new_combat(gs, ev: Dictionary) -> Combat:
 	var run: Dictionary = gs.run
+	for m in ev.mobs: gs.discover("mob:" + m)
 	var c := Combat.new()
 	c.setup(ev.room, gs.hero_stats(run.hero), int(run.hp), ev.mobs, darkness(run), biome(run).get("traps", []))
 	return c
@@ -176,6 +177,7 @@ static func reward(gs, rw: Dictionary) -> String:
 
 static func _new_gear(gs, id: String, known: bool) -> Dictionary:
 	var g := {"uid": gs.next_uid, "id": id, "lvl": 0, "cracked": false, "known": known}
+	if known: gs.discover("item:" + id)
 	gs.next_uid += 1
 	return g
 
@@ -187,6 +189,7 @@ static func search_floor(gs) -> String:
 	run.torch = float(run.torch) - SEARCH_TORCH
 	var found: bool = run.hero == "rogue" or rng_for(run, 31).randi_range(1, 100) <= SEARCH_CHANCE
 	if not found: return "You search every wall... nothing this time."
+	gs.add_stat("hidden_doors", 1)
 	return "A hidden door! Secret cache: " + reward(gs, biome(run).secret_cache)
 
 static func can_search_floor(run: Dictionary) -> bool:
@@ -222,6 +225,8 @@ static func descend(gs) -> void:
 ## Returns false if the hero died (caller should end the run with "death").
 static func apply_fight_result(gs, ev: Dictionary, res: Dictionary, reward: Dictionary) -> bool:
 	var run: Dictionary = gs.run
+	gs.add_stat("kills", int(res.get("kills", 0))); gs.add_stat("traps_found", int(res.get("traps_found", 0)))
+	for t in res.get("trap_ids", []): gs.discover("trap:" + t)
 	if not res.won: return false
 	run.hp = int(res.hp)
 	gs.pack_add("gold", int(res.loot))
