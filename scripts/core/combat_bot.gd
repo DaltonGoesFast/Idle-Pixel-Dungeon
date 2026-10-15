@@ -68,7 +68,7 @@ static func suggest(c: Combat, potions := 0, heal_amount := 10) -> Dictionary:
 	var blast := 0
 	for d in c.danger:
 		if d.pos == h.pos: blast += int(d.dmg)
-	if potions > 0 and h.hp <= maxi(7, threat * 2, blast) and h.hp + heal_amount <= h.ht + 4:
+	if potions > 0 and h.hp <= maxi(7, maxi(threat * 2, blast)) and h.hp + heal_amount <= h.ht + 4:
 		return {"act": "heal", "why": "low HP - drink a potion"}
 	var adj := es.filter(func(e): return Combat.cheb(e.pos, h.pos) == 1)
 	# 3. shove adjacent enemy into a chasm (or onto a known trap)
