@@ -28,6 +28,22 @@ var water_name := "water0"
 var parts := []         # particles [{p: Vector2 cell space, v, t, life, c: Color, s: px}]
 var lighting := true    # SPD-style light radius / fog; tests can turn it off
 var _rng := RandomNumberGenerator.new()
+var anims := {}          # sprite -> {idle/run/attack/die: {fps, loop, frames}} from data/anims.json (tools/gen_anims.py)
+var ustate := {}         # uid -> {anim, t, flip}
+var dying := []          # [{sprite, fw, fh, pos, flip, t}] SPD die animation then fade
+var last_units := {}     # uid -> unit snapshot (for die anims after removal)
+var buff_icons: Texture2D
+var variance := {}       # Vector2i -> 0..99 (SPD tileVariance)
+
+# SPD DungeonTileSheet indices (xy(x,y) = (x-1) + 16*(y-1))
+const S_FLOOR := 0; const S_FLOOR_ALT1 := 6; const S_FLOOR_ALT2 := 12
+const S_CHASM := 24; const S_WATER := 32
+const S_RAISED_WALL := 80; const S_RAISED_WALL_DOOR := 88; const S_RAISED_WALL_ALT := 96
+const S_RAISED_DOOR := 112; const S_RAISED_DOOR_SIDE := 116
+const S_RAISED_GRASS := 122; const S_RAISED_GRASS_ALT := 125
+const S_WALL_INTERNAL := 144; const S_WALL_OVERHANG := 192
+const S_DOOR_OVERHANG := 224; const S_DOOR_SIDEWAYS := 227
+const S_GRASS_OVERHANG := 234; const S_GRASS_OVERHANG_ALT := 237
 
 func _ready() -> void:
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -37,6 +53,8 @@ func _ready() -> void:
 	water = load("res://assets/tiles/%s.png" % water_name)
 	texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
 	resized.connect(queue_redraw)
+	clip_contents = true
+	buff_icons = load("res://assets/ui/buffs.png")
 
 func sprite(name: String) -> Texture2D:
 	if not tex.has(name): tex[name] = load("res://assets/sprites/%s.png" % name)
@@ -46,6 +64,36 @@ func set_combat(c: Combat) -> void:
 	combat = c
 	disp.clear()
 	for u in c.units: disp[u.uid] = Vector2(u.pos)
+	if anims.is_empty():
+		var f := FileAccess.open("res://data/anims.json", FileAccess.READ)
+		if f: anims = JSON.parse_string(f.get_as_text())
+	ustate.clear(); dying.clear(); variance.clear()
+	var rng := RandomNumberGenerator.new(); rng.seed = hash(str(c.terrain))
+	for y in range(-2, Combat.SIZE + 2):
+		for x in range(-2, Combat.SIZE + 2): variance[Vector2i(x, y)] = rng.randi() % 100
+
+## SPD anim control: play(uid, "attack"|"run"|"idle"), with facing from a horizontal delta.
+func _play(uid: int, a: String, dx := 0.0) -> void:
+	var st: Dictionary = ustate.get(uid, {"anim": "idle", "t": 0.0, "flip": false})
+	if st.anim != a: st.anim = a; st.t = 0.0
+	if dx < -0.01: st.flip = true
+	elif dx > 0.01: st.flip = false
+	ustate[uid] = st
+
+func _frame(spr: String, a: String, t: float) -> int:
+	var sa: Dictionary = anims.get(spr, {})
+	var an = sa.get(a, sa.get("idle", null))
+	if an == null: return 0 if fmod(t, 1.0) < 0.6 else 1
+	var fr: Array = an.frames
+	var i := int(t * float(an.fps))
+	if an.loop: i = i % fr.size()
+	else: i = mini(i, fr.size() - 1)
+	return int(fr[i])
+
+func _anim_done(spr: String, a: String, t: float) -> bool:
+	var an = anims.get(spr, {}).get(a, null)
+	if an == null: return t > 0.3
+	return t * float(an.fps) >= float(an.frames.size())
 
 ## Feed model events into visual effects.
 func play_events(evs: Array) -> void:
@@ -72,7 +120,11 @@ func play_events(evs: Array) -> void:
 				if e.uid == combat.hero.uid and int(e.amount) > 0: Sfx.buzz(60 if e.kind == "hp" else 25)
 			"heal":
 				floaters.append({"pos": Vector2(e.pos), "text": "+%d" % e.amount, "color": Color("6bff6b"), "t": 0.0}); Sfx.play("drink")
-			"die": Sfx.play("death" if e.uid == combat.hero.uid else "bones")
+			"die":
+				Sfx.play("death" if e.uid == combat.hero.uid else "bones")
+				var lu = last_units.get(e.uid, null)
+				if lu != null:
+					dying.append({"sprite": lu.sprite, "fw": lu.fw, "fh": lu.fh, "pos": disp.get(e.uid, Vector2(e.pos)), "flip": ustate.get(e.uid, {}).get("flip", false), "t": 0.0})
 			"fall": Sfx.play("falling")
 			"bolt":
 				streaks.append({"from": Vector2(e.from), "to": Vector2(e.to), "t": 0.0, "magic": e.get("magic", true)})
@@ -85,13 +137,16 @@ func play_events(evs: Array) -> void:
 				if combat.tile(Vector2i(e.to)) == Combat.T.WATER: _burst(Vector2(e.to), Color("7fb8ff"), 6, 1.2, 0.35)  # splash
 				if e.get("blink", false): disp[e.uid] = Vector2(e.to)  # teleports snap, no slide
 				elif e.uid == combat.hero.uid: Sfx.play("step", 1.1)
+				if not e.get("blink", false): _play(e.uid, "run", float(Vector2(e.to).x - Vector2(e.from).x))
 			"trap": blasts.append({"pos": Vector2(e.pos), "t": 0.0, "trap": true}); Sfx.buzz(80)
 			"reveal": floaters.append({"pos": Vector2(e.pos), "text": "!", "color": Color("ffd27a"), "t": 0.0})
 			"search": rings.append({"pos": Vector2(e.pos), "r": float(e.r), "t": 0.0})
 			"sfx": Sfx.play(e.name)
 			"attack":
 				for u in combat.units:
-					if u.uid == e.uid: lunge[e.uid] = {"dir": (Vector2(e.to) - Vector2(u.pos)).normalized(), "t": 0.0}
+					if u.uid == e.uid:
+						lunge[e.uid] = {"dir": (Vector2(e.to) - Vector2(u.pos)).normalized(), "t": 0.0}
+						_play(e.uid, "attack", float(Vector2(e.to).x - Vector2(u.pos).x))
 				Sfx.play("hit_slash", 1.0)
 
 func _process(d: float) -> void:
@@ -101,6 +156,14 @@ func _process(d: float) -> void:
 			var target := Vector2(u.pos)
 			var cur: Vector2 = disp.get(u.uid, target)
 			disp[u.uid] = cur.move_toward(target, d / MOVE_TIME * maxf(1.0, cur.distance_to(target)))
+			last_units[u.uid] = u
+			var st: Dictionary = ustate.get(u.uid, {"anim": "idle", "t": randf() * 3.0, "flip": false})
+			st.t += d
+			if st.anim == "run" and disp[u.uid] == target and st.t > 0.1: st.anim = "idle"; st.t = 0.0
+			elif st.anim == "attack" and _anim_done(u.sprite, "attack", st.t): st.anim = "idle"; st.t = 0.0
+			ustate[u.uid] = st
+	for dd in dying: dd.t += d
+	dying = dying.filter(func(dd): return dd.t < 1.6)
 	for k in flash.keys():
 		flash[k] -= d
 		if flash[k] <= 0: flash.erase(k)
@@ -135,10 +198,14 @@ func light_radius() -> float:
 	if Delve.darkness(run): return 1.8
 	return lerpf(3.2, 6.5, clampf(float(run.get("torch", 100.0)) / 100.0, 0.0, 1.0))
 
+## SPD-style camera: the arena plus a half-tile wall border fills the view; cells snap to whole
+## multiples of the 16 px art (integer zoom) whenever the screen allows it (DECISIONS #72).
 func cell_size() -> float:
-	var raw := floorf(minf(size.x, size.y) / Combat.SIZE)
-	if raw >= 16.0: return floorf(raw / 16.0) * 16.0
-	return raw
+	var raw := floorf(minf(size.x, size.y) / (Combat.SIZE + 0.6))
+	if raw < 16.0: return raw
+	var snapped := floorf(raw / 16.0) * 16.0
+	# integer zoom unless it would waste >15% of the screen; then 1/4-pixel steps (still nearest-filtered)
+	return snapped if snapped >= raw * 0.85 else floorf(raw / 4.0) * 4.0
 
 func origin() -> Vector2:
 	var cs := cell_size() * Combat.SIZE
@@ -148,40 +215,127 @@ func cell_rect(p: Vector2) -> Rect2:
 	var cs := cell_size()
 	return Rect2((origin() + p * cs).floor(), Vector2(cs, cs))
 
+# ---- SPD terrain stitching (DungeonTileSheet / DungeonTerrainTilemap / DungeonWallsTilemap) ----
+# Cells outside the arena are walls (a SPD room border); beyond that NULL_TILE also stitches as wall.
+func _t(c: Vector2i) -> int:
+	if c.x < 0 or c.y < 0 or c.x >= Combat.SIZE or c.y >= Combat.SIZE: return Combat.T.WALL
+	return combat.terrain[c.y][c.x]
+
+func _is_wall(c: Vector2i) -> bool: return _t(c) == Combat.T.WALL
+func _is_door(c: Vector2i) -> bool: return _t(c) == Combat.T.DOOR
+func _water_stitch(c: Vector2i) -> bool:
+	var t := _t(c); return t == Combat.T.FLOOR or t == Combat.T.GRASS or t == Combat.T.DOOR
+
+## Ground layer visual for a cell (or -1 = nothing; walls fall to the walls layer).
+func terrain_visual(c: Vector2i) -> int:
+	var t := _t(c)
+	var v: int = variance.get(c, 50)
+	match t:
+		Combat.T.FLOOR, Combat.T.GRASS:
+			if v < 5: return S_FLOOR_ALT2
+			if v < 52: return S_FLOOR_ALT1
+			return S_FLOOR
+		Combat.T.WATER:
+			var m := 0
+			if _water_stitch(c + Vector2i(0, -1)): m += 1
+			if _water_stitch(c + Vector2i(1, 0)): m += 2
+			if _water_stitch(c + Vector2i(0, 1)): m += 4
+			if _water_stitch(c + Vector2i(-1, 0)): m += 8
+			return S_WATER + m if m > 0 else -1
+		Combat.T.CHASM:
+			var a := _t(c + Vector2i(0, -1))
+			if a == Combat.T.FLOOR or a == Combat.T.GRASS: return S_CHASM + 1
+			if a == Combat.T.WALL or a == Combat.T.DOOR: return S_CHASM + 3
+			if a == Combat.T.WATER: return S_CHASM + 4
+			return S_CHASM
+		Combat.T.DOOR:
+			return S_RAISED_DOOR_SIDE if _is_wall(c + Vector2i(0, -1)) else S_RAISED_DOOR
+		Combat.T.WALL:
+			var below := c + Vector2i(0, 1)
+			if _is_wall(below) or below.y > Combat.SIZE: return -1
+			var r := S_RAISED_WALL_DOOR if _is_door(below) else (S_RAISED_WALL_ALT if v < 50 else S_RAISED_WALL)
+			if not _is_wall(c + Vector2i(1, 0)): r += 1
+			if not _is_wall(c + Vector2i(-1, 0)): r += 2
+			return r
+	return -1
+
+## Raised grass sits on the floor (RAISED_HIGH_GRASS).
+func grass_visual(c: Vector2i) -> int:
+	return S_RAISED_GRASS_ALT if int(variance.get(c, 50)) < 50 else S_RAISED_GRASS
+
+## Walls layer (drawn OVER characters): wall tops, and overhangs of walls/doors/grass on the cell above.
+func wall_visual(c: Vector2i) -> int:
+	var below := c + Vector2i(0, 1)
+	if _is_wall(c):
+		if not _is_wall(below):
+			if _is_door(below): return S_DOOR_SIDEWAYS
+			return -1
+		var r := S_WALL_INTERNAL
+		if not _is_wall(c + Vector2i(1, 0)): r += 1
+		if not _is_wall(c + Vector2i(1, 1)): r += 2
+		if not _is_wall(c + Vector2i(-1, 1)): r += 4
+		if not _is_wall(c + Vector2i(-1, 0)): r += 8
+		return r
+	if _is_wall(below):
+		var o := S_WALL_OVERHANG
+		if not _is_wall(c + Vector2i(1, 1)): o += 1
+		if not _is_wall(c + Vector2i(-1, 1)): o += 2
+		return o
+	if _is_door(below): return S_DOOR_OVERHANG
+	if _t(below) == Combat.T.GRASS and below.y < Combat.SIZE:
+		return S_GRASS_OVERHANG_ALT if int(variance.get(below, 50)) < 50 else S_GRASS_OVERHANG
+	return -1
+
+## SPD FogOfWar-like darkness 0..1 at a cell corner (bilinear blend between cells like SPD's fog texture).
+func _corner_dark(cx: int, cy: int, ctr: Vector2, lr: float) -> float:
+	var acc := 0.0
+	for o in [Vector2i(-1, -1), Vector2i(0, -1), Vector2i(-1, 0), Vector2i(0, 0)]:
+		var c: Vector2i = Vector2i(cx, cy) + o
+		var dk := 0.0
+		if c.x < 0 or c.y < 0 or c.x >= Combat.SIZE or c.y >= Combat.SIZE: dk = 0.55
+		elif not _is_wall(c) and not combat.line_clear(combat.hero.pos, c): dk = 0.55   # SPD "visited" (seen, not in view)
+		acc += dk
+	var fog := acc / 4.0
+	var dist := Vector2(cx, cy).distance_to(ctr)
+	var torch := clampf((dist - lr * 0.55) / (lr * 0.45), 0.0, 1.0) * 0.85
+	return clampf(maxf(fog, torch) + fog * torch * 0.3, 0.0, 0.92)
+
 func _draw() -> void:
 	if combat == null: return
 	var cs := cell_size()
-	for y in Combat.SIZE:
-		for x in Combat.SIZE:
-			var t: int = combat.terrain[y][x]
+	var ps := cs / 16.0
+	var lo := -2; var hi := Combat.SIZE + 1
+	# 1. ground layer
+	for y in range(lo, hi + 1):
+		for x in range(lo, hi + 1):
+			var c := Vector2i(x, y)
+			var t := _t(c)
 			var r := cell_rect(Vector2(x, y))
-			if t == Combat.T.GRASS or t == Combat.T.DOOR: _tile(r, 0)
 			if t == Combat.T.WATER:
-				# SPD water: the 32px texture scrolls slowly (like SPD's water shader offset)
-				var off := Vector2(anim_t * 3.0, anim_t * 1.5)
+				var off := Vector2(anim_t * 3.0, anim_t * 1.5)   # SPD water texture scroll
 				draw_texture_rect_region(water, r, Rect2(Vector2(x * 16, y * 16) + off, Vector2(16, 16)))
-			elif t == Combat.T.GRASS:
-				# tall grass sways a pixel or two
-				var sway := roundf(sin(anim_t * 1.7 + x * 0.9 + y * 0.5) * 1.2) * (cs / 16.0)
-				_tile(Rect2(r.position + Vector2(sway, 0), r.size), TILE_IDX[t])
-			else: _tile(r, TILE_IDX[t])
-			if t == Combat.T.CHASM: draw_rect(r, Color(0, 0, 0, 0.6))
-	# revealed traps (SPD sprite); hidden ones are drawn as plain floor
+			var v := terrain_visual(c)
+			if v >= 0: _tile(r, v)
+			elif t == Combat.T.WALL and _is_wall(c + Vector2i(0, 1)): _tile(r, S_WALL_INTERNAL + 15)  # solid fill under wall tops
+			if t == Combat.T.GRASS:
+				var sway := roundf(sin(anim_t * 1.7 + x * 0.9 + y * 0.5) * 0.6) * ps
+				_tile(Rect2(r.position + Vector2(sway, 0), r.size), grass_visual(c))
+	# 2. terrain features: revealed traps
 	for k in combat.traps:
 		if not combat.traps[k].hidden:
 			var idx := int(DB.traps[combat.traps[k].id].sprite)
 			draw_texture_rect_region(features, cell_rect(Vector2(k)), Rect2((idx % 16) * 16, (idx / 16) * 16, 16, 16))
-	# reachable / targetable highlights
+	# 3. tactical highlights
 	var hp: Vector2i = combat.hero.pos
 	if not combat.over:
 		for d in Combat.DIRS:
 			var n: Vector2i = hp + d
 			var u = combat.unit_at(n)
 			if u != null and u != combat.hero:
-				draw_rect(cell_rect(Vector2(n)).grow(-2), Color(1, 0.8, 0.3, 0.7) if mode == "shove" else Color(1, 0.4, 0.3, 0.6), false, 3.0)
+				draw_rect(cell_rect(Vector2(n)).grow(-2), Color(1, 0.8, 0.3, 0.7) if mode == "shove" else Color(1, 0.4, 0.3, 0.6), false, maxf(2.0, ps))
 			elif combat.passable(n) and u == null:
 				var warn := combat.visible_trap(n)
-				draw_rect(cell_rect(Vector2(n)).grow(-2), Color(1, 0.6, 0.2, 0.5) if warn else Color(1, 1, 1, 0.16), false, 2.0)
+				draw_rect(cell_rect(Vector2(n)).grow(-2), Color(1, 0.6, 0.2, 0.5) if warn else Color(1, 1, 1, 0.16), false, maxf(2.0, ps * 0.5))
 		if mode == "bolt" or not combat.hero.bolt.is_empty():
 			for e in combat.enemies():
 				if combat.can_bolt(e.pos) and Combat.cheb(e.pos, hp) > 1:
@@ -192,54 +346,55 @@ func _draw() -> void:
 		draw_rect(cell_rect(Vector2(dz.pos)).grow(-1), Color(1, 0.2, 0.2, 0.9), false, 2.0)
 	if hint_cell.x >= 0:
 		draw_rect(cell_rect(Vector2(hint_cell)).grow(-3), Color(0.4, 1, 0.5, 0.5 + 0.3 * sin(anim_t * 6)), false, 4.0)
-	# lighting: fog on tiles the hero can't see, then the torch radius (units stay readable, dimmed)
+	# 4. characters (SPD CharSprite: animated frames, facing flip, tweened walk, lunge, die + fade)
 	var hero_disp: Vector2 = disp.get(combat.hero.uid, Vector2(combat.hero.pos))
 	var lr := light_radius() if lighting else 99.0
-	if lighting and lr < 50.0:
-		for y in Combat.SIZE:
-			for x in Combat.SIZE:
-				var c := Vector2i(x, y)
-				if combat.tile(c) != Combat.T.WALL and not combat.line_clear(combat.hero.pos, c):
-					draw_rect(cell_rect(Vector2(c)), Color(0, 0, 0, 0.35))
-		var ctr := cell_rect(hero_disp).get_center()
-		# soft torchlight: 3x3 sub-cells per tile, darkness grows past 55% of the light radius
-		var sub := cs / 3.0
-		for yy in Combat.SIZE * 3:
-			for xx in Combat.SIZE * 3:
-				var rr := Rect2(origin() + Vector2(xx, yy) * sub, Vector2(sub, sub))
-				var dist := rr.get_center().distance_to(ctr) / cs
-				var k := clampf((dist - lr * 0.55) / (lr * 0.45), 0.0, 1.0)
-				if k > 0.0: draw_rect(rr, Color(0, 0, 0, 0.85 * k))
-		# warm hero glow (SPD torchlight tint)
-		draw_circle(ctr, cs * 0.9, Color(1.0, 0.75, 0.35, 0.08 + 0.02 * sin(anim_t * 5.0)))
-	# units
-	var scale := floorf(cs / 16.0) if cs >= 16.0 else cs / 16.0
-	for u in combat.units:
+	var scale := floorf(ps) if cs >= 16.0 else ps
+	var order := combat.units.duplicate()
+	order.sort_custom(func(a, b): return float(disp.get(a.uid, Vector2(a.pos)).y) < float(disp.get(b.uid, Vector2(b.pos)).y))
+	for dd in dying:
+		var dk: float = 1.0 if dd.t < 0.8 else 1.0 - (dd.t - 0.8) / 0.8
+		var dfr := _frame(dd.sprite, "die", dd.t)
+		_draw_sprite(dd.sprite, dd.fw, dd.fh, dfr, dd.pos, dd.flip, scale, Color(1, 1, 1, dk))
+	for u in order:
 		if u.hp <= 0: continue
 		var p: Vector2 = disp.get(u.uid, Vector2(u.pos))
-		if lunge.has(u.uid): p += lunge[u.uid].dir * 0.3 * sin(lunge[u.uid].t / 0.16 * PI)
-		var frame := 0 if fmod(anim_t + u.uid * 0.37, 1.0) < 0.6 else 1
-		var src := Rect2(frame * int(u.fw), 0, int(u.fw), int(u.fh))
-		var sz := Vector2(u.fw, u.fh) * scale
-		var r := cell_rect(p)
-		var pos := (r.position + Vector2((cs - sz.x) / 2.0, cs - sz.y)).floor()
+		if lunge.has(u.uid): p += lunge[u.uid].dir * 0.25 * sin(lunge[u.uid].t / 0.16 * PI)
+		var st: Dictionary = ustate.get(u.uid, {"anim": "idle", "t": 0.0, "flip": false})
+		var fr := _frame(u.sprite, st.anim, st.t + (0.0 if st.anim != "idle" else u.uid * 0.37))
 		var mod := Color(1, 1, 1)
 		if flash.has(u.uid): mod = Color(4, 4, 4)
 		if u.get("charging", false): mod = Color(1.6, 0.6, 0.6)
 		if u.has("hero") and combat.hidden(): mod.a = 0.45
-		if not u.has("hero") and lighting and p.distance_to(hero_disp) > lr: mod = mod * Color(0.55, 0.55, 0.6)   # in the dark: dimmed, still readable
-		draw_texture_rect_region(sprite(u.sprite), Rect2(pos, sz), src, mod)
-		var bw := (cs - 4) * clampf(float(u.hp) / float(u.ht), 0, 1)
-		var bh := maxf(3, floorf(cs * 0.06))
-		draw_rect(Rect2(r.position + Vector2(2, 1), Vector2(cs - 4, bh)), Color(0, 0, 0, 0.6))
-		draw_rect(Rect2(r.position + Vector2(2, 1), Vector2(bw, bh)), Color("5fd35f") if u.has("hero") else Color("e04040"))
-		if u.has("hero") and int(u.barrier) > 0:
-			var bb := (cs - 4) * clampf(float(u.barrier) / maxf(1.0, float(u.barrier_max)), 0, 1)
-			draw_rect(Rect2(r.position + Vector2(2, 1 + bh), Vector2(bb, bh)), Color("7fd3ff"))
+		if not u.has("hero") and lighting and p.distance_to(hero_disp) > lr: mod = mod * Color(0.55, 0.55, 0.6)
+		var top := _draw_sprite(u.sprite, u.fw, u.fh, fr, p, st.flip, scale, mod)
+		_health_bar(u, top, scale)
+		_status_icons(u, top, scale)
+	# 5. walls layer over characters (SPD perspective wall tops / overhangs)
+	for y in range(lo, hi + 1):
+		for x in range(lo, hi + 1):
+			var wv := wall_visual(Vector2i(x, y))
+			if wv >= 0: _tile(cell_rect(Vector2(x, y)), wv)
+	# 6. fog of war + torchlight: smooth per-corner blend (SPD FogOfWar texture is bilinear)
+	if lighting and lr < 50.0:
+		var ctr := hero_disp + Vector2(0.5, 0.5)
+		var dark := {}
+		for y in range(lo, hi + 2):
+			for x in range(lo, hi + 2): dark[Vector2i(x, y)] = _corner_dark(x, y, ctr, lr)
+		for y in range(lo, hi + 1):
+			for x in range(lo, hi + 1):
+				var a: float = dark[Vector2i(x, y)]; var b: float = dark[Vector2i(x + 1, y)]
+				var c2: float = dark[Vector2i(x + 1, y + 1)]; var d2: float = dark[Vector2i(x, y + 1)]
+				if a + b + c2 + d2 <= 0.0: continue
+				var r := cell_rect(Vector2(x, y))
+				draw_polygon(PackedVector2Array([r.position, r.position + Vector2(cs, 0), r.end, r.position + Vector2(0, cs)]),
+					PackedColorArray([Color(0, 0, 0, a), Color(0, 0, 0, b), Color(0, 0, 0, c2), Color(0, 0, 0, d2)]))
+		draw_circle(cell_rect(hero_disp).get_center(), cs * 0.9, Color(1.0, 0.75, 0.35, 0.07 + 0.02 * sin(anim_t * 5.0)))
+	# 7. effects
 	for q in parts:
-		var a: float = 1.0 - float(q.t) / float(q.life)
-		var px: float = maxf(2.0, cs / 16.0) * float(q.s)
-		draw_rect(Rect2((origin() + q.p * cs).floor(), Vector2(px, px)), Color(q.c.r, q.c.g, q.c.b, a))
+		var qa: float = 1.0 - float(q.t) / float(q.life)
+		var px: float = maxf(2.0, ps) * float(q.s)
+		draw_rect(Rect2((origin() + q.p * cs).floor(), Vector2(px, px)), Color(q.c.r, q.c.g, q.c.b, qa))
 	for s in streaks:
 		var a := cell_rect(s.from).get_center(); var b := cell_rect(s.to).get_center()
 		var sc := Color(0.8, 0.6, 1.0) if s.get("magic", true) else Color(0.9, 0.9, 0.7)
@@ -252,14 +407,66 @@ func _draw() -> void:
 	for r in rings:
 		var c := cell_rect(r.pos).get_center()
 		draw_arc(c, (0.5 + r.r) * cs * clampf(r.t / 0.4, 0, 1), 0, TAU, 48, Color(1, 0.85, 0.4, 1.0 - r.t / 0.5), 3.0)
+	# SPD FloatingText: pixel font, rises and fades, whole-pixel sizes
 	var font := get_theme_default_font()
-	var fs := int(maxf(14, cs * 0.38))
+	var fs := UIKit.font_px(maxf(14, cs * 0.34))
 	for f in floaters:
 		var r := cell_rect(f.pos)
-		var p := r.get_center() + Vector2(-cs * 0.2, -cs * 0.2 - f.t * cs * 0.8)
+		var w := font.get_string_size(f.text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+		var p := (r.get_center() + Vector2(-w / 2.0, -cs * 0.25 - f.t * cs * 0.7)).floor()
 		var col: Color = f.color; col.a = 1.0 - maxf(0, f.t - 0.5) / 0.4
-		draw_string_outline(font, p, f.text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, maxi(2, fs / 6), Color(0, 0, 0, col.a))
+		draw_string_outline(font, p, f.text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, maxi(2, int(ps)), Color(0, 0, 0, col.a))
 		draw_string(font, p, f.text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, col)
+
+## Draw one sprite frame bottom-centred in its cell; returns the sprite's top-left (for bars/icons).
+func _draw_sprite(spr: String, fw: int, fh: int, frame: int, p: Vector2, flip: bool, scale: float, mod: Color) -> Vector2:
+	var t := sprite(spr)
+	var cols := maxi(1, t.get_width() / fw)
+	var src := Rect2((frame % cols) * fw, (frame / cols) * fh, fw, fh)
+	var sz := Vector2(fw, fh) * scale
+	var cs := cell_size()
+	var r := cell_rect(p)
+	var pos := (r.position + Vector2((cs - sz.x) / 2.0, cs - sz.y)).floor()
+	if flip:
+		draw_set_transform(Vector2(pos.x * 2.0 + sz.x, 0), 0.0, Vector2(-1, 1))
+		draw_texture_rect_region(t, Rect2(pos, sz), src, mod)
+		draw_set_transform(Vector2.ZERO)
+	else:
+		draw_texture_rect_region(t, Rect2(pos, sz), src, mod)
+	return pos
+
+## SPD HealthBar: thin red bg, green hp, pale shield; above the sprite; mobs only when hurt.
+func _health_bar(u: Dictionary, top: Vector2, scale: float) -> void:
+	var is_hero := u.has("hero")
+	if not is_hero and int(u.hp) >= int(u.ht): return
+	var cs := cell_size()
+	var w := floorf(cs * 0.75); var h := maxf(2.0, scale)
+	var x := cell_rect(disp.get(u.uid, Vector2(u.pos))).position.x + floorf((cs - w) / 2.0)
+	var y := top.y - h * 2.0
+	draw_rect(Rect2(x - scale * 0.5, y - scale * 0.5, w + scale, h + scale), Color(0, 0, 0, 0.75))
+	draw_rect(Rect2(x, y, w, h), Color("cc0000"))
+	var hpw := floorf(w * clampf(float(u.hp) / float(u.ht), 0, 1))
+	if is_hero and int(u.barrier) > 0:
+		var bw := floorf(w * clampf(float(u.barrier) / maxf(1.0, float(u.barrier_max)), 0, 1))
+		draw_rect(Rect2(x, y, bw, h), Color("bbeebb"))
+	draw_rect(Rect2(x, y, hpw, h), Color("00ee00"))
+
+## SPD BuffIndicator small icons (buffs.png, 8 px grid) shown above the bar.
+const BUFF_IDX := {"poison": 3, "charging": 10, "enraged": 9, "hidden": 12, "barrier": 20}
+func _status_icons(u: Dictionary, top: Vector2, scale: float) -> void:
+	var list := []
+	if int(u.get("poison", 0)) > 0: list.append("poison")
+	if u.get("charging", false): list.append("charging")
+	if u.get("enraged", false): list.append("enraged")
+	if u.has("hero") and combat.hidden(): list.append("hidden")
+	if list.is_empty(): return
+	var s := 7.0 * maxf(1.0, scale * 0.75)
+	var x := top.x
+	for k in list:
+		var i: int = BUFF_IDX[k]
+		draw_texture_rect_region(buff_icons, Rect2(x, top.y - maxf(2.0, scale) * 3.0 - s, s, s), Rect2((i % 16) * 8, (i / 16) * 8, 7, 7))
+		x += s + scale
+
 
 func _tile(r: Rect2, idx: int) -> void:
 	draw_texture_rect_region(tiles, r, Rect2((idx % 16) * 16, (idx / 16) * 16, 16, 16))

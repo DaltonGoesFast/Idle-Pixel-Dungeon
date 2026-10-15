@@ -67,3 +67,5 @@ Compatibility renderer (OpenGL ES 3) on all platforms; `canvas_items` stretch wi
 - GameState: `talent_*`, `pick_talent`, `auto_pick_talents`; `delve_equip/unequip/drop/use`, `compare_equip`, `resolve_overflow`; `BACKPACK_SLOTS`. Delve `_stow` handles full packs. `Combat.apply_stats` refreshes the hero after a mid-fight swap.
 
 - `scripts/ui/status_pane.gd` (StatusPane): SPD status_pane.png HUD used by Delve and Combat. `UIKit.font_px` snaps text to the pixel-font grid; `UIKit.as_toolbar` gives toolbar.png buttons.
+
+- GridView layers (SPD order): ground (stitched) -> traps -> highlights -> characters (data/anims.json) -> walls/overhangs -> fog/light -> effects/text. `tools/gen_anims.py` regenerates anims from SPD sources.

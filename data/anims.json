@@ -1,0 +1,1248 @@
+{
+ "bat": {
+  "idle": {
+   "fps": 8,
+   "loop": true,
+   "frames": [
+    0,
+    1
+   ]
+  },
+  "run": {
+   "fps": 12,
+   "loop": true,
+   "frames": [
+    0,
+    1
+   ]
+  },
+  "attack": {
+   "fps": 12,
+   "loop": false,
+   "frames": [
+    2,
+    3,
+    0,
+    1
+   ]
+  },
+  "die": {
+   "fps": 12,
+   "loop": false,
+   "frames": [
+    4,
+    5,
+    6
+   ]
+  }
+ },
+ "brute": {
+  "idle": {
+   "fps": 2,
+   "loop": true,
+   "frames": [
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    1,
+    1
+   ]
+  },
+  "run": {
+   "fps": 12,
+   "loop": true,
+   "frames": [
+    4,
+    5,
+    6,
+    7
+   ]
+  },
+  "attack": {
+   "fps": 12,
+   "loop": false,
+   "frames": [
+    2,
+    3,
+    0
+   ]
+  },
+  "die": {
+   "fps": 12,
+   "loop": false,
+   "frames": [
+    8,
+    9,
+    10
+   ]
+  }
+ },
+ "crab": {
+  "idle": {
+   "fps": 5,
+   "loop": true,
+   "frames": [
+    0,
+    1,
+    0,
+    2
+   ]
+  },
+  "run": {
+   "fps": 15,
+   "loop": true,
+   "frames": [
+    3,
+    4,
+    5,
+    6
+   ]
+  },
+  "attack": {
+   "fps": 12,
+   "loop": false,
+   "frames": [
+    7,
+    8,
+    9
+   ]
+  },
+  "die": {
+   "fps": 12,
+   "loop": false,
+   "frames": [
+    10,
+    11,
+    12,
+    13
+   ]
+  }
+ },
+ "dm100": {
+  "idle": {
+   "fps": 1,
+   "loop": true,
+   "frames": [
+    0,
+    1
+   ]
+  },
+  "run": {
+   "fps": 12,
+   "loop": true,
+   "frames": [
+    6,
+    7,
+    8,
+    9
+   ]
+  },
+  "attack": {
+   "fps": 12,
+   "loop": false,
+   "frames": [
+    2,
+    3,
+    4,
+    0
+   ]
+  },
+  "die": {
+   "fps": 12,
+   "loop": false,
+   "frames": [
+    10,
+    11,
+    12,
+    13,
+    14,
+    15
+   ]
+  },
+  "zap": {
+   "fps": 8,
+   "loop": false,
+   "frames": [
+    5,
+    5,
+    1
+   ]
+  }
+ },
+ "dm300": {
+  "idle": {
+   "fps": 10,
+   "loop": true,
+   "frames": [
+    0,
+    1
+   ]
+  },
+  "run": {
+   "fps": 10,
+   "loop": true,
+   "frames": [
+    0,
+    2
+   ]
+  },
+  "attack": {
+   "fps": 15,
+   "loop": false,
+   "frames": [
+    3,
+    4,
+    5
+   ]
+  },
+  "die": {
+   "fps": 20,
+   "loop": false,
+   "frames": [
+    0,
+    10,
+    0,
+    10,
+    0,
+    10,
+    0,
+    10,
+    0,
+    10,
+    0,
+    10,
+    0,
+    10,
+    0,
+    10,
+    0,
+    10,
+    0,
+    10
+   ]
+  },
+  "zap": {
+   "fps": 15,
+   "loop": false,
+   "frames": [
+    6,
+    7,
+    7,
+    6
+   ]
+  }
+ },
+ "ghoul": {
+  "idle": {
+   "fps": 2,
+   "loop": true,
+   "frames": [
+    0,
+    0,
+    0,
+    1
+   ]
+  },
+  "run": {
+   "fps": 12,
+   "loop": true,
+   "frames": [
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+   ]
+  },
+  "attack": {
+   "fps": 12,
+   "loop": false,
+   "frames": [
+    0,
+    8,
+    9
+   ]
+  },
+  "die": {
+   "fps": 15,
+   "loop": false,
+   "frames": [
+    0,
+    10,
+    11,
+    12,
+    13
+   ]
+  }
+ },
+ "gnoll": {
+  "idle": {
+   "fps": 2,
+   "loop": true,
+   "frames": [
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    1,
+    1
+   ]
+  },
+  "run": {
+   "fps": 12,
+   "loop": true,
+   "frames": [
+    4,
+    5,
+    6,
+    7
+   ]
+  },
+  "attack": {
+   "fps": 12,
+   "loop": false,
+   "frames": [
+    2,
+    3,
+    0
+   ]
+  },
+  "die": {
+   "fps": 12,
+   "loop": false,
+   "frames": [
+    8,
+    9,
+    10
+   ]
+  }
+ },
+ "golem": {
+  "idle": {
+   "fps": 4,
+   "loop": true,
+   "frames": [
+    0,
+    1
+   ]
+  },
+  "run": {
+   "fps": 12,
+   "loop": true,
+   "frames": [
+    2,
+    3,
+    4,
+    5
+   ]
+  },
+  "attack": {
+   "fps": 10,
+   "loop": false,
+   "frames": [
+    6,
+    7,
+    8
+   ]
+  },
+  "die": {
+   "fps": 15,
+   "loop": false,
+   "frames": [
+    9,
+    10,
+    11,
+    12,
+    13
+   ]
+  }
+ },
+ "goo": {
+  "idle": {
+   "fps": 10,
+   "loop": true,
+   "frames": [
+    2,
+    1,
+    0,
+    0,
+    1
+   ]
+  },
+  "run": {
+   "fps": 15,
+   "loop": true,
+   "frames": [
+    3,
+    2,
+    1,
+    2
+   ]
+  },
+  "attack": {
+   "fps": 10,
+   "loop": false,
+   "frames": [
+    8,
+    9,
+    10
+   ]
+  },
+  "die": {
+   "fps": 10,
+   "loop": false,
+   "frames": [
+    5,
+    6,
+    7
+   ]
+  }
+ },
+ "guard": {
+  "idle": {
+   "fps": 2,
+   "loop": true,
+   "frames": [
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    1,
+    1
+   ]
+  },
+  "run": {
+   "fps": 15,
+   "loop": true,
+   "frames": [
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+   ]
+  },
+  "attack": {
+   "fps": 12,
+   "loop": false,
+   "frames": [
+    8,
+    9,
+    10
+   ]
+  },
+  "die": {
+   "fps": 8,
+   "loop": false,
+   "frames": [
+    11,
+    12,
+    13,
+    14
+   ]
+  }
+ },
+ "huntress": {
+  "idle": {
+   "fps": 1,
+   "loop": true,
+   "frames": [
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    1,
+    1
+   ]
+  },
+  "run": {
+   "fps": 20,
+   "loop": true,
+   "frames": [
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+   ]
+  },
+  "attack": {
+   "fps": 15,
+   "loop": false,
+   "frames": [
+    13,
+    14,
+    15,
+    0
+   ]
+  },
+  "die": {
+   "fps": 20,
+   "loop": false,
+   "frames": [
+    8,
+    9,
+    10,
+    11,
+    12,
+    11
+   ]
+  }
+ },
+ "king": {
+  "idle": {
+   "fps": 12,
+   "loop": true,
+   "frames": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    1,
+    2
+   ]
+  },
+  "run": {
+   "fps": 15,
+   "loop": true,
+   "frames": [
+    3,
+    4,
+    5,
+    6,
+    7,
+    8
+   ]
+  },
+  "attack": {
+   "fps": 15,
+   "loop": false,
+   "frames": [
+    9,
+    10,
+    11
+   ]
+  },
+  "die": {
+   "fps": 8,
+   "loop": false,
+   "frames": [
+    12,
+    13,
+    14,
+    15
+   ]
+  }
+ },
+ "mage": {
+  "idle": {
+   "fps": 1,
+   "loop": true,
+   "frames": [
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    1,
+    1
+   ]
+  },
+  "run": {
+   "fps": 20,
+   "loop": true,
+   "frames": [
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+   ]
+  },
+  "attack": {
+   "fps": 15,
+   "loop": false,
+   "frames": [
+    13,
+    14,
+    15,
+    0
+   ]
+  },
+  "die": {
+   "fps": 20,
+   "loop": false,
+   "frames": [
+    8,
+    9,
+    10,
+    11,
+    12,
+    11
+   ]
+  }
+ },
+ "monk": {
+  "idle": {
+   "fps": 6,
+   "loop": true,
+   "frames": [
+    1,
+    0,
+    1,
+    2
+   ]
+  },
+  "run": {
+   "fps": 15,
+   "loop": true,
+   "frames": [
+    11,
+    12,
+    13,
+    14,
+    15,
+    16
+   ]
+  },
+  "attack": {
+   "fps": 12,
+   "loop": false,
+   "frames": [
+    3,
+    4,
+    3,
+    4
+   ]
+  },
+  "die": {
+   "fps": 15,
+   "loop": false,
+   "frames": [
+    1,
+    7,
+    8,
+    8,
+    9,
+    10
+   ]
+  }
+ },
+ "piranha": {
+  "idle": {
+   "fps": 8,
+   "loop": true,
+   "frames": [
+    0,
+    1,
+    2,
+    1
+   ]
+  },
+  "run": {
+   "fps": 20,
+   "loop": true,
+   "frames": [
+    0,
+    1,
+    2,
+    1
+   ]
+  },
+  "attack": {
+   "fps": 20,
+   "loop": false,
+   "frames": [
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11
+   ]
+  },
+  "die": {
+   "fps": 4,
+   "loop": false,
+   "frames": [
+    12,
+    13,
+    14
+   ]
+  }
+ },
+ "rat": {
+  "idle": {
+   "fps": 2,
+   "loop": true,
+   "frames": [
+    0,
+    0,
+    0,
+    1
+   ]
+  },
+  "run": {
+   "fps": 10,
+   "loop": true,
+   "frames": [
+    6,
+    7,
+    8,
+    9,
+    10
+   ]
+  },
+  "attack": {
+   "fps": 15,
+   "loop": false,
+   "frames": [
+    2,
+    3,
+    4,
+    5,
+    0
+   ]
+  },
+  "die": {
+   "fps": 10,
+   "loop": false,
+   "frames": [
+    11,
+    12,
+    13,
+    14
+   ]
+  }
+ },
+ "rogue": {
+  "idle": {
+   "fps": 1,
+   "loop": true,
+   "frames": [
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    1,
+    1
+   ]
+  },
+  "run": {
+   "fps": 20,
+   "loop": true,
+   "frames": [
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+   ]
+  },
+  "attack": {
+   "fps": 15,
+   "loop": false,
+   "frames": [
+    13,
+    14,
+    15,
+    0
+   ]
+  },
+  "die": {
+   "fps": 20,
+   "loop": false,
+   "frames": [
+    8,
+    9,
+    10,
+    11,
+    12,
+    11
+   ]
+  }
+ },
+ "shaman": {
+  "idle": {
+   "fps": 2,
+   "loop": true,
+   "frames": [
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    1,
+    1
+   ]
+  },
+  "run": {
+   "fps": 12,
+   "loop": true,
+   "frames": [
+    4,
+    5,
+    6,
+    7
+   ]
+  },
+  "attack": {
+   "fps": 12,
+   "loop": false,
+   "frames": [
+    2,
+    3,
+    0
+   ]
+  },
+  "die": {
+   "fps": 12,
+   "loop": false,
+   "frames": [
+    8,
+    9,
+    10
+   ]
+  }
+ },
+ "skeleton": {
+  "idle": {
+   "fps": 12,
+   "loop": true,
+   "frames": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    1,
+    2,
+    3
+   ]
+  },
+  "run": {
+   "fps": 15,
+   "loop": true,
+   "frames": [
+    4,
+    5,
+    6,
+    7,
+    8,
+    9
+   ]
+  },
+  "attack": {
+   "fps": 15,
+   "loop": false,
+   "frames": [
+    14,
+    15,
+    16
+   ]
+  },
+  "die": {
+   "fps": 12,
+   "loop": false,
+   "frames": [
+    10,
+    11,
+    12,
+    13
+   ]
+  }
+ },
+ "snake": {
+  "idle": {
+   "fps": 10,
+   "loop": true,
+   "frames": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    2,
+    3,
+    2,
+    1,
+    1
+   ]
+  },
+  "run": {
+   "fps": 8,
+   "loop": true,
+   "frames": [
+    4,
+    5,
+    6,
+    7
+   ]
+  },
+  "attack": {
+   "fps": 15,
+   "loop": false,
+   "frames": [
+    8,
+    9,
+    10,
+    9,
+    0
+   ]
+  },
+  "die": {
+   "fps": 10,
+   "loop": false,
+   "frames": [
+    11,
+    12,
+    13
+   ]
+  }
+ },
+ "spinner": {
+  "idle": {
+   "fps": 10,
+   "loop": true,
+   "frames": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    1
+   ]
+  },
+  "run": {
+   "fps": 15,
+   "loop": true,
+   "frames": [
+    0,
+    2,
+    0,
+    3
+   ]
+  },
+  "attack": {
+   "fps": 12,
+   "loop": false,
+   "frames": [
+    0,
+    4,
+    5,
+    0
+   ]
+  },
+  "die": {
+   "fps": 12,
+   "loop": false,
+   "frames": [
+    6,
+    7,
+    8,
+    9
+   ]
+  }
+ },
+ "statue": {
+  "idle": {
+   "fps": 2,
+   "loop": true,
+   "frames": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    1,
+    1
+   ]
+  },
+  "run": {
+   "fps": 15,
+   "loop": true,
+   "frames": [
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+   ]
+  },
+  "attack": {
+   "fps": 12,
+   "loop": false,
+   "frames": [
+    8,
+    9,
+    10
+   ]
+  },
+  "die": {
+   "fps": 5,
+   "loop": false,
+   "frames": [
+    11,
+    12,
+    13,
+    14,
+    15,
+    15
+   ]
+  }
+ },
+ "tengu": {
+  "idle": {
+   "fps": 2,
+   "loop": true,
+   "frames": [
+    0,
+    0,
+    0,
+    1
+   ]
+  },
+  "run": {
+   "fps": 15,
+   "loop": false,
+   "frames": [
+    2,
+    3,
+    4,
+    5,
+    0
+   ]
+  },
+  "attack": {
+   "fps": 15,
+   "loop": false,
+   "frames": [
+    6,
+    7,
+    7,
+    0
+   ]
+  },
+  "die": {
+   "fps": 8,
+   "loop": false,
+   "frames": [
+    8,
+    9,
+    10,
+    10,
+    10,
+    10,
+    10,
+    10
+   ]
+  }
+ },
+ "thief": {
+  "idle": {
+   "fps": 1,
+   "loop": true,
+   "frames": [
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1
+   ]
+  },
+  "run": {
+   "fps": 15,
+   "loop": true,
+   "frames": [
+    0,
+    0,
+    2,
+    3,
+    3,
+    4
+   ]
+  },
+  "attack": {
+   "fps": 12,
+   "loop": false,
+   "frames": [
+    10,
+    11,
+    12,
+    0
+   ]
+  },
+  "die": {
+   "fps": 10,
+   "loop": false,
+   "frames": [
+    5,
+    6,
+    7,
+    8,
+    9
+   ]
+  }
+ },
+ "warlock": {
+  "idle": {
+   "fps": 2,
+   "loop": true,
+   "frames": [
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    1,
+    1
+   ]
+  },
+  "run": {
+   "fps": 15,
+   "loop": true,
+   "frames": [
+    0,
+    2,
+    3,
+    4
+   ]
+  },
+  "attack": {
+   "fps": 12,
+   "loop": false,
+   "frames": [
+    0,
+    5,
+    6
+   ]
+  },
+  "die": {
+   "fps": 15,
+   "loop": false,
+   "frames": [
+    0,
+    7,
+    8,
+    8,
+    9,
+    10
+   ]
+  }
+ },
+ "warrior": {
+  "idle": {
+   "fps": 1,
+   "loop": true,
+   "frames": [
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    1,
+    1
+   ]
+  },
+  "run": {
+   "fps": 20,
+   "loop": true,
+   "frames": [
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+   ]
+  },
+  "attack": {
+   "fps": 15,
+   "loop": false,
+   "frames": [
+    13,
+    14,
+    15,
+    0
+   ]
+  },
+  "die": {
+   "fps": 20,
+   "loop": false,
+   "frames": [
+    8,
+    9,
+    10,
+    11,
+    12,
+    11
+   ]
+  }
+ }
+}

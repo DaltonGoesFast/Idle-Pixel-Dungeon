@@ -149,3 +149,11 @@ Once the bot could escape multi-tile telegraphs, every Caves sim rose to 9-10/10
 - Hardening: project-level gui/theme/custom_font = pixel_font.ttf; the runtime theme is also set on the root Window; pixel font fallback is a SystemFont (avoids a cyclic fallback with the project font).
 - Integer pixel text: pixel_font draws 1 font pixel per 100 units of 2048/em, so all text sizes snap to multiples of 20.48 (UIKit.font_px).
 - SPD status pane (status_pane.png bg + hp/shield/exp bars + portrait) on Delve and Combat; toolbar.png slots + backpack/wait/search icons on control buttons; progress/slider/scrollbar use chrome.png.
+
+## 72. v0.16.0 — SPD gameplay rendering
+- GridView ports SPD's DungeonTileSheet stitching: floor alts by per-cell variance (52.5%/5%), raised wall faces (+1/+2 open sides, RAISED_WALL_DOOR, alt walls), internal wall tops and wall/door/grass overhangs drawn in a walls layer OVER characters (SPD perspective), water edge stitching (WATER+mask over the scrolling water texture), chasm-from-above stitching, raised doors/sideways doors, raised high grass.
+- The 8x8 arena is framed by a wall ring (cells outside the grid = WALL, like a SPD room); camera fits arena + ~0.6 tile so the border shows; integer zoom unless that wastes >15% of the screen, then 4 px steps.
+- Character animations come from SPD's *Sprite.java via tools/gen_anims.py -> data/anims.json (idle/run/attack/die/zap, fps, frames). Facing flips by horizontal movement/attack; die anim then fade.
+- SPD HealthBar (red bg/green hp/pale shield, mobs only when hurt), BuffIndicator small icons (poison, charging, enraged, invisible), FloatingText centred pixel-font numbers.
+- Fog/light: per-corner darkness blended across each cell (bilinear like SPD FogOfWar's texture); out-of-LOS = SPD "visited" darkening, torch radius on top.
+- Not ported: SPD's Emitter particle classes (kept our pixel particles), shadows, exact SPD fog colours for MAPPED.

@@ -25,6 +25,7 @@ func _ready() -> void:
 	test_fullrun(gs)
 	test_cavesrun(gs)
 	test_city(gs)
+	test_render(gs)
 	test_delve(gs)
 	test_camp(gs)
 	test_save(gs, ss)
@@ -632,3 +633,20 @@ func test_backpack(gs) -> void:
 	gs.end_run("death")
 	check(gs.gear_by_uid(old_w).get("cracked", false), "owned gear in the pack comes home (cracked) on death")
 	var saved := {}
+
+func test_render(gs) -> void:
+	print("[render]")
+	var gv = load("res://scripts/ui/grid_view.gd").new()
+	var c := Combat.new(); c.setup(DB.rooms[0], warrior(gs), 20, ["rat"])
+	for y in Combat.SIZE:
+		for x in Combat.SIZE: c.terrain[y][x] = Combat.T.FLOOR
+	c.terrain[3][3] = Combat.T.WALL; c.terrain[4][3] = Combat.T.WALL; c.terrain[5][5] = Combat.T.WATER
+	gv.combat = c; gv.set_combat(c)
+	check(gv.terrain_visual(Vector2i(3, 4)) >= 80 and gv.terrain_visual(Vector2i(3, 4)) < 112, "wall above floor gets a raised SPD wall face")
+	check(gv.terrain_visual(Vector2i(3, 3)) == -1 and gv.wall_visual(Vector2i(3, 3)) >= 144, "wall above wall is an internal wall top")
+	check(gv.wall_visual(Vector2i(3, 2)) >= 192 and gv.wall_visual(Vector2i(3, 2)) < 224, "floor above a wall gets the overhang")
+	check(gv.terrain_visual(Vector2i(5, 5)) == 32 + 15, "isolated water stitches all 4 edges")
+	check(gv.terrain_visual(Vector2i(0, -1)) >= 80, "arena border is a raised SPD wall")
+	check(gv.anims.has("rat") and gv.anims.rat.has("die"), "SPD sprite animations loaded")
+	check(gv._frame("rat", "attack", 0.0) == 2, "rat attack anim starts on SPD frame 2")
+	gv.free()

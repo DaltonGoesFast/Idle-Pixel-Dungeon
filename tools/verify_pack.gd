@@ -23,7 +23,7 @@ func _init() -> void:
 	var f = ThemeDB.fallback_font
 	if f == null or f.get_height(16) <= 0: print("FAIL font"); fails += 1
 	else: print("ok font h=", f.get_height(16))
-	for d in ["heroes", "mobs", "items", "rooms", "biomes", "events", "recipes", "facilities", "icons", "traps", "talents"]:
+	for d in ["heroes", "mobs", "items", "rooms", "biomes", "events", "recipes", "facilities", "icons", "traps", "talents", "anims"]:
 		if not FileAccess.file_exists("res://data/%s.json" % d): print("FAIL data ", d); fails += 1
 	print("ok data json")
 	var pf = load("res://assets/fonts/pixel_font.ttf")

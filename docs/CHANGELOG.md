@@ -1,6 +1,13 @@
 # Changelog
 
 
+
+## v0.16.0 — SPD gameplay graphics
+- SPD wall autotiling with raised wall faces and wall tops drawn over characters; floor variants; water/chasm/door/grass stitching; arena framed by walls.
+- Full SPD character animations (idle/run/attack/die) with facing flip and death fade.
+- SPD health bars, status icons and floating damage numbers.
+- Smooth SPD-style fog of war + torchlight; bigger, integer-zoomed combat camera.
+
 ## v0.15.1
 - Version label on Camp and Settings (check you are on this build!).
 - SPD status pane (portrait, HP/Torch/Satiety or HP/Barrier bars) in delve and combat.

@@ -99,4 +99,5 @@ func _process(_d: float) -> void:
 		step[2].call()
 	if f % 12 == 11:
 		get_viewport().get_texture().get_image().save_png("%s/%s_%s.png" % [out, step[0], step[1]])
+		if main.screen.get("grid") != null: print("GRID ", step[1], " ", main.screen.grid.size, " cs=", main.screen.grid.cell_size(), " win=", get_viewport().get_visible_rect().size)
 		if false: print("box ", main.screen.root_box.size, " title ", main.screen.root_box.get_child(0).size, " tabs ", main.screen.tabs.size, " anchors ", main.screen.root_box.anchor_right, " off ", main.screen.root_box.offset_right)
