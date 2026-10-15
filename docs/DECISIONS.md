@@ -365,3 +365,5 @@ The percent bar stays the exploration (GDD: UI-driven delving, no hallway walkin
 - Torch and food are filled bars with an item icon and a percent on the status pane (fights too), orange under 30% and red at 0. Encounter windows do not embed the delve log; reward toasts still sit in the window above the buttons.
 - Red edges at or below 30% HP (the Auto Battle stop line), and a short pulse when an ambush opens.
 - The campfire lists what extracting banks next to the next biome's floors and Strength gate (red when the hero is under it).
+## 127. Strength potions once per hero life
+The deep campaign sim (40 expeditions x 3 seeds) showed median Strength at bosses of 111-152, because the delve's Strength milestone granted a potion on every expedition. SPD has a fixed number of Potions of Strength per game. Each hero now records the milestones it has claimed in `str_found`, and each pays out once. Death resets the list (the hero restarts). Old saves back-fill an empty list. Sim: run outcomes are the same, and median Str at bosses is 18-20. test_strength_once.
