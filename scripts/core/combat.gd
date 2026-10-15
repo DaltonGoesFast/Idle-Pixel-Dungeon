@@ -20,6 +20,7 @@ const BOLT_RANGE := 6
 
 var terrain: Array = []
 var units: Array = []
+var trampled := {}   # cells whose tall grass was trodden flat (SPD HIGH_GRASS -> GRASS, DECISIONS #81)
 var hero: Dictionary
 var time := 0.0
 var log_lines: PackedStringArray = []
@@ -91,9 +92,11 @@ func to_dict() -> Dictionary:
 	var tr := []
 	for k in traps: tr.append({"pos": [k.x, k.y], "id": traps[k].id, "hidden": traps[k].hidden})
 	return {"terrain": terrain, "units": us, "danger": dz, "traps": tr, "trap_pool": trap_pool, "kills": kills, "traps_found": traps_found, "trap_ids_seen": trap_ids_seen, "time": time, "log": Array(log_lines), "loot": loot,
-		"fallen_loot": fallen_loot, "xp": xp, "over": over, "won": won, "boss_killed": boss_killed, "uid": _uid}
+		"fallen_loot": fallen_loot, "xp": xp, "over": over, "won": won, "boss_killed": boss_killed, "uid": _uid, "trampled": trampled.keys().map(func(k): return [k.x, k.y])}
 
 func from_dict(d: Dictionary) -> void:
+	trampled = {}
+	for p in d.get("trampled", []): trampled[Vector2i(int(p[0]), int(p[1]))] = true
 	terrain = []
 	for row in d.terrain: terrain.append(row.map(func(t): return int(t)))
 	units = []
@@ -268,6 +271,9 @@ func knockback(m: Dictionary, dir: Vector2i) -> void:
 func _place(u: Dictionary, dest: Vector2i) -> void:
 	_ev({"t": "move", "uid": u.uid, "from": u.pos, "to": dest})
 	u.pos = dest
+	if tile(dest) == T.GRASS:
+		terrain[dest.y][dest.x] = T.FLOOR; trampled[dest] = true
+		_ev({"t": "trample", "pos": dest})
 	if u == hero and hero.get("keen_eyes", false): _reveal(dest, 1, false)
 	if traps.has(dest): _trigger(dest, u)
 
@@ -549,7 +555,7 @@ func hero_heal(amount: int) -> void:
 
 func _end_hero_turn(cost: float) -> void:
 	hero.next += cost
-	if hero.get("perk", "") == "grass_heal" and tile(hero.pos) == T.GRASS and hero.hp < hero.ht: hero.hp += 1
+	if hero.get("perk", "") == "grass_heal" and (tile(hero.pos) == T.GRASS or trampled.has(hero.pos)) and hero.hp < hero.ht: hero.hp += 1
 	_tick_poison(hero)
 	if not over: run_until_hero()
 

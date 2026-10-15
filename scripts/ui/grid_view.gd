@@ -39,7 +39,9 @@ var variance := {}       # Vector2i -> 0..99 (SPD tileVariance)
 const S_FLOOR := 0; const S_FLOOR_ALT1 := 6; const S_FLOOR_ALT2 := 12
 const S_CHASM := 24; const S_WATER := 32
 const S_RAISED_WALL := 80; const S_RAISED_WALL_DOOR := 88; const S_RAISED_WALL_ALT := 96
-const S_RAISED_DOOR := 112; const S_RAISED_DOOR_SIDE := 116
+const S_RAISED_DOOR := 112; const S_RAISED_DOOR_OPEN := 113; const S_RAISED_DOOR_SIDE := 116
+const S_SHORT_GRASS := 2; const S_SHORT_GRASS_ALT := 8
+const S_DOOR_OVERHANG_OPEN := 225; const S_DOOR_SIDE_OVERHANG_OPEN := 208; const S_DOOR_SIDE_OVERHANG_CLOSED := 212
 const S_RAISED_GRASS := 122; const S_RAISED_GRASS_ALT := 125
 const S_WALL_INTERNAL := 144; const S_WALL_OVERHANG := 192
 const S_DOOR_OVERHANG := 224; const S_DOOR_SIDEWAYS := 227
@@ -225,6 +227,7 @@ func _t(c: Vector2i) -> int:
 
 func _is_wall(c: Vector2i) -> bool: return _t(c) == Combat.T.WALL
 func _is_door(c: Vector2i) -> bool: return _t(c) == Combat.T.DOOR
+func _door_open(c: Vector2i) -> bool: return combat != null and _is_door(c) and combat.unit_at(c) != null
 func _water_stitch(c: Vector2i) -> bool:
 	var t := _t(c); return t == Combat.T.FLOOR or t == Combat.T.GRASS or t == Combat.T.DOOR
 
@@ -234,6 +237,7 @@ func terrain_visual(c: Vector2i) -> int:
 	var v: int = variance.get(c, 50)
 	match t:
 		Combat.T.FLOOR, Combat.T.GRASS:
+			if combat != null and combat.trampled.has(c): return S_SHORT_GRASS_ALT if v < 50 else S_SHORT_GRASS
 			if v < 5: return S_FLOOR_ALT2
 			if v < 52: return S_FLOOR_ALT1
 			return S_FLOOR
@@ -251,7 +255,9 @@ func terrain_visual(c: Vector2i) -> int:
 			if a == Combat.T.WATER: return S_CHASM + 4
 			return S_CHASM
 		Combat.T.DOOR:
-			return S_RAISED_DOOR_SIDE if _is_wall(c + Vector2i(0, -1)) else S_RAISED_DOOR
+			# SPD: a door with wall below is a sideways door; doors show OPEN while someone stands in them
+			if _is_wall(c + Vector2i(0, 1)): return S_RAISED_DOOR_SIDE
+			return S_RAISED_DOOR_OPEN if _door_open(c) else S_RAISED_DOOR
 		Combat.T.WALL:
 			var below := c + Vector2i(0, 1)
 			if _is_wall(below) or below.y > Combat.SIZE: return -1
@@ -270,7 +276,7 @@ func wall_visual(c: Vector2i) -> int:
 	var below := c + Vector2i(0, 1)
 	if _is_wall(c):
 		if not _is_wall(below):
-			if _is_door(below): return S_DOOR_SIDEWAYS
+			if _is_door(below): return -1 if _door_open(below) else S_DOOR_SIDEWAYS
 			return -1
 		var r := S_WALL_INTERNAL
 		if not _is_wall(c + Vector2i(1, 0)): r += 1
@@ -280,13 +286,19 @@ func wall_visual(c: Vector2i) -> int:
 		return r
 	if _is_wall(below):
 		var o := S_WALL_OVERHANG
+		if _is_door(c): o = S_DOOR_SIDE_OVERHANG_OPEN if _door_open(c) else S_DOOR_SIDE_OVERHANG_CLOSED
 		if not _is_wall(c + Vector2i(1, 1)): o += 1
 		if not _is_wall(c + Vector2i(-1, 1)): o += 2
 		return o
-	if _is_door(below): return S_DOOR_OVERHANG
-	if _t(below) == Combat.T.GRASS and below.y < Combat.SIZE:
-		return S_GRASS_OVERHANG_ALT if int(variance.get(below, 50)) < 50 else S_GRASS_OVERHANG
+	if _is_door(below): return S_DOOR_OVERHANG_OPEN if _door_open(below) else S_DOOR_OVERHANG
 	return -1
+
+## Tall-grass overhang on the cell above. Drawn in the ground pass (under units) so it never
+## covers the head of a character standing in the grass or the cell above (DECISIONS #81).
+func grass_overhang(c: Vector2i) -> int:
+	var below := c + Vector2i(0, 1)
+	if _is_wall(c) or _t(below) != Combat.T.GRASS or below.y >= Combat.SIZE: return -1
+	return S_GRASS_OVERHANG_ALT if int(variance.get(below, 50)) < 50 else S_GRASS_OVERHANG
 
 ## SPD FogOfWar-like darkness 0..1 at a cell corner (bilinear blend between cells like SPD's fog texture).
 func _corner_dark(cx: int, cy: int, ctr: Vector2, lr: float) -> float:
@@ -322,6 +334,8 @@ func _draw() -> void:
 			if t == Combat.T.GRASS:
 				var sway := roundf(sin(anim_t * 1.7 + x * 0.9 + y * 0.5) * 0.6) * ps
 				_tile(Rect2(r.position + Vector2(sway, 0), r.size), grass_visual(c))
+			var go := grass_overhang(c)
+			if go >= 0: _tile(r, go)
 	# 2. terrain features: revealed traps
 	for k in combat.traps:
 		if not combat.traps[k].hidden:

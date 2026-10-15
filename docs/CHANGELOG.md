@@ -6,6 +6,11 @@
 
 
 
+## 0.19.1
+- Fix: doors now open while a character stands in them, with SPD door frames layered over the occupant.
+- Fix: tall grass no longer cuts off the tops of characters. Grass you walk through is trampled to short grass, as in SPD.
+- New `terrain` screenshot step.
+
 ## 0.19.0
 - Items with ID: 3 new rings, artifact slot with 3 artifacts, 6 unidentified potions/scrolls usable from the backpack; boss artifact drops; build.sh renders screenshots (non-blocking).
 - Fix: identified potions/scrolls were reset on load.

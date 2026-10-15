@@ -199,3 +199,11 @@ Once the bot could escape multi-tile telegraphs, every Caves sim rose to 9-10/10
 
 ## 80. Items with ID (v0.19.0)
 Rings of Evasion/Wealth/Energy and an Artifact slot (Chalice of Blood, Talisman of Foresight, Horn of Plenty) are added. There are six unidentified potions/scrolls with appearances rolled per save. Using one identifies it. Bosses drop an artifact you don't own yet. Teleport skips the next non-boss fight. Wands stay as the class staff, and Ring of Energy adds +1 charge to it.
+
+## 81. Doors and grass rendering (v0.19.1)
+This ports SPD's DungeonTileSheet/DungeonWallsTilemap door handling:
+- A door that someone stands in shows RAISED_DOOR_OPEN (113) and DOOR_OVERHANG_OPEN (225) above it.
+- Sideways doors draw DOOR_SIDEWAYS_OVERHANG(_CLOSED) (208/212) on the walls layer, so the frame sits over the occupant. The wall above shows no sideways tile while the door is open.
+- Open/closed is derived from occupancy every frame, so it can't get stuck.
+- Tall grass trodden on becomes short grass (SPD HIGH_GRASS→GRASS). It no longer blocks sight, and `combat.trampled` is saved.
+- The tall-grass overhang is drawn in the ground pass, so it no longer cuts off the top of characters.

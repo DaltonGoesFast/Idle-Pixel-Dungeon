@@ -90,6 +90,22 @@ func _ready() -> void:
 			main.start_combat({"kind": "combat", "boss": true, "room": DB.boss_rooms[DB.biomes.halls.boss_room], "mobs": ["yog"]}, func(_r): pass)
 			main.screen.combat.hero.ht = 120; main.screen.combat.hero.hp = 120
 			for i in 6: main.screen._do_bot()])
+		plan.append([sz, "terrain", func():
+			# hero standing in a doorway, a rat in tall grass (with grass above it) and a trampled cell
+			GameState.run.biome = "sewers"
+			main.start_combat({"kind": "combat", "room": DB.biome_rooms.prison[0], "mobs": ["rat", "crab"]}, func(_r): pass)
+			var cb = main.screen.combat; var T = cb.T
+			for y in range(1, cb.SIZE - 1):
+				for x in range(1, cb.SIZE - 1): cb.terrain[y][x] = T.FLOOR
+			for x in cb.SIZE: cb.terrain[3][x] = T.WALL
+			cb.terrain[3][2] = T.DOOR; cb.terrain[3][5] = T.DOOR
+			for y in range(5, 8):
+				for x in range(3, 7): cb.terrain[y][x] = T.GRASS
+			cb.terrain[6][3] = T.FLOOR; cb.trampled[Vector2i(3, 6)] = true
+			cb.hero.pos = Vector2i(2, 3)
+			var es: Array = cb.enemies(); es[0].pos = Vector2i(5, 6); es[1].pos = Vector2i(4, 2)
+			cb.terrain[2][4] = T.FLOOR
+			main.screen.grid.queue_redraw()])
 		plan.append([sz, "boss", func():
 			GameState.run.biome = "sewers"
 			main.start_combat({"kind": "combat", "boss": true, "room": DB.boss_rooms[0], "mobs": ["goo"]}, func(_r): pass)
