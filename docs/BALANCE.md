@@ -162,10 +162,10 @@ Traps: worn_dart, gripping, teleport, poison_dart. Strength potions at [[12, 50]
 | Enchanter's Desk | 3 arcane_resin, 40 gold | 3 |
 <!-- /GENERATED -->
 
-## Caves + subclasses (v0.10.0, tests [cavesrun], Lv8 / Str 14, tier-3 gear, 10 seeds)
+## Caves + subclasses (v0.12.0, tests [cavesrun], Lv8 / Str 14, tier-3 gear, 10 seeds)
 | Class | Base | Subclass A | Subclass B |
 |---|---|---|---|
-| Warrior | 7 | Berserker 10 | Gladiator 8 |
+| Warrior | 7 | Berserker 9 | Gladiator 8 |
 | Huntress | 5 | Sniper 8 | Warden 8 |
-| Mage | 4 | Battlemage 10 | Warlock 4 |
+| Mage | 6 | Battlemage 8 | Warlock 8 |
 | Rogue | 0 | Assassin 7 | Freerunner 8 |

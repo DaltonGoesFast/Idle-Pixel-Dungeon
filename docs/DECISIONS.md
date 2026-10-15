@@ -121,3 +121,9 @@ Warrior base 7 / Berserker 10 / Gladiator 8; Huntress 5 / Sniper 8 / Warden 8; M
 
 ## 63. Guided first fight: a banner + glowing tile, never an input lock
 A scripted fight with locked input would need its own room and code path that could break real play. Instead the real first fight gets a step banner and reuses the Hint highlight (path_step toward the enemy, then the adjacent enemy). Progress is read from the fight state, so any action order works; completion is stored as tutorial_done "guided_fight" and resets with "Replay the tutorial tips".
+
+## 64. Mage's Staff scales with level; Warlock heals from bolts
+The plain Mage died to Vampire Bats with full potions: a 3-damage staff vs DR 2 does 1 per hit, so fast drainers out-healed her. SPD's staff grows with the Mage, so the heirloom gets +1 melee damage per 6 levels (per 5 was 8/10, too strong; per 7 left her at 4/10). Warlock kill-heals rarely mattered (deaths were burst, not attrition), so it now heals a third of bolt damage, close to SPD's soul-mark sustain.
+
+## 65. Subclass targets ~8/10 in the Caves sim
+Berserker +20% below half HP (9/10), Battlemage every 5th hit (8/10). Values in BALANCE.md.

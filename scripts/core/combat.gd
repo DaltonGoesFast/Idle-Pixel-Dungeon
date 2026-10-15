@@ -355,7 +355,7 @@ func _kill(m: Dictionary, chasm: bool) -> void:
 	danger = danger.filter(func(d): return d.uid != m.uid)
 	if m.get("boss", false): boss_killed = true
 	if hero.get("perk", "") == "soul_heal" and hero.hp > 0:
-		var hl := mini(int(hero.ht) - int(hero.hp), maxi(3, int(int(m.ht) * 0.35)))
+		var hl := mini(int(hero.ht) - int(hero.hp), maxi(2, int(int(m.ht) * 0.2)))
 		if hl > 0:
 			hero.hp += hl; _log("Soul siphon: +%d HP." % hl)
 			_ev({"t": "heal", "uid": hero.uid, "amount": hl, "pos": hero.pos})
@@ -436,7 +436,7 @@ func _melee_dmg() -> int:
 	var d := int(hero.dmg)
 	match hero.get("perk", ""):
 		"rage":
-			if int(hero.hp) * 2 < int(hero.ht): d = int(d * 1.3)
+			if int(hero.hp) * 2 < int(hero.ht): d = int(d * 1.2)
 		"combo": d += mini(int(hero.combo), 3)
 	return d
 
@@ -445,7 +445,7 @@ func _melee_perks() -> void:
 		"combo": hero.combo = int(hero.combo) + 1
 		"battle_recharge":
 			hero.combo = int(hero.combo) + 1
-			if hero.combo % 2 == 0 and not hero.bolt.is_empty() and int(hero.charges) < int(hero.bolt.charges):
+			if hero.combo % 5 == 0 and not hero.bolt.is_empty() and int(hero.charges) < int(hero.bolt.charges):
 				hero.charges += 1; _log("The staff hums: +1 charge.")
 
 func hero_bolt(p: Vector2i) -> bool:
@@ -457,7 +457,11 @@ func hero_bolt(p: Vector2i) -> bool:
 	_ev({"t": "bolt", "from": hero.pos, "to": p, "magic": magic})
 	var sur := surprise_ready() and not magic
 	_break_cloak()
+	var hp_before := int(u.hp)
 	hit_mob(u, int(hero.bolt.dmg), sur, magic or hero.bolt.get("pierce", false))
+	if hero.get("perk", "") == "soul_heal" and magic and hero.hp > 0 and hero.hp < hero.ht:
+		var sh := mini(int(hero.ht) - int(hero.hp), maxi(1, (hp_before - maxi(0, int(u.hp))) / 3))
+		hero.hp += sh; _log("Soul siphon: +%d HP." % sh)
 	if hero.bolt.get("chains_water", false) and tile(p) == T.WATER:
 		_shock(p, int(hero.bolt.dmg))
 	if hero.bolt.get("burns_grass", false):

@@ -28,7 +28,9 @@
   "delay": 1.0,
   "str": 10,
   "icon": "MAGES_STAFF",
-  "heirloom": true
+  "heirloom": true,
+  "dmg_per_levels": 6,
+  "note": "Heirloom: +1 melee damage every 6 hero levels (DECISIONS #64)"
  },
  "shortsword": {
   "name": "Shortsword",

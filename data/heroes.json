@@ -21,7 +21,7 @@
   "subclasses": {
    "berserker": {
     "name": "Berserker",
-    "desc": "Rage: below half HP, melee hits deal +30% damage.",
+    "desc": "Rage: below half HP, melee hits deal +20% damage.",
     "perk": "rage"
    },
    "gladiator": {
@@ -58,12 +58,12 @@
   "subclasses": {
    "battlemage": {
     "name": "Battlemage",
-    "desc": "Every 2nd melee hit with the staff restores 1 staff charge.",
+    "desc": "Every 5th melee hit with the staff restores 1 staff charge.",
     "perk": "battle_recharge"
    },
    "warlock": {
     "name": "Warlock",
-    "desc": "Soul siphon: killing a foe heals you for 35% of its max HP (min 3).",
+    "desc": "Soul siphon: staff bolts heal you for a third of the damage they deal; kills heal 20% of the foe's max HP.",
     "perk": "soul_heal"
    }
   }

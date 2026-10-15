@@ -5,7 +5,9 @@
 - [x] Mage vs Tengu (v0.8.0: 6/10).
 - [x] Caves biome, floors 11-15, DM-300 (v0.9.0).
 - [x] Tengu's Mask + 2 subclasses per class (v0.10.0); Rogue Caves 0 -> 7-8/10.
-- [ ] Warlock shows no sim gain; Mage base Caves 4/10.
+- [x] Warlock rework + Mage Caves help (v0.12.0).
+- [ ] SPD UI theme (chrome.png, pixel font), talents, in-delve inventory, SPD lighting/water/particles, then Dwarf City.
+- [ ] Rogue without subclass still 0/10 in the Caves (subclass is the intended fix).
 - [x] Guided first-fight tutorial (v0.11.0).
 - [ ] Playtest pass on the Fold 6: tap targets, text sizes, delve speed (`DelveScreen.SPEED`), fight length.
 - [x] Save/restore in-progress fights (v0.4.0).

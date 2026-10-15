@@ -513,5 +513,5 @@ func test_subclass(gs, ss) -> void:
 	check(c._melee_dmg() == int(c.hero.dmg) + 2, "gladiator combo adds damage")
 	gs.heroes.mage.mask = true; gs.choose_subclass("mage", "battlemage")
 	c.setup(["########","#......#","#.H1...#","#......#","#......#","#......#","#......#","########"], gs.hero_stats("mage"), 999, ["rat"])
-	c.hero.charges = 0; c.hero.combo = 1; c._melee_perks()
-	check(c.hero.charges == 1, "battlemage: every 2nd melee hit restores a charge")
+	c.hero.charges = 0; c.hero.combo = 4; c._melee_perks()
+	check(c.hero.charges == 1, "battlemage: every 5th melee hit restores a charge")

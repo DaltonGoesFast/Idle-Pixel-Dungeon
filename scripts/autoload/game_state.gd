@@ -121,6 +121,7 @@ func hero_stats(c: String) -> Dictionary:
 	var ad := DB.item(a.id) if not a.is_empty() and not a.cracked else {}
 	var wl := int(w.get("lvl", 0)); var al := int(a.get("lvl", 0))
 	var dmg := int(wd.dmg) + wl * (int(wd.tier) + 1) / 2          # upgrades: +((tier+1)/2) per level
+	if wd.has("dmg_per_levels"): dmg += int(h.level) / int(wd.dmg_per_levels)
 	var dr := int(ad.get("dr", 0)) + al
 	var barrier := int(def.base_barrier) + int(def.heirloom_barrier) + int(ad.get("barrier", 0)) + al
 	# Strength gate: each missing point costs 2 damage / 1 DR (SPD-like penalty, deterministic)

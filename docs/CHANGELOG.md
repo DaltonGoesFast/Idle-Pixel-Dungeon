@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.12.0 — 2026-10-15
+- **Mage in the Caves**: the Mage's Staff (heirloom) gains +1 melee damage every 6 hero levels. Caves sim 4/10 -> 6/10.
+- **Warlock rework**: staff bolts heal a third of the damage dealt; kills heal 20% of the foe's max HP. Caves 4/10 -> 8/10.
+- **Toned down**: Berserker +20% (was +30%) below half HP (10 -> 9/10); Battlemage restores a charge every 5th melee hit (was 2nd; 10 -> 8/10).
+
 ## v0.11.0 — 2026-10-14
 - **Guided first fight**: the first non-boss fight on a save shows a 3-step banner (Move -> Attack -> Finish) with a glowing tile marking exactly what to tap; ranged heroes skip straight to step 3 once they hit. It never blocks input, ends with a short recap, is remembered, honours "Skip all tips", and replays with "Replay the tutorial tips".
 - Tests: UI smoke checks the guided fight appears, highlights a tile, completes and is not shown again.
