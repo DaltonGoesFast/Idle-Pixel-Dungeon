@@ -118,6 +118,14 @@ static func _delta_text(a: Dictionary, b: Dictionary) -> Array:   # [text, bette
 	for k in [["ht", "HP"], ["dmg", "Dmg"], ["dr", "DR"], ["barrier_max", "Barrier"]]:
 		var d := int(b.get(k[0], 0)) - int(a.get(k[0], 0))
 		if d != 0: parts.append("%s %s%d" % [k[1], "+" if d > 0 else "", d]); score += d
+	var dc := int(b.get("charges_bonus", 0)) - int(a.get("charges_bonus", 0))
+	if dc != 0: parts.append("Charges %s%d" % ["+" if dc > 0 else "", dc]); score += dc
+	var dg := int(round((float(b.get("gold_mult", 1.0)) - float(a.get("gold_mult", 1.0))) * 100))
+	if dg != 0: parts.append("Gold %s%d%%" % ["+" if dg > 0 else "", dg]); score += dg
+	var ds := int(b.get("search_radius", 1)) - int(a.get("search_radius", 1))
+	if ds != 0: parts.append("Search %s%d" % ["+" if ds > 0 else "", ds]); score += ds
+	var dh := int(round((1.0 - float(b.get("hunger_mult", 1.0))) * 100)) - int(round((1.0 - float(a.get("hunger_mult", 1.0))) * 100))
+	if dh != 0: parts.append("Satiety %s%d%%" % ["+" if dh > 0 else "", dh]); score += dh
 	return ["no stat change" if parts.is_empty() else "  ".join(parts), score]
 
 static func _detail(c: String, s: String, mode: String, refresh: Callable, on_equip_in_combat: Callable) -> Control:
@@ -129,7 +137,7 @@ static func _detail(c: String, s: String, mode: String, refresh: Callable, on_eq
 	if it.has("pseudo"): v.add_child(UIKit.label(it.desc, 0.8))
 	elif not it.is_empty():
 		var d := DB.item(it.id)
-		if d.has("desc"): v.add_child(UIKit.label(d.desc, 0.8))
+		if it.get("known", true) and d.has("desc"): v.add_child(UIKit.label(d.desc, 0.8))
 		if it.get("cracked", false): v.add_child(UIKit.label("Cracked - repair at the Forge.", 0.8, Color("ff6a5a")))
 		if mode == "delve" and not d.get("heirloom", false):
 			v.add_child(UIKit.button("Unequip", func(): GameState.delve_unequip(s); refresh.call(), not GameState.backpack_full(), "backpack full"))

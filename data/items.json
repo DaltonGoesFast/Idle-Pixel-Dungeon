@@ -84,7 +84,8 @@
   "unknown_name": "Garnet Ring",
   "dmg_bonus": 1,
   "icon": "RING_GARNET",
-  "badge": "RING_MIGHT"
+  "badge": "RING_MIGHT",
+  "desc": "+1 melee damage."
  },
  "ring_tenacity": {
   "name": "Ring of Tenacity",
@@ -92,7 +93,8 @@
   "unknown_name": "Ruby Ring",
   "barrier_bonus": 2,
   "icon": "RING_RUBY",
-  "badge": "RING_TENACITY"
+  "badge": "RING_TENACITY",
+  "desc": "+2 Barrier."
  },
  "wand_magic_missile": {
   "name": "Wand of Magic Missile",
@@ -102,7 +104,8 @@
   "recharge": 4,
   "unknown_name": "Oak Wand",
   "icon": "WAND_MAGIC_MISSILE",
-  "spd": "dmg 2-8"
+  "spd": "dmg 2-8",
+  "desc": "Bolt: 5 damage (ignores DR), 2 charges."
  },
  "wand_firebolt": {
   "name": "Wand of Firebolt",
@@ -112,7 +115,8 @@
   "recharge": 4,
   "burns_grass": true,
   "unknown_name": "Ash Wand",
-  "icon": "WAND_FIREBOLT"
+  "icon": "WAND_FIREBOLT",
+  "desc": "Bolt: 4 damage (ignores DR), 2 charges. Burns grass."
  },
  "_materials": {
   "gold": {
@@ -261,7 +265,8 @@
   "chains_water": true,
   "unknown_name": "Birch Wand",
   "icon": "WAND_LIGHTNING",
-  "spd": "dmg 5-10"
+  "spd": "dmg 5-10",
+  "desc": "Bolt: 7 damage (ignores DR), 2 charges. Chains through water."
  },
  "longsword": {
   "name": "Longsword",
@@ -307,7 +312,8 @@
   "unknown_name": "Topaz Ring",
   "dr_bonus": 1,
   "icon": "RING_TOPAZ",
-  "badge": "RING_EVASION"
+  "badge": "RING_EVASION",
+  "desc": "+1 DR."
  },
  "ring_wealth": {
   "name": "Ring of Wealth",
@@ -315,7 +321,8 @@
   "unknown_name": "Emerald Ring",
   "gold_mult": 1.3,
   "icon": "RING_EMERALD",
-  "badge": "RING_WEALTH"
+  "badge": "RING_WEALTH",
+  "desc": "+30% gold from fights."
  },
  "ring_energy": {
   "name": "Ring of Energy",
@@ -324,7 +331,8 @@
   "charges_bonus": 1,
   "ht_bonus": 4,
   "icon": "RING_ONYX",
-  "badge": "RING_ENERGY"
+  "badge": "RING_ENERGY",
+  "desc": "+1 staff charge, +4 max HP."
  },
  "chalice_blood": {
   "name": "Chalice of Blood",

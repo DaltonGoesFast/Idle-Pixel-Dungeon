@@ -503,6 +503,7 @@ func gear_lines(g: Dictionary) -> Array:
 		if d.has("str"): bits.append("Str %d" % int(d.str))
 		if not bits.is_empty(): out.append("  ".join(bits))
 		if d.has("desc"): out.append(d.desc)
+		elif bits.is_empty(): out.append(Codex.item_line(g.id))
 	else: out.append("Unidentified. The Enchanter can identify it.")
 	if g.get("cracked", false): out.append("Cracked - repair at the Forge.")
 	if who != "": out.append("Equipped by " + DB.heroes[who].name)
@@ -709,14 +710,14 @@ func _open_ring_stack(id: String) -> void:
 	var d: Dictionary = DB.item(id)
 	var title: String = d.name if all_known else d.get("unknown_name", "Ring")
 	var lines: Array = []
-	if all_known:
+	if known_n > 0:
 		for l in gear_lines(sample):
 			var s := String(l)
 			if s.begins_with("Equipped") or s.begins_with("Cracked"): continue
 			lines.append(l)
-	elif known_n == 0:
+	if known_n == 0:
 		lines.append("Unidentified. The Enchanter can identify it.")
-	else:
+	elif not all_known:
 		lines.append("%d of %d identified." % [known_n, list.size()])
 	lines.append("Owned: %d" % list.size())
 	if not equipped.is_empty(): lines.append("Equipped: " + ", ".join(equipped))
