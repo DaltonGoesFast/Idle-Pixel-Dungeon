@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- UI smoke test: "a talent was learned through the UI" no longer fails at random (about 1 in 3). It is now checked when Learn is pressed, because a later death in the late-boss chain wiped the hero's talents before the end-of-run check.
 - Delve screen: taller corridor, encounter cards as windows over it, SPD icon toolbar with a Menu for Settings / Scroll of Passage / Abandon, floor pips, torch and food bars with icons, Brought vs Found (lost on death) rows, low-HP red edges, and a campfire bank preview. Encounter windows keep reward toasts but no longer embed the delve log.
 - Rogue: Cloak of Shadows has 3 charges per fight like SPD (was 2); Rogue death rate now in line with other classes (+test).
 - Owed Scrolls of Upgrade return straight to the Camp stash on the next boss kill, so the same run can no longer lose them again (+test).

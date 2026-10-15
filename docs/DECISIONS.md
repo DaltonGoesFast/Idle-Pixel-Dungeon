@@ -365,3 +365,6 @@ The percent bar stays the exploration (GDD: UI-driven delving, no hallway walkin
 - Torch and food are filled bars with an item icon and a percent on the status pane (fights too), orange under 30% and red at 0. Encounter windows do not embed the delve log; reward toasts still sit in the window above the buttons.
 - Red edges at or below 30% HP (the Auto Battle stop line), and a short pulse when an ambush opens.
 - The campfire lists what extracting banks next to the next biome's floors and Strength gate (red when the hero is under it).
+
+## 130. UI smoke: check the talent pick when it happens
+The smoke test's "a talent was learned through the UI" failed about 1 run in 3 on main. Instrumenting it showed the Talents card, the icon and the Learn button were always found, and the talent was added every run. The failure came from the final check: it read `heroes[*].talents` after the whole run, but the last hero then goes through the Tengu, DM-300, King and Yog fights, which are not seeded. When that hero dies (stats.deaths = 1 in the failing runs), end_run resets its level and talents, which is SPD's permadeath reset, so no hero has a talent left. The test now sets `talent_learned_ui` the moment pressing Learn adds the talent, and asserts that flag. The check no longer depends on how the random fights later in the run turn out. No game code changed.
