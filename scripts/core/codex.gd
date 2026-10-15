@@ -12,6 +12,7 @@ static func ability_text(m: Dictionary) -> String:
 		"zap": return "Zaps at range 2-4: red tile, %d dmg, every %d actions." % [m.zap_dmg, m.zap_cooldown]
 		"chain": return "Once per fight, chains you from 2-3 tiles away and drags you next to it."
 		"tengu": return "Throws shurikens (red tile, %d dmg) and teleports away every %d HP lost. Below half HP lobs 3x3 bombs (2-tick fuse, %d dmg)." % [m.throw_dmg, m.blink_every, m.bomb_dmg]
+		"yog": return "Never moves (bites if you stand next to it). Every %d actions (%d below half HP) alternates hatching larva (2 marked tiles, 3 when enraged, only when none are left) and a gaze beam over your whole row and column (2-tick fuse, %d ignoring DR). Larva die with it." % [int(m.ability_every), int(m.ability_every_super), int(m.beam_dmg)]
 		"dking": return "Every %d actions (%d when enraged below half HP, +3 dmg) alternates raising the dead (2 marked tiles, Risen Dwarves appear in 2 ticks, only when none are left) and a shadow blast (3x3 on you, 2-tick fuse, %d ignoring DR). His dwarves crumble when he dies." % [int(m.ability_every), int(m.ability_every_super), int(m.blast_dmg)]
 		"dm300": return "Every %d actions (%d when supercharged below half HP, +2 DR) alternates rockfall (+ shape on you, 2-tick fuse, %d dmg) and a toxic gas line (1 tick, %d + %d poison)." % [int(m.ability_every), int(m.ability_every_super), int(m.rock_dmg), int(m.gas_dmg), int(m.gas_poison)]
 	var extra := []

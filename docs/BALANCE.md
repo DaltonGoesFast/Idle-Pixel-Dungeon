@@ -77,6 +77,12 @@ GDD target: 12-13 Str, tier 2-3 gear. Two Sewers Strength potions take a fresh h
 | Golem | 75 | 15 | 7 | 1.5 | 14 | 12 | HT 120, dmg 25-30, DR 0-12; slow | HT 75, dmg 15, DR 7, acts every 1.5 ticks |
 | King of Dwarves | 150 | 8 | 5 | 1.0 | 40 | 150 | HT 300, dmg 15-25, DR 0-10; summons, lifelinks, 3 phases | HT 150, dmg 8, DR 5. Every 3 actions (2 when enraged below half HP, +3 dmg) alternates: marks up to 2 tiles where Risen Dwarves appear in 2 ticks (4 dmg if you stand there; only when none are left) and a shadow blast (3x3 on you, 2 ticks, 8 ignoring DR). No phases/lifelink. |
 | Risen Dwarf | 18 | 6 | 2 | 1.0 | 2 | 0 | summon | weak summon of the Dwarf King |
+| Succubus | 70 | 16 | 5 | 1.0 | 12 | 14 | HT 80, dmg 25-30, DR 0-10; charm, lifesteal, blink | HT 70, dmg 16, DR 5; heals 5 per bite |
+| Ripper Demon | 40 | 14 | 3 | 0.6 | 10 | 10 | HT 60, dmg 15-25, DR 0-4; leaps, fast | HT 40, dmg 14, DR 3, acts every 0.6 ticks |
+| Evil Eye | 60 | 12 | 4 | 1.0 | 13 | 14 | HT 100, dmg 20-30, DR 0-10; disintegration beam | HT 60, dmg 12; beam = 1-tick red tile, 20 ignoring DR, every 2 actions |
+| Scorpio | 72 | 16 | 6 | 1.0 | 14 | 14 | HT 110, dmg 30-40, DR 0-16; ranged spit, cripple | HT 72, dmg 16, DR 6; spits at range 2-4, bite poisons |
+| God's Larva | 18 | 9 | 2 | 1.0 | 0 | 0 | HT 25, dmg 22-30 | HT 18, dmg 9 |
+| Yog-Dzewa | 240 | 16 | 6 | 1.0 | 60 | 250 | HT 1000, immobile; fists, larva, beams, phases | HT 240, DR 6, immobile (bites if adjacent, 16). Every 3 actions (2 below half HP, then 3 larva) alternates: larva rise on 2 marked tiles (only when none are left) and a gaze beam over your whole row and column (2 ticks, 14 ignoring DR). Larva crumble when Yog dies. |
 
 ### Weapons & armor
 
@@ -93,6 +99,8 @@ GDD target: 12-13 Str, tier 2-3 gear. Two Sewers Strength potions take a fresh h
 | Studded Gloves | weapon | 1 | 3 | - | 0.5 | 10 |
 | Longsword | weapon | 4 | 16 | - | 1.0 | 16 |
 | Scale Armor | armor | 4 | 4 | 4 | - | 16 |
+| Greatsword | weapon | 5 | 20 | - | 1.0 | 18 |
+| Plate Armor | armor | 5 | 5 | 5 | - | 18 |
 
 ### Rings & wands
 
@@ -166,6 +174,21 @@ Traps: worn_dart, gripping, teleport, poison_dart. Strength potions at [[17, 50]
 | 18 | ghoul, ghoul |
 | 19 | golem, warlock |
 | 19 | ghoul, monk |
+
+### Demon Halls (floors 21-25, boss yog on 25, 17 Str)
+
+Traps: worn_dart, poison_dart, teleport, gripping. Strength potions at [[22, 50], [24, 50]]. Secret cache: {'gold': 60, 'dark_gold': 4, 'iron_key': 1}
+
+| From floor | Mobs |
+|---|---|
+| 21 | succubus |
+| 21 | ripper, ripper |
+| 21 | eye |
+| 22 | scorpio |
+| 22 | succubus, ripper |
+| 23 | eye, ripper |
+| 23 | scorpio, succubus |
+| 24 | eye, scorpio |
 
 ### Traps
 

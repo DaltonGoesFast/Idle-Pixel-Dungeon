@@ -178,3 +178,10 @@ Once the bot could escape multi-tile telegraphs, every Caves sim rose to 9-10/10
 ## 76. v0.16.2 — resource row + secondary buttons
 - Delve resource row uses UIKit.res_chip: icon vertically centred, number immediately after its own icon, fixed chip spacing, HFlow wraps whole chips.
 - "Ignore both" (and future skip/cancel actions) use SPD grey_button chrome via UIKit.secondary; real choices keep the red primary button.
+
+## 77. v0.17.0 — Demon Halls (21-25) + Yog-Dzewa
+- Halls follow the City (city.next = halls). SPD tiles_halls + water4, halls music. Four Halls rooms (chasms, water, a split room) + a pillared boss room.
+- Mobs (SPD sprites/anims): Succubus (HT 70, dmg 16, heals 5 per bite), Ripper Demon (HT 40, dmg 14, acts every 0.6), Evil Eye (beam 20 ignoring DR every 2 actions), Scorpio (spits at range 2-4, poison bite), God's Larva (summon).
+- Yog-Dzewa (HT 240, DR 6, dmg 16): immobile; every 3 actions (2 below half HP, +1 larva) alternates larva on 2 marked tiles (only when none are left) and a gaze beam over the hero's row and column (2-tick fuse, 14 ignoring DR). A single diagonal step escapes the beam. No fists/phases yet.
+- Tier 5 gear: Greatsword (dmg 20, Str 18) and Plate Armor (DR 5 / barrier 5, Str 18), Blacksmith Lv3 recipes.
+- Balance (sim): Lv18 Warrior, Str 18, Greatsword+2/Plate+2 wins 88/88 Halls fights (lowest 13/105 HP) and Yog 4/4 with 3 potions (ends ~10 HP).

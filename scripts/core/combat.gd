@@ -647,6 +647,8 @@ func _mob_act(m: Dictionary) -> void:
 			if _dm300_act(m): return
 		"dking":
 			if _dking_act(m): return
+		"yog":
+			if _yog_act(m): return
 		"pump":
 			var every := int(m.pump_every)
 			if int(m.hp) * 2 <= int(m.ht) and m.has("pump_every_enraged"): every = int(m.pump_every_enraged)
@@ -679,6 +681,7 @@ func _mob_act(m: Dictionary) -> void:
 			m.stolen = int(m.steal_gold)
 			_log("%s snatches %d gold and runs! Kill it to get it back." % [m.name, m.stolen]); _ev({"t": "sfx", "name": "gold"})
 		return
+	if m.get("stationary", false): return   # Yog-Dzewa never moves
 	var step = path_step(m.pos, hero.pos, false, true)
 	if step != null:
 		_place(m, step)
@@ -775,6 +778,36 @@ func _dking_act(m: Dictionary) -> bool:
 				if tile(q) != T.WALL:
 					danger.append({"pos": q, "dmg": int(m.blast_dmg), "at": m.next + 2.0, "src": "Shadow blast", "uid": m.uid, "pierce": true})
 		_log("The King gathers shadow around you! (3x3 red tiles, 2 ticks - get out!)"); _ev({"t": "sfx", "name": "zap"})
+	_ev({"t": "telegraph", "uid": m.uid})
+	return true
+
+## Yog-Dzewa (DECISIONS #77): immobile; alternates raising larva (only when none are left) and a gaze beam
+## over the hero's whole row + column (2-tick fuse, ignores DR). Below half HP: faster and 3 larva.
+func _yog_act(m: Dictionary) -> bool:
+	if hidden(): return false
+	var enr := int(m.hp) * 2 <= int(m.ht)
+	if enr and not m.get("enraged", false):
+		m.enraged = true; m.summon_n = int(m.summon_n) + 1
+		_log("Yog-Dzewa's eye burns brighter! (abilities come faster)"); _ev({"t": "sfx", "name": "chargeup"}); _ev({"t": "telegraph", "uid": m.uid})
+	m.abil = int(m.get("abil", 0)) + 1
+	if m.abil < int(m.ability_every_super if enr else m.ability_every): return false
+	m.abil = 0
+	m.abil_n = int(m.get("abil_n", 0)) + 1
+	if m.abil_n % 2 == 1 and enemies().filter(func(e): return e.get("summoned", false)).is_empty():
+		var spots := []
+		for d in DIRS + [Vector2i(2, 0), Vector2i(-2, 0), Vector2i(0, 2), Vector2i(0, -2)]:
+			var q: Vector2i = hero.pos + d
+			if spots.size() >= int(m.summon_n): break
+			if passable(q) and unit_at(q) == null and not is_danger(q): spots.append(q)
+		for q in spots:
+			danger.append({"pos": q, "dmg": 4, "at": m.next + 2.0, "src": "Larva hatching", "uid": m.uid, "spawn": m.summon, "summoned": true})
+		_log("Yog-Dzewa spawns larva! (red tiles, 2 ticks)"); _ev({"t": "sfx", "name": "bones"})
+	else:
+		for i in SIZE:
+			for q in [Vector2i(i, hero.pos.y), Vector2i(hero.pos.x, i)]:
+				if tile(q) != T.WALL and not is_danger(q) and q != m.pos:
+					danger.append({"pos": q, "dmg": int(m.beam_dmg), "at": m.next + 2.0, "src": "Yog's gaze", "uid": m.uid, "pierce": true})
+		_log("Yog-Dzewa's gaze sweeps your row and column! (2 ticks - step off the line)"); _ev({"t": "sfx", "name": "zap"})
 	_ev({"t": "telegraph", "uid": m.uid})
 	return true
 

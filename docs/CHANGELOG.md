@@ -4,6 +4,12 @@
 
 
 
+
+## v0.17.0 — Demon Halls
+- New biome: Demon Halls, floors 21-25, after the Dwarf City. Succubus, Ripper Demon, Evil Eye, Scorpio.
+- Final boss Yog-Dzewa: never moves, hatches larva, sweeps your row and column with its gaze.
+- Tier-5 Greatsword and Plate Armor at the Blacksmith (Lv3).
+
 ## v0.16.2
 - SPD icons on camp tabs, delve toolbar and fight buttons.
 - Delve resource row: icons and numbers aligned and grouped; "Ignore both" is a grey secondary button.

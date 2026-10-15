@@ -460,6 +460,116 @@
     ]
    }
   ],
-  "water": "water3"
+  "water": "water3",
+  "next": "halls"
+ },
+ "halls": {
+  "name": "Demon Halls",
+  "floors": [
+   21,
+   25
+  ],
+  "str_gate": 17,
+  "tile": "tiles_halls",
+  "music": "halls_1",
+  "music_tracks": [
+   "halls_1",
+   "halls_2",
+   "halls_3"
+  ],
+  "boss_music": "halls_boss",
+  "boss": "yog",
+  "boss_floor": 25,
+  "boss_room": 4,
+  "traps": [
+   "worn_dart",
+   "poison_dart",
+   "teleport",
+   "gripping"
+  ],
+  "strength_potions_at": [
+   [
+    22,
+    50
+   ],
+   [
+    24,
+    50
+   ]
+  ],
+  "event_weights": {
+   "combat": 5,
+   "door": 2,
+   "special": 3
+  },
+  "patrol_yield_per_hour": {
+   "iron_ore": 6,
+   "dark_gold": 5,
+   "arcane_resin": 5,
+   "dew": 3,
+   "gold": 60
+  },
+  "patrol_curio_every_hours": 2,
+  "secret_cache": {
+   "gold": 60,
+   "dark_gold": 4,
+   "iron_key": 1
+  },
+  "encounter_sets": [
+   {
+    "min_floor": 21,
+    "mobs": [
+     "succubus"
+    ]
+   },
+   {
+    "min_floor": 21,
+    "mobs": [
+     "ripper",
+     "ripper"
+    ]
+   },
+   {
+    "min_floor": 21,
+    "mobs": [
+     "eye"
+    ]
+   },
+   {
+    "min_floor": 22,
+    "mobs": [
+     "scorpio"
+    ]
+   },
+   {
+    "min_floor": 22,
+    "mobs": [
+     "succubus",
+     "ripper"
+    ]
+   },
+   {
+    "min_floor": 23,
+    "mobs": [
+     "eye",
+     "ripper"
+    ]
+   },
+   {
+    "min_floor": 23,
+    "mobs": [
+     "scorpio",
+     "succubus"
+    ]
+   },
+   {
+    "min_floor": 24,
+    "mobs": [
+     "eye",
+     "scorpio"
+    ]
+   }
+  ],
+  "water": "water4"
  }
 }

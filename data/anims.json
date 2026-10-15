@@ -235,6 +235,42 @@
    ]
   }
  },
+ "eye": {
+  "idle": {
+   "fps": 8,
+   "loop": true,
+   "frames": [
+    0,
+    1,
+    2
+   ]
+  },
+  "run": {
+   "fps": 12,
+   "loop": true,
+   "frames": [
+    5,
+    6
+   ]
+  },
+  "attack": {
+   "fps": 8,
+   "loop": false,
+   "frames": [
+    4,
+    3
+   ]
+  },
+  "die": {
+   "fps": 8,
+   "loop": false,
+   "frames": [
+    7,
+    8,
+    9
+   ]
+  }
+ },
  "ghoul": {
   "idle": {
    "fps": 2,
@@ -554,6 +590,47 @@
    ]
   }
  },
+ "larva": {
+  "idle": {
+   "fps": 5,
+   "loop": true,
+   "frames": [
+    4,
+    4,
+    4,
+    4,
+    4,
+    5,
+    5
+   ]
+  },
+  "run": {
+   "fps": 12,
+   "loop": true,
+   "frames": [
+    0,
+    1,
+    2,
+    3
+   ]
+  },
+  "attack": {
+   "fps": 15,
+   "loop": false,
+   "frames": [
+    6,
+    5,
+    7
+   ]
+  },
+  "die": {
+   "fps": 10,
+   "loop": false,
+   "frames": [
+    8
+   ]
+  }
+ },
  "mage": {
   "idle": {
    "fps": 1,
@@ -740,6 +817,51 @@
    ]
   }
  },
+ "ripper": {
+  "idle": {
+   "fps": 4,
+   "loop": true,
+   "frames": [
+    1,
+    0,
+    1,
+    2
+   ]
+  },
+  "run": {
+   "fps": 15,
+   "loop": true,
+   "frames": [
+    3,
+    4,
+    5,
+    6,
+    7,
+    8
+   ]
+  },
+  "attack": {
+   "fps": 12,
+   "loop": false,
+   "frames": [
+    0,
+    9,
+    10,
+    9
+   ]
+  },
+  "die": {
+   "fps": 15,
+   "loop": false,
+   "frames": [
+    1,
+    13,
+    14,
+    15,
+    16
+   ]
+  }
+ },
  "rogue": {
   "idle": {
    "fps": 1,
@@ -787,6 +909,58 @@
     11,
     12,
     11
+   ]
+  }
+ },
+ "scorpio": {
+  "idle": {
+   "fps": 12,
+   "loop": true,
+   "frames": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    1,
+    2,
+    1,
+    2,
+    1,
+    2
+   ]
+  },
+  "run": {
+   "fps": 8,
+   "loop": true,
+   "frames": [
+    5,
+    5,
+    6,
+    6
+   ]
+  },
+  "attack": {
+   "fps": 15,
+   "loop": false,
+   "frames": [
+    0,
+    3,
+    4
+   ]
+  },
+  "die": {
+   "fps": 12,
+   "loop": false,
+   "frames": [
+    0,
+    7,
+    8,
+    9,
+    10
    ]
   }
  },
@@ -1051,6 +1225,62 @@
    ]
   }
  },
+ "succubus": {
+  "idle": {
+   "fps": 8,
+   "loop": true,
+   "frames": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    1,
+    2,
+    2,
+    2,
+    2,
+    1
+   ]
+  },
+  "run": {
+   "fps": 15,
+   "loop": true,
+   "frames": [
+    3,
+    4,
+    5,
+    6,
+    7,
+    8
+   ]
+  },
+  "attack": {
+   "fps": 12,
+   "loop": false,
+   "frames": [
+    9,
+    10,
+    11
+   ]
+  },
+  "die": {
+   "fps": 10,
+   "loop": false,
+   "frames": [
+    12
+   ]
+  }
+ },
  "tengu": {
   "idle": {
    "fps": 2,
@@ -1242,6 +1472,53 @@
     11,
     12,
     11
+   ]
+  }
+ },
+ "yog": {
+  "idle": {
+   "fps": 10,
+   "loop": true,
+   "frames": [
+    0,
+    1,
+    2,
+    2,
+    1,
+    0,
+    3,
+    4,
+    4,
+    3,
+    0,
+    5,
+    6,
+    6,
+    5
+   ]
+  },
+  "run": {
+   "fps": 12,
+   "loop": true,
+   "frames": [
+    0
+   ]
+  },
+  "attack": {
+   "fps": 12,
+   "loop": false,
+   "frames": [
+    0
+   ]
+  },
+  "die": {
+   "fps": 10,
+   "loop": false,
+   "frames": [
+    0,
+    7,
+    8,
+    9
    ]
   }
  }

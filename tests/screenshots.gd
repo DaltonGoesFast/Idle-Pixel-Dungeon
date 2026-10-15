@@ -80,6 +80,16 @@ func _ready() -> void:
 		plan.append([sz, "dking", func():
 			main.start_combat({"kind": "combat", "boss": true, "room": DB.boss_rooms[3], "mobs": ["dking"]}, func(_r): pass)
 			for i in 5: main.screen._do_bot()])
+		plan.append([sz, "halls", func():
+			GameState.run.biome = "halls"; GameState.run.floor = 22
+			main.start_combat({"kind": "combat", "room": DB.biome_rooms.halls[1], "mobs": ["succubus", "eye", "ripper"]}, func(_r): pass)
+			main.screen.combat.hero.ht = 120; main.screen.combat.hero.hp = 120
+			for i in 3: main.screen._do_bot()])
+		plan.append([sz, "yog", func():
+			GameState.run.biome = "halls"; GameState.run.floor = 25
+			main.start_combat({"kind": "combat", "boss": true, "room": DB.boss_rooms[DB.biomes.halls.boss_room], "mobs": ["yog"]}, func(_r): pass)
+			main.screen.combat.hero.ht = 120; main.screen.combat.hero.hp = 120
+			for i in 6: main.screen._do_bot()])
 		plan.append([sz, "boss", func():
 			GameState.run.biome = "sewers"
 			main.start_combat({"kind": "combat", "boss": true, "room": DB.boss_rooms[0], "mobs": ["goo"]}, func(_r): pass)

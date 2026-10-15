@@ -25,6 +25,7 @@ func _ready() -> void:
 	test_fullrun(gs)
 	test_cavesrun(gs)
 	test_city(gs)
+	test_halls(gs)
 	test_render(gs)
 	test_delve(gs)
 	test_camp(gs)
@@ -650,3 +651,40 @@ func test_render(gs) -> void:
 	check(gv.anims.has("rat") and gv.anims.rat.has("die"), "SPD sprite animations loaded")
 	check(gv._frame("rat", "attack", 0.0) == 2, "rat attack anim starts on SPD frame 2")
 	gv.free()
+
+func test_halls(gs) -> void:
+	print("[halls] Lv18 Warrior, Str 18, Greatsword+2 / Plate+2 (tier 5) vs every Halls fight")
+	gs.new_game()
+	var w: Dictionary = gs.heroes.warrior
+	w.level = 18; w.str = 18; w.weapon = gs.add_gear("greatsword", true, 2); w.armor = gs.add_gear("plate_armor", true, 2)
+	var hs := warrior(gs)
+	var b: Dictionary = DB.biomes.halls
+	check(DB.biomes.city.next == "halls" and b.boss == "yog", "Demon Halls follow the City, Yog-Dzewa is the boss")
+	var wins := 0; var total := 0; var worst := 999
+	for set in b.encounter_sets:
+		for room in DB.rooms + DB.biome_rooms.halls:
+			var c := Combat.new(); c.setup(room, hs, hs.ht, set.mobs, false, b.traps)
+			var r := CombatBot.play(c)
+			total += 1
+			if r.won: wins += 1; worst = mini(worst, r.hp)
+	print("  warrior Lv18: %d/%d wins, lowest end HP %d/%d" % [wins, total, worst, hs.ht])
+	check(wins >= total * 0.85, "Lv18 tier-5 Warrior wins >= 85% of Halls fights")
+	var yw := 0
+	for seed in 4:
+		var yc := Combat.new(); seed(900 + seed); yc.setup(DB.boss_rooms[b.boss_room], hs, hs.ht, ["yog"], false, b.traps)
+		var yr := CombatBot.play(yc, 3, gs.potion_heal("warrior"))
+		if yr.won: yw += 1
+		if seed == 0: print("  Yog-Dzewa vs Lv18 Warrior + 3 potions: won=%s hp=%d turns=%d yog=%d" % [yr.won, yr.hp, yr.turns, yc.units.filter(func(u): return u.get("boss", false))[0].hp])
+	print("  Yog wins %d/4" % yw)
+	check(yw >= 2, "Yog-Dzewa is beatable by a Lv18 tier-5 Warrior with 3 potions (>= 2/4)")
+	var d := Combat.new(); d.setup(DB.boss_rooms[b.boss_room], hs, 999, ["yog"])
+	var y = d.enemies()[0]; var start: Vector2i = y.pos
+	var hatched := false; var gazed := false
+	for i in 14:
+		d.hero_wait()
+		if d.danger.any(func(z): return z.get("src", "") == "Larva hatching"): hatched = true
+		if d.danger.any(func(z): return z.get("src", "") == "Yog's gaze"): gazed = true
+	check(hatched and gazed, "Yog telegraphs larva and its gaze beam")
+	check(y.pos == start, "Yog-Dzewa never moves")
+	y.hp = 1; d.hit_mob(y, 999, false, true)
+	check(d.over and d.won, "larva die with Yog")
