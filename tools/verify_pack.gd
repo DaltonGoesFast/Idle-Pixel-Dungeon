@@ -6,7 +6,7 @@ func _init() -> void:
 	var fails := 0
 	# every texture the game references through data (mob/hero sprites, biome tilesets, trap sheet)
 	var tex := ["res://assets/sprites/items.png", "res://assets/tiles/terrain_features.png",
-		"res://assets/ui/chrome.png", "res://assets/ui/talent_icons.png", "res://assets/ui/icons.png"]
+		"res://assets/ui/chrome.png", "res://assets/tiles/water0.png", "res://assets/tiles/water1.png", "res://assets/tiles/water2.png", "res://assets/ui/talent_icons.png", "res://assets/ui/icons.png"]
 	for d in ["mobs", "heroes"]:
 		var j: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://data/%s.json" % d))
 		for k in j:

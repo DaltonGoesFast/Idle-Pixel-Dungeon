@@ -45,7 +45,10 @@ func _ready() -> void:
 	split = BoxContainer.new(); add_child(split); split.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
 	split.add_theme_constant_override("separation", 12)
 	grid = GridView.new(); grid.tapped.connect(_on_cell)
-	if not GameState.run.is_empty(): grid.tileset = DB.biomes[GameState.run.biome].tile
+	if not GameState.run.is_empty():
+		grid.tileset = DB.biomes[GameState.run.biome].tile
+		grid.water_name = DB.biomes[GameState.run.biome].get("water", "water0")
+		grid.lighting = bool(GameState.settings.get("lighting", true))
 	split.add_child(grid)
 	grid.set_combat(combat)
 	side = UIKit.vbox(split); side.size_flags_horizontal = SIZE_EXPAND_FILL; side.size_flags_vertical = SIZE_EXPAND_FILL

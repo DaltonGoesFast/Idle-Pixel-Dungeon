@@ -20,7 +20,7 @@ var id_queue: Array = []           # [{uid, ready_at}]
 var boss_kills: Dictionary = {}    # class -> [biome ids]  (first kill per class drops a Scroll of Upgrade)
 ## text_scale multiplies the UI font size; haptics = vibrate on hits/traps (Android); dev_tools shows the Developer section.
 var settings := {"sfx": 0.8, "music": 0.5, "haptics": true, "text_scale": 1.0, "dev_tools": false, "tutorial": true,
-	"delve_speed": 1.0}
+	"delve_speed": 1.0, "lighting": true}
 const STATS_DEFAULT := {"potions_brewed": 0, "deepest_floor": 0, "runs": 0, "deaths": 0, "extractions": 0, "kills": 0,
 	"traps_found": 0, "hidden_doors": 0, "goo_kills": 0, "tengu_kills": 0}
 var stats := STATS_DEFAULT.duplicate()

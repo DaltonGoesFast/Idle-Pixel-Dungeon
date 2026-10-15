@@ -109,7 +109,8 @@
    "sewers_1",
    "sewers_2",
    "sewers_3"
-  ]
+  ],
+  "water": "water0"
  },
  "prison": {
   "name": "Prison",
@@ -225,7 +226,8 @@
    "prison_1",
    "prison_2"
   ],
-  "next": "caves"
+  "next": "caves",
+  "water": "water1"
  },
  "caves": {
   "name": "Caves",
@@ -340,6 +342,7 @@
      "brute"
     ]
    }
-  ]
+  ],
+  "water": "water2"
  }
 }

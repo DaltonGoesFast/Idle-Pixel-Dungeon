@@ -7,7 +7,8 @@
 - [x] Tengu's Mask + 2 subclasses per class (v0.10.0); Rogue Caves 0 -> 7-8/10.
 - [x] Warlock rework + Mage Caves help (v0.12.0).
 - [x] SPD UI theme (chrome.png, pixel font), talents, in-delve backpack (v0.13.0).
-- [ ] Visuals pass: SPD lighting/fog of war tied to torch, animated water, grass, particles.
+- [x] Visuals pass: lighting/fog tied to torch, animated water, grass sway, particles (v0.14.0).
+- [ ] On-device perf check on the Fold 6 (lighting draws ~650 rects/frame).
 - [ ] Dwarf City floors 16-20 + Dwarf King.
 - [ ] Talent icons (talent_icons.png), toolbar/status pane art.
 - [ ] Rogue without subclass still 0/10 in the Caves (subclass is the intended fix).

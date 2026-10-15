@@ -23,12 +23,19 @@ var blasts := []        # [{pos, t}]
 var hint_cell := Vector2i(-1, -1)
 var mode := ""
 var lunge := {}         # uid -> {dir: Vector2, t}
+var water: Texture2D        # SPD environment/waterN.png, scrolled (DECISIONS #68)
+var water_name := "water0"
+var parts := []         # particles [{p: Vector2 cell space, v, t, life, c: Color, s: px}]
+var lighting := true    # SPD-style light radius / fog; tests can turn it off
+var _rng := RandomNumberGenerator.new()
 
 func _ready() -> void:
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	tiles = load("res://assets/tiles/%s.png" % tileset)
 	features = load("res://assets/tiles/terrain_features.png")
+	water = load("res://assets/tiles/%s.png" % water_name)
+	texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
 	resized.connect(queue_redraw)
 
 func sprite(name: String) -> Texture2D:
@@ -56,6 +63,11 @@ func play_events(evs: Array) -> void:
 					"magic": col = Color("c08bff")
 					"poison": col = Color("8be04e")
 				floaters.append({"pos": Vector2(e.pos), "text": txt, "color": col, "t": 0.0})
+				match e.kind:
+					"hp", "surprise": _burst(Vector2(e.pos), Color("b01818"), 7 if e.kind == "hp" else 11)   # blood
+					"chip", "block", "barrier": _burst(Vector2(e.pos), Color("ffe08a"), 5, 2.2)          # sparks
+					"magic": _burst(Vector2(e.pos), Color("c08bff"), 6)
+					"poison": _burst(Vector2(e.pos), Color("8be04e"), 4, 0.6)
 				Sfx.play("hit_strong" if e.kind == "surprise" else ("hit_magic" if e.kind == "magic" else "hit"), 1.0)
 				if e.uid == combat.hero.uid and int(e.amount) > 0: Sfx.buzz(60 if e.kind == "hp" else 25)
 			"heal":
@@ -70,6 +82,7 @@ func play_events(evs: Array) -> void:
 			"shock": blasts.append({"pos": Vector2(e.pos), "t": 0.0, "shock": true})
 			"burn": blasts.append({"pos": Vector2(e.pos), "t": 0.0, "fire": true}); Sfx.play("burning")
 			"move":
+				if combat.tile(Vector2i(e.to)) == Combat.T.WATER: _burst(Vector2(e.to), Color("7fb8ff"), 6, 1.2, 0.35)  # splash
 				if e.get("blink", false): disp[e.uid] = Vector2(e.to)  # teleports snap, no slide
 				elif e.uid == combat.hero.uid: Sfx.play("step", 1.1)
 			"trap": blasts.append({"pos": Vector2(e.pos), "t": 0.0, "trap": true}); Sfx.buzz(80)
@@ -102,7 +115,25 @@ func _process(d: float) -> void:
 	blasts = blasts.filter(func(b): return b.t < 0.35)
 	for r in rings: r.t += d
 	rings = rings.filter(func(r): return r.t < 0.5)
+	for q in parts:
+		q.t += d; q.p += q.v * d; q.v.y += 3.0 * d   # light gravity (cells/s^2)
+	parts = parts.filter(func(q): return q.t < q.life)
 	queue_redraw()
+
+## Particles in cell space: n pixels flung from the centre of cell p.
+func _burst(p: Vector2, c: Color, n: int, speed := 1.6, up := 0.0) -> void:
+	if parts.size() > 160: return   # perf cap
+	for i in n:
+		var a := _rng.randf() * TAU
+		var v := Vector2(cos(a), sin(a)) * speed * (0.4 + _rng.randf() * 0.6) + Vector2(0, -up - 0.6)
+		parts.append({"p": p + Vector2(0.5, 0.5), "v": v, "t": 0.0, "life": 0.35 + _rng.randf() * 0.25, "c": c, "s": 1 + _rng.randi() % 2})
+
+## Light radius in cells: SPD-like torchlight that shrinks as the torch burns down; darkness = tiny radius.
+func light_radius() -> float:
+	var run: Dictionary = GameState.run
+	if run.is_empty(): return 99.0
+	if Delve.darkness(run): return 1.8
+	return lerpf(3.2, 6.5, clampf(float(run.get("torch", 100.0)) / 100.0, 0.0, 1.0))
 
 func cell_size() -> float:
 	var raw := floorf(minf(size.x, size.y) / Combat.SIZE)
@@ -125,9 +156,16 @@ func _draw() -> void:
 			var t: int = combat.terrain[y][x]
 			var r := cell_rect(Vector2(x, y))
 			if t == Combat.T.GRASS or t == Combat.T.DOOR: _tile(r, 0)
-			_tile(r, TILE_IDX[t])
+			if t == Combat.T.WATER:
+				# SPD water: the 32px texture scrolls slowly (like SPD's water shader offset)
+				var off := Vector2(anim_t * 3.0, anim_t * 1.5)
+				draw_texture_rect_region(water, r, Rect2(Vector2(x * 16, y * 16) + off, Vector2(16, 16)))
+			elif t == Combat.T.GRASS:
+				# tall grass sways a pixel or two
+				var sway := roundf(sin(anim_t * 1.7 + x * 0.9 + y * 0.5) * 1.2) * (cs / 16.0)
+				_tile(Rect2(r.position + Vector2(sway, 0), r.size), TILE_IDX[t])
+			else: _tile(r, TILE_IDX[t])
 			if t == Combat.T.CHASM: draw_rect(r, Color(0, 0, 0, 0.6))
-			if t == Combat.T.WATER: draw_rect(r, Color(0.25, 0.45, 0.8, 0.45 + 0.05 * sin(anim_t * 2.0 + x + y)))
 	# revealed traps (SPD sprite); hidden ones are drawn as plain floor
 	for k in combat.traps:
 		if not combat.traps[k].hidden:
@@ -154,6 +192,26 @@ func _draw() -> void:
 		draw_rect(cell_rect(Vector2(dz.pos)).grow(-1), Color(1, 0.2, 0.2, 0.9), false, 2.0)
 	if hint_cell.x >= 0:
 		draw_rect(cell_rect(Vector2(hint_cell)).grow(-3), Color(0.4, 1, 0.5, 0.5 + 0.3 * sin(anim_t * 6)), false, 4.0)
+	# lighting: fog on tiles the hero can't see, then the torch radius (units stay readable, dimmed)
+	var hero_disp: Vector2 = disp.get(combat.hero.uid, Vector2(combat.hero.pos))
+	var lr := light_radius() if lighting else 99.0
+	if lighting and lr < 50.0:
+		for y in Combat.SIZE:
+			for x in Combat.SIZE:
+				var c := Vector2i(x, y)
+				if combat.tile(c) != Combat.T.WALL and not combat.line_clear(combat.hero.pos, c):
+					draw_rect(cell_rect(Vector2(c)), Color(0, 0, 0, 0.35))
+		var ctr := cell_rect(hero_disp).get_center()
+		# soft torchlight: 3x3 sub-cells per tile, darkness grows past 55% of the light radius
+		var sub := cs / 3.0
+		for yy in Combat.SIZE * 3:
+			for xx in Combat.SIZE * 3:
+				var rr := Rect2(origin() + Vector2(xx, yy) * sub, Vector2(sub, sub))
+				var dist := rr.get_center().distance_to(ctr) / cs
+				var k := clampf((dist - lr * 0.55) / (lr * 0.45), 0.0, 1.0)
+				if k > 0.0: draw_rect(rr, Color(0, 0, 0, 0.85 * k))
+		# warm hero glow (SPD torchlight tint)
+		draw_circle(ctr, cs * 0.9, Color(1.0, 0.75, 0.35, 0.08 + 0.02 * sin(anim_t * 5.0)))
 	# units
 	var scale := floorf(cs / 16.0) if cs >= 16.0 else cs / 16.0
 	for u in combat.units:
@@ -169,6 +227,7 @@ func _draw() -> void:
 		if flash.has(u.uid): mod = Color(4, 4, 4)
 		if u.get("charging", false): mod = Color(1.6, 0.6, 0.6)
 		if u.has("hero") and combat.hidden(): mod.a = 0.45
+		if not u.has("hero") and lighting and p.distance_to(hero_disp) > lr: mod = mod * Color(0.55, 0.55, 0.6)   # in the dark: dimmed, still readable
 		draw_texture_rect_region(sprite(u.sprite), Rect2(pos, sz), src, mod)
 		var bw := (cs - 4) * clampf(float(u.hp) / float(u.ht), 0, 1)
 		var bh := maxf(3, floorf(cs * 0.06))
@@ -177,6 +236,10 @@ func _draw() -> void:
 		if u.has("hero") and int(u.barrier) > 0:
 			var bb := (cs - 4) * clampf(float(u.barrier) / maxf(1.0, float(u.barrier_max)), 0, 1)
 			draw_rect(Rect2(r.position + Vector2(2, 1 + bh), Vector2(bb, bh)), Color("7fd3ff"))
+	for q in parts:
+		var a: float = 1.0 - float(q.t) / float(q.life)
+		var px: float = maxf(2.0, cs / 16.0) * float(q.s)
+		draw_rect(Rect2((origin() + q.p * cs).floor(), Vector2(px, px)), Color(q.c.r, q.c.g, q.c.b, a))
 	for s in streaks:
 		var a := cell_rect(s.from).get_center(); var b := cell_rect(s.to).get_center()
 		var sc := Color(0.8, 0.6, 1.0) if s.get("magic", true) else Color(0.9, 0.9, 0.7)

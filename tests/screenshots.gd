@@ -13,6 +13,7 @@ func _ready() -> void:
 	SaveSystem.autosave = false; SaveSystem.path = "user://shots.json"
 	GameState.new_game()
 	GameState.settings.tutorial = false
+	GameState.settings.lighting = not OS.has_environment("NOLIGHT")
 	GameState.add_mat("iron_ore", 20); GameState.add_mat("gold", 200)
 	main = load("res://scenes/main.tscn").instantiate(); add_child(main)
 	for sz in SIZES:

@@ -23,6 +23,10 @@ static func build(v: VBoxContainer, show_dev := true) -> void:
 	v.add_child(UIKit.button("Haptics: %s" % ("ON" if hap else "OFF"), func():
 		GameState.set_setting("haptics", not hap); Sfx.buzz(50); SaveSystem.save_game(); GameState.touch()))
 	v.add_child(UIKit.label("Vibrates when you take damage, trigger a trap, or an enemy telegraphs an attack (phones only).", 0.75, Color("9a8f7c")))
+	var li: bool = GameState.settings.get("lighting", true)
+	v.add_child(UIKit.button("Lighting & fog: %s" % ("ON" if li else "OFF"), func():
+		GameState.set_setting("lighting", not li); SaveSystem.save_game(); GameState.touch()))
+	v.add_child(UIKit.label("SPD-style torchlight in fights: the light shrinks as your torch burns down. Turn off for full brightness.", 0.75, Color("9a8f7c")))
 	v.add_child(UIKit.header("Delve speed"))
 	var sf := HFlowContainer.new(); v.add_child(sf)
 	for t in DELVE_SPEEDS:

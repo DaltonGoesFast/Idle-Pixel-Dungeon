@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.14.0 — 2026-10-15
+- **SPD-style lighting in fights**: torchlight around the hero that shrinks as the torch burns down (radius 6.5 -> 3.2 tiles, 1.8 in darkness), a soft falloff, a warm flickering hero glow, and fog over tiles out of line of sight. Enemies outside the light are dimmed but stay readable. Settings -> "Lighting & fog" turns it off.
+- **Animated water**: SPD's own water textures (sewers/prison/caves) scroll slowly under the water tiles.
+- **Tall grass sways** a pixel or two.
+- **Particles**: blood on HP hits (more on surprise), sparks on blocked/Barrier hits, purple motes on magic, green on poison, splashes when stepping into water. Capped at 160 live particles.
+
 ## v0.13.0 — 2026-10-15
 - **SPD look**: the UI now uses Shattered Pixel Dungeon's own `chrome.png` 9-patches (window frames, red/grey buttons, tabs, toast frames) and SPD's pixel font, scaled by whole pixels for the Fold cover/inner screens.
 - **Talents** (data/talents.json): 2 tiers x 4 SPD-named talents per class. Tier 1 points at Lv3 and Lv5, tier 2 at Lv9 and Lv12 (pick 2 of 4 per tier). Learn them on the Camp Heroes page or mid-delve; a level-up during a delve opens the Talents card. Talents reset with the level on death.
