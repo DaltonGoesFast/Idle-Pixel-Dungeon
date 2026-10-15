@@ -113,12 +113,15 @@ func _ready() -> void:
 			main.delve.pending = {}; main.delve.running = true; main.delve._show_card()
 			main.delve.scene.scroll = main.delve.scene.target - 0.6; main.delve.scene.pops.append({"idx": DB.icon_index("gold"), "age": 0.2, "n": 3}); main.delve.scene.glow = 0.8])
 		plan.append([sz, "delve_enemy", func():
+			_clear_pops()
 			main.delve.running = false
 			main.delve.pending = Delve.combat_event(GameState.run, Delve.rng_for(GameState.run, 4), ["gnoll", "rat"]); main.delve._show_card()])
 		plan.append([sz, "delve_special", func():
+			_clear_pops()
 			main.delve.running = false
 			main.delve.pending = {"kind": "special", "special": DB.specials[0]}; main.delve._show_card()])
 		plan.append([sz, "delve_auto", func():
+			_clear_pops()
 			main.delve.pending = {}; GameState.settings.full_auto = true
 			GameState.log_line("Auto: fight Marsupial Rat", "auto"); GameState.log_line("Victory: 2 kills, took 3 damage, +5 gold, +2 xp.", "positive")
 			GameState.log_line("Warning: your torch is burning low.", "warning"); GameState.log_line("You descend to floor 2.", "highlight")
@@ -216,6 +219,10 @@ func _process(_d: float) -> void:
 		if main.screen.get("grid") != null: print("GRID ", step[1], " ", main.screen.grid.size, " cs=", main.screen.grid.cell_size(), " win=", get_viewport().get_visible_rect().size)
 		if false: print("box ", main.screen.root_box.size, " title ", main.screen.root_box.get_child(0).size, " tabs ", main.screen.tabs.size, " anchors ", main.screen.root_box.anchor_right, " off ", main.screen.root_box.offset_right)
 
+
+## The staged "+3 gold" pop of delve_walk lives 1.1 s, longer than the next shots take, so clear it (DECISIONS #113).
+func _clear_pops() -> void:
+	if main.delve != null and main.delve.scene != null: main.delve.scene.pops.clear(); main.delve.scene.glow = 0.0
 
 ## Delve shots always start from a clean Warrior run on Sewers 1 (no state leaking from boss/biome shots).
 func _fresh_warrior_run() -> void:

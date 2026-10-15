@@ -1,5 +1,7 @@
 # Changelog
 
+## Unreleased
+- Screenshots: the staged gold pickup pop no longer leaks from delve_walk into the enemy/room/auto shots.
 
 ## 0.26.0
 - Identified rings, potions, and scrolls show SPD's small type glyph from item_icons.png in the top-right of the slot. The blue shield is Ring of Tenacity and Potion of Shielding.
