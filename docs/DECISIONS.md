@@ -327,3 +327,6 @@ The "+3" gold pop in delve_enemy / delve_special / delve_auto shots was not a ga
 
 ## 114. Facility header: level / max, cap never below level
 The Guild header read "Lv 2 / 1" beside a "capped" Upgrade button: the header printed the Scroll-of-Upgrade `cap` (not the facility max), and nothing kept `cap >= level` (the screenshot harness, debug edits or an old save can set a level without the cap). `GameState.facility_cap(id)` = clamp(max(cap, level), 1, max) is used by can_upgrade_facility, apply_sou and on load; the header shows "Lv level / max" and adds "(cap N)" only while the cap is what blocks the next level. test_facility_cap covers the reported state.
+
+## 117. Old in-progress runs load
+A run saved before the backpack existed (no `pack_gear`) threw a script error in _fix_types (`run.pack_gear + run.overflow`), which aborted the rest of type fixing and left the run unplayable. `RUN_DEFAULTS` lists every key start_run creates; on load any missing run key gets its start value before types are fixed. test_old_run_load loads a pre-backpack run, advances and extracts it.

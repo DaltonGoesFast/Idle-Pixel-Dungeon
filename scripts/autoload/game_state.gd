@@ -1081,6 +1081,10 @@ func _fix_gear(g: Dictionary) -> void:
 	if not g.has("cracked"): g.cracked = false
 	if LEGACY_IDS.has(g.id): g.id = LEGACY_IDS[g.id]
 
+## Every key start_run creates, with its start value (for loading runs saved by older versions).
+const RUN_DEFAULTS := {"biome": "sewers", "floor": 1, "progress": 0.0, "torch": 100.0, "satiety": 100.0, "hp": 1, "pack": {}, "pack_gear": [],
+	"supplies": {}, "seed": 0, "events": [], "next_event": 0, "gather": 0, "starve": 0, "milestones_done": [], "pending_loot": 0, "boss_dead": false}
+
 ## JSON turns every number into float; normalise ints we compare/use as keys.
 func _fix_types() -> void:
 	next_uid = int(next_uid)
@@ -1095,6 +1099,9 @@ func _fix_types() -> void:
 		if DB.facilities.has(f): facilities[f].cap = facility_cap(f)
 	for q in id_queue: q.uid = int(q.uid)
 	if not run.is_empty():
+		# runs saved before a field existed (backpack #67, milestones, boss flag...) get its start value (DECISIONS #117)
+		for k in RUN_DEFAULTS:
+			if not run.has(k): run[k] = RUN_DEFAULTS[k].duplicate(true) if RUN_DEFAULTS[k] is Array or RUN_DEFAULTS[k] is Dictionary else RUN_DEFAULTS[k]
 		for k in ["floor", "next_event", "gather", "starve", "seed", "hp", "pending_loot"]: run[k] = int(run.get(k, 0))
 		if DB.biomes.has(run.get("biome", "")):   # a save can never show "Floor 25 / 5": keep floor inside its biome
 			var fr: Array = DB.biomes[run.biome].floors; run.floor = clampi(int(run.floor), int(fr[0]), int(fr[1]))

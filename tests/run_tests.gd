@@ -35,6 +35,7 @@ func _ready() -> void:
 	test_armor_tiers(gs)
 	test_floor_label(gs)
 	test_total_wipe(gs)
+	test_old_run_load(gs)
 	test_goo_spiral(gs)
 	test_food_sources(gs)
 	test_facility_cap(gs)
@@ -1633,3 +1634,19 @@ func test_facility_cap(gs) -> void:
 	check(cs.open_name == "Heroes", "tapping the selected hero again opens Heroes")
 	m_slot.free(); m_slot2.free(); cs.queue_free()
 
+
+## DECISIONS #117: a run saved before the backpack (or other run fields) loads and plays on.
+func test_old_run_load(gs) -> void:
+	print("[old run load]")
+	gs.new_game()
+	var st := {"mats": {"gold": 5.0}, "run": {"hero": "warrior", "biome": "sewers", "floor": 2.0, "hp": 10.0, "pack": {"gold": 4.0}, "supplies": {"ration": 1.0}, "progress": 10.0, "torch": 50.0, "satiety": 50.0, "seed": 3.0}}
+	gs.from_dict(JSON.parse_string(JSON.stringify(st)))
+	check(not gs.run.is_empty() and gs.run.has("pack_gear") and gs.run.pack_gear is Array, "old run gets an empty backpack")
+	check(gs.run.has("milestones_done") and gs.run.has("boss_dead") and int(gs.run.floor) == 2 and int(gs.run.hp) == 10, "missing run fields filled, saved ones kept")
+	var ev: Dictionary = {}
+	for i in 30:
+		ev = Delve.advance(gs, 2.0)
+		if not ev.is_empty(): break
+	check(gs.backpack_used() == 0 and not gs.run.is_empty(), "the loaded run keeps going")
+	gs.end_run("extract")
+	check(gs.mat("gold") >= 9, "and extracts its pack (%d gold)" % gs.mat("gold"))
