@@ -19,3 +19,5 @@ Tips:
 Screenshots: `SHOTS=caves,dm300` (comma list of step names) renders only those steps; long full runs on software GL can drop textures in later shots (DECISIONS #60).
 
 `[talents]` and `[backpack]` cover tier points, picks, mid-delve HP, death reset, equip/unequip/drop, owned items, overflow, potions outside fights and the in-combat swap. tools/build.sh fails on any "SCRIPT ERROR" in either suite.
+
+`tests/run_tests.gd [export presets]` parses `export_presets.cfg`: Android, Linux, Windows Desktop and iOS presets exist, iOS short_version / version / bundle id match Android version/name / version/code / package (and project.godot), Android and iOS exclude `tests/`, and the iOS extra plist text never repeats a key from Godot's iOS Info.plist template (DECISIONS #136). A real export is still `tools/build.sh` (Android/Linux/Windows) or `docs/BUILD_IOS.md` (iOS).

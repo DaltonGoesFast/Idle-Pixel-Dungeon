@@ -2,7 +2,7 @@
 
 A PC or a Mac can export the Xcode project. A Mac with Xcode and the Apple Developer account signs it and uploads to TestFlight. This repo does not store certificates or the Team ID.
 
-The preset is `iOS` in `export_presets.cfg`. It matches the Android package id, version name, and version code. `application/export_project_only=true`, so the export stops at an `.xcodeproj` and does not archive or upload. Release export method is App Store. Devices are iPhone and iPad, arm64, iOS 14+. The icon is scaled with nearest-neighbor so the pixel art stays sharp. `ITSAppUsesNonExemptEncryption` is false (no custom crypto).
+The preset is `iOS` in `export_presets.cfg`. It matches the Android package id, version name, and version code. `application/export_project_only=true`, so the export stops at an `.xcodeproj` and does not archive or upload. Release export method is App Store. Devices are iPhone and iPad, arm64, iOS 14+. The icon is scaled with nearest-neighbor so the pixel art stays sharp. `ITSAppUsesNonExemptEncryption` is false (no custom crypto). Godot 4.7's iOS Info.plist template already writes that key, so `application/additional_plist_content` stays empty: anything put there is appended verbatim, and a key the template already has ends up in the plist twice (DECISIONS #136, `test_export_presets`).
 
 `application/short_version` must stay equal to `version/name` and `project.godot`'s `config/version`. `application/version` must stay equal to Android `version/code` and must go up for every TestFlight upload. `tools/build.sh` fails if those drift.
 

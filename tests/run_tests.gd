@@ -18,6 +18,7 @@ func _ready() -> void:
 	gs.new_game()
 	test_rules(gs)
 	test_status_pane_layout(gs)
+	test_export_presets()
 	test_balance(gs)
 	test_boss(gs)
 	test_traps(gs)
@@ -2069,4 +2070,38 @@ func test_status_pane_layout(_gs) -> void:
 			check(Rect2(L.level).end.x <= hp.position.x, "%s: level badge clear of the bars" % tag)
 			var isz: Vector2 = StatusPane.icon_size(Vector2(14, 14), a.size.y)
 			check(isz.y <= a.size.y and isz.y >= a.size.y * 0.5, "%s: supply icon fits the bar height" % tag)
+
+## Export presets (DECISIONS #136): the iOS preset tracks the Android version, and its extra plist text never repeats
+## a key Godot's iOS Info.plist template already writes (a duplicate key, e.g. ITSAppUsesNonExemptEncryption, is
+## ambiguous to App Store validation).
+const IOS_TEMPLATE_PLIST_KEYS := ["CFBundleIdentifier", "CFBundleShortVersionString", "CFBundleVersion",
+	"ITSAppUsesNonExemptEncryption", "LSRequiresIPhoneOS", "UIRequiresFullScreen", "UIStatusBarHidden",
+	"UISupportedInterfaceOrientations", "UIRequiredDeviceCapabilities", "CADisableMinimumFrameDurationOnPhone"]
+
+func test_export_presets() -> void:
+	print("[export presets] Android / Linux / Windows Desktop / iOS")
+	var cfg := ConfigFile.new()
+	check(cfg.load("res://export_presets.cfg") == OK, "export_presets.cfg parses")
+	var by_name := {}
+	for sec in cfg.get_sections():
+		if sec.begins_with("preset.") and not sec.ends_with(".options"):
+			by_name[str(cfg.get_value(sec, "name", ""))] = sec
+	for n in ["Android", "Linux", "Windows Desktop", "iOS"]:
+		check(by_name.has(n), "export preset %s exists" % n)
+	if not (by_name.has("Android") and by_name.has("iOS")): return
+	var a: String = by_name["Android"] + ".options"
+	var i: String = by_name["iOS"] + ".options"
+	check(str(cfg.get_value(a, "version/name", "")) == str(ProjectSettings.get_setting("application/config/version", "")),
+		"Android version/name == project.godot config/version")
+	check(str(cfg.get_value(i, "application/short_version", "")) == str(cfg.get_value(a, "version/name", "-")),
+		"iOS short_version == Android version/name")
+	check(str(cfg.get_value(i, "application/version", "")) == str(cfg.get_value(a, "version/code", "-")),
+		"iOS version == Android version/code")
+	check(str(cfg.get_value(i, "application/bundle_identifier", "")) == str(cfg.get_value(a, "package/unique_name", "-")),
+		"iOS bundle id == Android package")
+	var extra := str(cfg.get_value(i, "application/additional_plist_content", ""))
+	for k in IOS_TEMPLATE_PLIST_KEYS:
+		check(not extra.contains("<key>%s</key>" % k), "iOS additional plist does not repeat template key " + k)
+	for sec in [by_name["Android"], by_name["iOS"]]:
+		check(str(cfg.get_value(sec, "exclude_filter", "")).contains("tests/*"), sec + " excludes tests/")
 

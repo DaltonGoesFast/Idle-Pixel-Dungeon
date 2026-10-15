@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- iOS export: Info.plist no longer lists `ITSAppUsesNonExemptEncryption` twice (Godot's template already sets it to false; the preset's extra plist text repeated it). New export preset test checks the presets parse, iOS tracks the Android version/code/package, and the extra plist text never repeats a template key.
 
 ## 0.29.0
 - In-game Update on Android and Windows: Camp / Settings checks GitHub releases, downloads the APK or zip, and on Android opens the system Install screen. iOS stays on TestFlight; `tools/upload_testflight.sh` archives and uploads on a Mac. Android export uses Gradle so the updater can request install permission (+tests).
