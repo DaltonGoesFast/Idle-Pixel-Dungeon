@@ -327,3 +327,6 @@ The "+3" gold pop in delve_enemy / delve_special / delve_auto shots was not a ga
 
 ## 114. Facility header: level / max, cap never below level
 The Guild header read "Lv 2 / 1" beside a "capped" Upgrade button: the header printed the Scroll-of-Upgrade `cap` (not the facility max), and nothing kept `cap >= level` (the screenshot harness, debug edits or an old save can set a level without the cap). `GameState.facility_cap(id)` = clamp(max(cap, level), 1, max) is used by can_upgrade_facility, apply_sou and on load; the header shows "Lv level / max" and adds "(cap N)" only while the cap is what blocks the next level. test_facility_cap covers the reported state.
+
+## 121. Rogue: SPD cloak charges
+Deep campaign sims had the Rogue dying 26 times in 120 expeditions (Warrior 8, Mage 7, Huntress 9), most of it at Goo, with Sewers-only progress on one seed. SPD's Cloak of Shadows has chargeCap = min(level + 3, 10), i.e. 3 at +0; ours had 2. Cloak charges are now 3 per fight (data/heroes.json). Rogue deaths in the same sim: 26 -> 6 (40 runs x 3 seeds), 7 -> 3 (12 x 3). test_rogue_cloak.

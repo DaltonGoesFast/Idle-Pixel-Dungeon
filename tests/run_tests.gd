@@ -35,6 +35,7 @@ func _ready() -> void:
 	test_armor_tiers(gs)
 	test_floor_label(gs)
 	test_total_wipe(gs)
+	test_rogue_cloak(gs)
 	test_goo_spiral(gs)
 	test_food_sources(gs)
 	test_facility_cap(gs)
@@ -1633,3 +1634,14 @@ func test_facility_cap(gs) -> void:
 	check(cs.open_name == "Heroes", "tapping the selected hero again opens Heroes")
 	m_slot.free(); m_slot2.free(); cs.queue_free()
 
+
+## DECISIONS #121: Rogue Cloak of Shadows has SPD's 3 charges at +0.
+func test_rogue_cloak(gs) -> void:
+	print("[rogue cloak]")
+	gs.new_game()
+	for cc in gs.heroes: gs.heroes[cc].unlocked = true
+	check(int(gs.hero_stats("rogue").get("cloak", {}).get("charges", 0)) == 3, "rogue cloak has 3 charges")
+	gs.start_run("rogue", {}, "sewers", 2)
+	var c = Delve.new_combat(gs, Delve.combat_event(gs.run, Delve.rng_for(gs.run, 1), ["rat"]))
+	check(int(c.hero.cloak_charges) == 3, "a fight starts with 3 cloak charges")
+	gs.end_run("abandon")

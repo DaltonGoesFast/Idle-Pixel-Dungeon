@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Rogue: Cloak of Shadows has 3 charges per fight like SPD (was 2); Rogue death rate now in line with other classes (+test).
 - Goo death spiral: Guild sells Potions of Healing (30 gold), Goo always drops one, and a death tops gold up to 30 (+test).
 - Food scaling: every boss kill adds 2 rations to the belt; Guild Lv2 sells a 3-ration crate for 25 gold (+test).
 - Ring, potion and scroll icons are centred on their real SPD size (missing item rects), and tiny sprites like rings draw one scale step larger (+test).
