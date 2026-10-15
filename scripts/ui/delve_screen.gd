@@ -243,7 +243,10 @@ func _choose_door(o: Dictionary) -> void:
 
 func _card_special() -> void:
 	var sp: Dictionary = pending.special
-	var v := _card(sp.title, sp.text)
+	var v := _card(sp.title, "")
+	var top := UIKit.hbox(v)   # special-room art + text (DECISIONS #86)
+	if sp.has("icon"): top.add_child(UIKit.icon(sp.icon, int(UIKit.font_size * 3)))
+	var tl := UIKit.label(sp.text); tl.size_flags_horizontal = SIZE_EXPAND_FILL; top.add_child(tl)
 	for o in sp.options:
 		var cost: Dictionary = o.get("cost", {})
 		var ok := cost.is_empty() or Delve.pay_possible(GameState, cost)

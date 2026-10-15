@@ -301,13 +301,24 @@ func grass_overhang(c: Vector2i) -> int:
 	return S_GRASS_OVERHANG_ALT if int(variance.get(below, 50)) < 50 else S_GRASS_OVERHANG
 
 ## SPD FogOfWar-like darkness 0..1 at a cell corner (bilinear blend between cells like SPD's fog texture).
+## Perf (DECISIONS #88): line-of-sight per cell is cached until the hero moves or the terrain changes,
+## instead of ~680 line_clear calls per frame (4 per fog corner).
+var _vis := {}
+var _vis_key := []
+func _visible(c: Vector2i) -> bool:
+	var key := [combat.hero.pos, combat.terrain.hash(), combat.units.size()]
+	if key != _vis_key:
+		_vis_key = key; _vis.clear()
+	if not _vis.has(c): _vis[c] = combat.line_clear(combat.hero.pos, c)
+	return _vis[c]
+
 func _corner_dark(cx: int, cy: int, ctr: Vector2, lr: float) -> float:
 	var acc := 0.0
 	for o in [Vector2i(-1, -1), Vector2i(0, -1), Vector2i(-1, 0), Vector2i(0, 0)]:
 		var c: Vector2i = Vector2i(cx, cy) + o
 		var dk := 0.0
 		if c.x < 0 or c.y < 0 or c.x >= Combat.SIZE or c.y >= Combat.SIZE: dk = 0.55
-		elif not _is_wall(c) and not combat.line_clear(combat.hero.pos, c): dk = 0.55   # SPD "visited" (seen, not in view)
+		elif not _is_wall(c) and not _visible(c): dk = 0.55   # SPD "visited" (seen, not in view)
 		acc += dk
 	var fog := acc / 4.0
 	var dist := Vector2(cx, cy).distance_to(ctr)
@@ -468,19 +479,20 @@ func _health_bar(u: Dictionary, top: Vector2, scale: float) -> void:
 	draw_rect(Rect2(x, y, hpw, h), Color("00ee00"))
 
 ## SPD BuffIndicator small icons (buffs.png, 8 px grid) shown above the bar.
-const BUFF_IDX := {"poison": 3, "charging": 10, "enraged": 9, "hidden": 12, "barrier": 20}
+const BUFF_IDX := {"poison": 3, "charging": 10, "enraged": 9, "hidden": 12, "barrier": 20, "shielded": 20}
 func _status_icons(u: Dictionary, top: Vector2, scale: float) -> void:
 	var list := []
 	if int(u.get("poison", 0)) > 0: list.append("poison")
 	if u.get("charging", false): list.append("charging")
 	if u.get("enraged", false): list.append("enraged")
 	if u.has("hero") and combat.hidden(): list.append("hidden")
+	if u.get("shielded", false): list.append("shielded")
 	if list.is_empty(): return
-	var s := 7.0 * maxf(1.0, scale * 0.75)
-	var x := top.x
+	var s := 7.0 * maxf(1.0, floorf(scale * 0.75))   # whole-pixel icon scale (DECISIONS #89)
+	var x := floorf(top.x)
 	for k in list:
 		var i: int = BUFF_IDX[k]
-		draw_texture_rect_region(buff_icons, Rect2(x, top.y - maxf(2.0, scale) * 3.0 - s, s, s), Rect2((i % 18) * 7, (i / 18) * 7, 7, 7))
+		draw_texture_rect_region(buff_icons, Rect2(x, floorf(top.y - maxf(2.0, scale) * 3.0 - s), s, s), Rect2((i % 18) * 7, (i / 18) * 7, 7, 7))
 		x += s + scale
 
 

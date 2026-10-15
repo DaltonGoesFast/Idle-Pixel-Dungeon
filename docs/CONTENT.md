@@ -55,6 +55,14 @@ Assets used (all from Shattered Pixel Dungeon, GPL-3.0): hero sprites (warrior, 
 | cell_block | caves, prison, city, halls | Locked Cell | Unlock (1 Iron Key) / Pry the bars (-6 HP) / Leave |
 | armory | caves, prison, city, halls | Guard Armory | Scavenge / Leave |
 | crystal_vein | caves, city, halls | Crystal Vein | Mine it (-12 torch) / Pry a chunk loose (-6 HP) / Leave |
+| vault | sewers, prison, caves, city, halls | Crystal Vault | Take the ring / Take the potion / Take the gold |
+| library | prison, caves, city, halls | Ancient Library | Search the shelves (-8 torch) / Gather arcane dust |
+| well_health | sewers, prison, caves, city, halls | Well of Health | Drink deeply / Leave |
+| well_awareness | sewers, prison, caves, city, halls | Well of Awareness | Drink / Leave |
+| laboratory | prison, caves, city, halls | Alchemy Laboratory | Search the bench / Leave |
+| treasury | sewers, prison, caves, city, halls | Collapsed Treasury | Dig it out (-10 torch) / Grab what you can |
+| shrine | city, halls | Forgotten Shrine | Offer blood (-12 HP) / Leave |
+| larder | sewers, prison, caves, city, halls | Larder | Eat your fill / Pack rations |
 
 ### Arenas
 

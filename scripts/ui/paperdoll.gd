@@ -33,9 +33,7 @@ static func build(parent: Control, c: String, wide: bool, mode: String, refresh:
 	for s in LEFT: lc.add_child(_slot(c, s, mode, refresh))
 	var slot_px := UIKit.font_size * 3.0
 	var k := maxf(3.0, floorf((slot_px * 3.0 + UIKit.font_size * 0.8) / 15.0 / 1.15))
-	var hero := TextureRect.new(); hero.texture = hero_tex(c); hero.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	hero.custom_minimum_size = Vector2(12, 15) * k; hero.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	hero.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED; hero.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	var hero := UIKit.pixel(hero_tex(c), int(k)); hero.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	var plinth := PanelContainer.new(); plinth.add_theme_stylebox_override("panel", UIKit.chrome("grey_button", Color(0.55, 0.55, 0.55), UIKit.font_size * 0.3))
 	plinth.add_child(hero); plinth.size_flags_vertical = Control.SIZE_SHRINK_CENTER; row.add_child(plinth)
 	var rc := UIKit.vbox(); row.add_child(rc)

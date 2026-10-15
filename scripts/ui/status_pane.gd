@@ -85,7 +85,7 @@ func _draw() -> void:
 	var tfs := _fit_fs(14 * k)
 	var name: String = d.get("name", "")
 	_text(font, Vector2(x0, floorf(13 * k)), name, tfs, Color("ffff44"), k)
-	var bx := x0 + font.get_string_size(name, HORIZONTAL_ALIGNMENT_LEFT, -1, tfs).x + 4 * k
+	var bx := floorf(x0 + font.get_string_size(name, HORIZONTAL_ALIGNMENT_LEFT, -1, tfs).x + 4 * k)
 	var isz := 7.0 * k
 	for idx in d.get("buffs", []):
 		var i := int(idx)

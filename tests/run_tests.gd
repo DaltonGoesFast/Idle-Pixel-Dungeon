@@ -30,6 +30,8 @@ func _ready() -> void:
 	test_identify(gs)
 	test_doors_grass(gs)
 	test_paperdoll(gs)
+	test_specials(gs)
+	test_icon_centering(gs)
 	test_delve(gs)
 	test_camp(gs)
 	test_save(gs, ss)
@@ -697,14 +699,24 @@ func test_halls(gs) -> void:
 	var d := Combat.new(); d.setup(DB.boss_rooms[b.boss_room], hs, 999, ["yog"])
 	var y = d.enemies()[0]; var start: Vector2i = y.pos
 	var hatched := false; var gazed := false
+	d.hit_mob(y, 50, false, true)
+	check(y.hp == y.ht and d.enemies().any(func(e): return e.id == "fist_burning"), "phase 1: a Burning Fist shields Yog (no damage)")
+	for e in d.enemies():
+		if e.get("fist", false): d.hit_mob(e, 999, false, true)
+	d.hit_mob(y, 999, false, true)
+	check(y.hp == int(ceil(y.ht * 2 / 3.0)) and d.enemies().any(func(e): return e.id == "fist_rotting"), "phase 2 at 2/3 HP: Rotting Fist rises, damage stops at the threshold")
+	for e in d.enemies():
+		if e.get("fist", false): d.hit_mob(e, 999, false, true)
 	for i in 14:
 		d.hero_wait()
 		if d.danger.any(func(z): return z.get("src", "") == "Larva hatching"): hatched = true
 		if d.danger.any(func(z): return z.get("src", "") == "Yog's gaze"): gazed = true
 	check(hatched and gazed, "Yog telegraphs larva and its gaze beam")
 	check(y.pos == start, "Yog-Dzewa never moves")
-	y.hp = 1; d.hit_mob(y, 999, false, true)
-	check(d.over and d.won, "larva die with Yog")
+	for e in d.enemies():
+		if e.get("fist", false): d.hit_mob(e, 999, false, true)
+	y.phase = 3; y.hp = 1; d.hit_mob(y, 999, false, true)
+	check(d.over and d.won, "larva and fists die with Yog")
 	var hw := 0; var ends := []
 	for seed in 4:
 		gs.new_game()
@@ -803,3 +815,42 @@ func test_paperdoll(gs) -> void:
 	check(Paperdoll._delta_text(s0, s1)[1] > 0, "delta marks the upgrade as better")
 	Paperdoll.sel_slot = ""
 	host.free()
+
+
+func test_specials(gs) -> void:
+	print("[special rooms]")
+	gs.new_game(); gs.start_run("warrior", {}, "sewers", 3)
+	var ids: Array = DB.specials.map(func(x): return x.id)
+	for want in ["vault", "library", "well_health", "well_awareness", "laboratory", "treasury", "shrine", "larder"]:
+		check(want in ids, "special room exists: " + want)
+	gs.run.hp = 5
+	Delve.reward(gs, {"heal_pct": 100})
+	check(int(gs.run.hp) == int(gs.hero_stats("warrior").ht), "Well of Health heals fully")
+	gs.run.pack_gear.append({"uid": 999, "id": "ring_wealth", "lvl": 0, "cracked": false, "known": false})
+	gs.run.pack["potion_toxic"] = 1
+	Delve.reward(gs, {"identify_pack": 1})
+	check(gs.run.pack_gear[-1].known and gs.is_mat_known("potion_toxic"), "Well of Awareness identifies the pack")
+	var n0: int = gs.run.pack_gear.size()
+	var got := Delve.reward(gs, {"artifact": 1})
+	check(gs.run.pack_gear.size() == n0 + 1 and DB.item(gs.run.pack_gear[-1].id).type == "artifact", "Shrine gives an artifact (%s)" % got)
+	gs.run.satiety = 10.0; Delve.reward(gs, {"satiety": 100})
+	check(float(gs.run.satiety) == 100.0, "Larder refills satiety")
+	gs.end_run("abandon")
+
+
+func test_icon_centering(_gs) -> void:
+	print("[icon centring]")
+	var bad := []
+	for id in ["GOLD", "DEWDROP", "TORCH", "IRON_KEY", "RATION", "SEED_SUNGRASS" if DB.icons.has("SEED_SUNGRASS") else "ORE", "RING_HOLDER", "WEAPON_HOLDER", "ARMOR_HOLDER", "ARTIFACT_HOLDER"]:
+		var ic: PixelIcon = UIKit.icon(id, 48)
+		var tex_sz: Vector2 = ic.texture.get_size()
+		var r := PixelIcon.layout(Vector2(72, 72), tex_sz, ic.scale_k())
+		var off := (r.get_center() - Vector2(36, 36)).abs()
+		if r.position != r.position.floor() or off.x > 0.5 * ic.scale_k() + 0.01 or off.y > 0.5 * ic.scale_k() + 0.01 or ic.scale_k() != 3: bad.append(id)
+	check(bad.is_empty(), "item icons are integer-scaled and centred on their visible pixels %s" % [bad])
+	check(UIKit.item_rect(DB.icon_index("IRON_KEY")).size == Vector2(8, 14), "SPD item rects loaded (iron key 8x14)")
+	check(int(UIKit.btn_height()) % 2 == 0 and UIKit.btn_height() == floorf(UIKit.btn_height()), "button height is an even whole number")
+	for n in ["enter", "backpack_lrg", "prefs", "journal", "talent"]:
+		var t := UIKit.toolbar_icon(n)
+		if int(t.get_width()) % 2 != 0 or int(t.get_height()) % 2 != 0: bad.append(n)
+	check(bad.is_empty(), "toolbar/UI icons padded to even sizes %s" % [bad])

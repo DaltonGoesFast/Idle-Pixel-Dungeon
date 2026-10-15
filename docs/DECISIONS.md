@@ -239,3 +239,15 @@ This ports SPD's DungeonTileSheet/DungeonWallsTilemap door handling:
 - Six alchemy recipes use found potions/scrolls: Toxic Gas or Shielding (+1 seed) → 2 Healing; Experience → Starter Elixir; Teleportation → Scroll of Passage; Identify/Mapping → Arcane Resin.
   - Brewing with an unidentified ingredient identifies it. Until then the recipe reads "Brew the <appearance>" so the name doesn't spoil the ID.
 - Delve Backpack/Talents/Settings panels also take toasts inside the panel.
+
+## 86. Special rooms
+Eight SPD-style specials (vault, library, well of health/awareness, laboratory, treasury, shrine, larder) as event cards with room icons; rewards via heal_pct/satiety/identify_pack/artifact keys.
+
+## 87. Yog phases
+Yog is shielded while a fist lives. Burning Fist at start, Rotting at 2/3 HP, Bright at 1/3; damage clamps at each threshold. Larva only spawn while unshielded; fists crumble on Yog's death. Bot skips shielded targets.
+
+## 88. Perf pass
+grid_view caches LOS keyed on hero pos + terrain hash + unit count; camp_scene redraws at 15 fps only while visible.
+
+## 89. Icon centering
+All icons go through PixelIcon: trimmed via SPD assignItemRect sizes (data/item_rects.json), integer scale, floored centre in both axes. Toolbar icons padded to even sizes, button heights even. `icon_audit` screenshot + test_icon_centering guard it.

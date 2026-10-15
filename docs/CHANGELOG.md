@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.23.0
+- Special rooms (8 SPD-style), Yog fist phases, perf pass (LOS cache, camp 15 fps), icon-centering audit (PixelIcon, SPD item rects, icon_audit screenshot).
+
 
 
 

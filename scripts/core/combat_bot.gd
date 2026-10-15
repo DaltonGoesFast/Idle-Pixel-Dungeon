@@ -8,6 +8,8 @@ static func suggest(c: Combat, potions := 0, heal_amount := 10) -> Dictionary:
 	var h: Dictionary = c.hero
 	var es := c.enemies()
 	if es.is_empty(): return {"act": "wait", "why": "nothing to do"}
+	var live := es.filter(func(e): return not e.get("shielded", false))   # Yog behind a fist: hit the fist (DECISIONS #87)
+	if not live.is_empty(): es = live
 	# 1. standing on a red tile: step to a safe free tile, preferring tiles not adjacent to many enemies
 	if c.is_danger(h.pos):
 		var best = null; var best_score := -999

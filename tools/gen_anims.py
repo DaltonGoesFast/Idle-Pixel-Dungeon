@@ -2,9 +2,10 @@
 import re, json, os, glob
 SRC = "/workspace/spd/shattered-pixel-dungeon/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/sprites"
 names = [os.path.basename(p)[:-4] for p in glob.glob("assets/sprites/*.png") if not p.endswith("items.png")]
-special = {"dm100": "DM100Sprite", "dm300": "DM300Sprite", "king": "KingSprite", "warrior": "HeroSprite", "mage": "HeroSprite", "rogue": "HeroSprite", "huntress": "HeroSprite"}
+special = {"fist_burning": None, "fist_rotting": None, "fist_bright": None, "dm100": "DM100Sprite", "dm300": "DM300Sprite", "king": "KingSprite", "warrior": "HeroSprite", "mage": "HeroSprite", "rogue": "HeroSprite", "huntress": "HeroSprite"}
 out = {}
 for n in sorted(names):
+    if n in special and special[n] is None: continue
     cls = special.get(n, n[0].upper() + n[1:] + "Sprite")
     p = os.path.join(SRC, cls + ".java")
     if not os.path.exists(p): print("missing", n, cls); continue
@@ -23,5 +24,8 @@ for n in sorted(names):
     if n in ("warrior", "mage", "rogue", "huntress"):
         a["run"] = {"fps": 20, "loop": True, "frames": [2, 3, 4, 5, 6, 7]}
     out[n] = a
+# Yog's fists: one FistSprite sheet split into per-fist rows (texOffset/10), DECISIONS #87
+FIST = {"idle": {"fps": 2, "loop": True, "frames": [0, 0, 1]}, "run": {"fps": 3, "loop": True, "frames": [0, 1]}, "attack": {"fps": 8, "loop": False, "frames": [0]}, "zap": {"fps": 8, "loop": False, "frames": [0, 5, 6]}, "die": {"fps": 10, "loop": False, "frames": [0, 2, 3, 4]}}
+for n in ("fist_burning", "fist_rotting", "fist_bright"): out[n] = FIST
 json.dump(out, open("data/anims.json", "w"), indent=1)
 print(len(out), "sprites;", [k for k, v in out.items() if len(v) < 4])

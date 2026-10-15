@@ -38,9 +38,7 @@ static func _sprite(m: Dictionary) -> Control:
 	var at := AtlasTexture.new()
 	at.atlas = load("res://assets/sprites/%s.png" % m.sprite)
 	at.region = Rect2(0, 0, int(m.fw), int(m.fh))
-	var tr := TextureRect.new(); tr.texture = at
-	tr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE; tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	var s := UIKit.font_size * 3.0
-	tr.custom_minimum_size = Vector2(s, s)
+	var tr := UIKit.pixel(at, maxi(1, int(s / maxf(float(m.fw), float(m.fh)))), Vector2(s, s))
+	tr.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	return tr

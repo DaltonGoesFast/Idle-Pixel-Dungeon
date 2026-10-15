@@ -130,10 +130,8 @@ func _hero_slot(c: String) -> Control:
 	b.tooltip_text = DB.heroes[c].name + ("" if h.unlocked else " (locked): " + DB.heroes[c].get("unlock", ""))
 	b.disabled = not h.unlocked
 	b.pressed.connect(func(): chosen_hero = c; Sfx.play("click"); rebuild())
-	var tr := TextureRect.new(); tr.texture = _hero_tex(c); tr.texture_filter = TEXTURE_FILTER_NEAREST
-	tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE; tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	tr.set_anchors_and_offsets_preset(PRESET_FULL_RECT); tr.offset_left = sz * 0.12; tr.offset_right = -sz * 0.12; tr.offset_top = sz * 0.06; tr.offset_bottom = -sz * 0.24
-	tr.mouse_filter = MOUSE_FILTER_IGNORE
+	var tr := UIKit.pixel(_hero_tex(c), maxi(1, int(sz * 0.62 / 15.0)))
+	tr.set_anchors_and_offsets_preset(PRESET_FULL_RECT); tr.offset_bottom = -int(UIKit.font_size * 0.9)
 	if not h.unlocked: tr.modulate = Color(0, 0, 0, 0.75)
 	b.add_child(tr)
 	var lv := UIKit.label(("Lv%d" % h.level) if h.unlocked else "?", 0.75, Color("ffffaa"))
@@ -178,8 +176,7 @@ func _make_window(title: String, icon_name: String, close_cb: Callable, w_frac :
 	var v := UIKit.vbox(pc)
 	var tr := UIKit.hbox(v)
 	if icon_name != "":
-		var ic := TextureRect.new(); ic.texture = UIKit.spd_icon(icon_name); ic.texture_filter = TEXTURE_FILTER_NEAREST
-		ic.stretch_mode = TextureRect.STRETCH_KEEP_CENTERED; tr.add_child(ic)
+		var ic := UIKit.pixel(UIKit.spd_icon(icon_name), 1); ic.size_flags_vertical = SIZE_SHRINK_CENTER; tr.add_child(ic)
 	var tl := UIKit.header(title); tl.size_flags_horizontal = SIZE_EXPAND_FILL; tr.add_child(tl)
 	var x := UIKit.button("X", close_cb); UIKit.secondary(x); x.custom_minimum_size = Vector2.ONE * UIKit.btn_height()
 	x.size_flags_horizontal = SIZE_SHRINK_END; tr.add_child(x)
@@ -273,8 +270,7 @@ func _page_delve() -> void:
 	var v := _p("Delve")
 	var b: Dictionary = DB.biomes[chosen_biome]
 	var hd := UIKit.hbox(v)
-	var tr := TextureRect.new(); tr.texture = _hero_tex(chosen_hero); tr.texture_filter = TEXTURE_FILTER_NEAREST
-	tr.custom_minimum_size = Vector2(HERO_FRAME) * maxf(2.0, floorf(UIKit.font_size / 6.0)); tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE; tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	var tr := UIKit.pixel(_hero_tex(chosen_hero), maxi(2, int(UIKit.font_size / 6.0))); tr.size_flags_vertical = SIZE_SHRINK_CENTER
 	hd.add_child(tr)
 	var hv := UIKit.vbox(hd); hv.size_flags_horizontal = SIZE_EXPAND_FILL
 	hv.add_child(UIKit.label("%s  ->  %s" % [DB.heroes[chosen_hero].name, b.name], 1.0, Color("ffd27a")))
@@ -313,8 +309,7 @@ func _stats_card(c: String) -> Control:
 	var h: Dictionary = GameState.heroes[c]
 	var s: Dictionary = GameState.hero_stats(c)
 	var top := UIKit.hbox(v)
-	var tr := TextureRect.new(); tr.texture = _hero_tex(c); tr.texture_filter = TEXTURE_FILTER_NEAREST
-	tr.custom_minimum_size = Vector2(HERO_FRAME) * maxf(2.0, floorf(UIKit.font_size / 6.0)); tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE; tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	var tr := UIKit.pixel(_hero_tex(c), maxi(2, int(UIKit.font_size / 6.0))); tr.size_flags_vertical = SIZE_SHRINK_CENTER
 	top.add_child(tr)
 	var tv := UIKit.vbox(top); tv.size_flags_horizontal = SIZE_EXPAND_FILL
 	tv.add_child(UIKit.label("%s  Lv%d  -  %d Str" % [s.name, h.level, h.str], 1.0, Color("ffd27a")))
@@ -481,13 +476,10 @@ func _facility_header(v: VBoxContainer, id: String) -> void:
 	var kk := maxf(2.0, floorf(UIKit.font_size / 6.0))
 	if NPC.has(id):
 		var at := AtlasTexture.new(); at.atlas = load("res://assets/sprites/%s.png" % NPC[id][0]); at.region = Rect2(0, 0, NPC[id][1], NPC[id][2])
-		var tr := TextureRect.new(); tr.texture = at; tr.texture_filter = TEXTURE_FILTER_NEAREST
-		tr.custom_minimum_size = Vector2(NPC[id][1], NPC[id][2]) * kk; tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE; tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		row.add_child(tr)
+		var tr := UIKit.pixel(at, int(kk)); tr.size_flags_vertical = SIZE_SHRINK_CENTER; row.add_child(tr)
 	else:
 		var at2 := AtlasTexture.new(); at2.atlas = load("res://assets/tiles/tiles_sewers.png"); at2.region = Rect2(0, 64, 16, 16)
-		var tp := TextureRect.new(); tp.texture = at2; tp.texture_filter = TEXTURE_FILTER_NEAREST; tp.custom_minimum_size = Vector2(16, 16) * kk
-		tp.expand_mode = TextureRect.EXPAND_IGNORE_SIZE; row.add_child(tp)
+		var tp := UIKit.pixel(at2, int(kk)); tp.size_flags_vertical = SIZE_SHRINK_CENTER; row.add_child(tp)
 	var cv := UIKit.vbox(row); cv.size_flags_horizontal = SIZE_EXPAND_FILL
 	cv.add_child(UIKit.label("%s   Lv %d / %d" % [d.name, f.level, f.cap], 1.0, Color("ffd27a")))
 	var pb := ProgressBar.new(); pb.max_value = int(d.max); pb.value = f.level; pb.show_percentage = false
@@ -615,8 +607,7 @@ func _page_guild() -> void:
 		var h: Dictionary = GameState.heroes[c]
 		if not h.unlocked: continue
 		var card := UIKit.card(); var row := UIKit.hbox(card); v.add_child(card)
-		var tr := TextureRect.new(); tr.texture = _hero_tex(c); tr.texture_filter = TEXTURE_FILTER_NEAREST
-		tr.custom_minimum_size = Vector2(HERO_FRAME) * maxf(2.0, floorf(UIKit.font_size / 8.0)); tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE; row.add_child(tr)
+		var tr := UIKit.pixel(_hero_tex(c), maxi(2, int(UIKit.font_size / 8.0))); tr.size_flags_vertical = SIZE_SHRINK_CENTER; row.add_child(tr)
 		var cv := UIKit.vbox(row); cv.size_flags_horizontal = SIZE_EXPAND_FILL
 		if h.patrol.is_empty():
 			cv.add_child(UIKit.label("%s - idle" % DB.heroes[c].name, 0.9))

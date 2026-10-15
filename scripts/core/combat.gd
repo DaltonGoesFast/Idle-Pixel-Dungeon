@@ -236,7 +236,18 @@ func hit_mob(m: Dictionary, raw: int, surprise := false, magic := false) -> void
 	if m.get("ability", "") == "dking" and dmg > 0 and _king_linked():
 		dmg = int(ceil(dmg * 2.0 / 3.0))
 		_log("The lifelink absorbs a third of the blow!")
+	if m.get("ability", "") == "yog":   # Yog-Dzewa phases (DECISIONS #87)
+		_yog_phase(m)
+		if _yog_shielded():
+			if dmg > 0: _log("Yog-Dzewa is shielded by its fist! Destroy the fist first.")
+			dmg = 0
 	m.hp -= dmg
+	if m.get("ability", "") == "yog":   # can't skip a phase: damage stops at the next fist's threshold
+		var p := int(m.get("phase", 0))
+		var floor_hp := int(ceil(int(m.ht) * (3 - p) / 3.0)) if p < 3 else 0
+		if p in [1, 2] and m.hp < floor_hp:
+			m.hp = floor_hp
+		_yog_phase(m)
 	_log("%s%s takes %d." % ["SURPRISE! " if surprise else "", m.name, dmg])
 	_ev({"t": "hit", "uid": m.uid, "amount": dmg, "kind": "surprise" if surprise else ("magic" if magic else "hp"), "pos": m.pos})
 	if m.hp <= 0:
@@ -367,7 +378,7 @@ func _kill(m: Dictionary, chasm: bool) -> void:
 		boss_killed = true
 		# the King's risen dwarves crumble with him
 		for e in enemies():
-			if e.get("summoned", false):
+			if e.get("summoned", false) or e.get("fist", false):
 				e.hp = 0; _log("%s crumbles to dust." % e.name); _ev({"t": "die", "uid": e.uid, "pos": e.pos})
 	# Dwarven Ghoul: rises again (once) 2 ticks later unless it was the last enemy standing (SPD rule)
 	if m.get("revive", false) and not m.get("revived", false) and not chasm and not enemies().is_empty():
@@ -806,8 +817,35 @@ func _dking_act(m: Dictionary) -> bool:
 
 ## Yog-Dzewa (DECISIONS #77): immobile; alternates raising larva (only when none are left) and a gaze beam
 ## over the hero's whole row + column (2-tick fuse, ignores DR). Below half HP: faster and 3 larva.
+func _yog_shielded() -> bool:
+	return enemies().any(func(e): return e.get("fist", false))
+
+## Phase 0 -> Burning Fist; at 2/3 HP -> Rotting Fist; at 1/3 -> Bright Fist (one at a time, SPD-style).
+func _yog_phase(m: Dictionary) -> void:
+	var p := int(m.get("phase", 0))
+	var fid := ""
+	if p == 0: fid = "fist_burning"
+	elif p == 1 and int(m.hp) <= int(ceil(int(m.ht) * 2 / 3.0)) and not _yog_shielded(): fid = "fist_rotting"
+	elif p == 2 and int(m.hp) <= int(ceil(int(m.ht) / 3.0)) and not _yog_shielded(): fid = "fist_bright"
+	if fid == "": m.shielded = _yog_shielded(); return
+	m.phase = p + 1
+	var spot = null; var best := -1
+	for y in SIZE:
+		for x in SIZE:
+			var q := Vector2i(x, y)
+			if not passable(q) or unit_at(q) != null: continue
+			var sc := cheb(q, hero.pos) * 2 - cheb(q, m.pos)
+			if spot == null or sc > best: best = sc; spot = q
+	if spot == null: m.shielded = false; return
+	var f := spawn(fid, spot)
+	f.next = time + 1.0
+	m.shielded = true
+	_ev({"t": "spawn", "uid": f.uid, "pos": spot})
+	_log("%s rises to shield Yog-Dzewa! (phase %d/3)" % [f.name, m.phase]); _ev({"t": "sfx", "name": "boss"}); _ev({"t": "telegraph", "uid": m.uid})
+
 func _yog_act(m: Dictionary) -> bool:
 	if hidden(): return false
+	_yog_phase(m)
 	var enr := int(m.hp) * 2 <= int(m.ht)
 	if enr and not m.get("enraged", false):
 		m.enraged = true; m.summon_n = int(m.summon_n) + 1
@@ -816,7 +854,7 @@ func _yog_act(m: Dictionary) -> bool:
 	if m.abil < int(m.ability_every_super if enr else m.ability_every): return false
 	m.abil = 0
 	m.abil_n = int(m.get("abil_n", 0)) + 1
-	if m.abil_n % 2 == 1 and enemies().filter(func(e): return e.get("summoned", false)).is_empty():
+	if m.abil_n % 2 == 1 and not _yog_shielded() and enemies().filter(func(e): return e.get("summoned", false)).is_empty():
 		var spots := []
 		for d in DIRS + [Vector2i(2, 0), Vector2i(-2, 0), Vector2i(0, 2), Vector2i(0, -2)]:
 			var q: Vector2i = hero.pos + d

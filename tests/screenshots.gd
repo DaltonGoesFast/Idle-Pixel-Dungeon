@@ -18,6 +18,28 @@ func _ready() -> void:
 	main = load("res://scenes/main.tscn").instantiate(); add_child(main)
 	for sz in SIZES:
 		plan.append([sz, "camp", func(): main.show_camp(); main.screen.close_page()])
+		plan.append([sz, "icon_audit", func():
+			# every icon context with centre guides: item slots, paperdoll slots, res chips, icon buttons, hero portraits
+			main.show_camp(); main.screen.close_page()
+			var layer := PanelContainer.new(); layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT); main.screen.add_child(layer)
+			var sc := ScrollContainer.new(); layer.add_child(sc); var v := UIKit.vbox(sc); v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			v.add_child(UIKit.header("Icon audit"))
+			var g: GridContainer = main.screen.slot_grid(v)
+			for id in ["GOLD", "DEWDROP", "TORCH", "IRON_KEY", "RATION", "ORE", "potion_healing", "ring_wealth", "chalice_blood", "shortsword", "mace", "WEAPON_HOLDER", "ARMOR_HOLDER", "RING_HOLDER", "ARTIFACT_HOLDER", "CHEST"]:
+				var b: Button = main.screen.item_slot(id, "", "", func(): pass)
+				var guide := ColorRect.new(); guide.color = Color(1, 0, 1, 0.5); guide.set_anchors_preset(Control.PRESET_CENTER); guide.size = Vector2(1, 1000); guide.position = Vector2(UIKit.font_size * 1.5, -400); guide.mouse_filter = Control.MOUSE_FILTER_IGNORE
+				b.add_child(guide); var gh := ColorRect.new(); gh.color = guide.color; gh.size = Vector2(1000, 1); gh.position = Vector2(-400, UIKit.font_size * 1.5); gh.mouse_filter = Control.MOUSE_FILTER_IGNORE; b.add_child(gh)
+				b.clip_contents = true; g.add_child(b)
+			var chips := HFlowContainer.new(); v.add_child(chips)
+			for k in ["gold", "iron_ore", "seeds", "torch", "ration", "potion_healing"]: chips.add_child(UIKit.res_chip(k, "88", 0.9))
+			var bf := HFlowContainer.new(); v.add_child(bf)
+			for n in ["enter", "backpack_lrg", "prefs", "journal", "talent", "alchemy"]:
+				var tb := UIKit.as_toolbar(UIKit.button("", func(): pass), n); tb.custom_minimum_size = Vector2.ONE * UIKit.btn_height(); tb.size_flags_horizontal = 0; tb.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER; bf.add_child(tb)
+			for n in ["Stash", "Forge", "Journal"]:
+				var lb := UIKit.button(n, func(): pass); UIKit.with_icon(lb, main.screen.PAGE_ICONS[n]); lb.size_flags_horizontal = 0; lb.custom_minimum_size.x = UIKit.font_size * 7; bf.add_child(lb)
+			var hr := HFlowContainer.new(); v.add_child(hr)
+			for c in GameState.heroes: hr.add_child(main.screen._hero_slot(c))
+			Paperdoll.build(v, "warrior", not main.screen.portrait, "camp", func(): pass)])
 		plan.append([sz, "camp_expedition", func(): main.show_camp(); main.screen.open_page("Delve")])
 		plan.append([sz, "camp_heroes", func(): main.show_camp(); main.screen.open_page("Heroes")])
 		plan.append([sz, "camp_paperdoll", func():

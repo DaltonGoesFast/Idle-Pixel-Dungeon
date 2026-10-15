@@ -18,8 +18,8 @@
 - [x] Camp: long-press compare, SPD NPC idles, paperdoll, talents pane, alchemy pot (v0.21.0).
 - [ ] Camp: facility art per level.
 - [x] Alchemy recipes using found potions/scrolls (v0.22.0).
-- [ ] More special rooms (vault, library, garden, sacrificial).
-- [ ] Perf pass (lighting rect count, camp scene redraw only on change).
+- [x] Special rooms (v0.23.0); garden/sacrificial still open.
+- [x] Perf pass (v0.23.0: LOS cache, camp 15 fps).
 - [ ] Yog-Dzewa fists + phases.
 - [ ] Talent icons (talent_icons.png), toolbar/status pane art.
 - [ ] Rogue without subclass still 0/10 in the Caves (subclass is the intended fix).

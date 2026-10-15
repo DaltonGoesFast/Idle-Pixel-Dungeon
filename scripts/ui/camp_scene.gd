@@ -34,8 +34,12 @@ func _ready() -> void:
 	mouse_filter = MOUSE_FILTER_STOP
 	clip_contents = true
 
+var _acc := 0.0
 func _process(d: float) -> void:
-	t += d; queue_redraw()
+	# Perf (DECISIONS #88): the scene's pixel animations run at ~15 fps, so redraw at 15 fps, not every frame
+	t += d; _acc += d
+	if _acc >= 1.0 / 15.0 and is_visible_in_tree():
+		_acc = 0.0; queue_redraw()
 
 func _sprite(n: String) -> Texture2D:
 	if not tex.has(n): tex[n] = load("res://assets/sprites/%s.png" % n)
@@ -112,7 +116,9 @@ func _draw() -> void:
 		if hot == s[0]: draw_rect(sr.grow(kk * 2), Color(1, 1, 0.6, 0.18))
 		match s[1]:
 			"_pot": _tile(sr, 64)
-			"_chest": draw_texture_rect_region(items, sr, Rect2(4 * 16, 2 * 16, 16, 16))
+			"_chest":   # trimmed SPD frame, centred on whole pixels (DECISIONS #89)
+				var cr := UIKit.item_rect(36); var cz := cr.size * floorf(sr.size.x / 16.0)
+				draw_texture_rect_region(items, Rect2((sr.get_center() - cz / 2.0).floor(), cz), cr)
 			_:
 				var fw: int = s[2]
 				var an: Array = NPC_IDLE[s[1]]; var fl: Array = an[1]
@@ -122,7 +128,7 @@ func _draw() -> void:
 		var lbl: String = s[6]
 		if FAC.has(s[0]): lbl += " Lv%d" % GameState.facility_level(FAC[s[0]])
 		var ts := font.get_string_size(lbl, HORIZONTAL_ALIGNMENT_LEFT, -1, fs)
-		var lp := Vector2(sr.get_center().x - ts.x / 2.0, sr.end.y + fs * 0.2)
+		var lp := Vector2(sr.get_center().x - ts.x / 2.0, sr.end.y + fs * 0.2).floor()
 		draw_rect(Rect2(lp - Vector2(kk * 2, 0), Vector2(ts.x + kk * 4, fs * 1.15)), Color(0, 0, 0, 0.55))
 		draw_string(font, lp + Vector2(0, fs * 0.9), lbl, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color("ffff44") if _has_news(s[0]) else Color.WHITE)
 		if _has_news(s[0]):   # "!" badge: something ready (identified item, affordable upgrade)

@@ -15,7 +15,7 @@ static func font_px(sz: float) -> int:
 	return int(round(n * FONT_PX))
 
 static func btn_height() -> float:
-	return font_size * 2.4
+	return float(int(font_size * 1.2) * 2)   # even whole pixels: icons centre exactly (DECISIONS #89)
 
 static func button(text: String, cb: Callable, enabled := true, tooltip := "") -> Button:
 	var b := Button.new()
@@ -104,6 +104,10 @@ static func toolbar_icon(name: String) -> Texture2D:
 		if TOOLBAR_ICONS.has(name): at.atlas = load("res://assets/ui/toolbar.png"); at.region = TOOLBAR_ICONS[name]
 		else: at.atlas = load("res://assets/ui/icons.png"); at.region = SPD_ICONS[name]
 		var img := at.get_image(); img.resize(int(at.region.size.x) * px_scale, int(at.region.size.y) * px_scale, Image.INTERPOLATE_NEAREST)
+		# pad odd sizes to even (transparent column/row) so Button's centring lands on whole pixels (DECISIONS #89)
+		var w := img.get_width() + img.get_width() % 2; var h := img.get_height() + img.get_height() % 2
+		if w != img.get_width() or h != img.get_height():
+			var pad := Image.create(w, h, false, img.get_format()); pad.blit_rect(img, Rect2i(Vector2i.ZERO, img.get_size()), Vector2i.ZERO); img = pad
 		_ui_icons[name] = ImageTexture.create_from_image(img)
 	return _ui_icons[name]
 
@@ -159,22 +163,34 @@ static func hbox(parent: Control = null) -> HBoxContainer:
 	return h
 
 ## SPD item icon (16x16 cell in items.png) scaled to `px` with nearest filtering.
-static func icon(id: String, px := -1) -> TextureRect:
+static var _rects := {}
+## Visible rect of an items.png frame (SPD assignItemRect sizes, top-left anchored in the 16x16 cell).
+static func item_rect(idx: int) -> Rect2:
+	if _rects.is_empty(): _rects = JSON.parse_string(FileAccess.get_file_as_string("res://data/item_rects.json"))
+	var wh: Array = _rects.get(str(idx), [16, 16])
+	return Rect2((idx % 16) * 16, (idx / 16) * 16, int(wh[0]), int(wh[1]))
+
+## SPD item icon at an integer scale of the 16-px cell (`px` rounds down to a multiple of 16), centred on its
+## visible pixels (DECISIONS #89).
+static func icon(id: String, px := -1) -> PixelIcon:
 	if _items_tex == null: _items_tex = load("res://assets/sprites/items.png")
 	var at := AtlasTexture.new()
 	at.atlas = _items_tex
-	var idx := DB.icon_index(id)
-	at.region = Rect2((idx % 16) * 16, (idx / 16) * 16, 16, 16)
-	var t := TextureRect.new()
+	at.region = item_rect(DB.icon_index(id))
+	var t := PixelIcon.new()
 	t.texture = at
-	t.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	var s := px if px > 0 else int(font_size * 1.5)
 	s = maxi(16, int(s / 16) * 16)
+	t.cell_px = s
 	t.custom_minimum_size = Vector2(s, s)
-	t.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	t.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	var tint: String = DB.materials.get(id, {}).get("tint", "")
 	if tint != "": t.modulate = Color(tint)
+	return t
+
+## Any texture (sprite frame, tile, UI icon) as an integer-scaled, pixel-centred PixelIcon (DECISIONS #89).
+static func pixel(tex: Texture2D, k: int, box := Vector2.ZERO) -> PixelIcon:
+	var t := PixelIcon.new(); t.texture = tex; t.cell_px = 16 * maxi(1, k)
+	t.custom_minimum_size = box if box != Vector2.ZERO else tex.get_size() * maxi(1, k)
 	return t
 
 ## Row: [icon] text

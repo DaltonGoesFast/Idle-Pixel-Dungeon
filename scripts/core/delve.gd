@@ -186,6 +186,25 @@ static func reward(gs, rw: Dictionary) -> String:
 				var id: String = pool[(int(run.seed) + int(run.floor) + run.pack_gear.size()) % pool.size()]
 				_stow(gs, _new_gear(gs, id, false))
 				parts.append(DB.item(id).unknown_name)
+			"heal_pct":   # special rooms (DECISIONS #86)
+				var ht := int(gs.hero_stats(run.hero).ht); var before := int(run.hp)
+				run.hp = mini(ht, int(run.hp) + int(ceil(ht * float(rw[k]) / 100.0))); parts.append("+%d HP" % (int(run.hp) - before))
+			"satiety":
+				run.satiety = minf(100.0, float(run.satiety) + float(rw[k])); parts.append("well fed")
+			"identify_pack":
+				var n := 0
+				for g in run.pack_gear:
+					if not g.known: g.known = true; gs.discover("item:" + g.id); n += 1
+				for m in gs.unknown_mats():
+					if int(run.pack.get(m, 0)) > 0 and not gs.is_mat_known(m): gs.identify_mat(m); n += 1
+				parts.append("identified %d" % n)
+			"artifact":
+				var owned: Array = gs.gear.map(func(g): return g.id) + run.pack_gear.map(func(g): return g.id)
+				var arts: Array = DB.items.keys().filter(func(x): return DB.items[x].get("type", "") == "artifact" and not (x in owned))
+				if arts.is_empty(): gs.pack_add("gold", 40); parts.append("40 Gold")
+				else:
+					var aid: String = arts[(int(run.seed) + int(run.floor)) % arts.size()]
+					_stow(gs, _new_gear(gs, aid, true)); parts.append(DB.item(aid).name)
 			"item":
 				_stow(gs, _new_gear(gs, rw[k], true))
 				parts.append(DB.item(rw[k]).name)

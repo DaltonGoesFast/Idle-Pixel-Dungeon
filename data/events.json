@@ -493,6 +493,221 @@
      "text": "Leave"
     }
    ]
+  },
+  {
+   "id": "vault",
+   "title": "Crystal Vault",
+   "text": "Three crystal pedestals. Touch one and the others shatter.",
+   "options": [
+    {
+     "text": "Take the ring",
+     "reward": {
+      "item_unknown": "ring"
+     }
+    },
+    {
+     "text": "Take the potion",
+     "reward": {
+      "item_unknown": "potion"
+     }
+    },
+    {
+     "text": "Take the gold",
+     "reward": {
+      "gold": 40
+     }
+    }
+   ],
+   "biomes": [
+    "sewers",
+    "prison",
+    "caves",
+    "city",
+    "halls"
+   ],
+   "icon": "CRYSTAL_CHEST"
+  },
+  {
+   "id": "library",
+   "title": "Ancient Library",
+   "text": "Shelves of crumbling scrolls. A few might still be legible.",
+   "options": [
+    {
+     "text": "Search the shelves (-8 torch)",
+     "cost": {
+      "torch_fuel": 8
+     },
+     "reward": {
+      "item_unknown": "scroll"
+     }
+    },
+    {
+     "text": "Gather arcane dust",
+     "reward": {
+      "arcane_resin": 1
+     }
+    }
+   ],
+   "biomes": [
+    "prison",
+    "caves",
+    "city",
+    "halls"
+   ],
+   "icon": "SCROLL_HOLDER"
+  },
+  {
+   "id": "well_health",
+   "title": "Well of Health",
+   "text": "The water glows a soft red.",
+   "options": [
+    {
+     "text": "Drink deeply",
+     "reward": {
+      "heal_pct": 100
+     }
+    },
+    {
+     "text": "Leave"
+    }
+   ],
+   "biomes": [
+    "sewers",
+    "prison",
+    "caves",
+    "city",
+    "halls"
+   ],
+   "icon": "potion_healing"
+  },
+  {
+   "id": "well_awareness",
+   "title": "Well of Awareness",
+   "text": "Looking into the water, your gear seems clearer somehow.",
+   "options": [
+    {
+     "text": "Drink",
+     "reward": {
+      "identify_pack": 1
+     }
+    },
+    {
+     "text": "Leave"
+    }
+   ],
+   "biomes": [
+    "sewers",
+    "prison",
+    "caves",
+    "city",
+    "halls"
+   ],
+   "icon": "POTION_HOLDER"
+  },
+  {
+   "id": "laboratory",
+   "title": "Alchemy Laboratory",
+   "text": "A dusty alchemist's bench, flasks still stoppered.",
+   "options": [
+    {
+     "text": "Search the bench",
+     "reward": {
+      "item_unknown": "potion",
+      "seeds": 2
+     }
+    },
+    {
+     "text": "Leave"
+    }
+   ],
+   "biomes": [
+    "prison",
+    "caves",
+    "city",
+    "halls"
+   ],
+   "icon": "seeds"
+  },
+  {
+   "id": "treasury",
+   "title": "Collapsed Treasury",
+   "text": "Coins glint under fallen rubble.",
+   "options": [
+    {
+     "text": "Dig it out (-10 torch)",
+     "cost": {
+      "torch_fuel": 10
+     },
+     "reward": {
+      "gold": 45
+     }
+    },
+    {
+     "text": "Grab what you can",
+     "reward": {
+      "gold": 12
+     }
+    }
+   ],
+   "biomes": [
+    "sewers",
+    "prison",
+    "caves",
+    "city",
+    "halls"
+   ],
+   "icon": "gold"
+  },
+  {
+   "id": "shrine",
+   "title": "Forgotten Shrine",
+   "text": "An idol holds an ancient relic. It demands blood.",
+   "options": [
+    {
+     "text": "Offer blood (-12 HP)",
+     "cost": {
+      "hp": 12
+     },
+     "reward": {
+      "artifact": 1
+     }
+    },
+    {
+     "text": "Leave"
+    }
+   ],
+   "biomes": [
+    "city",
+    "halls"
+   ],
+   "icon": "chalice_blood"
+  },
+  {
+   "id": "larder",
+   "title": "Larder",
+   "text": "Somebody's forgotten stores, mostly intact.",
+   "options": [
+    {
+     "text": "Eat your fill",
+     "reward": {
+      "satiety": 100
+     }
+    },
+    {
+     "text": "Pack rations",
+     "reward": {
+      "ration": 2
+     }
+    }
+   ],
+   "biomes": [
+    "sewers",
+    "prison",
+    "caves",
+    "city",
+    "halls"
+   ],
+   "icon": "ration"
   }
  ]
 }
