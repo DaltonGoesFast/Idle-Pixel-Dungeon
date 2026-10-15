@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Combat Bag fits the screen: it opens as a window inside the viewport (scrolls inside, X to close, tap outside to close) instead of being appended under the combat buttons, where it ran off the bottom of the Fold cover and off the right of the inner screen (+layout test, smoke check, `combat_bag` screenshot).
 
 ## 0.29.0
 - In-game Update on Android and Windows: Camp / Settings checks GitHub releases, downloads the APK or zip, and on Android opens the system Install screen. iOS stays on TestFlight; `tools/upload_testflight.sh` archives and uploads on a Mac. Android export uses Gradle so the updater can request install permission (+tests).

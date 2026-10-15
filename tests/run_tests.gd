@@ -18,6 +18,7 @@ func _ready() -> void:
 	gs.new_game()
 	test_rules(gs)
 	test_status_pane_layout(gs)
+	test_combat_bag_fits(gs)
 	test_balance(gs)
 	test_boss(gs)
 	test_traps(gs)
@@ -2051,6 +2052,28 @@ func test_goo_spd(gs) -> void:
 	check(not g.has("enraged_dmg"), "a floored Goo no longer enrages")
 	gs.end_run("abandon")
 	check(int(gs.stats.goo_losses) == 5, "only deaths count")
+
+## DECISIONS #143: the in-combat Bag is a modal window inside the viewport on the Fold cover and inner screens.
+func test_combat_bag_fits(gs) -> void:
+	print("[combat bag fits]")
+	gs.new_game(); gs.heroes.huntress.unlocked = true
+	gs.start_run("huntress", {"ration": 2, "torch": 2}, "sewers", 5)
+	for id in ["ring_wealth", "mace", "leather_armor", "wand_magic_missile"]: gs.run.pack_gear.append({"uid": 9000 + gs.run.pack_gear.size(), "id": id, "lvl": 0, "cracked": false, "known": false, "owned": false})
+	var ev := Delve.combat_event(gs.run, Delve.rng_for(gs.run, 1), ["rat"])
+	for vs in [Vector2(968, 2376), Vector2(1856, 2160)]:
+		var cs = load("res://scripts/ui/combat_screen.gd").new()
+		cs.setup(ev, func(_r): pass); add_child(cs); cs.size = vs
+		cs.apply_layout(vs.y > vs.x, vs)
+		cs.bag_open = true; cs._refresh()
+		var pc: Control = cs.bag_layer.find_child("BagPanel", true, false) if cs.bag_layer else null
+		var r: Rect2 = cs.bag_rect(vs)
+		check(pc != null and Rect2(Vector2.ZERO, vs).encloses(Rect2(pc.position, pc.size)) and pc.size == r.size, "%s: Bag window inside the viewport (%s)" % [vs, Rect2(pc.position, pc.size) if pc else null])
+		check(pc != null and pc.get_combined_minimum_size().x <= r.size.x + 0.5 and pc.get_combined_minimum_size().y <= r.size.y + 0.5, "%s: Bag content does not force the window larger (min %s)" % [vs, pc.get_combined_minimum_size() if pc else null])
+		check(pc != null and pc.find_child("BagClose", true, false) != null and cs.bag_layer.find_children("*", "ScrollContainer", true, false).size() > 0, "%s: Bag has a close button and scrolls inside" % vs)
+		cs.bag_open = false; cs._refresh()
+		check(cs.bag_layer == null, "%s: closing the Bag removes the window" % vs)
+		cs.queue_free()
+	gs.end_run("abandon")
 
 func test_status_pane_layout(_gs) -> void:
 	print("[status pane layout] cover 968 / inner 1856 at every pixel scale")

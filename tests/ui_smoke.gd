@@ -67,7 +67,10 @@ func _drive() -> void:
 			_check(s.guide >= 1 and s.guide_label.text.begins_with("Step"), "first fight is guided")
 			_check(s.guide != 1 or s.grid.hint_cell.x >= 0, "guided step 1 highlights a tile")
 			s.bag_open = true; s._refresh()
-			_check(s.bag_host.get_child_count() > 0, "combat Bag opens the backpack")
+			_check(s.bag_layer != null and s.bag_layer.find_children("*", "Button", true, false).size() > 1, "combat Bag opens the backpack")
+			var bp: Control = s.bag_layer.find_child("BagPanel", true, false); var bx: Control = s.bag_layer.find_child("BagClose", true, false)
+			var vr := Rect2(Vector2.ZERO, s.get_viewport_rect().size)
+			_check(vr.encloses(bp.get_global_rect()) and vr.encloses(bx.get_global_rect()), "combat Bag window and its close button fit in the viewport (%s in %s)" % [bp.get_global_rect(), vr])
 			s.bag_open = false; s._refresh()
 		if stage > 0 and s.guide > 0 and not s.finished and "guided_fight" in GameState.tutorial_done:
 			_check(false, "guided fight only once")

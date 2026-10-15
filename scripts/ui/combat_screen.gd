@@ -168,19 +168,51 @@ func _refresh() -> void:
 	_btn("Potion (%d)" % (potions - potions_used), _drink, potions - potions_used > 0 and h.hp < h.ht)
 	if Delve.scroll_passage_count(GameState) > 0:
 		_btn("Scroll of Passage", _use_passage)
-	_btn("Bag", func(): bag_open = not bag_open; _refresh())
+	_btn("Bag", func(): bag_open = not bag_open; set_meta("bag_scroll", 0); _refresh())
 	_btn("Hint", _hint)
 	_btn("Auto: ON" if auto else "Auto", func(): auto = not auto; _refresh())
 	_refresh_log()
 	_refresh_bag()
 
 ## In-combat Bag: swap weapon/armor/ring/wand from the backpack; costs the hero's turn (1 tick).
+## Opens as a modal window clamped to the viewport (DECISIONS #143): it used to be appended under the
+## buttons in the side column, which ran off the bottom on the Fold cover and off the right on the inner screen.
+var bag_layer: Control
+const BAG_MARGIN := 0.02
+## The bag panel's rect for a viewport of size vs: centred, at most 36 font sizes wide, inside a 2% margin.
+static func bag_rect(vs: Vector2) -> Rect2:
+	var m := (vs * BAG_MARGIN).floor()
+	var w := minf(vs.x - 2.0 * m.x, UIKit.font_size * 36.0); var h := vs.y - 2.0 * m.y
+	return Rect2(((vs - Vector2(w, h)) / 2.0).floor(), Vector2(w, h).floor())
+
 func _refresh_bag() -> void:
-	if bag_host == null:
-		bag_host = UIKit.vbox(); side.add_child(bag_host); side.move_child(bag_host, buttons.get_index() + 1)
-	UIKit.clear(bag_host)
+	if bag_layer and is_instance_valid(bag_layer):
+		var sc0: ScrollContainer = bag_layer.get_meta("sc")
+		set_meta("bag_scroll", sc0.scroll_vertical)
+		bag_layer.queue_free()
+	bag_layer = null
 	if not bag_open or finished or GameState.run.is_empty(): return
-	HeroPanels.backpack(bag_host, _refresh, true, _equip_in_combat)
+	var close := func(): bag_open = false; _refresh()
+	bag_layer = Control.new(); bag_layer.name = "BagLayer"; bag_layer.set_anchors_and_offsets_preset(PRESET_FULL_RECT); add_child(bag_layer)
+	var dim := ColorRect.new(); dim.color = Color(0, 0, 0, 0.6); dim.set_anchors_and_offsets_preset(PRESET_FULL_RECT); bag_layer.add_child(dim)
+	dim.gui_input.connect(func(e: InputEvent):
+		if (e is InputEventMouseButton and e.button_index == MOUSE_BUTTON_LEFT and e.pressed) or (e is InputEventScreenTouch and e.pressed):
+			dim.accept_event(); close.call())
+	var pc := PanelContainer.new(); pc.name = "BagPanel"; pc.clip_contents = true; bag_layer.add_child(pc)
+	var r := bag_rect(size if size.x > 0 and size.y > 0 else get_viewport_rect().size)
+	pc.position = r.position; pc.size = r.size; pc.custom_minimum_size = r.size
+	var v := UIKit.vbox(pc)
+	var tr := UIKit.hbox(v)
+	var ic := UIKit.pixel(UIKit.spd_icon("backpack"), 1); ic.size_flags_vertical = SIZE_SHRINK_CENTER; tr.add_child(ic)
+	var tl := UIKit.header("Bag"); tl.size_flags_horizontal = SIZE_EXPAND_FILL; tr.add_child(tl)
+	var x := UIKit.button("X", close); x.name = "BagClose"; UIKit.secondary(x); x.custom_minimum_size = Vector2.ONE * UIKit.btn_height()
+	x.size_flags_horizontal = SIZE_SHRINK_END; tr.add_child(x)
+	var sc := ScrollContainer.new(); sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	sc.size_flags_vertical = SIZE_EXPAND_FILL; v.add_child(sc); bag_layer.set_meta("sc", sc)
+	var body := UIKit.vbox(sc); body.size_flags_horizontal = SIZE_EXPAND_FILL
+	HeroPanels.backpack(body, _refresh, true, _equip_in_combat)
+	var keep := int(get_meta("bag_scroll", 0))
+	(func(): if is_instance_valid(sc): sc.scroll_vertical = keep).call_deferred()
 
 func _equip_in_combat() -> void:
 	bag_open = false
