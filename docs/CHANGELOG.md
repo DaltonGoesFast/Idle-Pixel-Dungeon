@@ -1,6 +1,8 @@
 # Changelog
 
 ## Unreleased
+
+## 0.28.1
 - Status pane: the torch and food bars are now the same height as the HP bar (they were nearly twice as tall and spilled past the pane frame). They share its left and right edges, their icons fit the bar, and the level badge is no longer cramped. New layout test covers cover and inner screens.
 
 ## 0.28.0
