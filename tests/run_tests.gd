@@ -891,11 +891,19 @@ func test_icon_centering(_gs) -> void:
 	for id in ["GOLD", "DEWDROP", "TORCH", "IRON_KEY", "RATION", "SEED_SUNGRASS" if DB.icons.has("SEED_SUNGRASS") else "ORE", "RING_HOLDER", "WEAPON_HOLDER", "ARMOR_HOLDER", "ARTIFACT_HOLDER"]:
 		var ic: PixelIcon = UIKit.icon(id, 48)
 		var tex_sz: Vector2 = ic.texture.get_size()
-		var r := PixelIcon.layout(Vector2(72, 72), tex_sz, ic.scale_k())
+		var r := PixelIcon.layout(Vector2(72, 72), tex_sz, ic.draw_k())
 		var off := (r.get_center() - Vector2(36, 36)).abs()
 		if r.position != r.position.floor() or off.x > 0.5 * ic.scale_k() + 0.01 or off.y > 0.5 * ic.scale_k() + 0.01 or ic.scale_k() != 3: bad.append(id)
 	check(bad.is_empty(), "item icons are integer-scaled and centred on their visible pixels %s" % [bad])
 	check(UIKit.item_rect(DB.icon_index("IRON_KEY")).size == Vector2(8, 14), "SPD item rects loaded (iron key 8x14)")
+	# DECISIONS #111: rings/potions/scrolls had no rect, so a full 16x16 cell was centred and the 8x10 ring sat top-left
+	var no_rect := []
+	for k in DB.icons:
+		if typeof(DB.icons[k]) in [TYPE_INT, TYPE_FLOAT] and not UIKit._rects.has(str(int(DB.icons[k]))): no_rect.append(k)
+	check(no_rect.is_empty(), "every icon id has an SPD item rect %s" % [no_rect])
+	check(UIKit.item_rect(DB.icon_index("ring_wealth")).size == Vector2(8, 10), "ring rect is SPD's 8x10")
+	var ring: PixelIcon = UIKit.icon("ring_wealth", 48); var sword: PixelIcon = UIKit.icon("shortsword", 48)
+	check(ring.draw_k() == sword.draw_k() + 1, "tiny ring sprites draw one scale step larger (%d vs %d)" % [ring.draw_k(), sword.draw_k()])
 	check(int(UIKit.btn_height()) % 2 == 0 and UIKit.btn_height() == floorf(UIKit.btn_height()), "button height is an even whole number")
 	for n in ["enter", "backpack_lrg", "prefs", "journal", "talent"]:
 		var t := UIKit.toolbar_icon(n)

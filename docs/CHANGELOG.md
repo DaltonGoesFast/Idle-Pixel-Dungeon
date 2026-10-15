@@ -1,5 +1,7 @@
 # Changelog
 
+## Unreleased
+- Ring, potion and scroll icons are centred on their real SPD size (missing item rects), and tiny sprites like rings draw one scale step larger (+test).
 
 ## 0.26.0
 - Identified rings, potions, and scrolls show SPD's small type glyph from item_icons.png in the top-right of the slot. The blue shield is Ring of Tenacity and Potion of Shielding.
