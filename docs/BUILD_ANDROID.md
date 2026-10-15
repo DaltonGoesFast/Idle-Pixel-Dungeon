@@ -20,7 +20,7 @@
 - Bump `version/code` (integer, must increase) and `version/name` for every release. Keep the iOS preset's `application/short_version` and `application/version` in step with those (see `docs/BUILD_IOS.md`).
 
 ## Installing
-Sideload: copy the APK to the phone and open it (allow "install unknown apps"), or `adb install -r builds/spd-tactics-vX.apk`. Builds are signed with the same debug key, so updates install over each other. A release build needs a real keystore (Project > Export > Release keystore) and `--export-release`.
+Sideload: copy the APK to the phone and open it (allow "install unknown apps"), or `adb install -r builds/spd-tactics-vX.apk`. Updates only install over each other when they are signed with the same key. `tools/verify_apk.sh` fails any APK whose certificate differs from `tools/release_cert.sha256`, the certificate of the published releases (DECISIONS #141). Releases v0.27.0+ use the Godot-generated debug key (`c18cebfa…`). The box's `~/Android/debug.keystore` (`73a874e9…`) only matches v0.26.0. A release build needs a real keystore (Project > Export > Release keystore) and `--export-release`.
 
 From a build that already has the updater: Camp / Settings → Update downloads the latest GitHub release APK and opens Android's Install screen. SPD Tactics needs "Install unknown apps" allowed for that flow.
 

@@ -1,0 +1,5 @@
+c18cebfa51b52e8b16156a997f6e08abc236f62fca03d4da33d57da498902e72
+# SHA-256 of the certificate that signs the published release APKs (v0.27.0 - v0.28.1),
+# i.e. what is installed on players' phones. Android only installs an update signed with the
+# same certificate, so tools/verify_apk.sh fails a build signed with anything else.
+# Public value (it is in every APK). See docs/DECISIONS.md #141 before changing it.

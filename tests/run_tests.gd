@@ -72,6 +72,7 @@ func _ready() -> void:
 	test_talents(gs)
 	test_backpack(gs)
 	test_updater()
+	test_release_cert_pin()
 	await test_touch_scroll()
 	await test_tip_fit()
 	print("TESTS: %d passed, %d failed -> %s" % [passes, fails, "PASS" if fails == 0 else "FAIL"])
@@ -1685,6 +1686,22 @@ func _find_btn(n: Node, text: String):
 		var r = _find_btn(ch, text)
 		if r: return r
 	return null
+
+## DECISIONS #141: verify_apk.sh pins the release signing certificate so in-place updates keep working.
+func test_release_cert_pin() -> void:
+	print("[release cert pin]")
+	var f := FileAccess.open("res://tools/release_cert.sha256", FileAccess.READ)
+	check(f != null, "tools/release_cert.sha256 exists")
+	if f == null: return
+	var digest := ""
+	for line in f.get_as_text().split("\n"):
+		var l := String(line).strip_edges()
+		if l != "" and not l.begins_with("#"): digest = l; break
+	var hex := RegEx.create_from_string("^[0-9a-f]{64}$")
+	check(hex.search(digest) != null, "release cert pin is one lowercase SHA-256 (%s)" % digest)
+	var v := FileAccess.open("res://tools/verify_apk.sh", FileAccess.READ)
+	var sh := v.get_as_text() if v else ""
+	check(sh.contains("release_cert.sha256") and sh.contains("SIGNING KEY MISMATCH") and sh.contains("ALLOW_NEW_SIGNING_KEY"), "verify_apk.sh fails on a different signing certificate (with an explicit override)")
 
 ## Version compare and release asset pick (no network).
 func test_updater() -> void:

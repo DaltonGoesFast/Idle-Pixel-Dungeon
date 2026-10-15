@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- `tools/verify_apk.sh` (and so `tools/build.sh`) now fails if the APK is not signed with the same certificate as the published releases (`tools/release_cert.sha256`). Android only installs an update signed with the same key, so a build signed with another key would make the in-game Update (and sideloading over the old app) fail with "App not installed". Override with `ALLOW_NEW_SIGNING_KEY=1` (+test).
 
 ## 0.29.0
 - In-game Update on Android and Windows: Camp / Settings checks GitHub releases, downloads the APK or zip, and on Android opens the system Install screen. iOS stays on TestFlight; `tools/upload_testflight.sh` archives and uploads on a Mac. Android export uses Gradle so the updater can request install permission (+tests).
