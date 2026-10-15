@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.3.0 - all four classes
+- **Rogue** (Cloak of Shadows: hide 2 ticks, next hit is a Surprise; Dagger x2 surprise) - unlocks at Sewers floor 4.
+- **Huntress** (Spirit Bow: unlimited arrows in line of sight; fast Studded Gloves) - unlocks after brewing 5 potions.
+- Tap a distant enemy to inspect it (HP, damage, DR, speed, special attack).
+- Attack lunges, arrow streaks, cloak transparency, new SFX.
+- Balance from full-run simulation: torch drain 0.4, Goo HT 50 / DR 0, non-Warrior Barrier 4, gloves 3 dmg. Smarter bot (Hint/Auto) avoids getting cornered by Goo.
+- Fixes: potions used in a lost fight were refunded; heirlooms no longer crack.
+- `RunSim` + `[fullrun]` test: 10 seeded full expeditions per class.
+
 ## v0.2.0 - base game architecture
 - **Balance:** crabs beatable (dmg 2 / DR 1 at 0.5 ticks), Warrior Barrier 10 (Broken Seal), Goo boss tuned (HT 55). Bot-verified: starting Warrior wins every sewer encounter.
 - **Architecture:** all content in `data/*.json`; autoloads `DB`, `GameState`, `SaveSystem` (versioned JSON save, autosave), `Sfx`; pure `Combat`/`Delve`/`CombatBot`; screens split into Camp / Delve / Combat.

@@ -169,5 +169,29 @@
    "name": "Starter Elixir",
    "icon": "POTION_GOLDEN"
   }
+ },
+ "studded_gloves": {
+  "name": "Studded Gloves",
+  "type": "weapon",
+  "tier": 1,
+  "dmg": 3,
+  "delay": 0.5,
+  "str": 10,
+  "icon": "GLOVES",
+  "desc": "Fast: punches take 0.5 ticks.",
+  "spd": "dmg 1-5 at 2x speed"
+ },
+ "spirit_bow": {
+  "name": "Spirit Bow",
+  "type": "heirloom_bow",
+  "icon": "SPIRIT_BOW",
+  "spd": "dmg (1+lvl/5)-(6+lvl/2.5)",
+  "heirloom": true
+ },
+ "cloak_of_shadows": {
+  "name": "Cloak of Shadows",
+  "type": "heirloom_cloak",
+  "icon": "ARTIFACT_CLOAK",
+  "heirloom": true
  }
 }

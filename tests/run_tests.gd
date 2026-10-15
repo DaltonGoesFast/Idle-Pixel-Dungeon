@@ -19,6 +19,7 @@ func _ready() -> void:
 	test_rules(gs)
 	test_balance(gs)
 	test_boss(gs)
+	test_fullrun(gs)
 	test_delve(gs)
 	test_camp(gs)
 	test_save(gs, ss)
@@ -91,15 +92,30 @@ func test_balance(gs) -> void:
 			check(CombatBot.play(c).won, "door fight %s winnable" % dd.id)
 	var st := Combat.new(); st.setup(DB.rooms[0], hs, hs.ht, ["statue"])
 	check(CombatBot.play(st).won, "statue fight winnable")
-	# mage (unlock temporarily)
-	var ms: Dictionary = gs.hero_stats("mage")
-	var mw := 0
-	for si in sets.size():
-		for ri in DB.rooms.size():
-			var c := Combat.new(); c.setup(DB.rooms[ri], ms, ms.ht, sets[si].mobs)
-			if CombatBot.play(c).won: mw += 1
-	print("  mage: %d/%d wins" % [mw, total])
-	check(mw >= total * 0.9, "starting Mage wins >=90% of encounters")
+	for cls in ["mage", "rogue", "huntress"]:
+		var ms: Dictionary = gs.hero_stats(cls)
+		var mw := 0
+		for si in sets.size():
+			for ri in DB.rooms.size():
+				var c := Combat.new(); c.setup(DB.rooms[ri], ms, ms.ht, sets[si].mobs)
+				if CombatBot.play(c).won: mw += 1
+		print("  %s: %d/%d wins" % [cls, mw, total])
+		check(mw >= total * 0.9, "starting %s wins >=90%% of encounters" % cls)
+	# cloak: enemies stop attacking, next hit is a surprise
+	var rs: Dictionary = gs.hero_stats("rogue")
+	var cc := Combat.new(); cc.setup(DB.rooms[0], rs, rs.ht, ["rat"])
+	var rat = cc.enemies()[0]; rat.pos = cc.hero.pos + Vector2i(1, 0)
+	var hp_before: int = cc.hero.hp + cc.hero.barrier
+	check(cc.hero_cloak(), "rogue can cloak")
+	check(cc.hero.hp + cc.hero.barrier == hp_before, "hidden rogue isn't attacked")
+	cc.hero_tap(rat.pos)
+	check(rat.hp <= 0, "cloaked dagger surprise (x2) kills a rat")
+	# huntress arrows are unlimited and respect DR
+	var hu: Dictionary = gs.hero_stats("huntress")
+	var hc := Combat.new(); hc.setup(DB.rooms[0], hu, hu.ht, ["crab"])
+	var cr = hc.enemies()[0]
+	for i in 3: hc.hero_bolt(cr.pos)
+	check(cr.hp == int(cr.ht) - 3 * maxi(0, int(hu.bolt.dmg) - int(cr.dr)) or cr.hp <= 0 or Combat.cheb(cr.pos, hc.hero.pos) == 1, "arrows unlimited, DR applies")
 
 func test_boss(gs) -> void:
 	print("[boss]")
@@ -117,6 +133,20 @@ func test_boss(gs) -> void:
 		c2.hero_wait()
 		if not c2.danger.is_empty(): seen = true; break
 	check(seen, "Goo telegraphs its pump-up slam")
+
+func test_fullrun(gs) -> void:
+	print("[fullrun] CombatBot plays whole Sewers expeditions (2 rations, 2 torches, 2 potions), 10 seeds per class")
+	for cls in ["warrior", "mage", "rogue", "huntress"]:
+		var wins := 0; var deaths := []; var lv := 0
+		for seed in 10:
+			gs.new_game()
+			for c in gs.heroes: gs.heroes[c].unlocked = true
+			gs.add_mat("potion_healing", 1)
+			var r := RunSim.play(gs, cls, {"ration": 2, "torch": 2, "potion_healing": 2}, 1000 + seed)
+			if r.result == "extract": wins += 1; lv += r.level
+			else: deaths.append("f%d %s" % [r.floor, r.boss_entry])
+		print("  %s: cleared %d/10 (avg Lv at clear %.1f) deaths at %s" % [cls, wins, float(lv) / maxf(1, wins), deaths])
+		check(wins >= 5, "%s clears the Sewers in at least half the seeded runs" % cls)
 
 func test_delve(gs) -> void:
 	print("[delve]")
@@ -205,6 +235,11 @@ func test_camp(gs) -> void:
 	# unlock
 	gs.start_run("warrior", {}); gs.record_boss_kill("warrior", "sewers")
 	check(gs.heroes.mage.unlocked and int(gs.run.pack.scroll_upgrade) == 1, "Goo kill unlocks Mage, drops SoU")
+	check(not gs.heroes.huntress.unlocked, "huntress locked before 5 brews")
+	gs.add_mat("seeds", 20)
+	for i in 4: gs.craft("alchemy", "brew_healing")
+	check(gs.heroes.huntress.unlocked, "5 potions brewed unlocks Huntress")
+	gs.note_floor(4); check(gs.heroes.rogue.unlocked, "reaching floor 4 unlocks Rogue")
 	gs.end_run("extract")
 
 func test_save(gs, ss) -> void:

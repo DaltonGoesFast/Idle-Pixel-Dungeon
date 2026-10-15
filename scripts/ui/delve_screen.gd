@@ -128,23 +128,12 @@ func _fight(ev: Dictionary, reward: Dictionary) -> void:
 	main.start_combat(ev, func(res: Dictionary): _after_fight(ev, res, reward))
 
 func _after_fight(ev: Dictionary, res: Dictionary, reward: Dictionary) -> void:
-	var run: Dictionary = GameState.run
 	pending = {}
-	if not res.won:
+	var lvl: int = GameState.heroes[GameState.run.hero].level
+	if not Delve.apply_fight_result(GameState, ev, res, reward):
 		Sfx.play("death")
 		GameState.end_run("death"); main.show_camp(); return
-	run.hp = res.hp
-	GameState.pack_add("gold", res.loot)
-	run.pending_loot = int(run.pending_loot) + int(res.fallen_loot)
-	if int(res.potions_used) > 0: run.supplies.potion_healing = maxi(0, int(run.supplies.potion_healing) - int(res.potions_used))
-	if GameState.grant_xp(run.hero, res.xp):
-		Sfx.play("levelup"); GameState.say("Level up! %s is now Lv%d." % [DB.heroes[run.hero].name, GameState.heroes[run.hero].level])
-		run.hp = mini(GameState.hero_stats(run.hero).ht, int(run.hp) + DB.heroes[run.hero].ht_per_level)
-	if not reward.is_empty(): GameState.say("Reward: " + Delve.reward(GameState, reward))
-	if res.boss_killed:
-		run.boss_dead = true
-		if GameState.record_boss_kill(run.hero, run.biome): GameState.say("First %s kill for this class: Scroll of Upgrade!" % DB.mobs[ev.mobs[0]].name)
-	GameState.touch()
+	if GameState.heroes[GameState.run.hero].level > lvl: Sfx.play("levelup")
 	main.end_combat()
 
 func _card_door() -> void:

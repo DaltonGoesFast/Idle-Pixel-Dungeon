@@ -38,7 +38,8 @@ func setup(room_rows: Array, hs: Dictionary, hp: int, mob_ids: Array, darkness :
 	hero = {"uid": _next_uid(), "id": "hero", "name": hs.name, "hp": hp, "ht": hs.ht, "dmg": hs.dmg, "dr": hs.dr,
 		"barrier": 0 if darkness else hs.barrier_max, "barrier_max": hs.barrier_max, "delay": hs.delay, "next": 0.0,
 		"pos": Vector2i.ZERO, "sprite": hs.sprite, "fw": hs.fw, "fh": hs.fh, "surprise_mult": hs.get("surprise_mult", 1.5),
-		"abilities": hs.get("abilities", []), "bolt": hs.get("bolt", {}), "charges": 0, "recharge_t": 0.0, "hero": true}
+		"abilities": hs.get("abilities", []), "bolt": hs.get("bolt", {}), "charges": 0, "recharge_t": 0.0, "hero": true,
+		"cloak": hs.get("cloak", {}), "cloak_charges": int(hs.get("cloak", {}).get("charges", 0)), "hidden_until": -1.0}
 	if not hero.bolt.is_empty(): hero.charges = hero.bolt.charges
 	units.append(hero)
 	var slots := {}
@@ -132,14 +133,20 @@ static func _line(a: Vector2i, b: Vector2i) -> Array:
 		if e2 <= dx: err += dx; p.y += sy
 	return pts
 
+func has_ranged() -> bool:
+	return not hero.bolt.is_empty() and (hero.bolt.get("infinite", false) or hero.charges > 0)
+
+func hidden() -> bool:
+	return float(hero.hidden_until) > time
+
 func can_bolt(target: Vector2i) -> bool:
-	if hero.bolt.is_empty() or hero.charges <= 0: return false
+	if not has_ranged(): return false
 	var u = unit_at(target)
 	return u != null and u != hero and cheb(hero.pos, target) <= BOLT_RANGE and line_clear(hero.pos, target)
 
 func surprise_ready() -> bool:
 	var t := tile(hero.pos)
-	return t == T.DOOR or t == T.GRASS
+	return t == T.DOOR or t == T.GRASS or hidden()
 
 # ------------------------------------------------------------------ damage
 ## Damage to the hero: flat DR -> Barrier -> HP. Chip rule on fully blocked hits.
@@ -249,7 +256,9 @@ func hero_tap(p: Vector2i, mode := "") -> bool:
 			_end_hero_turn(1.0)
 			return true
 		_ev({"t": "attack", "uid": hero.uid, "to": p})
-		hit_mob(u, int(hero.dmg), surprise_ready())
+		var sur := surprise_ready()
+		_break_cloak()
+		hit_mob(u, int(hero.dmg), sur)
 		_end_hero_turn(float(hero.delay))
 		return true
 	if passable(p) and u == null:
@@ -262,15 +271,33 @@ func hero_tap(p: Vector2i, mode := "") -> bool:
 func hero_bolt(p: Vector2i) -> bool:
 	if not can_bolt(p): return false
 	var u = unit_at(p)
-	hero.charges -= 1
+	var magic: bool = hero.bolt.get("magic", true)
+	if not hero.bolt.get("infinite", false): hero.charges -= 1
 	_log("%s fires %s." % [hero.name, hero.bolt.name])
-	_ev({"t": "bolt", "from": hero.pos, "to": p})
-	hit_mob(u, int(hero.bolt.dmg), false, true)
+	_ev({"t": "bolt", "from": hero.pos, "to": p, "magic": magic})
+	var sur := surprise_ready() and not magic
+	_break_cloak()
+	hit_mob(u, int(hero.bolt.dmg), sur, magic)
 	if hero.bolt.get("burns_grass", false):
 		for d in [Vector2i.ZERO] + DIRS:
 			if tile(p + d) == T.GRASS: _burn(p + d); break
 	_end_hero_turn(1.0)
 	return true
+
+## Rogue: Cloak of Shadows. Enemies lose track of you; your next attack is a Surprise.
+func hero_cloak() -> bool:
+	if over or hero.cloak.is_empty() or int(hero.cloak_charges) <= 0 or hidden(): return false
+	hero.cloak_charges -= 1
+	hero.hidden_until = hero.next + float(hero.cloak.ticks) + 1.0
+	_log("%s vanishes into the shadows." % hero.name)
+	_ev({"t": "sfx", "name": "meld"}); _ev({"t": "cloak", "uid": hero.uid})
+	_end_hero_turn(1.0)
+	return true
+
+func _break_cloak() -> void:
+	if hidden():
+		hero.hidden_until = -1.0
+		_log("%s strikes from the shadows!" % hero.name)
 
 func hero_wait() -> void:
 	if over: return
@@ -334,7 +361,7 @@ func _mob_act(m: Dictionary) -> void:
 	match m.get("ability", ""):
 		"throw":
 			var rng: Array = m.throw_range
-			if m.cooldown <= 0 and cheb(m.pos, hero.pos) >= int(rng[0]) and cheb(m.pos, hero.pos) <= int(rng[1]) and line_clear(m.pos, hero.pos):
+			if not hidden() and m.cooldown <= 0 and cheb(m.pos, hero.pos) >= int(rng[0]) and cheb(m.pos, hero.pos) <= int(rng[1]) and line_clear(m.pos, hero.pos):
 				danger.append({"pos": hero.pos, "dmg": int(m.dmg) + int(m.throw_bonus), "at": m.next + 1.0, "src": m.name + "'s spear", "uid": m.uid})
 				m.cooldown = int(m.throw_cooldown)
 				_log("%s winds up a throw! (red tile)" % m.name)
@@ -353,6 +380,8 @@ func _mob_act(m: Dictionary) -> void:
 				return
 			if int(m.hp) * 2 <= int(m.ht) and m.has("enraged_dmg"):
 				m.dmg = int(m.enraged_dmg)
+	if hidden():
+		return  # lost track of the hero: searches in place
 	if cheb(m.pos, hero.pos) == 1:
 		_ev({"t": "attack", "uid": m.uid, "to": hero.pos})
 		hit_hero(int(m.dmg), m.name)

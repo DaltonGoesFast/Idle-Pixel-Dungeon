@@ -17,6 +17,7 @@ var facilities: Dictionary = {}    # id -> {level, cap}
 var id_queue: Array = []           # [{uid, ready_at}]
 var boss_kills: Dictionary = {}    # class -> [biome ids]  (first kill per class drops a Scroll of Upgrade)
 var settings := {"sfx": 0.8, "music": 0.5}
+var stats := {"potions_brewed": 0, "deepest_floor": 0, "runs": 0, "deaths": 0}
 var run: Dictionary = {}           # empty when no expedition is active
 var time_offset := 0.0             # tests / debug can fast-forward wall-clock time
 var messages: PackedStringArray = []
@@ -39,6 +40,7 @@ func touch() -> void:
 func new_game() -> void:
 	mats = {"gold": 30, "ration": 2, "torch": 2, "potion_healing": 1, "iron_key": 1, "seeds": 2}
 	gear = []; next_uid = 1; id_queue = []; boss_kills = {}; run = {}; time_offset = 0.0
+	stats = {"potions_brewed": 0, "deepest_floor": 0, "runs": 0, "deaths": 0}
 	facilities = {}
 	for f in DB.facilities: facilities[f] = {"level": 1, "cap": 1}
 	heroes = {}
@@ -103,7 +105,8 @@ func hero_stats(c: String) -> Dictionary:
 	var h: Dictionary = heroes[c]
 	var def: Dictionary = DB.heroes[c]
 	var w := gear_by_uid(h.weapon); var a := gear_by_uid(h.armor); var r := gear_by_uid(h.ring)
-	var wd := DB.item(w.id) if not w.is_empty() and not w.cracked else DB.item("worn_shortsword") if c == "warrior" else DB.item("mages_staff")
+	# cracked/missing weapon: fight with the class's starting weapon stats (bare minimum)
+	var wd := DB.item(w.id) if not w.is_empty() and not w.cracked else DB.item(def.start_weapon)
 	var ad := DB.item(a.id) if not a.is_empty() and not a.cracked else {}
 	var wl := int(w.get("lvl", 0)); var al := int(a.get("lvl", 0))
 	var dmg := int(wd.dmg) + wl * (int(wd.tier) + 1) / 2          # upgrades: +((tier+1)/2) per level
@@ -123,7 +126,14 @@ func hero_stats(c: String) -> Dictionary:
 	if "bolt" in def.abilities and h.wand != "":
 		var wn := DB.item(h.wand)
 		s.bolt = {"dmg": int(wn.bolt_dmg) + int(h.level) / 2, "charges": int(wn.charges), "recharge": int(wn.recharge),
-			"burns_grass": wn.get("burns_grass", false), "name": wn.name}
+			"burns_grass": wn.get("burns_grass", false), "name": wn.name, "magic": true}
+	if "shoot" in def.abilities:
+		# SPD Spirit Bow: (1 + lvl/5) - (6 + lvl/2.5), collapsed to the average
+		var lv := int(h.level)
+		s.bolt = {"dmg": (1 + lv / 5 + 6 + int(lv / 2.5)) / 2, "charges": 0, "infinite": true, "recharge": 0,
+			"name": "the Spirit Bow", "magic": false}
+	if "cloak" in def.abilities:
+		s.cloak = {"charges": int(def.cloak_charges), "ticks": float(def.cloak_ticks)}
 	return s
 
 func power_rating(c: String) -> int:
@@ -206,6 +216,8 @@ func craft(fac: String, rid: String) -> bool:
 	pay(r.cost)
 	if r.has("out"): add_gear(r.out); say("Forged " + DB.display_name(r.out) + ".")
 	else: add_mat(r.out_mat, 1); say("Made " + DB.mat_name(r.out_mat) + ".")
+	if fac == "alchemy": stats.potions_brewed += 1
+	check_unlocks()
 	touch(); return true
 
 func item_upgrade_cost(uid: int) -> Dictionary:
@@ -341,6 +353,7 @@ func start_run(c: String, loadout: Dictionary, biome := "sewers", seed := -1) ->
 	run = {"hero": c, "biome": biome, "floor": 1, "progress": 0.0, "torch": 100.0, "satiety": 100.0,
 		"hp": s.ht, "pack": {}, "pack_gear": [], "supplies": sup, "seed": seed if seed >= 0 else int(now()) % 100000,
 		"events": [], "next_event": 0, "gather": 0, "starve": 0, "milestones_done": [], "pending_loot": 0, "boss_dead": false}
+	stats.runs += 1; note_floor(1)
 	say("%s descends into the %s." % [s.name, DB.biomes[biome].name]); touch(); return true
 
 func pack_add(id: String, n: int) -> void:
@@ -359,9 +372,11 @@ func end_run(result: String) -> void:
 			for g in run.pack_gear: gear.append(g)
 			say("Extracted! The pack is banked at Camp.")
 		"death":
+			stats.deaths += 1
 			for slot in ["weapon", "armor", "ring"]:
 				var g := gear_by_uid(int(h[slot]))
-				if not g.is_empty(): g.cracked = true
+				# heirlooms (Mage's Staff...) are permanent and never crack
+				if not g.is_empty() and not DB.item(g.id).get("heirloom", false): g.cracked = true
 			h.level = 1; h.xp = 0; h.str = 10
 			say("%s fell. Pack lost, gear cracked, back to Lv1 / 10 Str." % DB.heroes[c].name)
 		"abandon":
@@ -376,15 +391,26 @@ func record_boss_kill(c: String, biome: String) -> bool:
 		kills.append(biome); boss_kills[c] = kills
 		pack_add("scroll_upgrade", 1)
 	if not (biome in heroes[c].cleared): heroes[c].cleared.append(biome)
-	# Class unlocks (DECISIONS.md: Mage unlocks on first Goo kill by anyone)
-	if biome == "sewers" and not heroes.mage.unlocked:
-		heroes.mage.unlocked = true; say("The Mage has joined the Camp!")
+	check_unlocks()
 	return first
+
+## Class unlock milestones (DECISIONS.md #11, #31)
+func check_unlocks() -> void:
+	var rules := {"rogue": int(stats.deepest_floor) >= 4, "huntress": int(stats.potions_brewed) >= 5,
+		"mage": boss_kills.values().any(func(k): return "sewers" in k)}
+	for c in rules:
+		if heroes.has(c) and not heroes[c].unlocked and rules[c]:
+			heroes[c].unlocked = true
+			say("The %s has joined the Camp!" % DB.heroes[c].name)
+
+func note_floor(f: int) -> void:
+	if f > int(stats.deepest_floor):
+		stats.deepest_floor = f; check_unlocks()
 
 # ---------------------------------------------------------------- persistence
 func to_dict() -> Dictionary:
 	return {"mats": mats, "gear": gear, "next_uid": next_uid, "heroes": heroes, "facilities": facilities,
-		"id_queue": id_queue, "boss_kills": boss_kills, "settings": settings, "run": run}
+		"id_queue": id_queue, "boss_kills": boss_kills, "settings": settings, "run": run, "stats": stats}
 
 func from_dict(d: Dictionary) -> void:
 	new_game()
@@ -395,6 +421,8 @@ func from_dict(d: Dictionary) -> void:
 		if facilities.has(f): facilities[f].merge(d.facilities[f], true)
 	id_queue = d.get("id_queue", []); boss_kills = d.get("boss_kills", {})
 	settings.merge(d.get("settings", {}), true); run = d.get("run", {})
+	stats.merge(d.get("stats", {}), true)
+	for k in stats: stats[k] = int(stats[k])
 	_fix_types()
 	touch()
 

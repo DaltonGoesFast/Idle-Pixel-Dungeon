@@ -25,6 +25,12 @@ func _ready() -> void:
 		plan.append([sz, "combat", func():
 			main.start_combat(Delve.combat_event(GameState.run, Delve.rng_for(GameState.run, 3), ["gnoll", "crab"]), func(_r): pass)
 			for i in 3: main.screen._do_bot()])
+		plan.append([sz, "huntress", func():
+			GameState.end_run("abandon")
+			for c in GameState.heroes: GameState.heroes[c].unlocked = true
+			GameState.start_run("huntress", {}, "sewers", 9); main.show_delve(); main.delve.running = false
+			main.start_combat(Delve.combat_event(GameState.run, Delve.rng_for(GameState.run, 4), ["crab", "rat"]), func(_r): pass)
+			for i in 2: main.screen._do_bot()])
 		plan.append([sz, "boss", func():
 			main.start_combat({"kind": "combat", "boss": true, "room": DB.boss_rooms[0], "mobs": ["goo"]}, func(_r): pass)
 			for i in 3: main.screen._do_bot()])
@@ -40,4 +46,4 @@ func _process(_d: float) -> void:
 		step[2].call()
 	if f % 12 == 11:
 		get_viewport().get_texture().get_image().save_png("%s/%s_%s.png" % [out, step[0], step[1]])
-		if step[1] == "camp": print("box ", main.screen.root_box.size, " title ", main.screen.root_box.get_child(0).size, " tabs ", main.screen.tabs.size, " anchors ", main.screen.root_box.anchor_right, " off ", main.screen.root_box.offset_right)
+		if false: print("box ", main.screen.root_box.size, " title ", main.screen.root_box.get_child(0).size, " tabs ", main.screen.tabs.size, " anchors ", main.screen.root_box.anchor_right, " off ", main.screen.root_box.offset_right)

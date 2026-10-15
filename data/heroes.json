@@ -24,7 +24,7 @@
   "fh": 15,
   "base_ht": 20,
   "ht_per_level": 5,
-  "base_barrier": 2,
+  "base_barrier": 4,
   "heirloom": "mages_staff",
   "heirloom_barrier": 0,
   "start_weapon": "mages_staff",
@@ -35,5 +35,45 @@
   "unlocked_by_default": false,
   "unlock": "Defeat Goo (Sewers boss) with any hero.",
   "desc": "Zone control. The Mage's Staff fires its imbued wand as a bolt that ignores DR."
+ },
+ "rogue": {
+  "name": "Rogue",
+  "sprite": "rogue",
+  "fw": 12,
+  "fh": 15,
+  "base_ht": 20,
+  "ht_per_level": 5,
+  "base_barrier": 4,
+  "heirloom": "cloak_of_shadows",
+  "heirloom_barrier": 0,
+  "start_weapon": "dagger",
+  "start_armor": "cloth_armor",
+  "abilities": [
+   "cloak"
+  ],
+  "cloak_charges": 2,
+  "cloak_ticks": 2.0,
+  "unlocked_by_default": false,
+  "unlock": "Reach floor 4 of the Sewers with any hero.",
+  "desc": "Stealth & assassination. Cloak of Shadows hides you for 2 ticks: enemies lose track and your next hit is a Surprise (dagger x2)."
+ },
+ "huntress": {
+  "name": "Huntress",
+  "sprite": "huntress",
+  "fw": 12,
+  "fh": 15,
+  "base_ht": 20,
+  "ht_per_level": 5,
+  "base_barrier": 4,
+  "heirloom": "spirit_bow",
+  "heirloom_barrier": 0,
+  "start_weapon": "studded_gloves",
+  "start_armor": "cloth_armor",
+  "abilities": [
+   "shoot"
+  ],
+  "unlocked_by_default": false,
+  "unlock": "Brew 5 potions at the Alchemy Pot.",
+  "desc": "Geometry & overwatch. The Spirit Bow fires unlimited arrows at any enemy in line of sight (DR applies; Surprise from cover)."
  }
 }

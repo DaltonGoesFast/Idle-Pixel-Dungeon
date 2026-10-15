@@ -5,11 +5,14 @@ extends Node
 var main
 var f := 0
 var stage := 0
+var classes := ["warrior", "mage", "rogue", "huntress"]
+var ci := 0
 
 func _ready() -> void:
 	SaveSystem.autosave = false
 	SaveSystem.path = "user://ui_smoke.json"
 	GameState.new_game()
+	for c in GameState.heroes: GameState.heroes[c].unlocked = true
 	main = load("res://scenes/main.tscn").instantiate()
 	add_child(main)
 
@@ -19,13 +22,14 @@ func _process(_d: float) -> void:
 		5:
 			_check(main.screen.get_script().resource_path.ends_with("camp_screen.gd"), "starts in camp")
 			for i in main.screen.tabs.get_tab_count(): main.screen.tabs.current_tab = i
+			main.screen.chosen_hero = classes[0]
 			main.screen._start()
 		8:
 			_check(main.screen == main.delve, "delve screen shown")
 			main.delve.fast = true
 		_:
-			if f > 8 and f < 4000: _drive()
-	if f == 4000:
+			if f > 8 and f < 12000: _drive()
+	if f == 12000:
 		print("UI SMOKE: timeout at stage ", stage); get_tree().quit(1)
 
 func _drive() -> void:
@@ -53,6 +57,11 @@ func _drive() -> void:
 					Delve.descend(GameState); s.pending = {}; s._show_card()
 	else:
 		_check(GameState.run.is_empty(), "back at camp with no run")
+		print("  %s run done" % classes[ci])
+		ci += 1
+		if ci < classes.size():
+			s.chosen_hero = classes[ci]; s._start(); main.delve.fast = true
+			return
 		print("UI SMOKE: PASS (fights=%d, stash gold=%d)" % [stage, GameState.mat("gold")])
 		SaveSystem.wipe()
 		get_tree().quit(0)

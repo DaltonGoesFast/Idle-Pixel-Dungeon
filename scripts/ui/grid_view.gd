@@ -19,6 +19,7 @@ var streaks := []       # [{from, to, t}]
 var blasts := []        # [{pos, t}]
 var hint_cell := Vector2i(-1, -1)
 var mode := ""
+var lunge := {}         # uid -> {dir: Vector2, t}
 
 func _ready() -> void:
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -55,12 +56,18 @@ func play_events(evs: Array) -> void:
 				floaters.append({"pos": Vector2(e.pos), "text": "+%d" % e.amount, "color": Color("6bff6b"), "t": 0.0}); Sfx.play("drink")
 			"die": Sfx.play("death" if e.uid == combat.hero.uid else "bones")
 			"fall": Sfx.play("falling")
-			"bolt": streaks.append({"from": Vector2(e.from), "to": Vector2(e.to), "t": 0.0}); Sfx.play("zap")
-			"blast": blasts.append({"pos": Vector2(e.pos), "t": 0.0}); Sfx.play("blast") if false else Sfx.play("hit_crush")
+			"bolt":
+				streaks.append({"from": Vector2(e.from), "to": Vector2(e.to), "t": 0.0, "magic": e.get("magic", true)})
+				Sfx.play("zap" if e.get("magic", true) else "atk_spiritbow")
+			"blast": blasts.append({"pos": Vector2(e.pos), "t": 0.0}); Sfx.play("hit_crush")
 			"telegraph": Sfx.play("alert")
 			"burn": blasts.append({"pos": Vector2(e.pos), "t": 0.0, "fire": true}); Sfx.play("burning")
 			"move": if e.uid == combat.hero.uid: Sfx.play("step", 1.1)
 			"sfx": Sfx.play(e.name)
+			"attack":
+				for u in combat.units:
+					if u.uid == e.uid: lunge[e.uid] = {"dir": (Vector2(e.to) - Vector2(u.pos)).normalized(), "t": 0.0}
+				Sfx.play("hit_slash", 1.0)
 
 func _process(d: float) -> void:
 	anim_t += d
@@ -72,6 +79,9 @@ func _process(d: float) -> void:
 	for k in flash.keys():
 		flash[k] -= d
 		if flash[k] <= 0: flash.erase(k)
+	for k in lunge.keys():
+		lunge[k].t += d
+		if lunge[k].t > 0.16: lunge.erase(k)
 	for f in floaters: f.t += d
 	floaters = floaters.filter(func(f): return f.t < 0.9)
 	for s in streaks: s.t += d
@@ -128,6 +138,7 @@ func _draw() -> void:
 	for u in combat.units:
 		if u.hp <= 0: continue
 		var p: Vector2 = disp.get(u.uid, Vector2(u.pos))
+		if lunge.has(u.uid): p += lunge[u.uid].dir * 0.3 * sin(lunge[u.uid].t / 0.16 * PI)
 		var frame := 0 if fmod(anim_t + u.uid * 0.37, 1.0) < 0.6 else 1
 		var src := Rect2(frame * int(u.fw), 0, int(u.fw), int(u.fh))
 		var sz := Vector2(u.fw, u.fh) * scale
@@ -136,6 +147,7 @@ func _draw() -> void:
 		var mod := Color(1, 1, 1)
 		if flash.has(u.uid): mod = Color(4, 4, 4)
 		if u.get("charging", false): mod = Color(1.6, 0.6, 0.6)
+		if u.has("hero") and combat.hidden(): mod.a = 0.45
 		draw_texture_rect_region(sprite(u.sprite), Rect2(pos, sz), src, mod)
 		var bw := (cs - 4) * clampf(float(u.hp) / float(u.ht), 0, 1)
 		var bh := maxf(3, floorf(cs * 0.06))
@@ -146,7 +158,8 @@ func _draw() -> void:
 			draw_rect(Rect2(r.position + Vector2(2, 1 + bh), Vector2(bb, bh)), Color("7fd3ff"))
 	for s in streaks:
 		var a := cell_rect(s.from).get_center(); var b := cell_rect(s.to).get_center()
-		draw_line(a, a.lerp(b, clampf(s.t / 0.12, 0, 1)), Color(0.8, 0.6, 1.0), maxf(3, cs * 0.08))
+		var sc := Color(0.8, 0.6, 1.0) if s.get("magic", true) else Color(0.9, 0.9, 0.7)
+		draw_line(a, a.lerp(b, clampf(s.t / 0.12, 0, 1)), sc, maxf(3, cs * 0.08))
 	for b in blasts:
 		var c := Color(1, 0.6, 0.1, 1.0 - b.t / 0.35) if b.get("fire", false) else Color(1, 0.3, 0.2, 1.0 - b.t / 0.35)
 		draw_rect(cell_rect(b.pos).grow(b.t * cs * 0.3), c, false, 3.0)

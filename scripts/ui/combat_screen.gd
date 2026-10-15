@@ -77,7 +77,10 @@ func _refresh() -> void:
 	if status == null: return
 	var h := combat.hero
 	var line := "%s  HP %d/%d  Barrier %d/%d  DR %d  Dmg %d   t=%.1f" % [h.name, h.hp, h.ht, h.barrier, h.barrier_max, h.dr, h.dmg, combat.time]
-	if not h.bolt.is_empty(): line += "\nStaff charges %d/%d (%s, %d dmg, ignores DR)" % [h.charges, h.bolt.charges, h.bolt.name, h.bolt.dmg]
+	if not h.bolt.is_empty():
+		if h.bolt.get("infinite", false): line += "\nTap any enemy in sight to shoot %s (%d dmg)" % [h.bolt.name, h.bolt.dmg]
+		else: line += "\nStaff charges %d/%d (%s, %d dmg, ignores DR)" % [h.charges, h.bolt.charges, h.bolt.name, h.bolt.dmg]
+	if combat.hidden(): line += "\nHIDDEN in shadows - enemies can't find you"
 	if combat.surprise_ready(): line += "\nIn cover: your next attack is a SURPRISE (x%.1f, no DR, knockback)" % float(h.surprise_mult)
 	status.text = line
 	UIKit.clear(buttons)
@@ -86,9 +89,11 @@ func _refresh() -> void:
 	_btn("Wait", func(): _act(func(): combat.hero_wait()))
 	if "shove" in h.abilities:
 		_btn("Shove: ON" if mode == "shove" else "Shove", func(): mode = "" if mode == "shove" else "shove"; grid.mode = mode; _refresh())
-	if not h.bolt.is_empty():
+	if not h.cloak.is_empty():
+		_btn("Cloak (%d)" % h.cloak_charges, func(): _act(func(): combat.hero_cloak()), int(h.cloak_charges) > 0 and not combat.hidden())
+	if not h.bolt.is_empty() and not h.bolt.get("infinite", false):
 		_btn("Bolt (%d)" % h.charges, func(): mode = "" if mode == "bolt" else "bolt"; grid.mode = mode; _refresh(), h.charges > 0)
-	_btn("Potion (%d)" % (potions - potions_used), func(): potions_used += 1; _act(func(): combat.hero_heal(heal)), potions - potions_used > 0 and h.hp < h.ht)
+	_btn("Potion (%d)" % (potions - potions_used), _drink, potions - potions_used > 0 and h.hp < h.ht)
 	_btn("Hint", _hint)
 	_btn("Auto: ON" if auto else "Auto", func(): auto = not auto; _refresh())
 	_refresh_log()
@@ -101,11 +106,22 @@ func _refresh_log() -> void:
 
 func _on_cell(c: Vector2i) -> void:
 	if finished: return
+	var u = combat.unit_at(c)
+	if u != null and u != combat.hero and Combat.cheb(c, combat.hero.pos) > 1 and not combat.can_bolt(c):
+		_inspect(u); return
 	var m := mode
 	_act(func():
 		if combat.hero_tap(c, m):
 			if m != "": mode = ""; grid.mode = ""
 		)
+
+func _inspect(u: Dictionary) -> void:
+	var spd := "fast (%.1f ticks)" % u.delay if float(u.delay) < 1.0 else "normal"
+	var extra := ""
+	match u.get("ability", ""):
+		"throw": extra = " Throws a spear at range %d-%d (red tile, %d dmg)." % [u.throw_range[0], u.throw_range[1], int(u.dmg) + int(u.throw_bonus)]
+		"pump": extra = " Every %d actions slams all adjacent tiles for x%d." % [u.pump_every, u.pump_mult]
+	GameState.say("%s: HP %d/%d, dmg %d, DR %d, %s.%s" % [u.name, u.hp, u.ht, u.dmg, u.dr, spd, extra])
 
 func _act(f: Callable) -> void:
 	grid.hint_cell = Vector2i(-1, -1)
@@ -116,6 +132,13 @@ func _act(f: Callable) -> void:
 		Sfx.play("levelup" if combat.won else "death")
 	_refresh()
 
+## Potions are consumed from the run supplies immediately (so a lost fight doesn't refund them).
+func _drink() -> void:
+	if potions - potions_used <= 0: return
+	potions_used += 1
+	GameState.run.supplies.potion_healing = maxi(0, int(GameState.run.supplies.get("potion_healing", 0)) - 1)
+	_act(func(): combat.hero_heal(heal))
+
 func _hint() -> void:
 	var s := CombatBot.suggest(combat, potions - potions_used, heal)
 	GameState.say("Hint: " + s.why)
@@ -124,8 +147,9 @@ func _hint() -> void:
 func _do_bot() -> void:
 	var s := CombatBot.suggest(combat, potions - potions_used, heal)
 	match s.act:
-		"heal": potions_used += 1; _act(func(): combat.hero_heal(heal))
+		"heal": _drink()
 		"wait": _act(func(): combat.hero_wait())
+		"cloak": _act(func(): if not combat.hero_cloak(): combat.hero_wait())
 		"tap": _act(func(): if not combat.hero_tap(s.pos, s.mode): combat.hero_wait())
 
 func _result_buttons() -> void:

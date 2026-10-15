@@ -5,7 +5,7 @@ class_name Delve
 extends RefCounted
 
 const EVENT_POINTS := [22.0, 45.0, 68.0, 90.0]
-const TORCH_DRAIN := 0.5      # per 1% progress (100% floor = 50 torch)
+const TORCH_DRAIN := 0.4      # per 1% progress (100% floor = 40 torch; 5 floors = 200 = start + 2 torches)
 const SATIETY_DRAIN := 0.4    # per 1% progress
 const TORCH_RESTORE := 60.0
 const RATION_RESTORE := 70.0
@@ -159,6 +159,7 @@ static func _new_gear(gs, id: String, known: bool) -> Dictionary:
 static func descend(gs) -> void:
 	var run: Dictionary = gs.run
 	run.floor += 1
+	gs.note_floor(int(run.floor))
 	var ht: int = gs.hero_stats(run.hero).ht
 	run.hp = mini(ht, int(run.hp) + int(ceil(ht * FLOOR_REST_HEAL)))
 	if int(run.pending_loot) > 0:
@@ -166,3 +167,21 @@ static func descend(gs) -> void:
 		run.pending_loot = 0
 	plan_floor(run)
 	gs.touch()
+
+## Apply a finished fight to the run (shared by DelveScreen and the full-run simulator).
+## Returns false if the hero died (caller should end the run with "death").
+static func apply_fight_result(gs, ev: Dictionary, res: Dictionary, reward: Dictionary) -> bool:
+	var run: Dictionary = gs.run
+	if not res.won: return false
+	run.hp = int(res.hp)
+	gs.pack_add("gold", int(res.loot))
+	run.pending_loot = int(run.pending_loot) + int(res.fallen_loot)
+	if gs.grant_xp(run.hero, int(res.xp)):
+		gs.say("Level up! %s is now Lv%d." % [DB.heroes[run.hero].name, gs.heroes[run.hero].level])
+		run.hp = mini(gs.hero_stats(run.hero).ht, int(run.hp) + int(DB.heroes[run.hero].ht_per_level))
+	if not reward.is_empty(): gs.say("Reward: " + reward(gs, reward))
+	if res.boss_killed:
+		run.boss_dead = true
+		if gs.record_boss_kill(run.hero, run.biome): gs.say("First %s kill for this class: Scroll of Upgrade!" % DB.mobs[ev.mobs[0]].name)
+	gs.touch()
+	return true
