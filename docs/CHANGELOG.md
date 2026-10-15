@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Delve Brought/Found chips stay at 48px (font_size*2 was 80px on the Fold cover and starved the corridor) (+test).
 
 ## 0.27.0
 - Delve screen: taller corridor, encounter cards as windows over it, SPD icon toolbar with a Menu for Settings / Scroll of Passage / Abandon, floor pips, torch and food bars with icons, Brought vs Found (lost on death) rows, low-HP red edges, and a campfire bank preview. Encounter windows keep reward toasts but no longer embed the delve log.

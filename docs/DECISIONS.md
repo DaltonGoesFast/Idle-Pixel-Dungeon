@@ -365,3 +365,6 @@ The percent bar stays the exploration (GDD: UI-driven delving, no hallway walkin
 - Torch and food are filled bars with an item icon and a percent on the status pane (fights too), orange under 30% and red at 0. Encounter windows do not embed the delve log; reward toasts still sit in the window above the buttons.
 - Red edges at or below 30% HP (the Auto Battle stop line), and a short pulse when an ambush opens.
 - The campfire lists what extracting banks next to the next biome's floors and Strength gate (red when the hero is under it).
+
+## 126. Delve Brought/Found chips stay 48px
+09b3032 enlarged Brought/Found chips with `maxi(48, font_size * 2)`. On the Fold cover `font_size` is 40, so chips became 80px and ate the corridor; UI smoke then sometimes failed the long Huntress run (no Yog, no leftover talents). Cap at a fixed 48px — still larger than the default 32px chip, readable on cover, and safe for layout. test_delve_chips.

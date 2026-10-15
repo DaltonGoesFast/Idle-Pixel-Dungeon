@@ -301,7 +301,8 @@ func _refresh() -> void:
 	if line != "": stats.add_child(UIKit.label(line, 0.95, Color("ff7070")))
 	# Brought comes back to the stash on every ending; Found is lost if the hero dies.
 	# Chips use a larger icon than the default 32px so torch and ration stay readable on the cover.
-	var chip_px := maxi(48, int(UIKit.font_size * 2.0))
+	# Fixed 48px: font_size*2 is 80+ on the Fold cover (font_size 40) and starves the corridor (DECISIONS #126).
+	var chip_px := 48
 	var brought := _chip_row("Brought:", Color("9a8f7c"))
 	for k in run.supplies:
 		if int(run.supplies[k]) > 0: brought.add_child(UIKit.res_chip(k, str(run.supplies[k]), 0.85, chip_px))

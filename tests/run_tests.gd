@@ -43,6 +43,7 @@ func _ready() -> void:
 	test_food_sources(gs)
 	test_facility_cap(gs)
 	test_crate_slot(gs)
+	await test_delve_chips(gs)
 	test_owed_sou(gs)
 	await test_icon_sizes(gs)
 	test_full_auto(gs)
@@ -1533,6 +1534,12 @@ class ToastHost:
 	func tip_open() -> bool:
 		return false
 
+
+func _all_nodes(n: Node) -> Array:
+	var out: Array = [n]
+	for c in n.get_children(): out.append_array(_all_nodes(c))
+	return out
+
 func _find_btn(n: Node, text: String):
 	if n is Button and n.text == text: return n
 	for ch in n.get_children():
@@ -1719,6 +1726,37 @@ func test_crate_slot(gs) -> void:
 	for n in lines: if n is Node: n.free()
 	for n in cs._recipe_lines(single): if n is Node: n.free()
 	a.free(); b.free(); cs.free()
+
+
+## DECISIONS #126: Brought/Found chips stay at 48px. font_size*2 is 80 on the Fold cover and starves the corridor.
+func test_delve_chips(gs) -> void:
+	print("[delve chips]")
+	var win := get_window()
+	var old := win.size
+	win.size = Vector2i(484, 1188)
+	await get_tree().process_frame
+	gs.new_game(); gs.settings.tutorial = false
+	gs.start_run("warrior", {"ration": 2, "torch": 2, "potion_healing": 1}, "sewers", 7)
+	var main = load("res://scenes/main.tscn").instantiate()
+	add_child(main)
+	await get_tree().process_frame
+	main._relayout()
+	await get_tree().process_frame
+	main.show_delve()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	check(UIKit.font_size >= 36, "cover layout uses a large font_size (%d) where font_size*2 would overshoot" % UIKit.font_size)
+	var biggest := 0
+	for n in _all_nodes(main.delve.stats):
+		if n is PixelIcon:
+			biggest = maxi(biggest, int((n as PixelIcon).cell_px))
+		elif n is Control and n.get_parent() is HBoxContainer and (n as Control).custom_minimum_size.x >= 32:
+			biggest = maxi(biggest, int((n as Control).custom_minimum_size.x))
+	check(biggest > 0 and biggest <= 48, "Brought/Found chip icons are at most 48px (got %d; font_size=%d)" % [biggest, UIKit.font_size])
+	check(main.delve.stats.size.y <= UIKit.font_size * 4.5, "Brought/Found row stays compact (h=%.0f fs=%d)" % [main.delve.stats.size.y, UIKit.font_size])
+	main.queue_free()
+	win.size = old
+	await get_tree().process_frame
 
 ## DECISIONS #116: dew is no longer a dead currency.
 func test_dew_sink(gs) -> void:
