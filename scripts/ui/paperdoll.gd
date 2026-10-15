@@ -45,9 +45,7 @@ static func build(parent: Control, c: String, wide: bool, mode: String, refresh:
 	else: right.add_child(UIKit.label("Tap a slot to inspect or swap it.", 0.8, Color("9a9488")))
 
 static func hero_tex(c: String) -> Texture2D:
-	var h: Dictionary = GameState.heroes[c]
-	var a := GameState.gear_by_uid(int(h.armor))
-	var tier := 0 if a.is_empty() else clampi(int(DB.item(a.id).get("tier", 1)) - 1, 0, 6)
+	var tier := GameState.armor_tier(c)
 	var at := AtlasTexture.new(); at.atlas = load("res://assets/sprites/%s.png" % c)
 	at.region = Rect2(0, tier * 15, 12, 15); return at
 

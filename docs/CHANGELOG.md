@@ -1,5 +1,9 @@
 # Changelog
 
+
+## 0.24.0
+- Armor tier visible on hero sprites everywhere (combat, delve, camp, portraits, paperdoll) + test.
+- Animated delve corridor above the Delve Bar (biome tiles, run anim, torchlight, parallax, ambient doors/mobs, pickup pops, encounter stop).
 ## 0.23.0
 - Special rooms (8 SPD-style), Yog fist phases, perf pass (LOS cache, camp 15 fps), icon-centering audit (PixelIcon, SPD item rects, icon_audit screenshot).
 

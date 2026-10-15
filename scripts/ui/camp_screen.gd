@@ -141,7 +141,7 @@ func _hero_slot(c: String) -> Control:
 
 func _hero_tex(c: String) -> Texture2D:
 	var at := AtlasTexture.new(); at.atlas = load("res://assets/sprites/%s.png" % c)
-	at.region = Rect2(Vector2.ZERO, HERO_FRAME); return at
+	at.region = Rect2(Vector2(0, GameState.armor_tier(c) * HERO_FRAME.y), HERO_FRAME); return at
 
 ## Biomes a hero may start in: Sewers, plus the biome after each one they've cleared.
 func start_biomes(c: String) -> Array:

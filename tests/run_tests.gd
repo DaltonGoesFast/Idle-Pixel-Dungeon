@@ -32,6 +32,7 @@ func _ready() -> void:
 	test_paperdoll(gs)
 	test_specials(gs)
 	test_icon_centering(gs)
+	test_armor_tiers(gs)
 	test_delve(gs)
 	test_camp(gs)
 	test_save(gs, ss)
@@ -854,3 +855,22 @@ func test_icon_centering(_gs) -> void:
 		var t := UIKit.toolbar_icon(n)
 		if int(t.get_width()) % 2 != 0 or int(t.get_height()) % 2 != 0: bad.append(n)
 	check(bad.is_empty(), "toolbar/UI icons padded to even sizes %s" % [bad])
+
+## Equipping each armor tier moves the hero sprite to that SPD HeroSprite row everywhere it is drawn.
+func test_armor_tiers(gs) -> void:
+	print("[armor tiers]")
+	var old: int = gs.heroes.warrior.armor
+	var regions := []; var imgs := []
+	for id in ["cloth_armor", "leather_armor", "mail_armor", "scale_armor", "plate_armor"]:
+		var uid: int = gs.add_gear(id)
+		gs.heroes.warrior.armor = uid
+		var hs: Dictionary = gs.hero_stats("warrior")
+		var at: AtlasTexture = Paperdoll.hero_tex("warrior")
+		check(int(hs.row) == int(DB.item(id).tier) - 1 and at.region.position.y == hs.row * 15, "%s -> sprite row %d" % [id, hs.row])
+		regions.append(at.region.position.y); imgs.append(at.get_image().get_data())
+	var distinct := {}
+	for d in imgs: distinct[d] = true
+	check(distinct.size() == 5 and regions == [0.0, 15.0, 30.0, 45.0, 60.0], "5 tiers give 5 different sprite frames")
+	var whs: Dictionary = gs.hero_stats("warrior"); var c := Combat.new(); c.setup(DB.rooms[1], whs, int(whs.ht), ["gnoll"])
+	check(int(c.hero.get("row", -1)) == 4, "combat hero carries the armor row")
+	gs.heroes.warrior.armor = old

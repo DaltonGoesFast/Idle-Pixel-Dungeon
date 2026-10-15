@@ -106,7 +106,7 @@ func _draw() -> void:
 		hero_anim = all.get(hero, {}).get("idle", {"fps": 1, "frames": [0]}); hero_anim._for = hero
 	var hfl: Array = hero_anim.frames; var hf := int(hfl[int(t * float(hero_anim.fps)) % hfl.size()])
 	var cols_h := int(hs.get_width() / 12)
-	draw_texture_rect_region(hs, Rect2(Vector2(fire.x + cs * 0.9, fire.y + kk * 6 - hz.y).floor(), hz), Rect2((hf % cols_h) * 12, (hf / cols_h) * 15, 12, 15))
+	draw_texture_rect_region(hs, Rect2(Vector2(fire.x + cs * 0.9, fire.y + kk * 6 - hz.y).floor(), hz), Rect2((hf % cols_h) * 12, (hf / cols_h + GameState.armor_tier(hero)) * 15, 12, 15))
 	# facilities
 	var font := get_theme_default_font()
 	var fs := UIKit.font_px(UIKit.font_size * 0.85)

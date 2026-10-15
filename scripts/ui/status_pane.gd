@@ -28,8 +28,9 @@ func _init() -> void:
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 
-func set_hero(sprite: String, fw: int, fh: int) -> void:
-	hero_sprite = load("res://assets/sprites/%s.png" % sprite); hero_fw = fw; hero_fh = fh
+var hero_row := 0
+func set_hero(sprite: String, fw: int, fh: int, row := 0) -> void:
+	hero_row = row; hero_sprite = load("res://assets/sprites/%s.png" % sprite); hero_fw = fw; hero_fh = fh
 
 func _k() -> float:
 	return float(maxi(2, UIKit.px_scale))
@@ -76,7 +77,7 @@ func _draw() -> void:
 		var sc := k * 1.5 if k < 4 else floorf(k * 1.5)
 		var sz := Vector2(hero_fw, hero_fh) * sc
 		var c := Vector2(15, 16) * k
-		draw_texture_rect_region(hero_sprite, Rect2((c - sz / 2.0).floor(), sz), Rect2(0, 0, hero_fw, hero_fh))
+		draw_texture_rect_region(hero_sprite, Rect2((c - sz / 2.0).floor(), sz), Rect2(0, hero_row * hero_fh, hero_fw, hero_fh))
 	# level number centred in the badge strip under the portrait (SPD: level at x+(30-w)/2, y+33)
 	var lfs := _fit_fs(7 * k)
 	_centred(font, Rect2(Vector2(1, 29) * k, Vector2(28, 8) * k), str(int(d.get("level", 1))), lfs, Color("ffffaa"), k)

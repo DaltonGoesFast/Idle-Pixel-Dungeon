@@ -85,6 +85,13 @@ func _ready() -> void:
 			main.show_delve(); main.delve.running = false
 			for i in 30: Delve.advance(GameState, 1.0)
 			main.delve.pending = {"kind": "door", "door": DB.doors[0]}; main.delve._show_card()])
+		plan.append([sz, "delve_walk", func():
+			GameState.heroes.warrior.armor = GameState.add_gear("scale_armor")   # armor tier row must show
+			main.delve.pending = {}; main.delve.running = true; main.delve._show_card()
+			main.delve.scene.scroll = main.delve.scene.target - 0.6; main.delve.scene.pops.append({"id": "GOLD", "age": 0.2, "n": 1})])
+		plan.append([sz, "delve_enemy", func():
+			main.delve.running = false
+			main.delve.pending = Delve.combat_event(GameState.run, Delve.rng_for(GameState.run, 4), ["gnoll", "rat"]); main.delve._show_card()])
 		plan.append([sz, "backpack", func():
 			if GameState.run.is_empty(): GameState.start_run("warrior", {"ration": 1, "torch": 1, "potion_healing": 1}, "sewers", 5)
 			if GameState.run.pack_gear.is_empty():

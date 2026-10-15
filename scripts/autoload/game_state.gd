@@ -134,7 +134,7 @@ func hero_stats(c: String) -> Dictionary:
 	if not r.is_empty() and r.known and not r.cracked:
 		var rd := DB.item(r.id)
 		dmg += int(rd.get("dmg_bonus", 0)); barrier += int(rd.get("barrier_bonus", 0)); dr += int(rd.get("dr_bonus", 0))
-	var s := {"class": c, "name": def.name, "sprite": def.sprite, "fw": def.fw, "fh": def.fh,
+	var s := {"class": c, "name": def.name, "sprite": def.sprite, "fw": def.fw, "fh": def.fh, "row": armor_tier(c),
 		"ht": int(def.base_ht) + int(def.ht_per_level) * (int(h.level) - 1),
 		"dmg": dmg, "dr": dr, "barrier_max": barrier, "delay": float(wd.get("delay", 1.0)),
 		"surprise_mult": float(wd.get("surprise_mult", 1.5)), "abilities": def.abilities,
@@ -813,3 +813,10 @@ func _fix_types() -> void:
 			# rooms/mob lists come back as plain arrays; Combat.from_dict handles the combat itself
 			var ev: Dictionary = run.active_fight.event
 			ev.room = Array(ev.room); ev.mobs = Array(ev.mobs)
+
+
+## SPD HeroSprite armor row: 0 = cloth/none, item tier-1 otherwise (rows 0..6 of the hero sheet).
+func armor_tier(c: String) -> int:
+	if not heroes.has(c): return 0
+	var a := gear_by_uid(int(heroes[c].get("armor", -1)))
+	return 0 if a.is_empty() else clampi(int(DB.item(a.id).get("tier", 1)) - 1, 0, 6)

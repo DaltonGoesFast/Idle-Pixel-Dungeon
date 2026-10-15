@@ -251,3 +251,7 @@ grid_view caches LOS keyed on hero pos + terrain hash + unit count; camp_scene r
 
 ## 89. Icon centering
 All icons go through PixelIcon: trimmed via SPD assignItemRect sizes (data/item_rects.json), integer scale, floored centre in both axes. Toolbar icons padded to even sizes, button heights even. `icon_audit` screenshot + test_icon_centering guard it.
+
+## 90. Armor tiers on hero sprites + animated delve corridor
+GameState.armor_tier(c) (item tier-1, rows 0..6 like SPD HeroSprite) feeds every hero draw: combat units ("row"), status pane portraits, camp fire hero, Heroes-window portraits, paperdoll. test_armor_tiers checks each of the 5 armors gives a distinct frame region.
+DelveScene: top-down SPD-tile corridor of the run's biome above the Delve Bar; scroll follows floor progress (160 tiles/floor), hero runs in its armor row, torch light pool with flicker (smaller in darkness), 2-layer parallax dust, seeded side doors/bones/idle biome mobs, gold/dew pops, stops at encounters with the door opening or the enemies appearing. Redraws at 20 fps only while visible.

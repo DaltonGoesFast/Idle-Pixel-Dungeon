@@ -16,12 +16,14 @@ var running := true
 var fast := false
 var pending: Dictionary = {}   # current event card (pauses the bar)
 var portrait := true
+var scene: DelveScene
 
 func _ready() -> void:
 	box = UIKit.vbox(self); box.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
 	pane = StatusPane.new(); box.add_child(pane)
 	title = UIKit.header(""); box.add_child(title)
 	bar = ProgressBar.new(); bar.custom_minimum_size.y = UIKit.font_size * 1.6; bar.show_percentage = true; box.add_child(bar)
+	scene = DelveScene.new(); scene.host = self; scene.custom_minimum_size.y = UIKit.font_size * 7; box.add_child(scene)
 	stats = UIKit.vbox(box)
 	var sc := ScrollContainer.new(); sc.size_flags_vertical = SIZE_EXPAND_FILL
 	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED; box.add_child(sc)
@@ -34,6 +36,8 @@ func _ready() -> void:
 func apply_layout(p: bool, s: Vector2) -> void:
 	portrait = p
 	bar.custom_minimum_size.y = UIKit.font_size * 1.6
+	# corridor height: a multiple of 5 tile rows; shorter when the inner screen is wide
+	scene.custom_minimum_size.y = floorf(minf(s.y * (0.24 if p else 0.26), UIKit.font_size * (10.0 if p else 9.0)) / 5.0) * 5.0
 	_refresh_controls(); _show_card()
 
 func on_shown() -> void:
@@ -73,7 +77,7 @@ func _refresh() -> void:
 	var s: Dictionary = GameState.hero_stats(run.hero)
 	title.text = "%s - Floor %d / %d" % [DB.biomes[run.biome].name, run.floor, DB.biomes[run.biome].floors[1]]
 	bar.value = run.progress
-	if pane.hero_sprite == null: pane.set_hero(s.sprite, int(s.fw), int(s.fh))
+	if pane.hero_sprite == null or pane.hero_row != int(s.row): pane.set_hero(s.sprite, int(s.fw), int(s.fh), int(s.row))
 	var bl := []
 	if Delve.darkness(run): bl.append(16)                      # BLINDNESS
 	elif float(run.torch) > 0: bl.append(22)                   # LIGHT

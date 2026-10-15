@@ -126,7 +126,7 @@ func play_events(evs: Array) -> void:
 				Sfx.play("death" if e.uid == combat.hero.uid else "bones")
 				var lu = last_units.get(e.uid, null)
 				if lu != null:
-					dying.append({"sprite": lu.sprite, "fw": lu.fw, "fh": lu.fh, "pos": disp.get(e.uid, Vector2(e.pos)), "flip": ustate.get(e.uid, {}).get("flip", false), "t": 0.0})
+					dying.append({"sprite": lu.sprite, "fw": lu.fw, "fh": lu.fh, "row": int(lu.get("row", 0)), "pos": disp.get(e.uid, Vector2(e.pos)), "flip": ustate.get(e.uid, {}).get("flip", false), "t": 0.0})
 			"fall": Sfx.play("falling")
 			"bolt":
 				streaks.append({"from": Vector2(e.from), "to": Vector2(e.to), "t": 0.0, "magic": e.get("magic", true)})
@@ -382,7 +382,7 @@ func _draw() -> void:
 	for dd in dying:
 		var dk: float = 1.0 if dd.t < 0.8 else 1.0 - (dd.t - 0.8) / 0.8
 		var dfr := _frame(dd.sprite, "die", dd.t)
-		_draw_sprite(dd.sprite, dd.fw, dd.fh, dfr, dd.pos, dd.flip, scale, Color(1, 1, 1, dk))
+		_draw_sprite(dd.sprite, dd.fw, dd.fh, dfr + int(dd.get("row", 0)) * 1000, dd.pos, dd.flip, scale, Color(1, 1, 1, dk))
 	for u in order:
 		if u.hp <= 0: continue
 		var p: Vector2 = disp.get(u.uid, Vector2(u.pos))
@@ -394,7 +394,7 @@ func _draw() -> void:
 		if u.get("charging", false): mod = Color(1.6, 0.6, 0.6)
 		if u.has("hero") and combat.hidden(): mod.a = 0.45
 		if not u.has("hero") and lighting and p.distance_to(hero_disp) > lr: mod = mod * Color(0.55, 0.55, 0.6)
-		var top := _draw_sprite(u.sprite, u.fw, u.fh, fr, p, st.flip, scale, mod)
+		var top := _draw_sprite(u.sprite, u.fw, u.fh, fr + int(u.get("row", 0)) * 1000, p, st.flip, scale, mod)
 		_health_bar(u, top, scale)
 		_status_icons(u, top, scale)
 	# 5. walls layer over characters (SPD perspective wall tops / overhangs)
@@ -449,7 +449,8 @@ func _draw() -> void:
 func _draw_sprite(spr: String, fw: int, fh: int, frame: int, p: Vector2, flip: bool, scale: float, mod: Color) -> Vector2:
 	var t := sprite(spr)
 	var cols := maxi(1, t.get_width() / fw)
-	var src := Rect2((frame % cols) * fw, (frame / cols) * fh, fw, fh)
+	var row := frame / 1000; frame = frame % 1000   # armor-tier row packed by the caller (SPD HeroSprite)
+	var src := Rect2((frame % cols) * fw, (frame / cols + row) * fh, fw, fh)
 	var sz := Vector2(fw, fh) * scale
 	var cs := cell_size()
 	var r := cell_rect(p)

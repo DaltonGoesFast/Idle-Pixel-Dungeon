@@ -60,7 +60,7 @@ func _ready() -> void:
 		side.add_child(guide_label)
 	pane = StatusPane.new(); side.add_child(pane)
 	var hs0 := combat.hero
-	pane.set_hero(String(hs0.sprite), int(hs0.fw), int(hs0.fh))
+	pane.set_hero(String(hs0.sprite), int(hs0.fw), int(hs0.fh), int(hs0.get("row", 0)))
 	status = UIKit.label(""); side.add_child(status)
 	buttons = HFlowContainer.new(); side.add_child(buttons)
 	log_scroll = ScrollContainer.new(); log_scroll.size_flags_vertical = SIZE_EXPAND_FILL
