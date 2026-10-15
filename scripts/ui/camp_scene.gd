@@ -20,6 +20,11 @@ var tex := {}
 var tiles: Texture2D
 var items: Texture2D
 var surface: Texture2D
+## SPD idle animations (BlacksmithSprite / WandmakerSprite / ShopkeeperSprite.java): [fps, frames]
+const NPC_IDLE := {"blacksmith": [15, [0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 3]],
+	"wandmaker": [10, [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 3, 3, 3, 3, 3, 2, 1]],
+	"shopkeeper": [10, [1, 1, 1, 1, 1, 0, 0, 0, 0]]}
+var hero_anim := {}
 var hot := ""   # spot under the last press (highlight)
 
 func _ready() -> void:
@@ -92,7 +97,12 @@ func _draw() -> void:
 	# the selected hero rests by the fire (idle frame 0)
 	var hs := _sprite(hero)
 	var hz := Vector2(12, 15) * kk * 2.0
-	draw_texture_rect_region(hs, Rect2(Vector2(fire.x + cs * 0.9, fire.y + kk * 6 - hz.y).floor(), hz), Rect2(0, 0, 12, 15))
+	if hero_anim.get("_for", "") != hero:   # hero idle from data/anims.json (generated from the SPD *Sprite.java)
+		var all: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://data/anims.json"))
+		hero_anim = all.get(hero, {}).get("idle", {"fps": 1, "frames": [0]}); hero_anim._for = hero
+	var hfl: Array = hero_anim.frames; var hf := int(hfl[int(t * float(hero_anim.fps)) % hfl.size()])
+	var cols_h := int(hs.get_width() / 12)
+	draw_texture_rect_region(hs, Rect2(Vector2(fire.x + cs * 0.9, fire.y + kk * 6 - hz.y).floor(), hz), Rect2((hf % cols_h) * 12, (hf / cols_h) * 15, 12, 15))
 	# facilities
 	var font := get_theme_default_font()
 	var fs := UIKit.font_px(UIKit.font_size * 0.85)
@@ -105,7 +115,8 @@ func _draw() -> void:
 			"_chest": draw_texture_rect_region(items, sr, Rect2(4 * 16, 2 * 16, 16, 16))
 			_:
 				var fw: int = s[2]
-				var frame := 0 if fmod(t + s[4] * 5.0, 3.0) < 2.6 else 1
+				var an: Array = NPC_IDLE[s[1]]; var fl: Array = an[1]
+				var frame: int = fl[int((t + s[4] * 3.0) * float(an[0])) % fl.size()]
 				draw_texture_rect_region(_sprite(s[1]), sr, Rect2(frame * fw, 0, fw, s[3]))
 		# name plate: SPD-ish yellow text with a dark backing; facility level as "Lv2"
 		var lbl: String = s[6]

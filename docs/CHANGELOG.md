@@ -6,6 +6,12 @@
 
 
 
+## 0.21.0
+- New Diablo-style character screen (paperdoll) in the Camp Heroes window and the delve backpack, with slot swaps and stat deltas.
+- Camp NPCs play their SPD idle animations. Hold an item to compare it with what your hero has equipped.
+- Toasts show inside open windows. Talents use SPD-style icon buttons. Alchemy has an SPD-style pot.
+- Added tests for door open/close, grass layering and trampling, and the paperdoll.
+
 ## 0.20.0
 - New Surface Camp hub: a drawn camp scene where you tap the NPCs to open the Forge, Enchanter, Alchemy, Guild and Stash.
 - Hub controls: portrait hero selector, biome picker (start past biomes you have cleared) and a big Delve button.

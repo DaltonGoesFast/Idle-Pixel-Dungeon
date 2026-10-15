@@ -157,7 +157,9 @@ func start_biomes(c: String) -> Array:
 func open_page(p: String) -> void:
 	if not (p in PAGE_ORDER): return
 	open_name = p
-	if main: main.tip("camp_" + p.to_lower())
+	if main:
+		for t in main.toast_box.get_children(): t.queue_free()   # nothing floats over a window
+		main.tip("camp_" + p.to_lower())
 	_fill_window()
 
 func close_page() -> void:
@@ -184,7 +186,25 @@ func _make_window(title: String, icon_name: String, close_cb: Callable, w_frac :
 	var sc := ScrollContainer.new(); sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	sc.size_flags_vertical = SIZE_EXPAND_FILL; v.add_child(sc)
 	var body := UIKit.vbox(sc); body.size_flags_horizontal = SIZE_EXPAND_FILL
+	# message strip at the window's foot: toasts land here instead of floating over the window
+	var msg := UIKit.label("", 0.8, Color("ffff88")); msg.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	msg.visible = false; v.add_child(msg); layer.set_meta("msg", msg)
+	if Time.get_ticks_msec() - int(last_msg[1]) < 3500:   # windows rebuild on every change; keep the latest message
+		(func(): if is_instance_valid(msg): _show_msg(msg, last_msg[0], 3.5 - (Time.get_ticks_msec() - int(last_msg[1])) / 1000.0)).call_deferred()
 	return [layer, body, pc, sc]
+
+## Called by main._toast: show the message in the topmost open window. Returns false when the hub is bare.
+func window_toast(text: String) -> bool:
+	var layer: Control = info_layer if info_layer else win_layer
+	if layer == null or not is_instance_valid(layer): return false
+	last_msg = [text, Time.get_ticks_msec()]
+	_show_msg(layer.get_meta("msg"), text, 3.5)
+	return true
+
+var last_msg := ["", -100000]
+func _show_msg(msg: Label, text: String, hold: float) -> void:
+	msg.text = text; msg.visible = true; msg.modulate.a = 1.0
+	var tw := msg.create_tween(); tw.tween_interval(maxf(0.1, hold)); tw.tween_property(msg, "modulate:a", 0.0, 0.6)
 
 func _fill_window() -> void:
 	var keep_scroll := 0
@@ -311,7 +331,7 @@ func _stats_card(c: String) -> Control:
 
 # ------------------------------------------------------------ item slots
 ## SPD inventory slot: dark translucent square, item sprite, count bottom-right, "+N" top-left.
-func item_slot(id: String, br: String, tl: String, cb: Callable, tint := Color.WHITE, frame := "") -> Button:
+func item_slot(id: String, br: String, tl: String, cb: Callable, tint := Color.WHITE, frame := "", gear := {}) -> Button:
 	var b := Button.new(); b.focus_mode = FOCUS_NONE
 	var sz := UIKit.font_size * 3.0
 	b.custom_minimum_size = Vector2(sz, sz)
@@ -328,8 +348,64 @@ func item_slot(id: String, br: String, tl: String, cb: Callable, tint := Color.W
 	if tl != "":
 		var l2 := UIKit.label(tl, 0.75, Color("66ffff")); l2.position = Vector2(UIKit.font_size * 0.15, 0); l2.autowrap_mode = TextServer.AUTOWRAP_OFF
 		l2.mouse_filter = MOUSE_FILTER_IGNORE; b.add_child(l2)
-	b.pressed.connect(func(): Sfx.play("click"); cb.call())
+	if gear.is_empty():
+		b.pressed.connect(func(): Sfx.play("click"); cb.call())
+		return b
+	# long-press (0.45 s) compares with what the selected hero has equipped (DECISIONS #83)
+	b.set_meta("held", false)
+	var hold := Timer.new(); hold.one_shot = true; hold.wait_time = 0.45; b.add_child(hold)
+	hold.timeout.connect(func(): b.set_meta("held", true); Sfx.play("click"); compare(gear))
+	b.button_down.connect(func(): b.set_meta("held", false); hold.start())
+	b.button_up.connect(func(): hold.stop())
+	b.pressed.connect(func():
+		if b.get_meta("held"): return
+		Sfx.play("click"); cb.call())
 	return b
+
+const SLOT_OF := {"weapon": "weapon", "armor": "armor", "ring": "ring", "artifact": "artifact"}
+## Stat lines for a comparison: [label, value] pairs.
+func gear_stats(g: Dictionary) -> Dictionary:
+	if g.is_empty(): return {}
+	var d := DB.item(g.id); var out := {}
+	if not g.known: return {"?": 0}
+	var lv := int(g.lvl)
+	if d.has("dmg"): out["Dmg"] = int(d.dmg) + lv
+	if d.has("dr"): out["DR"] = int(d.dr) + lv
+	if d.has("delay"): out["Swing"] = float(d.delay)
+	if d.has("str"): out["Str"] = int(d.str)
+	for k in ["ht_bonus", "dr_bonus", "dmg_bonus", "barrier_bonus", "charges_bonus", "search_add"]:
+		if d.has(k): out[k.replace("_bonus", "").replace("_add", "").replace("ht", "HP").capitalize()] = int(d[k])
+	if d.has("gold_mult"): out["Gold %"] = int(round((float(d.gold_mult) - 1.0) * 100))
+	if d.has("hunger_mult"): out["Hunger %"] = int(round((float(d.hunger_mult) - 1.0) * 100))
+	return out
+
+## Side-by-side compare window: the item vs the selected hero's equipped item of the same kind.
+func compare(g: Dictionary) -> void:
+	var t: String = DB.item(g.id).type
+	var h: Dictionary = GameState.heroes[chosen_hero]
+	var cur := GameState.gear_by_uid(int(h.get(SLOT_OF.get(t, ""), 0))) if SLOT_OF.has(t) else {}
+	var a := gear_stats(g); var c := gear_stats(cur)
+	var grid := GridContainer.new(); grid.columns = 3
+	grid.add_theme_constant_override("h_separation", int(UIKit.font_size * 1.2))
+	var nl := func(t: String, sc: float, col: Color) -> Label:
+		var l := UIKit.label(t, sc, col); l.autowrap_mode = TextServer.AUTOWRAP_OFF; return l
+	for txt in ["", "This", "Equipped"]: grid.add_child(nl.call(txt, 0.85, Color("ffd27a")))
+	var keys := a.keys()
+	for k in c.keys(): if not (k in keys): keys.append(k)
+	for k in keys:
+		grid.add_child(nl.call(String(k), 0.85, Color("bdb3a0")))
+		var av = a.get(k, null); var cv = c.get(k, null)
+		var col := Color.WHITE
+		if av != null and cv != null and k != "?":
+			var better: bool = (av < cv) if k in ["Swing", "Str", "Hunger %"] else (av > cv)
+			if av != cv: col = Color("6bff6b") if better else Color("ff6a5a")
+		grid.add_child(nl.call("-" if av == null else str(av), 0.9, col))
+		grid.add_child(nl.call("-" if cv == null else str(cv), 0.9, Color.WHITE))
+	var lines: Array = ["vs %s's %s" % [DB.heroes[chosen_hero].name, GameState.gear_name(cur) if not cur.is_empty() else "empty slot"], grid]
+	var acts := []
+	if SLOT_OF.has(t) and GameState.equipped_by(g.uid) == "":
+		acts.append(["Equip on " + DB.heroes[chosen_hero].name, func(): GameState.equip(chosen_hero, g.uid), GameState.can_equip(chosen_hero, g.uid)])
+	info(gear_icon(g), "Compare: " + GameState.gear_name(g), lines, acts)
 
 func gear_icon(g: Dictionary) -> String:
 	return g.id   # rings show their gem, as in SPD (the gem is the appearance, not the identity)
@@ -350,44 +426,25 @@ func gear_lines(g: Dictionary) -> Array:
 	return out
 
 # ------------------------------------------------------------ Heroes (equipment)
+var show_talents := false
 func _page_heroes() -> void:
 	var v := _p("Heroes")
 	var hr := HFlowContainer.new(); hr.add_theme_constant_override("h_separation", int(UIKit.font_size * 0.4)); v.add_child(hr)
 	for c in GameState.heroes: hr.add_child(_hero_slot(c))
 	var c := chosen_hero
-	v.add_child(_stats_card(c))
-	if not GameState.heroes[c].unlocked: return
-	var h: Dictionary = GameState.heroes[c]
-	v.add_child(UIKit.header("Equipped"))
-	var eg := slot_grid(v)
-	for slot in ["weapon", "armor", "ring", "artifact"]:
-		var g := GameState.gear_by_uid(int(h.get(slot, 0)))
-		if g.is_empty():
-			eg.add_child(item_slot({"weapon": "WEAPON_HOLDER", "armor": "ARMOR_HOLDER", "ring": "RING_HOLDER", "artifact": "ARTIFACT_HOLDER"}.get(slot, "SOMETHING"), "", "", func(): info("SOMETHING", slot.capitalize(), ["Empty slot."]), Color(1, 1, 1, 0.25)))
-		else:
-			eg.add_child(item_slot(gear_icon(g), "", "+%d" % g.lvl if g.lvl > 0 and g.known else "", func(): info(gear_icon(g), GameState.gear_name(g), gear_lines(g)), Color.WHITE, "c9a96e"))
-	var opts := GameState.gear.filter(func(g):
-		var t: String = DB.item(g.id).type
-		if not (t in ["weapon", "armor", "ring", "artifact"]): return false
-		var why: String = GameState.can_equip(c, g.uid)
-		return GameState.equipped_by(g.uid) == "" and not why.begins_with("heirloom") and not why.begins_with("equipped"))
-	if not opts.is_empty():
-		v.add_child(UIKit.header("Swap gear (tap to equip)"))
-		var sg := slot_grid(v)
-		for g in opts:
-			var why: String = GameState.can_equip(c, g.uid)
-			sg.add_child(item_slot(gear_icon(g), "", "+%d" % g.lvl if g.lvl > 0 and g.known else "", func():
-				info(gear_icon(g), GameState.gear_name(g), gear_lines(g), [["Equip on " + DB.heroes[c].name, func(): GameState.equip(c, g.uid), why]]),
-				Color.WHITE if why == "" else Color(1, 0.6, 0.6)))
-	if c == "mage":
-		for g in GameState.gear:
-			if DB.item(g.id).type == "wand" and g.known:
-				v.add_child(UIKit.button("Imbue " + GameState.gear_name(g), func(): GameState.imbue_wand(g.uid)))
+	if not GameState.heroes[c].unlocked:
+		v.add_child(_stats_card(c)); return
+	# Diablo-style paperdoll (DECISIONS #84)
+	Paperdoll.build(v, c, not portrait, "camp", _fill_window, func(): show_talents = not show_talents; _fill_window())
 	if GameState.can_choose_subclass(c):
 		var subs: Dictionary = DB.heroes[c].subclasses
 		for sid in subs:
 			v.add_child(UIKit.button("Become %s: %s" % [subs[sid].name, subs[sid].desc], func(): GameState.choose_subclass(c, sid)))
-	HeroPanels.talents(v, c, rebuild)
+	if c == "mage":
+		for g in GameState.gear:
+			if DB.item(g.id).type == "wand" and g.known:
+				v.add_child(UIKit.button("Imbue " + GameState.gear_name(g), func(): GameState.imbue_wand(g.uid)))
+	if show_talents or GameState.talent_points_total_free(c) > 0: HeroPanels.talents(v, c, _fill_window)
 
 # ------------------------------------------------------------ Stash
 func _page_stash() -> void:
@@ -399,11 +456,12 @@ func _page_stash() -> void:
 			var md: Dictionary = DB.materials[k]
 			grid.add_child(item_slot(k, str(GameState.mat(k)), "", func(): info(k, DB.mat_name(k), [md.get("desc", "") if GameState.is_mat_known(k) else "Unidentified - use it during a delve to learn what it is.", "In stash: %d" % GameState.mat(k)])))
 	v.add_child(UIKit.header("Gear (%d)" % GameState.gear.size()))
+	v.add_child(UIKit.label("Tap for info, hold to compare with %s's gear." % DB.heroes[chosen_hero].name, 0.75, Color("9a9488")))
 	var gg := slot_grid(v)
 	for g in GameState.gear:
 		var who := GameState.equipped_by(g.uid)
 		gg.add_child(item_slot(gear_icon(g), DB.heroes[who].name.substr(0, 1) if who != "" else "", "+%d" % g.lvl if g.lvl > 0 and g.known else "",
-			func(): info(gear_icon(g), GameState.gear_name(g), gear_lines(g)), Color(1, 0.55, 0.5) if g.get("cracked", false) else Color.WHITE, "c9a96e" if who != "" else ""))
+			func(): info(gear_icon(g), GameState.gear_name(g), gear_lines(g)), Color(1, 0.55, 0.5) if g.get("cracked", false) else Color.WHITE, "c9a96e" if who != "" else "", g))
 
 # ------------------------------------------------------------ Facilities
 const NEXT_TEXT := {"blacksmith": "Gear upgrade cap +%d", "alchemy": "Potion belt %d slots", "enchanter": "Faster identification (Lv%d)", "guild": "Patrols up to %dh"}
@@ -461,10 +519,45 @@ func _recipe_slots(v: VBoxContainer, id: String, title: String) -> void:
 		g.add_child(item_slot(out, have, "", func(): info(out, r.name, lines, [["Make", func(): GameState.craft(id, r.id), why]]),
 			Color.WHITE if why == "" else Color(1, 1, 1, 0.45), "6bff6b" if why == "" else ""))
 
+var alch_sel := ""
+## SPD WndAlchemy-style pot: ingredient slots -> arrow -> result slot, with Brew underneath; recipes to pick below.
+func _alchemy_pot(v: VBoxContainer) -> void:
+	var rs: Array = DB.recipes.get("alchemy", [])
+	if rs.is_empty(): return
+	if not rs.any(func(r): return r.id == alch_sel): alch_sel = rs[0].id
+	var r: Dictionary = rs.filter(func(x): return x.id == alch_sel)[0]
+	var out: String = r.get("out", r.get("out_mat", ""))
+	var why: String = GameState.can_craft("alchemy", r.id)
+	var pot := UIKit.card(); v.add_child(pot)
+	var pv := UIKit.vbox(pot)
+	pv.add_child(UIKit.label(r.name, 1.0, Color("ffd27a")))
+	var row := HBoxContainer.new(); row.alignment = BoxContainer.ALIGNMENT_CENTER; pv.add_child(row)
+	row.add_theme_constant_override("separation", int(UIKit.font_size * 0.3))
+	for k in r.cost:
+		var need := int(r.cost[k]); var have := GameState.mat(k)
+		var sl := item_slot(k, "%d/%d" % [mini(have, need), need], "", func(): info(k, DB.mat_name(k), ["Need %d, have %d." % [need, have], DB.materials.get(k, {}).get("desc", "")]),
+			Color.WHITE if have >= need else Color(1, 1, 1, 0.4), "6bff6b" if have >= need else "ff6a5a")
+		row.add_child(sl)
+	var arrow := UIKit.label("=>", 1.5, Color("ffd27a")); arrow.autowrap_mode = TextServer.AUTOWRAP_OFF; arrow.size_flags_vertical = SIZE_SHRINK_CENTER; row.add_child(arrow)
+	var od: Dictionary = DB.item(out) if r.has("out") else DB.materials.get(out, {})
+	row.add_child(item_slot(out, "" if r.has("out") else str(GameState.mat(out)), "", func(): info(out, r.name, [od.get("desc", "")]), Color.WHITE, "ffd27a"))
+	if od.has("desc"): pv.add_child(UIKit.label(od.desc, 0.8, Color("bdb3a0")))
+	var brew := UIKit.action("Brew", func():
+		if GameState.craft("alchemy", r.id): Sfx.play("drink"), why)
+	brew.custom_minimum_size.y = UIKit.btn_height() * 1.2; pv.add_child(brew)
+	v.add_child(UIKit.header("Recipes"))
+	var g := slot_grid(v)
+	for x in rs:
+		var o2: String = x.get("out", x.get("out_mat", ""))
+		var ok := GameState.can_craft("alchemy", x.id) == ""
+		g.add_child(item_slot(o2, "", "", func(): alch_sel = x.id; _fill_window(), Color.WHITE if ok else Color(1, 1, 1, 0.45),
+			"ffff66" if x.id == alch_sel else ("6bff6b" if ok else "")))
+
 func _page_facility(page: String, id: String) -> void:
 	var v := _p(page)
 	_facility_header(v, id)
-	_recipe_slots(v, id, "Recipes (tap for details)")
+	if id == "alchemy": _alchemy_pot(v)
+	else: _recipe_slots(v, id, "Recipes (tap for details)")
 	if id == "blacksmith":
 		v.add_child(UIKit.header("Upgrade & repair (cap +%d)" % GameState.facility_level("blacksmith")))
 		var g2 := slot_grid(v)
@@ -479,7 +572,7 @@ func _page_facility(page: String, id: String) -> void:
 			lines.push_front(cost_row(cost))
 			g2.add_child(item_slot(gear_icon(g), "", "+%d" % g.lvl if g.lvl > 0 and g.known else "", func():
 				info(gear_icon(g), GameState.gear_name(g), lines, [["Repair" if cracked else "Upgrade", func(): (GameState.repair(g.uid) if cracked else GameState.upgrade_item(g.uid)), why]]),
-				Color(1, 0.55, 0.5) if cracked else Color.WHITE, "6bff6b" if why == "" else ""))
+				Color(1, 0.55, 0.5) if cracked else Color.WHITE, "6bff6b" if why == "" else "", g))
 	if id == "enchanter":
 		v.add_child(UIKit.header("Identifying (%d min each)" % int(GameState.identify_seconds() / 60)))
 		if GameState.id_queue.is_empty(): v.add_child(UIKit.label("Nothing queued. Tap an unknown item below.", 0.8, Color("9a9488")))

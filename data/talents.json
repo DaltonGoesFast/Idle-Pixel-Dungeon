@@ -20,44 +20,52 @@
    "hearty_meal": {
     "name": "Hearty Meal",
     "desc": "+3 max HP.",
-    "ht_add": 3
+    "ht_add": 3,
+    "icon": 0
    },
    "veterans_intuition": {
     "name": "Veteran's Intuition",
     "desc": "+1 search radius.",
-    "search_add": 1
+    "search_add": 1,
+    "icon": 1
    },
    "provoked_anger": {
     "name": "Potion Lore",
     "desc": "Potions heal +5% max HP more.",
-    "potion_add": 0.05
+    "potion_add": 0.05,
+    "icon": 2
    },
    "iron_will": {
     "name": "Iron Will",
     "desc": "+1 Barrier.",
-    "barrier_add": 1
+    "barrier_add": 1,
+    "icon": 3
    }
   },
   "2": {
    "iron_stomach": {
     "name": "Iron Stomach",
     "desc": "+1 DR.",
-    "dr_add": 1
+    "dr_add": 1,
+    "icon": 4
    },
    "liquid_willpower": {
     "name": "Liquid Willpower",
     "desc": "Potions heal +10% max HP more.",
-    "potion_add": 0.1
+    "potion_add": 0.1,
+    "icon": 5
    },
    "runic_transference": {
     "name": "Runic Transference",
     "desc": "+1 melee damage.",
-    "dmg_add": 1
+    "dmg_add": 1,
+    "icon": 6
    },
    "lethal_momentum": {
     "name": "Lethal Momentum",
     "desc": "Surprise attacks +0.5x.",
-    "surprise_add": 0.5
+    "surprise_add": 0.5,
+    "icon": 7
    }
   }
  },
@@ -66,44 +74,52 @@
    "empowering_meal": {
     "name": "Potion Lore",
     "desc": "Potions heal +5% max HP more.",
-    "potion_add": 0.05
+    "potion_add": 0.05,
+    "icon": 32
    },
    "scholars_intuition": {
     "name": "Scholar's Intuition",
     "desc": "+1 search radius.",
-    "search_add": 1
+    "search_add": 1,
+    "icon": 33
    },
    "tested_hypothesis": {
     "name": "Tested Hypothesis",
     "desc": "+3 max HP.",
-    "ht_add": 3
+    "ht_add": 3,
+    "icon": 33
    },
    "backup_barrier": {
     "name": "Backup Barrier",
     "desc": "+1 Barrier.",
-    "barrier_add": 1
+    "barrier_add": 1,
+    "icon": 35
    }
   },
   "2": {
    "energizing_upgrade": {
     "name": "Energizing Upgrade",
     "desc": "+1 staff charge.",
-    "charges_add": 1
+    "charges_add": 1,
+    "icon": 36
    },
    "wand_preservation": {
     "name": "Wand Preservation",
     "desc": "+1 staff bolt damage.",
-    "bolt_add": 1
+    "bolt_add": 1,
+    "icon": 38
    },
    "shield_battery": {
     "name": "Shield Battery",
     "desc": "+1 Barrier.",
-    "barrier_add": 1
+    "barrier_add": 1,
+    "icon": 40
    },
    "inscribed_power": {
     "name": "Inscribed Power",
     "desc": "+1 melee damage.",
-    "dmg_add": 1
+    "dmg_add": 1,
+    "icon": 37
    }
   }
  },
@@ -112,44 +128,52 @@
    "cached_rations": {
     "name": "Cached Rations",
     "desc": "+3 max HP.",
-    "ht_add": 3
+    "ht_add": 3,
+    "icon": 64
    },
    "thiefs_intuition": {
     "name": "Thief's Intuition",
     "desc": "+1 search radius.",
-    "search_add": 1
+    "search_add": 1,
+    "icon": 65
    },
    "sucker_punch": {
     "name": "Potion Lore",
     "desc": "Potions heal +5% max HP more.",
-    "potion_add": 0.05
+    "potion_add": 0.05,
+    "icon": 66
    },
    "protective_shadows": {
     "name": "Protective Shadows",
     "desc": "+1 Barrier.",
-    "barrier_add": 1
+    "barrier_add": 1,
+    "icon": 67
    }
   },
   "2": {
    "mystical_upgrade": {
     "name": "Mystical Upgrade",
     "desc": "+1 Cloak charge.",
-    "cloak_add": 1
+    "cloak_add": 1,
+    "icon": 68
    },
    "light_cloak": {
     "name": "Light Cloak",
     "desc": "Surprise attacks +0.5x.",
-    "surprise_add": 0.5
+    "surprise_add": 0.5,
+    "icon": 74
    },
    "enhanced_rings": {
     "name": "Enhanced Rings",
     "desc": "+1 DR.",
-    "dr_add": 1
+    "dr_add": 1,
+    "icon": 73
    },
    "rogues_foresight": {
     "name": "Rogue's Foresight",
     "desc": "+1 search radius.",
-    "search_add": 1
+    "search_add": 1,
+    "icon": 72
    }
   }
  },
@@ -158,44 +182,52 @@
    "natures_bounty": {
     "name": "Nature's Bounty",
     "desc": "+3 max HP.",
-    "ht_add": 3
+    "ht_add": 3,
+    "icon": 96
    },
    "survivalists_intuition": {
     "name": "Survivalist's Intuition",
     "desc": "+1 search radius.",
-    "search_add": 1
+    "search_add": 1,
+    "icon": 97
    },
    "followup_strike": {
     "name": "Potion Lore",
     "desc": "Potions heal +5% max HP more.",
-    "potion_add": 0.05
+    "potion_add": 0.05,
+    "icon": 98
    },
    "natures_aid": {
     "name": "Nature's Aid",
     "desc": "+1 Barrier.",
-    "barrier_add": 1
+    "barrier_add": 1,
+    "icon": 99
    }
   },
   "2": {
    "invigorating_meal": {
     "name": "Invigorating Meal",
     "desc": "Potions heal +10% max HP more.",
-    "potion_add": 0.1
+    "potion_add": 0.1,
+    "icon": 100
    },
    "restored_nature": {
     "name": "Restored Nature",
     "desc": "+1 DR.",
-    "dr_add": 1
+    "dr_add": 1,
+    "icon": 96
    },
    "rejuvenating_steps": {
     "name": "Rejuvenating Steps",
     "desc": "+1 Barrier.",
-    "barrier_add": 1
+    "barrier_add": 1,
+    "icon": 102
    },
    "durable_projectiles": {
     "name": "Durable Projectiles",
     "desc": "+1 Spirit Bow damage.",
-    "bolt_add": 1
+    "bolt_add": 1,
+    "icon": 104
    }
   }
  }

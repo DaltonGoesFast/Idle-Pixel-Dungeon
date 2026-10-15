@@ -98,8 +98,11 @@ func _drive() -> void:
 				var picked := false
 				for t in DB.talents[GameState.run.hero]["1"]:
 					if GameState.can_pick_talent(GameState.run.hero, t) == "":
-						var tb = _find_button(s.card_host, DB.talents[GameState.run.hero]["1"][t].name)
-						if tb: tb.pressed.emit(); picked = true
+						# SPD talent pane: tap the icon, then Learn in the detail card
+						var tb = _find_tip(s.card_host, DB.talents[GameState.run.hero]["1"][t].name)
+						if tb: tb.pressed.emit()
+						var lb = _find_button(s.card_host, "Learn")
+						if lb: lb.pressed.emit(); picked = true
 						break
 				GameState.auto_pick_talents(GameState.run.hero)
 				s._close_panel()
@@ -192,6 +195,13 @@ func _drive() -> void:
 		print("UI SMOKE: PASS (fights=%d, stash gold=%d)" % [stage, GameState.mat("gold")])
 		SaveSystem.wipe()
 		get_tree().quit(0)
+
+func _find_tip(n: Node, prefix: String):
+	if n is Button and n.tooltip_text.begins_with(prefix): return n
+	for ch in n.get_children():
+		var r = _find_tip(ch, prefix)
+		if r: return r
+	return null
 
 func _find_button(n: Node, prefix: String):
 	if n is Button and n.text.begins_with(prefix): return n

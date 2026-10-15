@@ -15,8 +15,9 @@
 - [x] Items with ID: rings, artifacts, unknown potions/scrolls (v0.19.0). Wands remain class staffs.
 - [x] SPD door open/close + grass layering and trampling (v0.19.1).
 - [x] Surface Camp hub: camp scene, hero portraits, biome picker, item-slot grids, upgrade previews (v0.20.0).
-- [ ] Camp: long-press item compare, animated NPC idles from SPD anim tables, facility art per level.
-- [ ] Alchemy at Camp (brew from found unknown potions / seeds, SPD-style pot UI).
+- [x] Camp: long-press compare, SPD NPC idles, paperdoll, talents pane, alchemy pot (v0.21.0).
+- [ ] Camp: facility art per level.
+- [ ] Alchemy: recipes using found unknown potions (pot UI done in v0.21.0).
 - [ ] More special rooms (vault, library, garden, sacrificial).
 - [ ] Perf pass (lighting rect count, camp scene redraw only on change).
 - [ ] Yog-Dzewa fists + phases.

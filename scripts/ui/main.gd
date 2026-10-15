@@ -124,6 +124,8 @@ func _toast(text: String) -> void:
 	# in a fight, toasts go to the combat log instead of floating over the arena/log (DECISIONS #75)
 	if screen != null and screen.get("combat") != null and screen.has_method("_refresh") and not screen.combat.over:
 		screen.combat._log(text); screen._refresh(); return
+	# a screen with a window open shows the message inside the window instead (DECISIONS #83)
+	if screen != null and screen.has_method("window_toast") and screen.window_toast(text): return
 	var l := UIKit.label(text, 0.85)
 	var p := UIKit.card(); p.add_child(l); p.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	l.custom_minimum_size.x = minf(get_viewport_rect().size.x * 0.8, 900)

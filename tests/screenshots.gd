@@ -20,6 +20,19 @@ func _ready() -> void:
 		plan.append([sz, "camp", func(): main.show_camp(); main.screen.close_page()])
 		plan.append([sz, "camp_expedition", func(): main.show_camp(); main.screen.open_page("Delve")])
 		plan.append([sz, "camp_heroes", func(): main.show_camp(); main.screen.open_page("Heroes")])
+		plan.append([sz, "camp_paperdoll", func():
+			GameState.add_gear("shortsword"); GameState.add_gear("mace"); GameState.add_gear("ring_wealth"); GameState.add_gear("chalice_blood")
+			Paperdoll.sel_slot = "weapon"; main.show_camp(); main.screen.open_page("Heroes")])
+		plan.append([sz, "camp_talents", func():
+			Paperdoll.sel_slot = ""; GameState.heroes.warrior.level = 5; HeroPanels.sel_talent = "iron_will"
+			main.show_camp(); main.screen.show_talents = true; main.screen.open_page("Heroes")
+			(func(): main.screen.win_layer.get_meta("sc").scroll_vertical = 100000).call_deferred()])
+		plan.append([sz, "camp_compare", func():
+			HeroPanels.sel_talent = ""; GameState.heroes.warrior.level = 1
+			main.show_camp(); main.screen.open_page("Stash")
+			main.screen.compare(GameState.gear.filter(func(g): return g.id == "mace")[0])])
+		plan.append([sz, "camp_toast", func():
+			main.show_camp(); main.screen.open_page("Guild"); GameState.say("Bought a Ration.")])
 		plan.append([sz, "camp_stash", func(): main.show_camp(); main.screen.open_page("Stash")])
 		plan.append([sz, "forge", func(): main.show_camp(); main.screen.open_page("Forge")])
 		plan.append([sz, "camp_forge_info", func():

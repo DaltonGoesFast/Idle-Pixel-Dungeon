@@ -4,27 +4,66 @@ class_name HeroPanels
 extends RefCounted
 
 ## Talent tiers for hero `c`. Learned talents are gold, available ones are buttons, locked ones show why.
+static var sel_talent := ""   # talent whose details are shown under its tier
+
+## SPD TalentsPane look (DECISIONS #83): per tier a header with points used, then a row of 20x20
+## talent_button.png squares holding the talent_icons.png icon (dim until learned) and the name below.
+## Tapping one shows its description and a Learn button under that tier, so there are no text walls.
 static func talents(parent: Control, c: String, refresh: Callable) -> void:
 	var card := UIKit.card(); parent.add_child(card)
 	var v := UIKit.vbox(card)
 	var free := GameState.talent_points_total_free(c)
 	v.add_child(UIKit.label("Talents" + ("  (%d point%s to spend)" % [free, "" if free == 1 else "s"] if free > 0 else ""), 1.1, Color("ffd27a")))
+	var bg_tex: Texture2D = load("res://assets/ui/talent_button.png"); var ic_tex: Texture2D = load("res://assets/ui/talent_icons.png")
+	var k := maxf(2.0, floorf(UIKit.font_size / 7.0))
 	for tier in ["1", "2"]:
 		var td: Dictionary = DB.talents._tiers[tier]
-		v.add_child(UIKit.label("Tier %s - points at Lv %s  (%d/%d used)" % [tier, ", ".join(td.points_at.map(func(l): return str(int(l)))),
-			GameState.talent_points(c, tier) - GameState.talent_points_free(c, tier), td.points_at.size()], 0.85, Color("c9a96e")))
-		var flow := HFlowContainer.new(); v.add_child(flow)
+		var used := GameState.talent_points(c, tier) - GameState.talent_points_free(c, tier)
+		var hdr := UIKit.hbox(v)
+		var hl := UIKit.label("Tier %s" % tier, 0.95, Color("ffd27a")); hl.size_flags_horizontal = Control.SIZE_EXPAND_FILL; hdr.add_child(hl)
+		var pl := UIKit.label("%d/%d  (Lv %s)" % [used, td.points_at.size(), ", ".join(td.points_at.map(func(l): return str(int(l))))], 0.8, Color("c9a96e"))
+		pl.autowrap_mode = TextServer.AUTOWRAP_OFF; hdr.add_child(pl)
+		var row := GridContainer.new(); row.columns = 4; v.add_child(row)
+		row.add_theme_constant_override("h_separation", int(UIKit.font_size * 0.3))
 		var defs: Dictionary = DB.talents.get(c, {}).get(tier, {})
+		var detail_for := ""
 		for tid in defs:
 			var t: Dictionary = defs[tid]
 			var learned: bool = tid in GameState.heroes[c].get("talents", [])
 			var why := GameState.can_pick_talent(c, tid)
-			var b := UIKit.button(("* " if learned else "") + "%s\n%s" % [t.name, t.desc], func():
-				if GameState.pick_talent(c, tid): Sfx.play("levelup"); refresh.call(), why == "", why)
-			b.custom_minimum_size.x = UIKit.font_size * 9
-			b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-			if learned: b.add_theme_color_override("font_disabled_color", Color("ffd27a"))
-			flow.add_child(b)
+			if sel_talent == tid: detail_for = tid
+			var cell := UIKit.vbox(); cell.size_flags_horizontal = Control.SIZE_EXPAND_FILL; row.add_child(cell)
+			var b := Button.new(); b.focus_mode = Control.FOCUS_NONE; b.flat = true
+			b.custom_minimum_size = Vector2(20, 20) * k; b.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+			var bgr := TextureRect.new(); var at := AtlasTexture.new(); at.atlas = bg_tex; at.region = Rect2(0, 0, 20, 20)
+			bgr.texture = at; bgr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST; bgr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			bgr.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT); bgr.mouse_filter = Control.MOUSE_FILTER_IGNORE; b.add_child(bgr)
+			var ir := TextureRect.new(); var ai := AtlasTexture.new(); ai.atlas = ic_tex
+			var idx := int(t.get("icon", 0)); ai.region = Rect2((idx % 32) * 16, (idx / 32) * 16, 16, 16)
+			ir.texture = ai; ir.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST; ir.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			ir.position = Vector2(2, 2) * k; ir.size = Vector2(16, 16) * k; ir.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			ir.modulate = Color.WHITE if learned else (Color(1, 1, 1, 0.75) if why == "" else Color(1, 1, 1, 0.3))
+			b.add_child(ir)
+			if sel_talent == tid:
+				var hi := ColorRect.new(); hi.color = Color(1, 1, 0.5, 0.25); hi.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT); hi.mouse_filter = Control.MOUSE_FILTER_IGNORE; b.add_child(hi)
+			if why == "" and not learned:   # SPD-style "can upgrade" pip
+				var pip := ColorRect.new(); pip.color = Color("6bff6b"); pip.size = Vector2(3, 3) * k; pip.position = Vector2(16, 1) * k; pip.mouse_filter = Control.MOUSE_FILTER_IGNORE; b.add_child(pip)
+			b.tooltip_text = "%s: %s" % [t.name, t.desc]
+			b.pressed.connect(func(): Sfx.play("click"); sel_talent = "" if sel_talent == tid else tid; refresh.call())
+			cell.add_child(b)
+			var nl := UIKit.label(t.name, 0.75, Color("ffd27a") if learned else Color("d8d0c0"))
+			nl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER; cell.add_child(nl)
+		if detail_for != "":
+			var t2: Dictionary = defs[detail_for]
+			var learned2: bool = detail_for in GameState.heroes[c].get("talents", [])
+			var dc := UIKit.card(); v.add_child(dc); var dv := UIKit.vbox(dc)
+			dv.add_child(UIKit.label(t2.name + ("  (learned)" if learned2 else ""), 1.0, Color("ffd27a")))
+			dv.add_child(UIKit.label(t2.desc, 0.9))
+			if not learned2:
+				var why2 := GameState.can_pick_talent(c, detail_for)
+				var tid2 := detail_for
+				dv.add_child(UIKit.action("Learn", func():
+					if GameState.pick_talent(c, tid2): Sfx.play("levelup"); sel_talent = ""; refresh.call(), why2))
 
 ## In-delve backpack: belt supplies (use), equipped slots (unequip), carried gear (equip / compare / drop),
 ## full-pack loot decisions. in_combat: only equip actions, each costs a turn (on_equip_in_combat is called).
@@ -53,18 +92,9 @@ static func backpack(parent: Control, refresh: Callable, in_combat := false, on_
 			var n := int(run.supplies.get(k, 0))
 			var b := UIKit.button("Use %s (%d)" % [DB.mat_name(k), n], func(): GameState.delve_use(k); refresh.call(), n > 0)
 			b.custom_minimum_size.x = UIKit.font_size * 7; flow.add_child(b)
-	# equipped
-	v.add_child(UIKit.label("Equipped", 0.9, Color("c9a96e")))
-	for slot in ["weapon", "armor", "ring", "artifact"]:
-		var g := GameState.gear_by_uid(int(h.get(slot, 0)))
-		var row := UIKit.hbox(v)
-		if not g.is_empty(): row.add_child(UIKit.icon(g.id))
-		var l := UIKit.label("%s: %s" % [slot.capitalize(), GameState.gear_name(g)], 0.9); l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		row.add_child(l)
-		if not in_combat and not g.is_empty() and not DB.item(g.id).get("heirloom", false):
-			var ub := UIKit.button("Unequip", func(): GameState.delve_unequip(slot); refresh.call(), not GameState.backpack_full(), "backpack full")
-			ub.size_flags_horizontal = Control.SIZE_SHRINK_END; ub.custom_minimum_size.x = UIKit.font_size * 5; row.add_child(ub)
-	if c == "mage" and h.wand != "": v.add_child(UIKit.label("Staff: %s" % DB.item(h.wand).name, 0.9))
+	# equipped: the same paperdoll as the Camp Heroes window, swapping from the pack (DECISIONS #84)
+	var vs := v.get_viewport_rect().size if v.is_inside_tree() else Vector2(1, 2)
+	Paperdoll.build(v, c, vs.x > vs.y * 1.1, "delve", refresh, Callable(), on_equip_in_combat)
 	# unknown / found potions and scrolls (use identifies them, DECISIONS #80)
 	if not in_combat:
 		var cons: Array = GameState.unknown_mats().filter(func(k): return int(run.pack.get(k, 0)) > 0)

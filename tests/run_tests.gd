@@ -28,6 +28,8 @@ func _ready() -> void:
 	test_halls(gs)
 	test_render(gs)
 	test_identify(gs)
+	test_doors_grass(gs)
+	test_paperdoll(gs)
 	test_delve(gs)
 	test_camp(gs)
 	test_save(gs, ss)
@@ -741,3 +743,58 @@ func test_identify(gs) -> void:
 	check(not gs.delve_use_pack("scroll_teleport"), "can't use what you don't have")
 	var d: Dictionary = gs.to_dict(); gs.ided = {}; gs.from_dict(d)
 	check(gs.is_mat_known("potion_shielding"), "identification persists")
+
+
+func test_doors_grass(gs) -> void:
+	print("[doors/grass]")
+	var gv = load("res://scripts/ui/grid_view.gd").new()
+	var c := Combat.new(); c.setup(DB.rooms[0], warrior(gs), 20, ["rat"])
+	for y in Combat.SIZE:
+		for x in Combat.SIZE: c.terrain[y][x] = Combat.T.FLOOR
+	for x in Combat.SIZE: c.terrain[3][x] = Combat.T.WALL
+	c.terrain[3][4] = Combat.T.DOOR
+	c.hero.pos = Vector2i(1, 6); c.enemies()[0].pos = Vector2i(7, 7)
+	gv.combat = c; gv.set_combat(c)
+	var door := Vector2i(4, 3); var above := Vector2i(4, 2)
+	check(gv.terrain_visual(door) == 112 and gv.wall_visual(above) == 224, "empty door: closed door + closed overhang")
+	c.hero.pos = door
+	check(gv.terrain_visual(door) == 113 and gv.wall_visual(above) == 225, "occupied door: SPD open door + open overhang")
+	c.hero.pos = Vector2i(4, 4)
+	check(gv.terrain_visual(door) == 112, "door closes again when vacated")
+	# sideways door (wall above and below)
+	for y in Combat.SIZE: c.terrain[y][6] = Combat.T.WALL
+	c.terrain[6][6] = Combat.T.DOOR
+	var sd := Vector2i(6, 6)
+	check(gv.terrain_visual(sd) == 116 and gv.wall_visual(sd) >= 212 and gv.wall_visual(sd) < 216, "sideways door: closed frame on the walls layer")
+	c.hero.pos = sd
+	check(gv.wall_visual(sd) >= 208 and gv.wall_visual(sd) < 212 and gv.wall_visual(Vector2i(6, 5)) == -1, "sideways door opens over the occupant")
+	# grass
+	c.terrain[6][2] = Combat.T.GRASS
+	check(gv.grass_overhang(Vector2i(2, 5)) >= 234 and gv.wall_visual(Vector2i(2, 5)) == -1, "grass overhang is in the ground pass, not over units")
+	c.hero.pos = Vector2i(2, 5)
+	c._place(c.hero, Vector2i(2, 6))
+	check(c.tile(Vector2i(2, 6)) == Combat.T.FLOOR and c.trampled.has(Vector2i(2, 6)), "walking into tall grass tramples it")
+	check(gv.terrain_visual(Vector2i(2, 6)) in [2, 8], "trampled grass draws as SPD short grass")
+	var c2 := Combat.new(); c2.setup(DB.rooms[0], warrior(gs), 20, ["rat"]); c2.from_dict(c.to_dict())
+	check(c2.trampled.has(Vector2i(2, 6)), "trampled grass survives save/load")
+	gv.free()
+
+func test_paperdoll(gs) -> void:
+	print("[paperdoll]")
+	gs.new_game()
+	var w: Dictionary = gs.heroes.warrior
+	w.str = 12
+	var host := VBoxContainer.new()
+	Paperdoll.sel_slot = "weapon"
+	gs.add_gear("shortsword")
+	Paperdoll.build(host, "warrior", true, "camp", func(): pass)
+	check(host.get_child_count() == 1, "paperdoll builds")
+	check(not Paperdoll.slot_item("warrior", "weapon").is_empty() and not Paperdoll.slot_item("warrior", "class").is_empty(), "weapon + class item slots filled")
+	check(Paperdoll.slot_item("warrior", "artifact").is_empty(), "empty artifact slot")
+	var s0: Dictionary = gs.hero_stats("warrior")
+	var sw: int = gs.gear.filter(func(g): return g.id == "shortsword")[0].uid
+	var s1: Dictionary = Paperdoll._stats_with("warrior", "weapon", sw)
+	check(int(s1.dmg) > int(s0.dmg) and int(gs.hero_stats("warrior").dmg) == int(s0.dmg), "swap preview changes dmg without equipping")
+	check(Paperdoll._delta_text(s0, s1)[1] > 0, "delta marks the upgrade as better")
+	Paperdoll.sel_slot = ""
+	host.free()

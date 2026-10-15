@@ -218,3 +218,17 @@ This ports SPD's DungeonTileSheet/DungeonWallsTilemap door handling:
 - Lists are SPD-style item-slot grids (translucent square, count bottom-right, +N top-left, green frame = actionable). Tapping a slot opens an info window with stats, a cost row (unaffordable amounts in red) and the action.
 - Facility windows show the NPC, Lv/cap with a level bar and a "Next:" upgrade preview. Identification and patrols show progress bars.
 - The pixel font now disables subpixel positioning and hinting. Headless screenshots render at half device resolution, so 1-px glyphs (i) can drop out there but not on the device.
+
+## 83. Camp polish (v0.21.0)
+- Camp NPCs play SPD's idle animation tables (Blacksmith 15 fps, Wandmaker 10, Shopkeeper 10). The hero idles using anims.json.
+- Holding an item slot for 0.45 s opens a compare window: this item vs the selected hero's equipped one, with better values green and worse red.
+- Toasts never float over a window. While a Camp window is open they show in its footer strip, and opening a window clears floating toasts.
+- Talents use SPD's TalentsPane look: talent_button.png squares with talent_icons.png icons (indices from SPD Talent.java), names below, and a green pip when learnable. Tapping one shows a detail card with Learn.
+- Alchemy uses an SPD WndAlchemy-style pot: ingredient slots (have/need) => result slot, a Brew button, and a recipe picker.
+
+## 84. Paperdoll character screen (v0.21.0)
+- `Paperdoll` (scripts/ui/paperdoll.gd) is a Diablo-style screen with a large hero sprite in the centre. The sprite row follows the armor tier, as in SPD's HeroSprite.
+  - Left column: weapon, ring, staff/wand. Right column: armor, artifact, class item (seal/staff/cloak/bow). Below: a misc slot (reserved).
+- Tapping a slot shows its item and a swap list filtered to that slot, with stat deltas (green better, red worse). At Camp the list comes from the stash, via a hero_stats preview with the item swapped in. In a delve it comes from the pack, via compare_equip and delve_equip, and a swap costs the turn in combat.
+- A derived-stats grid sits next to the doll: HP, Dmg, DR, Barrier, Speed, Str, XP, Search, plus bolt, subclass and a Talents link.
+- It is used by the Camp Heroes window and the in-delve backpack. On the cover the stats go under the doll; on the inner screen they go to the right.
