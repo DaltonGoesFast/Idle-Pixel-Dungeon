@@ -35,9 +35,11 @@ Keep camp windows open on the click that opened them.
 Right before every push, rebase onto the latest remote branch so you never overwrite someone else's commits:
 
 ```powershell
-git pull --rebase
+git pull --rebase --autostash
 git push
 ```
+
+`--autostash` is required in this repo. Godot `.import` files and other agents' uncommitted edits usually sit in the working tree, and a plain rebase refuses to start. Autostash sets those edits aside and restores them afterward. Do not stage or commit them. If the stash pop conflicts, stop and say which files collided.
 
 Use `git push -u origin HEAD` only when the branch has no upstream yet.
 
