@@ -141,7 +141,7 @@ static func cost_text(cost: Dictionary) -> String:
 	return ", ".join(parts)
 
 # ---------------------------------------------------------------- hero stats
-## SPD Hero.MAX_LEVEL: heroes stop gaining levels (and HP/accuracy/talent points) at 30 (DECISIONS #115).
+## SPD Hero.MAX_LEVEL: heroes stop gaining levels (and HP/accuracy/talent points) at 30 (DECISIONS #118).
 const MAX_LEVEL := 30
 func xp_to_next(level: int) -> int:
 	return 5 + level * 5   # SPD Hero.maxExp()

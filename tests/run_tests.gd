@@ -1635,7 +1635,7 @@ func test_facility_cap(gs) -> void:
 	m_slot.free(); m_slot2.free(); cs.queue_free()
 
 
-## DECISIONS #115: SPD level cap.
+## DECISIONS #118: SPD level cap.
 func test_level_cap(gs) -> void:
 	print("[level cap]")
 	gs.new_game()

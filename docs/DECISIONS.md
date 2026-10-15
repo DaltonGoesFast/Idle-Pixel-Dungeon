@@ -328,5 +328,5 @@ The "+3" gold pop in delve_enemy / delve_special / delve_auto shots was not a ga
 ## 114. Facility header: level / max, cap never below level
 The Guild header read "Lv 2 / 1" beside a "capped" Upgrade button: the header printed the Scroll-of-Upgrade `cap` (not the facility max), and nothing kept `cap >= level` (the screenshot harness, debug edits or an old save can set a level without the cap). `GameState.facility_cap(id)` = clamp(max(cap, level), 1, max) is used by can_upgrade_facility, apply_sou and on load; the header shows "Lv level / max" and adds "(cap N)" only while the cap is what blocks the next level. test_facility_cap covers the reported state.
 
-## 115. Hero level cap 30
+## 118. Hero level cap 30
 Heroes levelled without limit: a 40-expedition Full Auto campaign reached Lv103 (Mage Lv94 by run 35), with HP, accuracy and stat growth unbounded and the late game trivial. SPD caps at Hero.MAX_LEVEL = 30; `GameState.MAX_LEVEL` = 30 now stops grant_xp (xp held at 0) and over-cap saves load at Lv30. Death still resets to Lv1. test_level_cap.
