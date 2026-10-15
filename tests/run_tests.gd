@@ -35,6 +35,7 @@ func _ready() -> void:
 	test_armor_tiers(gs)
 	test_floor_label(gs)
 	test_total_wipe(gs)
+	test_goo_spiral(gs)
 	test_owed_sou(gs)
 	await test_icon_sizes(gs)
 	test_full_auto(gs)
@@ -1524,3 +1525,23 @@ func test_total_wipe(gs) -> void:
 	# a full simulated run from the wipe: it either extracts with ore or, at worst, Patch up stays available
 	var r := RunSim.play(gs, "warrior", {}, 4242)
 	check(gs.mat("iron_ore") > 0 or gs.can_patch_up() == "" or gs.cracked_gear().is_empty(), "after a run from a wipe there is a path to repairs (%s, ore %d)" % [r.result, gs.mat("iron_ore")])
+
+## DECISIONS #107: the Goo death spiral (0 potions, 0 gold) has a way out.
+func test_goo_spiral(gs) -> void:
+	print("[goo spiral]")
+	gs.new_game()
+	for cc in gs.heroes: gs.heroes[cc].unlocked = true
+	for k in gs.mats.keys(): gs.mats[k] = 0
+	check(gs.recipe("guild", "buy_healing").size() > 0 and gs.can_craft("guild", "buy_healing") != "", "Guild sells healing potions (not affordable at 0 gold)")
+	gs.start_run("rogue", {}, "sewers", 5)
+	gs.end_run("death")
+	check(gs.mat("gold") >= gs.SAFETY_GOLD, "a death tops the stash up to the safety gold (%d)" % gs.mat("gold"))
+	check(gs.can_craft("guild", "buy_healing") == "" and gs.craft("guild", "buy_healing") and gs.mat("potion_healing") == 1, "the safety gold buys a Potion of Healing")
+	gs.mats.gold = 500; gs.start_run("rogue", {}, "sewers", 5); gs.end_run("death")
+	check(gs.mat("gold") == 500, "the safety net never removes gold")
+	gs.start_run("warrior", {}, "sewers", 5); gs.run.floor = 5
+	var p0 := int(gs.run.supplies.get("potion_healing", 0))
+	Delve.apply_fight_result(gs, {"mobs": ["goo"]}, {"won": true, "hp": 5, "loot": 0, "fallen_loot": 0, "xp": 0, "boss_killed": true, "kills": 1}, {})
+	check(int(gs.run.supplies.potion_healing) == p0 + 1, "Goo always drops a Potion of Healing onto the belt")
+	gs.end_run("extract")
+	check(gs.mat("potion_healing") >= 2, "an unused Goo potion is banked in the stash")

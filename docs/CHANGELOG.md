@@ -1,5 +1,7 @@
 # Changelog
 
+## Unreleased
+- Goo death spiral: Guild sells Potions of Healing (30 gold), Goo always drops one, and a death tops gold up to 30 (+test).
 
 ## 0.26.0
 - Identified rings, potions, and scrolls show SPD's small type glyph from item_icons.png in the top-right of the slot. The blue shield is Ring of Tenacity and Potion of Shielding.

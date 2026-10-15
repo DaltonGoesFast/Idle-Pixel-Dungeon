@@ -429,6 +429,10 @@ static func apply_fight_result(gs, ev: Dictionary, res: Dictionary, reward: Dict
 		var arts: Array = DB.items.keys().filter(func(k): return DB.items[k].get("type", "") == "artifact" and not (k in owned))
 		if not arts.is_empty(): gs.say("The boss drops: " + reward(gs, {"item": arts[0]}))
 		gs.grant_owed_sou()
+		# Goo always leaves a Potion of Healing on the belt; unused, it goes back to the stash (DECISIONS #107)
+		if ev.mobs[0] == "goo":
+			run.supplies.potion_healing = int(run.supplies.get("potion_healing", 0)) + 1
+			gs.say("Goo leaves behind a Potion of Healing.", "positive")
 		if gs.record_boss_kill(run.hero, run.biome): gs.say("First %s kill for this class: Scroll of Upgrade!" % DB.mobs[ev.mobs[0]].name)
 	gs.touch()
 	return true

@@ -666,6 +666,8 @@ func patch_up() -> bool:
 
 ## Relief supplies: a broke Camp (no rations or torches, can't buy one) gets 1 of each when a run starts.
 const RELIEF_GOLD := 10
+## Gold safety net (DECISIONS #107): a death never leaves the stash below enough gold for one Guild potion.
+const SAFETY_GOLD := 30
 func needs_relief() -> bool:
 	return mat("ration") == 0 and mat("torch") == 0 and mat("gold") < RELIEF_GOLD
 
@@ -957,6 +959,9 @@ func end_run(result: String) -> void:
 				owed_sou += lost_sou
 				log_line("%d Scroll%s of Upgrade will return on the next boss kill (%d owed)." % [lost_sou, "" if lost_sou == 1 else "s", owed_sou], "highlight")
 			say("%s fell. Pack lost, gear cracked, back to Lv1 / 10 Str." % DB.heroes[c].name)
+			if mat("gold") < SAFETY_GOLD:
+				log_line("The Camp chips in %d gold so you can restock." % (SAFETY_GOLD - mat("gold")), "positive")
+				add_mat("gold", SAFETY_GOLD - mat("gold"))
 		"abandon":
 			for g in run.pack_gear:
 				if g.get("owned", false): g.erase("owned"); gear.append(g)
