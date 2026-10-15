@@ -19,6 +19,7 @@ Assets used (all from Shattered Pixel Dungeon, GPL-3.0): hero sprites (warrior, 
 | blacksmith | Forge Greatsword | 20 iron_ore, 8 dark_gold | greatsword | 3 |
 | blacksmith | Forge Plate Armor | 22 iron_ore, 9 dark_gold | plate_armor | 3 |
 | alchemy | Brew Potion of Healing | 2 seeds | potion_healing | 1 |
+| alchemy | Condense Dew into Healing | 20 dew | potion_healing | 1 |
 | alchemy | Brew Starter Elixir | 5 seeds, 2 arcane_resin | elixir_starter | 2 |
 | alchemy | Neutralise Toxic Gas | 1 potion_toxic, 1 seeds | potion_healing | 1 |
 | alchemy | Thin Shielding into Healing | 1 potion_shielding, 1 seeds | potion_healing | 1 |
@@ -28,6 +29,8 @@ Assets used (all from Shattered Pixel Dungeon, GPL-3.0): hero sprites (warrior, 
 | alchemy | Render Mapping to Resin | 1 scroll_mapping | arcane_resin | 1 |
 | enchanter | Scribe Scroll of Passage | 2 arcane_resin, 20 gold | scroll_passage | 1 |
 | guild | Buy Ration | 10 gold | ration | 1 |
+| guild | Buy Ration Crate | 25 gold | ration | 2 |
+| guild | Buy Potion of Healing | 30 gold | potion_healing | 1 |
 | guild | Buy Torch | 8 gold | torch | 1 |
 
 ### Door Choices
@@ -349,7 +352,7 @@ Boss room 0:
 ########
 #H...."#
 #......#
-#."..".#
+#.~..~.#
 #...B..#
 #__..__#
 #"...."#

@@ -2,6 +2,7 @@
 
 ## Unreleased
 - iOS export preset. A PC or a Mac can write the Xcode project; a Mac with the Apple Team ID signs it and uploads to TestFlight. See `docs/BUILD_IOS.md`.
+- Barrier brought closer to SPD: it decays during a fight (min(1, Barrier/20) per turn) and is capped at half of max HP. Potions of Shielding can't push it above max HP, armor upgrades add DR only, and base Barrier is 2 (Warrior 3 + 2 Seal; it was 4, or 6 + 3). Share of damage absorbed in the sim drops from 20% to 14%. Goo HT 90->85 keeps the fresh-save first try near 25% (22%) (+test).
 
 ## 0.28.1
 - Status pane: the torch and food bars are now the same height as the HP bar (they were nearly twice as tall and spilled past the pane frame). They share its left and right edges, their icons fit the bar, and the level badge is no longer cramped. New layout test covers cover and inner screens.

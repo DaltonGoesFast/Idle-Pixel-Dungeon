@@ -17,6 +17,7 @@ func _ready() -> void:
 	ss.path = "user://test_save.json"
 	gs.new_game()
 	test_rules(gs)
+	test_barrier_spd(gs)
 	test_status_pane_layout(gs)
 	test_balance(gs)
 	test_boss(gs)
@@ -1905,11 +1906,11 @@ func test_gold_sinks(gs) -> void:
 func test_goo_spd(gs) -> void:
 	print("[goo spd]")
 	gs.new_game()
-	check(int(DB.mobs.goo.ht) == 90, "Goo has 90 HT (SPD 100)")
+	check(int(DB.mobs.goo.ht) == 85, "Goo has 85 HT (SPD 100)")
 	gs.start_run("warrior", {}, "sewers", 2)
 	var c = Delve.new_combat(gs, Delve.combat_event(gs.run, Delve.rng_for(gs.run, 1), ["goo"]))
 	var g: Dictionary = c.enemies()[0]
-	check(int(g.ht) == 90, "a fresh save fights a full-strength Goo")
+	check(int(g.ht) == 85, "a fresh save fights a full-strength Goo")
 	gs.end_run("death")
 	check(int(gs.stats.goo_losses) == 1, "dying to Goo is remembered")
 	check(gs.mat("potion_healing") >= 2, "a Goo death restocks 2 Potions of Healing")
@@ -1940,3 +1941,24 @@ func test_status_pane_layout(_gs) -> void:
 			var isz: Vector2 = StatusPane.icon_size(Vector2(14, 14), a.size.y)
 			check(isz.y <= a.size.y and isz.y >= a.size.y * 0.5, "%s: supply icon fits the bar height" % tag)
 
+
+func test_barrier_spd(gs) -> void:
+	print("[barrier spd]")
+	gs.new_game()
+	var w: Dictionary = gs.hero_stats("warrior"); var m: Dictionary = gs.hero_stats("mage")
+	check(int(w.barrier_max) == 6 and int(m.barrier_max) == 3, "starting Barrier: warrior 6 (seal-like), others 3 (was 10 / 5)")
+	var uid: int = gs.add_gear("cloth_armor", true, 3); gs.heroes.mage.armor = uid
+	check(int(gs.hero_stats("mage").barrier_max) == 3 and int(gs.hero_stats("mage").dr) == int(m.dr) + 3, "armor upgrades add DR, not Barrier")
+	gs.heroes.warrior.armor = gs.add_gear("plate_armor", true, 0); gs.heroes.warrior.str = 18
+	check(int(gs.hero_stats("warrior").barrier_max) <= int(gs.hero_stats("warrior").ht) / 2, "Barrier is capped at half of max HP")
+	var c := Combat.new(); var hs: Dictionary = gs.hero_stats("warrior"); c.setup(DB.boss_rooms[0], hs, hs.ht, ["rat"])
+	c.hero.barrier = 20
+	for i in 4: c._decay_barrier(1.0)
+	check(int(c.hero.barrier) == 17, "Barrier decays like SPD: min(1, shield/20) per turn")
+	c.hero.barrier = 5; c.hero.bar_partial = 0.0
+	for i in 4: c._decay_barrier(1.0)
+	check(int(c.hero.barrier) == 4, "small Barrier decays slowly (5/20 per turn)")
+	gs.start_run("mage", {}, "sewers", 2); gs.run.shield_next = 999
+	var cc = Delve.new_combat(gs, Delve.combat_event(gs.run, Delve.rng_for(gs.run, 1), ["rat"]))
+	check(int(cc.hero.barrier) <= int(cc.hero.ht), "Shielding never stacks Barrier above max HP")
+	gs.end_run("abandon")
