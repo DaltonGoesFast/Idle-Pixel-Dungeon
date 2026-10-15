@@ -1525,7 +1525,7 @@ func test_total_wipe(gs) -> void:
 	var r := RunSim.play(gs, "warrior", {}, 4242)
 	check(gs.mat("iron_ore") > 0 or gs.can_patch_up() == "" or gs.cracked_gear().is_empty(), "after a run from a wipe there is a path to repairs (%s, ore %d)" % [r.result, gs.mat("iron_ore")])
 
-## DECISIONS #108: food no longer caps depth.
+## DECISIONS #110: food no longer caps depth.
 func test_food_sources(gs) -> void:
 	print("[food sources]")
 	gs.new_game()
