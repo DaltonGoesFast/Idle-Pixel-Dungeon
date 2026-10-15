@@ -343,6 +343,123 @@
     ]
    }
   ],
-  "water": "water2"
+  "water": "water2",
+  "next": "city"
+ },
+ "city": {
+  "name": "Dwarf City",
+  "floors": [
+   16,
+   20
+  ],
+  "str_gate": 15,
+  "tile": "tiles_city",
+  "music": "city_1",
+  "music_tracks": [
+   "city_1",
+   "city_2",
+   "city_3"
+  ],
+  "boss_music": "city_boss",
+  "boss": "dking",
+  "boss_floor": 20,
+  "boss_room": 3,
+  "traps": [
+   "worn_dart",
+   "gripping",
+   "teleport",
+   "poison_dart"
+  ],
+  "strength_potions_at": [
+   [
+    17,
+    50
+   ],
+   [
+    19,
+    50
+   ]
+  ],
+  "event_weights": {
+   "combat": 5,
+   "door": 2,
+   "special": 3
+  },
+  "patrol_yield_per_hour": {
+   "iron_ore": 8,
+   "dark_gold": 3,
+   "arcane_resin": 3,
+   "dew": 3,
+   "gold": 45
+  },
+  "patrol_curio_every_hours": 2,
+  "secret_cache": {
+   "gold": 40,
+   "dark_gold": 3,
+   "iron_key": 1
+  },
+  "encounter_sets": [
+   {
+    "min_floor": 16,
+    "mobs": [
+     "ghoul"
+    ]
+   },
+   {
+    "min_floor": 16,
+    "mobs": [
+     "monk"
+    ]
+   },
+   {
+    "min_floor": 16,
+    "mobs": [
+     "warlock",
+     "ghoul"
+    ]
+   },
+   {
+    "min_floor": 17,
+    "mobs": [
+     "golem"
+    ]
+   },
+   {
+    "min_floor": 17,
+    "mobs": [
+     "monk",
+     "monk"
+    ]
+   },
+   {
+    "min_floor": 18,
+    "mobs": [
+     "warlock",
+     "monk"
+    ]
+   },
+   {
+    "min_floor": 18,
+    "mobs": [
+     "ghoul",
+     "ghoul"
+    ]
+   },
+   {
+    "min_floor": 19,
+    "mobs": [
+     "golem",
+     "warlock"
+    ]
+   },
+   {
+    "min_floor": 19,
+    "mobs": [
+     "ghoul",
+     "monk"
+    ]
+   }
+  ],
+  "water": "water3"
  }
 }

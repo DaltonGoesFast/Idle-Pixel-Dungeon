@@ -9,7 +9,8 @@
 - [x] SPD UI theme (chrome.png, pixel font), talents, in-delve backpack (v0.13.0).
 - [x] Visuals pass: lighting/fog tied to torch, animated water, grass sway, particles (v0.14.0).
 - [ ] On-device perf check on the Fold 6 (lighting draws ~650 rects/frame).
-- [ ] Dwarf City floors 16-20 + Dwarf King.
+- [x] Dwarf City floors 16-20 + King of Dwarves (v0.15.0).
+- [ ] Demon Halls 21-25 + Yog-Dzewa.
 - [ ] Talent icons (talent_icons.png), toolbar/status pane art.
 - [ ] Rogue without subclass still 0/10 in the Caves (subclass is the intended fix).
 - [x] Guided first-fight tutorial (v0.11.0).

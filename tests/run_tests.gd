@@ -24,6 +24,7 @@ func _ready() -> void:
 	test_caves(gs)
 	test_fullrun(gs)
 	test_cavesrun(gs)
+	test_city(gs)
 	test_delve(gs)
 	test_camp(gs)
 	test_save(gs, ss)
@@ -298,6 +299,58 @@ func test_caves(gs) -> void:
 	sp.hero.barrier = 0; sp.hero.dr = 0; sp.hero_wait(); sp.hero_wait()
 	check(int(sp.hero.poison) > 0, "Cave Spinner bite poisons")
 
+func test_city(gs) -> void:
+	print("[city] Lv14 Warrior, Str 16, Longsword+1 / Scale+1 (GDD City: 16-17 Str, tier 4) vs every City fight")
+	gs.new_game()
+	var w: Dictionary = gs.heroes.warrior
+	w.level = 14; w.str = 16; w.weapon = gs.add_gear("longsword", true, 1); w.armor = gs.add_gear("scale_armor", true, 1)
+	var hs := warrior(gs)
+	var b: Dictionary = DB.biomes.city
+	var wins := 0; var total := 0; var worst := 999
+	for set in b.encounter_sets:
+		for room in DB.rooms + DB.biome_rooms.city:
+			var c := Combat.new(); c.setup(room, hs, hs.ht, set.mobs, false, b.traps)
+			var r := CombatBot.play(c)
+			total += 1
+			if r.won: wins += 1; worst = mini(worst, r.hp)
+	print("  warrior Lv14: %d/%d wins, lowest end HP %d/%d" % [wins, total, worst, hs.ht])
+	check(wins >= total * 0.9, "Lv14 tier-4 Warrior wins >= 90% of City fights")
+	var kc := Combat.new(); kc.setup(DB.boss_rooms[b.boss_room], hs, hs.ht, ["dking"], false, b.traps)
+	var kr := CombatBot.play(kc, 3, gs.potion_heal("warrior"))
+	print("  King of Dwarves vs Lv14 Warrior + 3 potions: won=%s hp=%d turns=%d king=%d" % [kr.won, kr.hp, kr.turns, kc.units.filter(func(u): return u.get("boss", false))[0].hp])
+	if OS.has_environment("SIM_DEBUG"): print("    ", "\n    ".join(kc.log_lines.slice(-40)))
+	check(kr.won, "the King of Dwarves is beatable by a Lv14 tier-4 Warrior with 3 potions")
+	var d := Combat.new(); d.setup(DB.boss_rooms[b.boss_room], hs, 999, ["dking"])
+	var k = d.enemies()[0]
+	var spawned := false; var blasted := false
+	for i in 14:
+		d.hero_wait()
+		if d.danger.any(func(z): return z.has("spawn")): spawned = true
+		if d.danger.any(func(z): return z.get("src", "") == "Shadow blast"): blasted = true
+	check(spawned and blasted, "the King telegraphs both raise-dead and shadow blast")
+	check(d.enemies().any(func(e): return e.get("summoned", false)), "Risen Dwarves appear after the telegraph")
+	k.hp = 1; d.hit_mob(k, 999, false, true)
+	check(d.over and d.won, "minions crumble when the King dies")
+	for cls in ["warrior", "huntress"]:
+		var cw := 0; var ends := []
+		for seed in 6:
+			gs.new_game()
+			for cc in gs.heroes: gs.heroes[cc].unlocked = true
+			gs.add_mat("potion_healing", 3); gs.add_mat("ration", 8); gs.add_mat("torch", 9); gs.facilities.alchemy.level = 4
+			var hh: Dictionary = gs.heroes[cls]
+			hh.level = 12; hh.str = 16; hh.mask = true; hh.subclass = DB.heroes[cls].subclasses.keys()[0]
+			hh.armor = gs.add_gear("scale_armor", true, 1); hh.weapon = gs.add_gear("longsword", true, 1)
+			var rr := RunSim.play(gs, cls, {"ration": 8, "torch": 9, "potion_healing": 5}, 5000 + seed, true, "city")
+			if rr.result == "extract" and rr.biome == "city": cw += 1
+			else: ends.append("f%d L%d" % [rr.floor, rr.level])
+		print("  [cityrun] %s Lv12 tier-4 + subclass, floors 1-20 in one run: cleared City %d/6, ended at %s" % [cls, cw, ends])
+	var g := Combat.new(); g.setup(DB.rooms[0], hs, 999, ["ghoul", "golem"])
+	var gh = g.enemies()[0]
+	g.hit_mob(gh, 999, false, true)
+	check(g.danger.any(func(z): return z.get("spawn", "") == "ghoul"), "a Ghoul marks its corpse to rise again")
+	for i in 3: g.hero_wait()
+	check(g.enemies().any(func(e): return e.id == "ghoul" and e.get("revived", false)), "the Ghoul rises with half HP")
+
 ## The kit a player can forge after a couple of Sewers clears (see docs/BALANCE.md "Prison readiness").
 func _kit_tier2(gs, cls: String) -> void:
 	var h: Dictionary = gs.heroes[cls]
@@ -376,7 +429,7 @@ func test_cavesrun(gs) -> void:
 			h.armor = gs.add_gear("mail_armor", true, 1)
 			if cls in ["warrior", "huntress"]: h.weapon = gs.add_gear("mace", true, 1)
 			elif cls == "rogue": h.weapon = gs.add_gear("dagger", true, 3)
-			var r := RunSim.play(gs, cls, {"ration": 8, "torch": 9, "potion_healing": 5}, 3000 + seed, true)
+			var r := RunSim.play(gs, cls, {"ration": 8, "torch": 9, "potion_healing": 5}, 3000 + seed, true, "caves")
 			if r.result == "extract" and r.biome == "caves": wins += 1
 			else: ends.append("f%d L%d" % [r.floor, r.level])
 		print("  %s %s: cleared Caves %d/10, ended at %s" % [cls, cs[1], wins, ends])

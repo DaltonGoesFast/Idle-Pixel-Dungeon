@@ -208,5 +208,24 @@
   "unknown_name": "Birch Wand",
   "icon": "WAND_LIGHTNING",
   "spd": "dmg 5-10"
+ },
+ "longsword": {
+  "name": "Longsword",
+  "type": "weapon",
+  "tier": 4,
+  "dmg": 16,
+  "delay": 1.0,
+  "str": 16,
+  "icon": "LONGSWORD",
+  "spd": "tier 4, 5-25 (avg 15)"
+ },
+ "scale_armor": {
+  "name": "Scale Armor",
+  "type": "armor",
+  "tier": 4,
+  "dr": 4,
+  "barrier": 4,
+  "str": 16,
+  "icon": "ARMOR_SCALE"
  }
 }

@@ -28,7 +28,8 @@
    "biomes": [
     "caves",
     "prison",
-    "sewers"
+    "sewers",
+    "city"
    ]
   },
   {
@@ -52,7 +53,8 @@
    "biomes": [
     "caves",
     "prison",
-    "sewers"
+    "sewers",
+    "city"
    ]
   },
   {
@@ -82,14 +84,16 @@
    "biomes": [
     "caves",
     "prison",
-    "sewers"
+    "sewers",
+    "city"
    ]
   },
   {
    "id": "cells",
    "biomes": [
     "caves",
-    "prison"
+    "prison",
+    "city"
    ],
    "a": {
     "text": "Door A: Rattling bones",
@@ -120,7 +124,8 @@
    "id": "workshop",
    "biomes": [
     "caves",
-    "prison"
+    "prison",
+    "city"
    ],
    "a": {
     "text": "Door A: Humming machinery",
@@ -141,7 +146,8 @@
   {
    "id": "den",
    "biomes": [
-    "caves"
+    "caves",
+    "city"
    ],
    "a": {
     "text": "Door A: Leathery wings flapping",
@@ -200,7 +206,8 @@
    "biomes": [
     "caves",
     "prison",
-    "sewers"
+    "sewers",
+    "city"
    ]
   },
   {
@@ -225,7 +232,8 @@
    "biomes": [
     "caves",
     "prison",
-    "sewers"
+    "sewers",
+    "city"
    ]
   },
   {
@@ -249,7 +257,8 @@
    "biomes": [
     "caves",
     "prison",
-    "sewers"
+    "sewers",
+    "city"
    ]
   },
   {
@@ -283,7 +292,8 @@
    "biomes": [
     "caves",
     "prison",
-    "sewers"
+    "sewers",
+    "city"
    ]
   },
   {
@@ -302,7 +312,8 @@
    "biomes": [
     "caves",
     "prison",
-    "sewers"
+    "sewers",
+    "city"
    ]
   },
   {
@@ -310,7 +321,8 @@
    "biomes": [
     "caves",
     "prison",
-    "sewers"
+    "sewers",
+    "city"
    ],
    "title": "Trapped Corridor",
    "text": "Pressure plates line the floor. Something valuable glints at the far end.",
@@ -354,7 +366,8 @@
    "biomes": [
     "caves",
     "prison",
-    "sewers"
+    "sewers",
+    "city"
    ],
    "title": "Suspicious Wall",
    "text": "A draft whistles through a crack in the stonework. A hidden door?",
@@ -379,7 +392,8 @@
    "id": "cell_block",
    "biomes": [
     "caves",
-    "prison"
+    "prison",
+    "city"
    ],
    "title": "Locked Cell",
    "text": "A prisoner's belongings lie in a locked cell.",
@@ -413,7 +427,8 @@
    "id": "armory",
    "biomes": [
     "caves",
-    "prison"
+    "prison",
+    "city"
    ],
    "title": "Guard Armory",
    "text": "An abandoned weapons rack. Most of it has rusted away.",
@@ -433,7 +448,8 @@
   {
    "id": "crystal_vein",
    "biomes": [
-    "caves"
+    "caves",
+    "city"
    ],
    "title": "Crystal Vein",
    "text": "Dark Gold glitters in a crumbling wall. Mining it will take time - and light.",

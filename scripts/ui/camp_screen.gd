@@ -54,7 +54,7 @@ func _p(name: String) -> VBoxContainer:
 # ------------------------------------------------------------ Delve (loadout & start)
 func _page_delve() -> void:
 	var v := _p("Delve")
-	v.add_child(UIKit.label("Choose a hero, pack supplies, and descend into the Sewers (floors 1-5, Goo waits on 5). After each boss you may extract or press on: Prison (6-10, Tengu), then Caves (11-15, DM-300). Extract at a boss campfire or with a Scroll of Passage; dying loses the pack."))
+	v.add_child(UIKit.label("Choose a hero, pack supplies, and descend into the Sewers (floors 1-5, Goo waits on 5). After each boss you may extract or press on: Prison (6-10, Tengu), then Caves (11-15, DM-300), then the Dwarf City (16-20, King of Dwarves). Extract at a boss campfire or with a Scroll of Passage; dying loses the pack."))
 	var hb := HFlowContainer.new(); v.add_child(hb)
 	for c in GameState.heroes:
 		var h: Dictionary = GameState.heroes[c]

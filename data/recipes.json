@@ -50,6 +50,26 @@
     "dark_gold": 3
    },
    "min_level": 2
+  },
+  {
+   "id": "forge_longsword",
+   "name": "Forge Longsword",
+   "out": "longsword",
+   "cost": {
+    "iron_ore": 14,
+    "dark_gold": 4
+   },
+   "min_level": 3
+  },
+  {
+   "id": "forge_scale",
+   "name": "Forge Scale Armor",
+   "out": "scale_armor",
+   "cost": {
+    "iron_ore": 16,
+    "dark_gold": 5
+   },
+   "min_level": 3
   }
  ],
  "alchemy": [

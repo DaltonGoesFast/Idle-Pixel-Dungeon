@@ -68,9 +68,15 @@ GDD target: 12-13 Str, tier 2-3 gear. Two Sewers Strength potions take a fresh h
 | Tengu | 90 | 6 | 2 | 1.0 | 20 | 60 | HT 200, dmg 6-12, DR 0-5; phase 1 teleports & throws shurikens, phase 2 bombs/fire/shockers | HT 200->90. Blinks away every 15 HP lost; shuriken = 1-tick red tile (6). Below half HP lobs a 3x3 bomb every 3 actions (2-tick fuse, 8 dmg, also hurts mobs) |
 | Vampire Bat | 24 | 6 | 2 | 0.5 | 7 | 5 | HT 30, dmg 5-18, DR 0-4, speed 2x, heals on hit | HT 24, dmg 11->5 (it attacks twice per tick), heals 2 on a hit that gets through |
 | Gnoll Brute | 34 | 8 | 4 | 1.0 | 8 | 7 | HT 40, dmg 5-25 (15-40 enraged), DR 0-8 | HT 34, dmg 7, enraged (below half HP) 10 |
-| Gnoll Shaman | 26 | 6 | 3 | 1.0 | 8 | 7 | HT 35, dmg 5-10, DR 0-6; magic bolt 6-15 | magic zap = 1-tick red tile, 6 dmg ignoring DR, range 2-4, every 2 actions |
-| Cave Spinner | 32 | 7 | 3 | 1.0 | 9 | 8 | HT 50, dmg 10-20, DR 0-6; poison bite, webs | HT 32, dmg 6, bite adds 3 poison (no webs) |
-| DM-300 | 160 | 8 | 4 | 1.0 | 30 | 100 | HT 300, dmg 15-25, DR 0-10; rockfall, toxic vents, supercharge with pylons | HT 140, dmg 8, DR 4 (+2 supercharged below half HP). Every 3 actions (2 supercharged) alternates rockfall (+ shape on you, 2-tick fuse, 10) and a toxic gas line (1 tick, 3 + 4 poison). No pylons. |
+| Gnoll Shaman | 26 | 7 | 3 | 1.0 | 8 | 7 | HT 35, dmg 5-10, DR 0-6; magic bolt 6-15 | magic zap = 1-tick red tile, 6 dmg ignoring DR, range 2-4, every 2 actions |
+| Cave Spinner | 32 | 8 | 3 | 1.0 | 9 | 8 | HT 50, dmg 10-20, DR 0-6; poison bite, webs | HT 32, dmg 6, bite adds 3 poison (no webs) |
+| DM-300 | 160 | 8 | 4 | 1.0 | 30 | 100 | HT 300, dmg 15-25, DR 0-10; rockfall, toxic vents, supercharge with pylons | HT 160, dmg 8, DR 4 (+2 supercharged below half HP). Every 3 actions (2 supercharged) alternates rockfall (+ shape on you, 2-tick fuse, 10) and a toxic gas line (1 tick, 3 + 4 poison). No pylons. |
+| Dwarven Ghoul | 40 | 9 | 4 | 1.0 | 10 | 8 | HT 45, dmg 16-22, DR 0-4; rises again unless all ghouls die | HT 40, dmg 9; the first time it dies it gets back up with half HP after 2 ticks (red tile on its corpse) |
+| Dwarf Warlock | 34 | 7 | 3 | 1.0 | 10 | 9 | HT 70, dmg 12-18, DR 0-8; shadow bolt 12-18 + weakness | HT 34; shadow bolt = 1-tick red tile, 9 dmg ignoring DR, every 2 actions |
+| Dwarf Monk | 34 | 5 | 3 | 0.5 | 10 | 8 | HT 70, dmg 12-25, fast attacks, DR 0-2; disarms | HT 34, dmg 5, acts twice per tick |
+| Golem | 75 | 15 | 7 | 1.5 | 14 | 12 | HT 120, dmg 25-30, DR 0-12; slow | HT 75, dmg 15, DR 7, acts every 1.5 ticks |
+| King of Dwarves | 150 | 8 | 5 | 1.0 | 40 | 150 | HT 300, dmg 15-25, DR 0-10; summons, lifelinks, 3 phases | HT 150, dmg 8, DR 5. Every 3 actions (2 when enraged below half HP, +3 dmg) alternates: marks up to 2 tiles where Risen Dwarves appear in 2 ticks (4 dmg if you stand there; only when none are left) and a shadow blast (3x3 on you, 2 ticks, 8 ignoring DR). No phases/lifelink. |
+| Risen Dwarf | 18 | 6 | 2 | 1.0 | 2 | 0 | summon | weak summon of the Dwarf King |
 
 ### Weapons & armor
 
@@ -85,6 +91,8 @@ GDD target: 12-13 Str, tier 2-3 gear. Two Sewers Strength potions take a fresh h
 | Leather Armor | armor | 2 | 2 | 2 | - | 12 |
 | Mail Armor | armor | 3 | 3 | 3 | - | 14 |
 | Studded Gloves | weapon | 1 | 3 | - | 0.5 | 10 |
+| Longsword | weapon | 4 | 16 | - | 1.0 | 16 |
+| Scale Armor | armor | 4 | 4 | 4 | - | 16 |
 
 ### Rings & wands
 
@@ -143,6 +151,22 @@ Traps: worn_dart, gripping, teleport, poison_dart. Strength potions at [[12, 50]
 | 14 | brute, bat |
 | 14 | spinner, brute |
 
+### Dwarf City (floors 16-20, boss dking on 20, 15 Str)
+
+Traps: worn_dart, gripping, teleport, poison_dart. Strength potions at [[17, 50], [19, 50]]. Secret cache: {'gold': 40, 'dark_gold': 3, 'iron_key': 1}
+
+| From floor | Mobs |
+|---|---|
+| 16 | ghoul |
+| 16 | monk |
+| 16 | warlock, ghoul |
+| 17 | golem |
+| 17 | monk, monk |
+| 18 | warlock, monk |
+| 18 | ghoul, ghoul |
+| 19 | golem, warlock |
+| 19 | ghoul, monk |
+
 ### Traps
 
 | Trap | Effect | SPD source |
@@ -178,3 +202,15 @@ Traps: worn_dart, gripping, teleport, poison_dart. Strength potions at [[12, 50]
 | Mage | 7 | Battlemage 9 | Warlock 8 |
 | Rogue | 1 | Assassin 9 | Freerunner 9 |
 Subclass + talents on a returning Lv8+ hero is meant to feel strong; the Caves bosses are the place to tune next.
+
+## v0.15.0 (smarter bot, Caves retune) - cavesrun, Lv8 / Str 14, tier 3, talents auto-picked
+| Class | Base | Subclass A | Subclass B |
+|---|---|---|---|
+| Warrior | 8 | Berserker 10 | Gladiator 9 |
+| Huntress | 6 | Sniper 10 | Warden 10 |
+| Mage | 8 | Battlemage 10 | Warlock 8 |
+| Rogue | 9 | Assassin 10 | Freerunner 10 |
+
+## City (v0.15.0)
+- [city] Lv14 Warrior, Str 16, Longsword+1 / Scale+1: 99/99 City fights won; beats the King of Dwarves with 3 potions (14 HP left).
+- [cityrun] Lv12, Str 16, tier-4 + first subclass, floors 1-20 in one run, 6 seeds: Warrior 3/6, Huntress 4/6 (losses are at the King).

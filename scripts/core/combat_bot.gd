@@ -21,6 +21,20 @@ static func suggest(c: Combat, potions := 0, heal_amount := 10) -> Dictionary:
 			if c.surprise_ready() == false and (c.tile(p) == Combat.T.GRASS or c.tile(p) == Combat.T.DOOR): score += 1
 			if score > best_score: best_score = score; best = p
 		if best != null: return {"act": "tap", "pos": best, "mode": "", "why": "dodge the red tiles"}
+		# big areas (3x3 shadow blast): no safe tile one step away - head for the nearest safe one
+		var safe := []
+		for y in Combat.SIZE:
+			for x in Combat.SIZE:
+				var q := Vector2i(x, y)
+				if c.passable(q) and c.unit_at(q) == null and not c.is_danger(q) and not c.visible_trap(q): safe.append(q)
+		var best_d := 99
+		for d in Combat.DIRS:
+			var p: Vector2i = h.pos + d
+			if not c.passable(p) or c.unit_at(p) != null or c.visible_trap(p): continue
+			for q in safe:
+				var dq := Combat.cheb(p, q)
+				if dq < best_d: best_d = dq; best = p
+		if best != null: return {"act": "tap", "pos": best, "mode": "", "why": "run out of the red area"}
 	# 1b. vs slammers (Goo): never get cornered - keep a tile 2+ away from it reachable in one step
 	for e in es:
 		if e.get("ability", "") == "pump" and Combat.cheb(e.pos, h.pos) <= 2 and _escapes(c, h.pos, e.pos) == 0:

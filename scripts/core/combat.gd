@@ -353,7 +353,16 @@ func _kill(m: Dictionary, chasm: bool) -> void:
 		_log("%s dies. +%d gold" % [m.name, l])
 		_ev({"t": "die", "uid": m.uid, "pos": m.pos})
 	danger = danger.filter(func(d): return d.uid != m.uid)
-	if m.get("boss", false): boss_killed = true
+	if m.get("boss", false):
+		boss_killed = true
+		# the King's risen dwarves crumble with him
+		for e in enemies():
+			if e.get("summoned", false):
+				e.hp = 0; _log("%s crumbles to dust." % e.name); _ev({"t": "die", "uid": e.uid, "pos": e.pos})
+	# Dwarven Ghoul: rises again (once) 2 ticks later unless it was the last enemy standing (SPD rule)
+	if m.get("revive", false) and not m.get("revived", false) and not chasm and not enemies().is_empty():
+		danger.append({"pos": m.pos, "dmg": 3, "at": time + 2.0, "src": "Rising ghoul", "uid": -m.uid, "spawn": m.id, "spawn_hp": 0.5})
+		_log("%s twitches... it will rise again in 2 ticks! (red tile)" % m.name); _ev({"t": "telegraph", "uid": m.uid})
 	if hero.get("perk", "") == "soul_heal" and hero.hp > 0:
 		var hl := mini(int(hero.ht) - int(hero.hp), maxi(2, int(int(m.ht) * 0.2)))
 		if hl > 0:
@@ -582,6 +591,14 @@ func _resolve_danger() -> void:
 				var u = unit_at(d.pos)
 				if u != null and u != hero: _trap_hit(u, int(d.dmg))
 			if over: return
+			if d.has("spawn") and not over:
+				var sp: Vector2i = d.pos if unit_at(d.pos) == null else _free_tile_near(d.pos)
+				if sp.x >= 0 and unit_at(sp) == null:
+					var nm := spawn(String(d.spawn), sp)
+					if d.has("spawn_hp"): nm.hp = maxi(1, int(int(nm.ht) * float(d.spawn_hp))); nm.revived = true
+					if d.get("summoned", false): nm.summoned = true
+					nm.next = time + float(nm.delay)
+					_log("%s rises!" % nm.name); _ev({"t": "spawn", "uid": nm.uid, "pos": sp})
 	# a mob that finished charging stops charging
 	for m in enemies():
 		if m.charging and danger.filter(func(d): return d.uid == m.uid).is_empty(): m.charging = false
@@ -628,6 +645,8 @@ func _mob_act(m: Dictionary) -> void:
 			if _tengu_act(m): return
 		"dm300":
 			if _dm300_act(m): return
+		"dking":
+			if _dking_act(m): return
 		"pump":
 			var every := int(m.pump_every)
 			if int(m.hp) * 2 <= int(m.ht) and m.has("pump_every_enraged"): every = int(m.pump_every_enraged)
@@ -723,6 +742,39 @@ func _dm300_act(m: Dictionary) -> bool:
 			if tile(pts[i]) == T.WALL: break
 			danger.append({"pos": pts[i], "dmg": int(m.gas_dmg), "at": m.next + 1.0, "src": "Toxic gas", "uid": m.uid, "pierce": true, "poison": int(m.gas_poison)})
 		_log("DM-300 vents toxic gas at you! (red line, 1 tick)"); _ev({"t": "sfx", "name": "gas"})
+	_ev({"t": "telegraph", "uid": m.uid})
+	return true
+
+## King of Dwarves: every few actions alternates
+##  raise the dead - marks 2 free tiles near the hero; 2 ticks later Risen Dwarves appear there (4 dmg if you stand on one);
+##  shadow blast - 3x3 on the hero, 2 ticks (one step can't clear a 3x3 in 1), blast_dmg ignoring DR.
+## Below half HP he ENRAGES once (+3 dmg, abilities every `ability_every_super`). Minions die with him.
+func _dking_act(m: Dictionary) -> bool:
+	if hidden(): return false
+	var enr := int(m.hp) * 2 <= int(m.ht)
+	if enr and not m.get("enraged", false):
+		m.enraged = true; m.dmg = int(m.dmg) + 3
+		_log("The King of Dwarves roars in fury! (+3 dmg, abilities come faster)"); _ev({"t": "sfx", "name": "chargeup"}); _ev({"t": "telegraph", "uid": m.uid})
+	m.abil = int(m.get("abil", 0)) + 1
+	if m.abil < int(m.ability_every_super if enr else m.ability_every): return false
+	m.abil = 0
+	m.abil_n = int(m.get("abil_n", 0)) + 1
+	if m.abil_n % 2 == 1 and enemies().filter(func(e): return e.get("summoned", false)).is_empty():
+		var spots := []
+		for d in DIRS + [Vector2i(2, 0), Vector2i(-2, 0), Vector2i(0, 2), Vector2i(0, -2)]:
+			var q: Vector2i = hero.pos + d
+			if spots.size() >= int(m.summon_n): break
+			if passable(q) and unit_at(q) == null and not is_danger(q): spots.append(q)
+		for q in spots:
+			danger.append({"pos": q, "dmg": 4, "at": m.next + 2.0, "src": "Rising dead", "uid": m.uid, "spawn": m.summon, "summoned": true})
+		_log("The King raises the dead! Dwarves will rise in 2 ticks (red tiles)."); _ev({"t": "sfx", "name": "bones"})
+	else:
+		for y in range(-1, 2):
+			for x in range(-1, 2):
+				var q: Vector2i = hero.pos + Vector2i(x, y)
+				if tile(q) != T.WALL:
+					danger.append({"pos": q, "dmg": int(m.blast_dmg), "at": m.next + 2.0, "src": "Shadow blast", "uid": m.uid, "pierce": true})
+		_log("The King gathers shadow around you! (3x3 red tiles, 2 ticks - get out!)"); _ev({"t": "sfx", "name": "zap"})
 	_ev({"t": "telegraph", "uid": m.uid})
 	return true
 

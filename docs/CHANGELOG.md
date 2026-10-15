@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.15.0 — 2026-10-15
+- **Dwarf City (floors 16-20)**: continue from the DM-300 campfire. SPD City tiles, water and music (city 1-3, boss), 4 new rooms and a boss arena; Prison/Caves door and special events now appear in the City too.
+- New mobs: **Dwarven Ghoul** (rises once with half HP 2 ticks after dying, red tile on the corpse, unless it was the last enemy), **Dwarf Warlock** (piercing shadow bolt), **Dwarf Monk** (attacks twice per tick), **Golem** (slow, huge hits, DR 7).
+- **King of Dwarves** boss: alternates raising the dead (2 marked tiles, Risen Dwarves appear 2 ticks later) and a 3x3 shadow blast with a 2-tick fuse; enrages below half HP; his dwarves crumble when he dies.
+- Tier-4 gear for the City: **Longsword** and **Scale Armor** (Blacksmith Lv3).
+- The bot (Hint / Auto / sims) now runs out of large red areas it can't leave in one step instead of standing in them.
+- Caves retune after the smarter bot: Gnoll Shaman and Cave Spinner +1 damage, DM-300 HT 160.
+- Tests: 159 checks; the UI smoke test now continues from DM-300 into the City and beats the King of Dwarves.
+
 ## v0.14.0 — 2026-10-15
 - **SPD-style lighting in fights**: torchlight around the hero that shrinks as the torch burns down (radius 6.5 -> 3.2 tiles, 1.8 in darkness), a soft falloff, a warm flickering hero glow, and fog over tiles out of line of sight. Enemies outside the light are dimmed but stay readable. Settings -> "Lighting & fog" turns it off.
 - **Animated water**: SPD's own water textures (sewers/prison/caves) scroll slowly under the water tiles.

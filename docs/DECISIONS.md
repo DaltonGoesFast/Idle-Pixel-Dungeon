@@ -137,3 +137,9 @@ Materials keep stacking in the pack (like SPD's bags); only gear uses slots. Equ
 
 ## 68. Lighting and effects are drawn in GridView._draw, no shaders or Light2D
 The Compatibility renderer and phone GPUs favour plain 2D draws. The light is 3x3 dark sub-cells per tile with alpha from the distance to the hero (about 580 small rects, plus 64 cheap line-of-sight checks per frame); a GradientTexture2D version left stray dark bands on the inner screen when it was clipped, so it was replaced. Water scrolls by offsetting the texture region with texture_repeat (the same effect as SPD's water offset) instead of a shader. Particles are plain rect lists with a 160 cap. Lighting is cosmetic only: fights stay deterministic and every enemy is still drawn (dimmed) so tactical information is never hidden.
+
+## 69. Dwarf City: SPD mobs simplified, the King summons instead of phases
+Ghouls keep SPD's rule that they only stay dead when no other enemy is left (they rise once). Warlocks reuse the zap telegraph, Monks are just fast, Golems slow and heavy. The King of Dwarves drops SPD's three phases and lifelink: he raises Risen Dwarves on marked tiles (only when none are left) and casts a 3x3 shadow blast. The blast first had a 1-tick fuse, which no one can escape from the centre of a 3x3 in one step, so it is 2 ticks; the bot also learned to walk out of areas wider than one step.
+
+## 70. Smarter bot moved the balance numbers
+Once the bot could escape multi-tile telegraphs, every Caves sim rose to 9-10/10, so the bot had been dying to avoidable damage. Caves were retuned (Shaman and Spinner +1 damage, DM-300 HT 160) back to ~8/10 for base classes. Current tables are in BALANCE.md.
