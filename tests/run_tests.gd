@@ -36,6 +36,7 @@ func _ready() -> void:
 	test_floor_label(gs)
 	test_total_wipe(gs)
 	test_rogue_cloak(gs)
+	test_ring_charges_delta(gs)
 	test_level_cap(gs)
 	test_dew_sink(gs)
 	test_old_run_load(gs)
@@ -1747,3 +1748,14 @@ func test_rogue_cloak(gs) -> void:
 	check(int(c.hero.cloak_charges) == 3, "a fight starts with 3 cloak charges")
 	gs.end_run("abandon")
 
+## DECISIONS #125: the Heroes ring swap list only shows "Charges +N" for heroes whose staff gains them.
+func test_ring_charges_delta(gs) -> void:
+	print("[ring charges delta]")
+	gs.new_game()
+	for cc in gs.heroes: gs.heroes[cc].unlocked = true
+	var uid: int = gs.add_gear("ring_energy", true)
+	for cc in ["warrior", "rogue", "huntress"]:
+		var t: String = Paperdoll._delta_text(gs.hero_stats(cc), Paperdoll._stats_with(cc, "ring", uid))[0]
+		check(t.contains("HP +4") and not t.contains("Charges"), "%s: Ring of Energy shows HP +4 but no staff charge (%s)" % [cc, t])
+	var tm: String = Paperdoll._delta_text(gs.hero_stats("mage"), Paperdoll._stats_with("mage", "ring", uid))[0]
+	check(tm.contains("Charges +1"), "mage: Ring of Energy shows Charges +1 (%s)" % tm)

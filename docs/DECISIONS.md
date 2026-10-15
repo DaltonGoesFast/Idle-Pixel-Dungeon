@@ -354,3 +354,6 @@ The hub stacked a wrapping resource bar, a short scene, portraits that repeated 
 - Stash (Materials / Potions & scrolls / Gear), Forge (Craft / Upgrade & repair / Rings) and Guild (Supplies / Patrols) split into sections with Journal-style buttons; the choice is remembered while the app runs and a switch scrolls to the top.
 - Recipe slots (Forge, Guild, Enchanter, Alchemy) are wider and captioned with the recipe name minus its verb ("Ration Crate", "Leather"), so slots are told apart without opening them.
 - Journal lists open milestones as cards and folds finished ones into one "Completed (N)" line. A locked class on the Heroes page shows its unlock progress card instead of a stats card.
+
+## 125. Ring swap preview: staff charges, not the raw bonus
+The Heroes ring swap list (Paperdoll `_delta_text`) compared `charges_bonus`, so Ring of Energy read "HP +4  Charges +1" for the Warrior, Rogue and Huntress, who have no charged staff (the bonus only adds to a Mage's wand charges; the Spirit Bow is unlimited). The preview now compares the charges the hero's staff actually gets in a fight (`bolt.charges`, 0 without a charged staff). test_ring_charges_delta.

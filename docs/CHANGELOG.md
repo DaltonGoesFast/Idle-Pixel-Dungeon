@@ -1,6 +1,9 @@
 # Changelog
 
 ## Unreleased
+- Heroes ring swap list: Ring of Energy shows "Charges +1" only for a hero whose staff gains the charge (the Mage); Warrior, Rogue and Huntress see just "HP +4" (+test).
+- Rings and wands show their effect in the Stash, Forge and Heroes views (e.g. "+30% gold from fights", "Bolt: 7 damage (ignores DR), 2 charges"); unidentified ones stay hidden.
+- Auto Battle turns itself off and pauses the delve when you're close to dying (<= 30% HP, or adjacent enemies/poison can kill you next turn). A Scroll of Passage can be read from the ambush card and from the combat toolbar.
 - Rogue: Cloak of Shadows has 3 charges per fight like SPD (was 2); Rogue death rate now in line with other classes (+test).
 - Owed Scrolls of Upgrade return straight to the Camp stash on the next boss kill, so the same run can no longer lose them again (+test).
 - Heroes cap at level 30 like SPD (was unlimited: Lv100+ in long campaigns); over-cap saves load at 30 (+test).

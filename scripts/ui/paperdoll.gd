@@ -113,12 +113,18 @@ static func _stats_with(c: String, slot: String, uid: int) -> Dictionary:
 	h[slot] = uid; var s := GameState.hero_stats(c); h[slot] = old
 	return s
 
+## Staff charges a hero's stats give in a fight (0 without a charged staff; the Spirit Bow is unlimited).
+static func _staff_charges(s: Dictionary) -> int:
+	var bolt: Dictionary = s.get("bolt", {})
+	return 0 if bolt.is_empty() or bolt.get("infinite", false) else int(bolt.get("charges", 0))
+
 static func _delta_text(a: Dictionary, b: Dictionary) -> Array:   # [text, better?]
 	var parts := []; var score := 0
 	for k in [["ht", "HP"], ["dmg", "Dmg"], ["dr", "DR"], ["barrier_max", "Barrier"]]:
 		var d := int(b.get(k[0], 0)) - int(a.get(k[0], 0))
 		if d != 0: parts.append("%s %s%d" % [k[1], "+" if d > 0 else "", d]); score += d
-	var dc := int(b.get("charges_bonus", 0)) - int(a.get("charges_bonus", 0))
+	# Ring of Energy: count staff charges actually gained, not the raw bonus (no staff, no charges: DECISIONS #125)
+	var dc := _staff_charges(b) - _staff_charges(a)
 	if dc != 0: parts.append("Charges %s%d" % ["+" if dc > 0 else "", dc]); score += dc
 	var dg := int(round((float(b.get("gold_mult", 1.0)) - float(a.get("gold_mult", 1.0))) * 100))
 	if dg != 0: parts.append("Gold %s%d%%" % ["+" if dg > 0 else "", dg]); score += dg
