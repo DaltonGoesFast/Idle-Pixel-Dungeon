@@ -1,0 +1,97 @@
+{
+ "sewers": {
+  "name": "Sewers",
+  "floors": [
+   1,
+   5
+  ],
+  "str_gate": 10,
+  "tile": "tiles_sewers",
+  "music": "sewers_1",
+  "boss_music": "sewers_boss",
+  "boss": "goo",
+  "boss_floor": 5,
+  "strength_potions_at": [
+   [
+    2,
+    50
+   ],
+   [
+    4,
+    50
+   ]
+  ],
+  "encounter_sets": [
+   {
+    "min_floor": 1,
+    "mobs": [
+     "rat",
+     "rat"
+    ]
+   },
+   {
+    "min_floor": 1,
+    "mobs": [
+     "rat",
+     "snake"
+    ]
+   },
+   {
+    "min_floor": 2,
+    "mobs": [
+     "gnoll",
+     "rat"
+    ]
+   },
+   {
+    "min_floor": 2,
+    "mobs": [
+     "crab"
+    ]
+   },
+   {
+    "min_floor": 3,
+    "mobs": [
+     "gnoll",
+     "snake",
+     "rat"
+    ]
+   },
+   {
+    "min_floor": 3,
+    "mobs": [
+     "crab",
+     "rat"
+    ]
+   },
+   {
+    "min_floor": 4,
+    "mobs": [
+     "gnoll",
+     "crab"
+    ]
+   },
+   {
+    "min_floor": 4,
+    "mobs": [
+     "crab",
+     "snake",
+     "snake"
+    ]
+   }
+  ],
+  "event_weights": {
+   "combat": 5,
+   "door": 2,
+   "special": 2
+  },
+  "patrol_yield_per_hour": {
+   "iron_ore": 3,
+   "seeds": 2,
+   "dew": 4,
+   "arcane_resin": 1,
+   "gold": 15
+  },
+  "patrol_curio_every_hours": 3
+ }
+}

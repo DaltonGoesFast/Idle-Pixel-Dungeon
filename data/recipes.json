@@ -1,0 +1,108 @@
+{
+ "_note": "Costs in materials. 'facility' + 'min_level' gate the recipe. Upgrades cost iron_ore*4*(lvl+1) and are capped by blacksmith level.",
+ "blacksmith": [
+  {
+   "id": "forge_shortsword",
+   "name": "Forge Shortsword",
+   "out": "shortsword",
+   "cost": {
+    "iron_ore": 6,
+    "gold": 40
+   },
+   "min_level": 1
+  },
+  {
+   "id": "forge_dagger",
+   "name": "Forge Dagger",
+   "out": "dagger",
+   "cost": {
+    "iron_ore": 3,
+    "gold": 20
+   },
+   "min_level": 1
+  },
+  {
+   "id": "forge_leather",
+   "name": "Forge Leather Armor",
+   "out": "leather_armor",
+   "cost": {
+    "iron_ore": 5,
+    "gold": 30
+   },
+   "min_level": 1
+  },
+  {
+   "id": "forge_mace",
+   "name": "Forge Mace",
+   "out": "mace",
+   "cost": {
+    "iron_ore": 8,
+    "dark_gold": 2
+   },
+   "min_level": 2
+  },
+  {
+   "id": "forge_mail",
+   "name": "Forge Mail Armor",
+   "out": "mail_armor",
+   "cost": {
+    "iron_ore": 10,
+    "dark_gold": 3
+   },
+   "min_level": 2
+  }
+ ],
+ "alchemy": [
+  {
+   "id": "brew_healing",
+   "name": "Brew Potion of Healing",
+   "out_mat": "potion_healing",
+   "cost": {
+    "seeds": 2
+   },
+   "min_level": 1
+  },
+  {
+   "id": "brew_elixir",
+   "name": "Brew Starter Elixir",
+   "out_mat": "elixir_starter",
+   "cost": {
+    "seeds": 5,
+    "arcane_resin": 2
+   },
+   "min_level": 2
+  }
+ ],
+ "enchanter": [
+  {
+   "id": "scribe_passage",
+   "name": "Scribe Scroll of Passage",
+   "out_mat": "scroll_passage",
+   "cost": {
+    "arcane_resin": 2,
+    "gold": 20
+   },
+   "min_level": 1
+  }
+ ],
+ "guild": [
+  {
+   "id": "buy_ration",
+   "name": "Buy Ration",
+   "out_mat": "ration",
+   "cost": {
+    "gold": 10
+   },
+   "min_level": 1
+  },
+  {
+   "id": "buy_torch",
+   "name": "Buy Torch",
+   "out_mat": "torch",
+   "cost": {
+    "gold": 8
+   },
+   "min_level": 1
+  }
+ ]
+}

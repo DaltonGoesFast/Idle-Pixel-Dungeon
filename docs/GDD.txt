@@ -1,0 +1,192 @@
+Game Design Document: Tactical Idle
+Dungeon Crawler (Working Title)
+1. High Concept & Core Pillars
+A hybrid semi-idle dungeon management RPG and deterministic turn-based tactical
+roguelite loosely based on Shattered Pixel Dungeon (SPD) and Into the Breach.
+  ●​ Macro-Preparation Over Corridor Walking: Empty hallway navigation is replaced with
+      UI-driven exploration, shifting player focus to loadout prep, resource management, and
+      high-stakes tactical combat rooms.
+  ●​ Deterministic Tactical Puzzles: Combat features zero RNG accuracy or damage rolls.
+      Every battle takes place on a compact grid where positioning, turn economy, terrain
+      manipulation, and telegraphed attacks decide the outcome.
+  ●​ Shared Camp, Individual Climbs: Four distinct classes share a persistent Camp, Stash,
+      and Crafting ecosystem, but level up and earn Strength individually.
+
+2. The Core Gameplay Loop
+Phase A: The Surface (Camp & Maintenance)
+Between runs, the player operates out of a persistent Surface Camp:
+  ●​ Crafting & Upgrading: Spend raw materials (Iron Ore, Dark Gold, Seeds, Arcane Resin)
+     gathered from runs to forge weapons/armor, brew potions, and upgrade Camp facilities.
+  ●​ Loadout Prep: Equip heroes from the shared Stash, stock their supply pack (Rations and
+     Torches), and select consumables for the target biome.
+  ●​ Identification Queue: Unidentified rings, wands, and curios brought back from the
+     dungeon are placed in the Enchanter's Desk to identify over time.
+
+Phase B: Active Expeditions (UI-Driven Delving)
+  ●​ The Delve Bar: Exploration is driven by a UI progress bar ticking from 0% to 100% per
+     floor. As it ticks, Torchlight and Satiety slowly drain, and the hero passively gathers minor
+     gold and dew drops.
+  ●​ Encounter Triggers: Every 20–25% of floor progress, the Delve Bar pauses and draws
+     an encounter or presents a Door Choice (e.g., Door A: Smells of Ozone [Shaman Battle /
+     Wand Reward] vs. Door B: Locked [Costs 1 Iron Key / Crystal Chest Event]).
+  ●​ UI Special Rooms: Classic SPD puzzle rooms (Piranha rooms, Sacrificial Fires,
+     Animated Statues, Barricades) appear as interactive UI cards where players spend
+     consumables, tools, or HP to claim rewards or initiate optional fights.
+  ●​ Extraction vs. Greed: Players can extractback to Camp with 100% of their backpack loot
+     at Campfire Floors (every 5th floor after a boss) or by burning a Scroll of Passage.
+
+Phase C: Offline Patrols (The Idle Engine)
+  ●​ Any unlocked hero not currently in an active expedition—and the active hero when the
+     game is closed—can be assigned to a multi-hour Offline Patrol in any biome they have
+     previously cleared.
+  ●​ Based on the hero's equipped stats relative to the biome's stat gate, they passively
+     accumulate steady upgrade fuel (Iron Ore, Seeds, Dew, Arcane Resin, and occasional
+     un-ID'd curios) without advancing floor records or fighting bosses.
+
+3. Deterministic Tactical Combat System
+The Arena & Turn Economy
+  ●​ Micro-Grid Arenas: Combat triggers transition the UI into a compact 8x8 or 10x10 grid
+     filled with tactical terrain (doors, tall grass, chasms, water, and traps).
+  ●​ Solo Hero Focus: Each expedition is fought by a single hero on the grid, keeping turns
+     fast and true to Shattered Pixel Dungeon.
+  ●​ 1.0 Turn Tick System: Uses SPD's deterministic turn clock. Standard movement and
+     attacks take 1.0 tick; fast enemies (e.g., Sewer Crabs) move at 0.5 ticks; heavy weapons
+     swing at 1.5 ticks.
+
+Fixed Math & The "Guard-Break" Armor System
+All player and enemy attacks deal fixed damage with 100% accuracy. Defense is governed by
+the interplay between Flat Damage Reduction (DR) and Barrier:
+   ●​ Armor Value = Flat DR: Reduces incoming physical attack damage by a flat integer.
+   ●​ Barrier (Shielding): Heroes start each combat room with a set amount of Barrier
+       (augmented by armor tier, Warrior's Broken Seal, or potions).
+   ●​ The Chip Rule: Any attack dealing greater than 0 damage after DR reduces Barrier first,
+       then HP. However, any attack that is 100% blocked by DR still deals 1 minimum chip
+       damage to Barrier.
+   ●​ Tactical Implication: Swarming weak enemies (Rats, Flies, Crabs) are dangerous
+       because they strip a tank's Barrier in a single turn, leaving the hero vulnerable to
+       armor-piercing magic, bleed effects, or heavy hitters waiting behind them.
+
+Positional Mechanics & Telegraphs
+  ●​ Surprise Attacks: Kiting an enemy through a doorway or around a single tile of tall grass
+     triggers a guaranteed Surprise Attack (dealing bonus damage, applying knockback, or
+     bypassing enemy DR).
+  ●​ Telegraphed Specials: Standard melee attacks resolve on contact, while heavy attacks,
+     ranged shots, and boss abilities place visible Red Danger Tiles on the grid that resolve
+     after a set tick count, allowing players to sidestep or shove enemies into the line of fire.
+  ●​ Environmental Combos: Knocking enemies into chasms causes instant death (halving
+     their loot drop, collectable on the next floor's UI); water conducts lightning across
+     connected tiles; fire spreads across grass tiles.
+
+4. Hero Roster, Biomes & Progression
+The Four Classes
+All four heroes start at Level 1 with 10 Strength when unlocked and feature a permanent,
+upgradeable signature heirloom:
+Class                             Signature Heirloom           Tactical Grid Identity
+Warrior                           Broken Seal                  Tank & Displacement: High
+                                                               starting Barrier; uses slams and
+                                                               leaps to knock enemies into
+                                                               walls, traps, and chasms.
+Mage                              Mage's Staff                 Zone & Elemental Control:
+                                                               Imbues wands into staff at
+                                                               Camp; controls grid terrain with
+                                                               fire, frost, regrowth, and blast
+                                                               waves.
+Rogue                             Cloak of Shadows             Stealth & Assassination:
+                                                               Breaks line-of-sight on demand
+                                                               to trigger Surprise Attacks and
+                                                               bypass frontline tanks to kill
+                                                               backline casters.
+Huntress                          Spirit Bow                   Geometry & Overwatch:
+                                                               Infinite ranged attacks,
+                                                               trick-shot wall ricochets,
+                                                               seed-augmented arrows, and
+                                                               tile-lockdown Overwatch zones.
+Biome Stat Gates & Hand-Me-Down Progression
+The dungeon is divided into 5 Biomes, each acting as a strict stat gate:
+  1.​ Sewers (Floors 1–5): Target 10–11 Str | Tier 1–2 Gear
+  2.​ Prison (Floors 6–10): Target 12–13 Str | Tier 2–3 Gear
+  3.​ Caves (Floors 11–15): Target 14–15 Str | Tier 3–4 Gear
+  4.​ Metropolis (Floors 16–20): Target 16–17 Str | Tier 4–5 Gear
+  5.​ Demon Halls (Floors 21–25): Target 18+ Str | Tier 5 Endgame Gear
+Because gear is shared at Camp while character levels are separate, a player pushing the
+Caves with their Warrior can equip a newly unlocked Level 1 Mage (10 Str) with heavily
+upgraded Tier-1/Tier-2 "hand-me-down" gear from the Camp Stash to rapidly power-level the
+Mage through the Sewers.
+
+5. Camp Economy & The 20-Scroll Capstone System
+  ●​ Common Fuel vs. Capstone Blueprints: Common resources (Iron Ore, Seeds, Gold,
+     Resin) are farmed infinitely to level up Camp facilities and forge gear. However, Camp
+     facilities have hard upgrade caps that can only be broken using a Scroll of Upgrade
+     (SoU).
+  ●​ The 20 Scroll Supply: A Scroll of Upgrade drops the first time each Boss is defeated
+     by each Class (5 Biomes × 4 Classes = 20 Scrolls total).
+  ●​ Camp Facilities:
+        ○​ Blacksmith (Fueled by Iron Ore): SoUs unlock higher upgrade caps (+1 → +2 →
+           +3), higher gear tiers, and reduced Strength requirements on forged items.
+        ○​ Alchemy Pot (Fueled by Seeds/Resin): SoUs unlock Exotic Potions, larger Potion
+           Belts, and Elevator Starter Elixirs.
+        ○​ Guild Hall (Fueled by Gold/Trophies): SoUs unlock longer Offline Patrol
+           durations, larger backpacks, and Subclass Tomes.
+        ○​ Enchanter's Desk (Fueled by Runestones/Scraps): SoUs unlock Ring/Artifact
+           upgrading and Enchantment preservation.
+
+6. Death & Recovery Mechanics
+When a hero dies during an active expedition, consequences are punishing on the run level
+while preserving account-level progression:
+  1.​ Unbanked Loot Loss: 100% of raw materials and unbanked items in the backpack from
+      that expedition are lost.
+  2.​ Damaged Equipped Gear: The Weapon, Armor, and Rings the hero was wearing are
+      returned to the Camp Blacksmith in a Cracked state. They cannot be used until repaired
+      with stockpiled Iron Ore.
+  3.​ Hero Level & Strength Reset: The fallen hero wakes up at Camp reset to Level 1 and
+      10 Strength.
+  4.​ The Re-Climb & Stepping Stone Gear: Because heroes reset to 10 Str on death,
+      players maintain dedicated "Leveling Sets" (e.g., +2 Cloth Armor and +2 Shortsword) at
+      Camp to breeze back through early biomes and regain their Strength potions—or spend
+      Alchemy resources on Starter Elixirs at the Dungeon Elevator to boost a reset hero
+      straight to the Strength/Level baseline of a deeper biome.
+
+7. Open Design Questions (To Be Decided)
+The following systems and specifications still need to be finalized during pre-production:
+
+A. UI Layout & Target Platform
+  ●​ Screen Architecture: Will the game run in a unified dashboard (where Camp tabs and
+     the Delve/Combat window share the screen) or transition between full-screen states
+     (Camp Screen → Delve Overlay → Combat Grid)?
+  ●​ Aspect Ratio & Input: Is the primary target desktop landscape (16:9), mobile portrait
+     (9:16), or adaptable for dual-screen/foldable layouts?
+
+B. Baseline Combat Math (Biome 1 Balancing)
+  ●​ Exact Number Scale: Establish the baseline numbers for Floor 1–5 (e.g., Does a Level 1
+     Warrior start with 20 HP, 3 Barrier, 1 DR, and deal 3 damage? How much HP/DR do
+     Sewer Rats, Crabs, and Gnolls have?).
+  ●​ Barrier Refresh Rate: Does Barrier refresh to 100% automatically at the start of every
+     combat room, or does it regenerate partially (e.g., +50% per room) to create attrition
+     across a floor?
+  ●​ Surprise Attack Formula: Should deterministic Surprise Attacks grant flat bonus
+     damage (+50%), ignore enemy DR, or apply a 1-tile knockback/stun?
+C. Expedition Supply & Consumable Economy
+ ●​ Bring-Your-Own vs. Scavenged: How many Potions/Scrolls can a player pack from
+    Camp versus finding inside the dungeon?
+ ●​ Strength Acquisition: Are the 2 Potions of Strength per biome guaranteed drops at fixed
+    progress milestones (e.g., 40% and 80% through the biome), or tied to mini-boss
+    encounters?
+ ●​ Torch & Ration Drain: What exact penalties occur when Rations or Torchlight hit 0 during
+    the UI Delve phase?
+
+D. Class Unlock Milestones & Subclasses
+ ●​ Unlock Triggers: Define the exact milestones to unlock the remaining three classes (e.g.,
+    Mage: Defeat Goo on Floor 5, Rogue: Reach Prison Floor 8, Huntress: Brew 10 Potions
+    or Clear Floor 10).
+ ●​ Subclass Integration: When Tengu (Floor 10 Boss) is defeated, is the Tengu's Mask a
+    permanent account unlock for that class, or must it be re-selected on each climb after a
+    death reset?
+
+E. Arena Generation & Loot RNG
+ ●​ Room Templates: Will the 8x8/10x10 combat arenas use handcrafted tactical room
+    layouts with randomized enemy/hazard placement, or fully procedural cellular/bsp
+    generation?
+ ●​ Enchantments & Rings: In a deterministic combat system, how should traditionally
+    proc-based SPD items (like Grim, Blazing, or Shocking enchantments) function without %
+    chance rolls (e.g., Every 3rd hit triggers Blazing, or Triggers on Surprise Attacks)?
+

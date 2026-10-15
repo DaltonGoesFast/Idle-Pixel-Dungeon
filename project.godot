@@ -3,9 +3,16 @@ config_version=5
 [application]
 
 config/name="SPD Tactics"
-run/main_scene="res://main.tscn"
+run/main_scene="res://scenes/main.tscn"
 config/icon="res://icon.png"
 config/features=PackedStringArray("4.7", "GL Compatibility")
+
+[autoload]
+
+DB="*res://scripts/autoload/db.gd"
+GameState="*res://scripts/autoload/game_state.gd"
+SaveSystem="*res://scripts/autoload/save_system.gd"
+Sfx="*res://scripts/autoload/sfx.gd"
 
 [display]
 

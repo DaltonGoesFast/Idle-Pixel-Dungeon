@@ -1,0 +1,186 @@
+{
+ "doors": [
+  {
+   "id": "ozone",
+   "a": {
+    "text": "Door A: Smells of ozone",
+    "kind": "combat",
+    "mobs": [
+     "gnoll",
+     "gnoll"
+    ],
+    "reward": {
+     "item_unknown": "wand"
+    }
+   },
+   "b": {
+    "text": "Door B: Locked",
+    "kind": "chest",
+    "cost": {
+     "iron_key": 1
+    },
+    "reward": {
+     "gold": 15,
+     "iron_ore": 3,
+     "arcane_resin": 1
+    }
+   }
+  },
+  {
+   "id": "scratch",
+   "a": {
+    "text": "Door A: Frantic scratching",
+    "kind": "combat",
+    "mobs": [
+     "rat",
+     "rat",
+     "rat"
+    ],
+    "reward": {
+     "gold": 12
+    }
+   },
+   "b": {
+    "text": "Door B: Damp, quiet",
+    "kind": "special"
+   }
+  },
+  {
+   "id": "glint",
+   "a": {
+    "text": "Door A: A metallic glint",
+    "kind": "combat",
+    "mobs": [
+     "crab"
+    ],
+    "reward": {
+     "iron_ore": 4,
+     "dark_gold": 1
+    }
+   },
+   "b": {
+    "text": "Door B: Barred (1 Iron Key)",
+    "kind": "chest",
+    "cost": {
+     "iron_key": 1
+    },
+    "reward": {
+     "item_unknown": "ring",
+     "gold": 5
+    }
+   }
+  }
+ ],
+ "specials": [
+  {
+   "id": "piranha",
+   "title": "Piranha Pool",
+   "text": "A ring glints at the bottom of a pool full of piranhas.",
+   "options": [
+    {
+     "text": "Wade in (-5 HP)",
+     "cost": {
+      "hp": 5
+     },
+     "reward": {
+      "item_unknown": "ring"
+     }
+    },
+    {
+     "text": "Distract with a Ration",
+     "cost": {
+      "ration": 1
+     },
+     "reward": {
+      "item_unknown": "ring"
+     }
+    },
+    {
+     "text": "Leave"
+    }
+   ]
+  },
+  {
+   "id": "sacrificial_fire",
+   "title": "Sacrificial Fire",
+   "text": "A pale flame hungers for life force.",
+   "options": [
+    {
+     "text": "Offer blood (-4 HP)",
+     "cost": {
+      "hp": 4
+     },
+     "reward": {
+      "gold": 25,
+      "arcane_resin": 1
+     }
+    },
+    {
+     "text": "Leave"
+    }
+   ]
+  },
+  {
+   "id": "statue",
+   "title": "Animated Statue",
+   "text": "A statue clutches a fine weapon. Its eyes follow you.",
+   "options": [
+    {
+     "text": "Challenge it (fight)",
+     "fight": [
+      "statue"
+     ],
+     "reward": {
+      "item": "shortsword"
+     }
+    },
+    {
+     "text": "Leave"
+    }
+   ]
+  },
+  {
+   "id": "barricade",
+   "title": "Barricade",
+   "text": "A wooden barricade blocks a storeroom.",
+   "options": [
+    {
+     "text": "Burn it (1 Torch)",
+     "cost": {
+      "torch": 1
+     },
+     "reward": {
+      "seeds": 3,
+      "iron_ore": 2
+     }
+    },
+    {
+     "text": "Smash it (-3 HP)",
+     "cost": {
+      "hp": 3
+     },
+     "reward": {
+      "seeds": 2
+     }
+    },
+    {
+     "text": "Leave"
+    }
+   ]
+  },
+  {
+   "id": "garden",
+   "title": "Overgrown Garden",
+   "text": "Sungrass and dew gather on the stones.",
+   "options": [
+    {
+     "text": "Forage",
+     "reward": {
+      "seeds": 2,
+      "dew": 3
+     }
+    }
+   ]
+  }
+ ]
+}

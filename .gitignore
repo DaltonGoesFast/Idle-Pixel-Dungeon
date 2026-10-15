@@ -3,7 +3,7 @@
 /android/
 export_credentials.cfg
 # Builds / signing (never commit keys)
-builds/
+builds
 *.apk
 *.aab
 *.idsig

@@ -1,0 +1,173 @@
+{
+ "_note": "Weapon dmg = floor((min+max)/2) of SPD tier formula (min=tier, max=5*(tier+1)); armor DR = floor(DRMax/2) where DRMax = 2*tier; str req = 8+2*tier.",
+ "worn_shortsword": {
+  "name": "Worn Shortsword",
+  "type": "weapon",
+  "tier": 1,
+  "dmg": 5,
+  "delay": 1.0,
+  "str": 10,
+  "icon": "WORN_SHORTSWORD"
+ },
+ "dagger": {
+  "name": "Dagger",
+  "type": "weapon",
+  "tier": 1,
+  "dmg": 4,
+  "delay": 1.0,
+  "str": 10,
+  "surprise_mult": 2.0,
+  "icon": "DAGGER",
+  "desc": "Surprise attacks deal double damage."
+ },
+ "mages_staff": {
+  "name": "Mage's Staff",
+  "type": "weapon",
+  "tier": 1,
+  "dmg": 3,
+  "delay": 1.0,
+  "str": 10,
+  "icon": "MAGES_STAFF",
+  "heirloom": true
+ },
+ "shortsword": {
+  "name": "Shortsword",
+  "type": "weapon",
+  "tier": 2,
+  "dmg": 8,
+  "delay": 1.0,
+  "str": 12,
+  "icon": "SHORTSWORD"
+ },
+ "mace": {
+  "name": "Mace",
+  "type": "weapon",
+  "tier": 3,
+  "dmg": 12,
+  "delay": 1.5,
+  "str": 14,
+  "icon": "MACE",
+  "desc": "Heavy: swings take 1.5 ticks."
+ },
+ "cloth_armor": {
+  "name": "Cloth Armor",
+  "type": "armor",
+  "tier": 1,
+  "dr": 1,
+  "barrier": 1,
+  "str": 10,
+  "icon": "ARMOR_CLOTH"
+ },
+ "leather_armor": {
+  "name": "Leather Armor",
+  "type": "armor",
+  "tier": 2,
+  "dr": 2,
+  "barrier": 2,
+  "str": 12,
+  "icon": "ARMOR_LEATHER"
+ },
+ "mail_armor": {
+  "name": "Mail Armor",
+  "type": "armor",
+  "tier": 3,
+  "dr": 3,
+  "barrier": 3,
+  "str": 14,
+  "icon": "ARMOR_MAIL"
+ },
+ "ring_might": {
+  "name": "Ring of Might",
+  "type": "ring",
+  "unknown_name": "Garnet Ring",
+  "dmg_bonus": 1,
+  "icon": "RING_GARNET"
+ },
+ "ring_tenacity": {
+  "name": "Ring of Tenacity",
+  "type": "ring",
+  "unknown_name": "Ruby Ring",
+  "barrier_bonus": 2,
+  "icon": "RING_RUBY"
+ },
+ "wand_magic_missile": {
+  "name": "Wand of Magic Missile",
+  "type": "wand",
+  "bolt_dmg": 5,
+  "charges": 2,
+  "recharge": 4,
+  "unknown_name": "Oak Wand",
+  "icon": "WAND_MAGIC_MISSILE",
+  "spd": "dmg 2-8"
+ },
+ "wand_firebolt": {
+  "name": "Wand of Firebolt",
+  "type": "wand",
+  "bolt_dmg": 4,
+  "charges": 2,
+  "recharge": 4,
+  "burns_grass": true,
+  "unknown_name": "Ash Wand",
+  "icon": "WAND_FIREBOLT"
+ },
+ "_materials": {
+  "gold": {
+   "name": "Gold",
+   "icon": "GOLD"
+  },
+  "dew": {
+   "name": "Dew Drop",
+   "icon": "DEWDROP"
+  },
+  "iron_ore": {
+   "name": "Iron Ore",
+   "icon": "ORE",
+   "tint": "#a0a8b8"
+  },
+  "dark_gold": {
+   "name": "Dark Gold",
+   "icon": "ORE"
+  },
+  "seeds": {
+   "name": "Seeds",
+   "icon": "SEED_SUNGRASS"
+  },
+  "arcane_resin": {
+   "name": "Arcane Resin",
+   "icon": "ARCANE_RESIN"
+  },
+  "iron_key": {
+   "name": "Iron Key",
+   "icon": "IRON_KEY"
+  },
+  "ration": {
+   "name": "Ration",
+   "icon": "RATION"
+  },
+  "torch": {
+   "name": "Torch",
+   "icon": "TORCH"
+  },
+  "potion_healing": {
+   "name": "Potion of Healing",
+   "icon": "POTION_CRIMSON",
+   "heal": 10
+  },
+  "potion_strength": {
+   "name": "Potion of Strength",
+   "icon": "POTION_AMBER"
+  },
+  "scroll_passage": {
+   "name": "Scroll of Passage",
+   "icon": "SCROLL_KAUNAN"
+  },
+  "scroll_upgrade": {
+   "name": "Scroll of Upgrade",
+   "icon": "SCROLL_ISAZ"
+  },
+  "elixir_starter": {
+   "name": "Starter Elixir",
+   "icon": "POTION_GOLDEN"
+  }
+ }
+}

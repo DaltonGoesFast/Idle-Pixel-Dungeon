@@ -1,0 +1,43 @@
+## Captures screenshots of each screen at Fold cover + inner sizes into /workspace/builds/shots (needs a display: xvfb-run).
+## Run: xvfb-run -a godot --path . --rendering-driver opengl3 res://tests/screenshots.tscn
+extends Node
+
+var main
+var f := 0
+var out := "/workspace/builds/shots"
+const SIZES := {"cover": Vector2i(484, 1188), "inner": Vector2i(928, 1080)}
+var plan := []
+
+func _ready() -> void:
+	DirAccess.make_dir_recursive_absolute(out)
+	SaveSystem.autosave = false; SaveSystem.path = "user://shots.json"
+	GameState.new_game()
+	GameState.add_mat("iron_ore", 20); GameState.add_mat("gold", 200)
+	main = load("res://scenes/main.tscn").instantiate(); add_child(main)
+	for sz in SIZES:
+		plan.append([sz, "camp", func(): main.show_camp()])
+		plan.append([sz, "forge", func(): main.show_camp(); main.screen.tabs.current_tab = 3])
+		plan.append([sz, "delve", func():
+			if GameState.run.is_empty(): GameState.start_run("warrior", {"ration": 1, "torch": 1, "potion_healing": 1}, "sewers", 5)
+			main.show_delve(); main.delve.running = false
+			for i in 30: Delve.advance(GameState, 1.0)
+			main.delve.pending = {"kind": "door", "door": DB.doors[0]}; main.delve._show_card()])
+		plan.append([sz, "combat", func():
+			main.start_combat(Delve.combat_event(GameState.run, Delve.rng_for(GameState.run, 3), ["gnoll", "crab"]), func(_r): pass)
+			for i in 3: main.screen._do_bot()])
+		plan.append([sz, "boss", func():
+			main.start_combat({"kind": "combat", "boss": true, "room": DB.boss_rooms[0], "mobs": ["goo"]}, func(_r): pass)
+			for i in 3: main.screen._do_bot()])
+
+func _process(_d: float) -> void:
+	f += 1
+	var i := f / 12
+	if i >= plan.size():
+		SaveSystem.wipe(); get_tree().quit(); return
+	var step = plan[i]
+	if f % 12 == 1:
+		get_window().size = SIZES[step[0]]
+		step[2].call()
+	if f % 12 == 11:
+		get_viewport().get_texture().get_image().save_png("%s/%s_%s.png" % [out, step[0], step[1]])
+		if step[1] == "camp": print("box ", main.screen.root_box.size, " title ", main.screen.root_box.get_child(0).size, " tabs ", main.screen.tabs.size, " anchors ", main.screen.root_box.anchor_right, " off ", main.screen.root_box.offset_right)

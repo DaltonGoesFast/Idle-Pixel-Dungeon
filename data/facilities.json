@@ -1,0 +1,42 @@
+{
+ "_note": "Level L->L+1 costs 'upgrade_cost' * (L). Max level is capped at 1 + scrolls of upgrade applied (hard cap 'max').",
+ "blacksmith": {
+  "name": "Blacksmith",
+  "fuel": "iron_ore",
+  "upgrade_cost": {
+   "iron_ore": 10,
+   "gold": 50
+  },
+  "max": 3,
+  "desc": "Forge & upgrade gear (+1 per level cap), repair cracked gear."
+ },
+ "alchemy": {
+  "name": "Alchemy Pot",
+  "fuel": "seeds",
+  "upgrade_cost": {
+   "seeds": 8,
+   "gold": 40
+  },
+  "max": 3,
+  "desc": "Brew potions. Lv2: Starter Elixirs. Potion belt = level+1."
+ },
+ "guild": {
+  "name": "Guild Hall",
+  "fuel": "gold",
+  "upgrade_cost": {
+   "gold": 100
+  },
+  "max": 3,
+  "desc": "Supplies & Offline Patrols (2h/4h/8h by level)."
+ },
+ "enchanter": {
+  "name": "Enchanter's Desk",
+  "fuel": "arcane_resin",
+  "upgrade_cost": {
+   "arcane_resin": 3,
+   "gold": 40
+  },
+  "max": 3,
+  "desc": "Identify curios over time (faster per level); scribe Scrolls of Passage."
+ }
+}

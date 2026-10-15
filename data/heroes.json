@@ -1,0 +1,39 @@
+{
+ "warrior": {
+  "name": "Warrior",
+  "sprite": "warrior",
+  "fw": 12,
+  "fh": 15,
+  "base_ht": 20,
+  "ht_per_level": 5,
+  "base_barrier": 6,
+  "heirloom": "broken_seal",
+  "heirloom_barrier": 3,
+  "start_weapon": "worn_shortsword",
+  "start_armor": "cloth_armor",
+  "abilities": [
+   "shove"
+  ],
+  "unlocked_by_default": true,
+  "desc": "Tank & displacement. Broken Seal grants extra Barrier; Shove knocks foes into chasms."
+ },
+ "mage": {
+  "name": "Mage",
+  "sprite": "mage",
+  "fw": 12,
+  "fh": 15,
+  "base_ht": 20,
+  "ht_per_level": 5,
+  "base_barrier": 2,
+  "heirloom": "mages_staff",
+  "heirloom_barrier": 0,
+  "start_weapon": "mages_staff",
+  "start_armor": "cloth_armor",
+  "abilities": [
+   "bolt"
+  ],
+  "unlocked_by_default": false,
+  "unlock": "Defeat Goo (Sewers boss) with any hero.",
+  "desc": "Zone control. The Mage's Staff fires its imbued wand as a bolt that ignores DR."
+ }
+}
