@@ -21,7 +21,6 @@ var open_name := ""          # page shown in the window ("" = hub)
 var win_layer: Control       # page window
 var info_layer: Control      # item info popup (on top of the window)
 var _update_btn: Button      # Camp header Update control (Android / Windows)
-const MAX_SUPPLY := 10
 const PAGE_ORDER := ["Delve", "Heroes", "Stash", "Forge", "Alchemy", "Enchanter", "Guild", "Journal", "Settings"]
 const TAB_ORDER := PAGE_ORDER   # kept for older tests/tools
 const PAGE_ICONS := {"Delve": "enter", "Heroes": "rankings", "Stash": "backpack_lrg", "Forge": "challenge", "Alchemy": "alchemy",
@@ -433,19 +432,24 @@ func _page_delve() -> void:
 		UIKit.secondary(minus); UIKit.secondary(plus)
 		for pm in [minus, plus]: pm.add_theme_font_size_override("font_size", UIKit.font_px(UIKit.font_size * 1.5))
 		row.add_child(minus); row.add_child(plus)
+	var gl := GameState.facility_level("guild")
+	if gl < int(DB.facilities.guild.max):
+		var gh := UIKit.label("Rations and torches: pack cap %d at Guild Lv%d. Upgrade Guild to raise (Lv%d: %d)." % [GameState.guild_pack_cap(), gl, gl + 1, GameState.guild_pack_cap(gl + 1)], 0.7, Color("9a9488"))
+		gh.name = "GuildCapHint"; gh.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART; v.add_child(gh)
 	var floors := int(b.floors[1]) - int(b.floors[0]) + 1
-	if loadout.torch < floors - 2: v.add_child(UIKit.label("Tip: about one torch per floor (%d floors)." % floors, 0.75, Color("ffb060")))
+	if loadout.torch < mini(floors - 2, int(caps.torch)): v.add_child(UIKit.label("Tip: about one torch per floor (%d floors)." % floors, 0.75, Color("ffb060")))
 	if GameState.mat("elixir_starter") > 0 and GameState.heroes[chosen_hero].level < 3:
 		v.add_child(UIKit.button("Drink Starter Elixir (boost to Lv3)", func(): GameState.use_elixir(chosen_hero)))
 	var go := UIKit.action("Descend into the %s" % b.name, _start, GameState.can_start_run(chosen_hero))
 	go.custom_minimum_size.y = UIKit.btn_height() * 1.3; _foot().add_child(go)
 
 const SUPPLY_KEYS := ["ration", "torch", "potion_healing", "scroll_passage", "elixir_starter"]
-## Most of each supply the pack can take: the stash count, capped by belt size (potions), 1 (Passage) or MAX_SUPPLY.
+## Most of each supply the pack can take: the stash count, capped by GameState.supply_cap (belt size for potions,
+## 1 Passage, the Guild-level cap for rations and torches).
 func supply_max() -> Dictionary:
 	var out := {}
 	for k in SUPPLY_KEYS:
-		var cap := GameState.belt_size() if k == "potion_healing" else (1 if k == "scroll_passage" else MAX_SUPPLY)
+		var cap := GameState.supply_cap(k)
 		out[k] = mini(GameState.mat(k), cap)
 	return out
 

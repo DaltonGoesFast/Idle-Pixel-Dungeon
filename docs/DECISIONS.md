@@ -398,3 +398,15 @@ Sideloaded Android players were opening GitHub in a browser for every APK. `Upda
 
 ## 142. Expedition Supplies: Max all
 Filling a pack meant tapping + up to ten times per row. The Supplies header now has a "Max all" button that sets every supply to the same max its row shows (`CampScreen.supply_max()`: stash count capped by belt size for potions, 1 for Passage, MAX_SUPPLY otherwise), so the button and the rows can never disagree. It is disabled when every row is already at its max (`supplies_all_max()`), the same way + greys out. Covered by `test_max_all_supplies`.
+
+## 144. Guild level caps rations and torches per expedition
+Packing 10 rations and 10 torches from the first run made both supplies a non-decision, and the Guild's level only changed patrol hours. Now `facilities.guild.pack_cap` = [3, 6, 10] by Guild level. `GameState.supply_cap(k)` is the single rule: belt size for potions, 1 Passage, the Guild cap for rations and torches, 10 otherwise. The Supplies rows, Max all (#142, via `supply_max`) and `start_run` all use it, so a crafted loadout can't exceed it either. Below Guild max the Supplies section says "Rations and torches: pack cap N at Guild LvX. Upgrade Guild to raise (LvY: M)", and the torch tip only fires below the cap.
+Values come from the deep campaign sim (`auto_campaign.gd` with SUPPLY_WANT=10, i.e. a player who always packs the max; 4 classes x 2 seeds x 40 runs, main + #26):
+
+| pack cap by Guild level | deaths | extracts | HP/food stops | mean end floor |
+|---|---|---|---|---|
+| 10/10/10 (before) | 78 | 92 | 102 | 13.8 |
+| 4/7/10 | 78 | 91 | 110 | 13.6 |
+| **3/6/10** | **58** | **93** | 127 | **14.4** |
+
+With 3/6/10, runs stop for food somewhat more often, but extracts and depth hold and deaths do not rise (the bot stops before starving), so there is no starvation spiral. The sim's Guild reaches Lv2-3 within the first few Sewers runs. The tests that model a late campaign (deep Prison/Caves/City runs with 6-9 rations) now set Guild Lv3.

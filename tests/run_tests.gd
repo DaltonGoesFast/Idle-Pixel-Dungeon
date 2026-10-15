@@ -51,6 +51,7 @@ func _ready() -> void:
 	test_facility_cap(gs)
 	test_crate_slot(gs)
 	test_max_all_supplies(gs)
+	test_guild_pack_cap(gs)
 	await test_delve_chips(gs)
 	test_owed_sou(gs)
 	await test_icon_sizes(gs)
@@ -243,6 +244,7 @@ func test_fullrun(gs) -> void:
 			for c in gs.heroes: gs.heroes[c].unlocked = true
 			gs.add_mat("potion_healing", 2); gs.add_mat("ration", 4); gs.add_mat("torch", 6); gs.facilities.alchemy.level = 3
 			_kit_tier2(gs, cls)
+			gs.facilities.guild.level = 3   # late-game pack cap 10 (DECISIONS #144)
 			var r := RunSim.play(gs, cls, {"ration": 6, "torch": 8, "potion_healing": 4}, 2000 + seed, true, "prison")
 			if r.result == "extract" and r.biome == "prison": wins += 1
 			else: deaths.append("f%d" % r.floor)
@@ -408,6 +410,7 @@ func test_city(gs) -> void:
 			var hh: Dictionary = gs.heroes[cls]
 			hh.level = 12; hh.str = 16; hh.mask = true; hh.subclass = DB.heroes[cls].subclasses.keys()[0]
 			hh.armor = gs.add_gear("scale_armor", true, 1); hh.weapon = gs.add_gear("longsword", true, 1)
+			gs.facilities.guild.level = 3   # late-game pack cap 10 (DECISIONS #144)
 			var rr := RunSim.play(gs, cls, {"ration": 8, "torch": 9, "potion_healing": 5}, 5000 + seed, true, "city")
 			if rr.result == "extract" and rr.biome == "city": cw += 1
 			else: ends.append("f%d L%d" % [rr.floor, rr.level])
@@ -497,6 +500,7 @@ func test_cavesrun(gs) -> void:
 			h.armor = gs.add_gear("mail_armor", true, 1)
 			if cls in ["warrior", "huntress"]: h.weapon = gs.add_gear("mace", true, 1)
 			elif cls == "rogue": h.weapon = gs.add_gear("dagger", true, 3)
+			gs.facilities.guild.level = 3   # late-game pack cap 10 (DECISIONS #144)
 			var r := RunSim.play(gs, cls, {"ration": 8, "torch": 9, "potion_healing": 5}, 3000 + seed, true, "caves")
 			if r.result == "extract" and r.biome == "caves": wins += 1
 			else: ends.append("f%d L%d" % [r.floor, r.level])
@@ -1874,6 +1878,7 @@ func test_max_all_supplies(gs) -> void:
 	print("[max all supplies]")
 	gs.new_game()
 	gs.mats.ration = 14; gs.mats.torch = 3; gs.mats.potion_healing = 9; gs.mats.scroll_passage = 0
+	gs.facilities.guild.level = 3   # pack cap 10 (DECISIONS #144)
 	var cs = load("res://scripts/ui/camp_screen.gd").new(); add_child(cs)
 	var caps: Dictionary = cs.supply_max()
 	check(caps.ration == 10 and caps.torch == 3 and caps.potion_healing == gs.belt_size() and caps.scroll_passage == 0, "supply max = stash capped per row (%s)" % [caps])
@@ -1888,6 +1893,32 @@ func test_max_all_supplies(gs) -> void:
 	var b3 := _btn_named(cs, "MaxAll")
 	check(b3 != null and not b3.disabled, "lowering one supply re-enables Max all")
 	cs.close_page(); cs.queue_free()
+
+## DECISIONS #144: rations/torches per expedition are capped by Guild level (3/6/10); the Supplies rows, Max all and
+## start_run all use GameState.supply_cap.
+func test_guild_pack_cap(gs) -> void:
+	print("[guild pack cap]")
+	gs.new_game(); gs.mats.ration = 20; gs.mats.torch = 20
+	var want := [3, 6, 10]
+	for lvl in [1, 2, 3]:
+		gs.facilities.guild.level = lvl
+		check(gs.supply_cap("ration") == want[lvl - 1] and gs.supply_cap("torch") == want[lvl - 1], "Guild Lv%d packs up to %d rations/torches" % [lvl, want[lvl - 1]])
+	check(gs.supply_cap("potion_healing") == gs.belt_size() and gs.supply_cap("scroll_passage") == 1, "potion and Passage caps unchanged")
+	gs.facilities.guild.level = 1
+	var cs = load("res://scripts/ui/camp_screen.gd").new(); add_child(cs)
+	cs.open_page("Delve")
+	check(cs.supply_max().ration == 3 and cs.supply_max().torch == 3, "Supplies rows show max 3 at Guild Lv1")
+	var hint = cs.win_layer.find_child("GuildCapHint", true, false)
+	check(hint != null and String(hint.text).contains("Upgrade Guild") and String(hint.text).contains("Lv2: 6"), "Supplies shows the Guild cap and how to raise it (%s)" % (hint.text if hint else "none"))
+	cs.max_all_supplies()
+	check(cs.loadout.ration == 3 and cs.loadout.torch == 3, "Max all stops at the Guild cap")
+	cs.close_page(); gs.facilities.guild.level = 3; cs.open_page("Delve")
+	check(cs.win_layer.find_child("GuildCapHint", true, false) == null, "no upgrade hint at Guild max level")
+	cs.close_page(); cs.queue_free()
+	gs.facilities.guild.level = 1
+	check(gs.start_run("warrior", {"ration": 10, "torch": 10}, "sewers", 3), "run starts")
+	check(int(gs.run.supplies.ration) == 3 and int(gs.run.supplies.torch) == 3 and gs.mat("ration") == 17, "start_run packs no more than the cap; the rest stays in the stash")
+	gs.end_run("abandon")
 
 func test_crate_slot(gs) -> void:
 	print("[crate slot]")

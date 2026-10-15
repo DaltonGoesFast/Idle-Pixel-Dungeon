@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Expedition rations and torches are capped by Guild level: 3 / 6 / 10 at Guild Lv1 / 2 / 3 (was 10 at any level). The Supplies rows show the cap with an "Upgrade Guild to raise" hint, and Max all and the run start use the same cap. Campaign sim: no depth starvation (+tests).
 - Expedition Supplies: a "Max all" button in the Supplies header sets every row to its max (disabled once they all are) (+test).
 
 ## 0.29.0

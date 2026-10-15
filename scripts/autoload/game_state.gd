@@ -928,6 +928,21 @@ func collect_patrol(c: String) -> Dictionary:
 	return y
 
 # ---------------------------------------------------------------- expeditions
+## Most rations / torches an expedition may pack: the Guild's `pack_cap` for its level (DECISIONS #144).
+func guild_pack_cap(lvl := -1) -> int:
+	var caps: Array = DB.facilities.guild.get("pack_cap", [10])
+	if lvl < 0: lvl = facility_level("guild")
+	return int(caps[clampi(lvl - 1, 0, caps.size() - 1)])
+
+## Pack limit for one supply, before the stash count: belt size for potions, 1 Passage, the Guild cap for
+## rations/torches, 10 for anything else.
+func supply_cap(k: String) -> int:
+	match k:
+		"potion_healing": return belt_size()
+		"scroll_passage": return 1
+		"ration", "torch": return guild_pack_cap()
+	return 10
+
 func belt_size() -> int:
 	return facility_level("alchemy") + 1
 
@@ -947,8 +962,7 @@ func start_run(c: String, loadout: Dictionary, biome := "sewers", seed := -1) ->
 		say("The Camp cook spares you a ration and a torch.", "positive")
 	var sup := {}
 	for k in SUPPLY_KEYS:
-		var n := mini(int(loadout.get(k, 0)), mat(k))
-		if k == "potion_healing": n = mini(n, belt_size())
+		var n := mini(mini(int(loadout.get(k, 0)), mat(k)), supply_cap(k))
 		sup[k] = n; add_mat(k, -n)
 	var s := hero_stats(c)
 	var f0 := int(DB.biomes[biome].floors[0])
