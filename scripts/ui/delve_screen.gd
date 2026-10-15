@@ -108,18 +108,33 @@ func speed_mult() -> float:
 
 var _log_box: VBoxContainer
 var _log_serial := -1
+var _log_limit := LOG_LINES
 var _haul_label: Label
 var _haul_text := ""
 const LOG_LINES := 8
+const CARD_LOG_LINES := 4
 ## SPD-coloured log under the bar; rebuilt only when a line is added.
 ## The haul line stays pinned above it and updates in place as gold and materials come in.
+func _mount_log(limit: int = LOG_LINES, show_haul := true) -> void:
+	if show_haul:
+		_haul_label = UIKit.label("", 0.8, GameState.LOG_COLORS.positive)
+		_haul_text = "\t"
+		card_host.add_child(_haul_label)
+	else:
+		_haul_label = null
+	_log_limit = limit
+	_log_box = UIKit.vbox(card_host)
+	_log_box.name = "DelveLog"
+	_log_serial = -1
+	_fill_log()
+
 func _fill_log() -> void:
 	_sync_haul()
 	if not is_instance_valid(_log_box) or _log_serial == GameState.log_serial: return
 	_log_serial = GameState.log_serial
 	UIKit.clear(_log_box)
 	var msgs := GameState.messages; var kinds := GameState.message_kinds
-	for i in range(maxi(0, msgs.size() - LOG_LINES), msgs.size()):
+	for i in range(maxi(0, msgs.size() - _log_limit), msgs.size()):
 		var k: String = kinds[i] if i < kinds.size() else "info"
 		_log_box.add_child(UIKit.label(msgs[i], 0.8, GameState.LOG_COLORS.get(k, Color("bdb3a0"))))
 
@@ -144,7 +159,7 @@ func _refresh() -> void:
 	var sk := "%s|%d|%s|%s|%s|%s" % [run.hero, int(h.level), h.weapon, h.armor, h.ring, h.get("artifact", 0)]
 	if sk != _stats_key: _stats_key = sk; _stats_cache = GameState.hero_stats(run.hero)
 	var s: Dictionary = _stats_cache
-	if pending.is_empty(): _fill_log()
+	_fill_log()
 	title.text = "%s - Floor %d / %d" % [DB.biomes[run.biome].name, run.floor, DB.biomes[run.biome].floors[1]]
 	bar.value = run.progress
 	if pane.hero_sprite == null or pane.hero_row != int(s.row): pane.set_hero(s.sprite, int(s.fw), int(s.fh), int(s.row))
@@ -274,6 +289,8 @@ func _card(title_text: String, body: String) -> VBoxContainer:
 func _show_card() -> void:
 	if card_host == null: return
 	UIKit.clear(card_host)
+	_log_box = null
+	_haul_label = null
 	# remember the open card in the save (an app kill must not skip an encounter, even one set aside)
 	if not GameState.run.is_empty():
 		var remembered := pending if _is_encounter(pending) else (_under if _is_encounter(_under) else {})
@@ -287,10 +304,7 @@ func _show_card() -> void:
 			card_host.add_child(UIKit.button("Return to encounter", _restore_encounter))
 		var hint := "The bar holds until you deal with the encounter." if _is_encounter(_under) else ("Exploring... encounters every ~20-25%." if running else "Paused.")
 		card_host.add_child(UIKit.label(hint, 0.9, Color("9a8f7c")))
-		_haul_label = UIKit.label("", 0.8, GameState.LOG_COLORS.positive)
-		_haul_text = "\t"
-		card_host.add_child(_haul_label)
-		_log_box = UIKit.vbox(card_host); _log_serial = -1; _fill_log()
+		_mount_log(LOG_LINES, true)
 		return
 	if main and pending.kind in ["door", "special", "floor_done", "campfire"]: main.tip(pending.kind)
 	match pending.kind:
@@ -315,6 +329,8 @@ func _show_card() -> void:
 			v.add_child(UIKit.button("Keep delving", _cancel_abandon))
 	_take_floating_toast()
 	_mount_card_toast()
+	if _is_encounter(pending):
+		_mount_log(CARD_LOG_LINES, false)
 
 func _mob_names(ids: Array) -> String:
 	return ", ".join(ids.map(func(m): return DB.mobs[m].name))
@@ -608,6 +624,7 @@ func window_toast(text: String) -> bool:
 	_take_floating_toast()
 	_push_card_toast(text)
 	_mount_card_toast()
+	_fill_log()
 	return true
 
 func _clear_floating_toasts() -> void:
