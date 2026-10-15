@@ -2,6 +2,8 @@
 
 ## Unreleased
 - Delve screen: taller corridor, encounter cards as windows over it, SPD icon toolbar with a Menu for Settings / Scroll of Passage / Abandon, floor pips, torch and food bars with icons, Brought vs Found (lost on death) rows, low-HP red edges, and a campfire bank preview. Encounter windows keep reward toasts but no longer embed the delve log.
+- Late-game gold sinks: Masterwork Forge upgrades past +3 up to +6 with a max Blacksmith (3.2k/5k/7.2k gold), Guild retraining after a death (20 x Lv^2 gold per level, up to 2 below the best level reached), patrol provisioning fee (half a full patrol's gold), and normal upgrades cost 10 x Lv^2 gold. Deep sim median stash gold after 40 expeditions: 37.5k -> 2.9k (+test).
+- Delve screen: taller corridor, encounter cards as windows over it, SPD icon toolbar with a Menu for Settings / Scroll of Passage / Abandon, floor pips, torch and food icons, Brought vs Found (lost on death) rows, low-HP red edges, and a campfire bank preview.
 - Rogue: Cloak of Shadows has 3 charges per fight like SPD (was 2); Rogue death rate now in line with other classes (+test).
 - Owed Scrolls of Upgrade return straight to the Camp stash on the next boss kill, so the same run can no longer lose them again (+test).
 - Heroes cap at level 30 like SPD (was unlimited: Lv100+ in long campaigns); over-cap saves load at 30 (+test).

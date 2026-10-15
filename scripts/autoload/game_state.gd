@@ -522,6 +522,30 @@ func grant_xp(c: String, n: int) -> bool:
 	if h.level >= MAX_LEVEL: h.level = MAX_LEVEL; h.xp = 0
 	return up
 
+## Guild training (DECISIONS #128): a late-game gold sink. A hero who fell can buy back levels with gold, one at
+## a time, up to 2 below the best level it ever reached; never past what it earned, so it can't skip early bosses.
+const TRAIN_GAP := 2
+func train_cap(c: String) -> int:
+	return maxi(1, int(heroes[c].get("best_level", 1)) - TRAIN_GAP)
+
+func train_cost(c: String) -> Dictionary:
+	var l := int(heroes[c].level)
+	return {"gold": 20 * l * l}
+
+func can_train(c: String) -> String:
+	if not run.is_empty() and run.hero == c: return "on an expedition"
+	if not heroes[c].patrol.is_empty(): return "patrolling"
+	if int(heroes[c].level) >= train_cap(c): return "no lost levels to retrain"
+	if not can_afford(train_cost(c)): return "need " + cost_text(train_cost(c))
+	return ""
+
+func train(c: String) -> bool:
+	if can_train(c) != "": return false
+	pay(train_cost(c))
+	var h: Dictionary = heroes[c]
+	grant_xp(c, xp_to_next(int(h.level)) - int(h.xp))
+	say("%s trains at the Guild: Lv %d." % [DB.heroes[c].name, h.level]); touch(); return true
+
 # ---------------------------------------------------------------- facilities & crafting
 func facility_level(id: String) -> int:
 	return int(facilities[id].level)
@@ -588,14 +612,26 @@ func craft(fac: String, rid: String) -> bool:
 	check_unlocks()
 	touch(); return true
 
+## Gold sink (DECISIONS #128): each level also costs 10 x (next level)^2 gold. With a max-level Blacksmith,
+## "masterwork" levels past its cap (up to +MASTERWORK_MAX) cost 200 x (next level)^2 gold: +4 3.2k, +5 5k, +6 7.2k.
+const MASTERWORK_MAX := 6
+static func upgrade_step_cost(next_lvl: int) -> Dictionary:
+	var per := 200 if next_lvl > int(DB.facilities.blacksmith.max) else 10
+	return {"iron_ore": 4 * next_lvl, "gold": per * next_lvl * next_lvl}
+
+## Highest level the Forge can take gear to right now.
+func forge_cap() -> int:
+	var l := facility_level("blacksmith")
+	return MASTERWORK_MAX if l >= int(DB.facilities.blacksmith.max) else l
+
 func item_upgrade_cost(uid: int) -> Dictionary:
-	return {"iron_ore": 4 * (int(gear_by_uid(uid).lvl) + 1)}
+	return upgrade_step_cost(int(gear_by_uid(uid).lvl) + 1)
 
 func can_upgrade_item(uid: int) -> String:
 	var g := gear_by_uid(uid)
 	if g.is_empty() or not (DB.item(g.id).type in ["weapon", "armor"]): return "not upgradable"
 	if g.cracked: return "repair first"
-	if g.lvl >= facility_level("blacksmith"): return "Blacksmith cap +%d" % facility_level("blacksmith")
+	if g.lvl >= forge_cap(): return "Blacksmith cap +%d" % forge_cap()
 	if not can_afford(item_upgrade_cost(uid)): return "need " + cost_text(item_upgrade_cost(uid))
 	return ""
 
@@ -644,14 +680,14 @@ func craft_n(fac: String, rid: String, n: int) -> bool:
 ## Total iron ore for `n` successive upgrades of one item (costs rise per level).
 func upgrade_cost_n(uid: int, n: int) -> Dictionary:
 	var g := gear_by_uid(uid); var total := {}
-	for i in n: total = cost_add(total, {"iron_ore": 4 * (int(g.lvl) + i + 1)})
+	for i in n: total = cost_add(total, upgrade_step_cost(int(g.lvl) + i + 1))
 	return total
 
 ## Most levels the item can gain now: limited by the Blacksmith cap and by what is affordable.
 func upgrade_max(uid: int) -> int:
 	var g := gear_by_uid(uid)
 	if g.is_empty() or g.get("cracked", false) or not (DB.item(g.id).type in ["weapon", "armor"]): return 0
-	var room := maxi(0, facility_level("blacksmith") - int(g.lvl))
+	var room := maxi(0, forge_cap() - int(g.lvl))
 	var n := 0
 	while n < room and can_afford(upgrade_cost_n(uid, n + 1)): n += 1
 	return n
@@ -852,10 +888,16 @@ func can_patrol(c: String, biome: String) -> String:
 	if not h.patrol.is_empty(): return "already patrolling"
 	if not run.is_empty() and run.hero == c: return "on an expedition"
 	if not (biome in h.cleared): return "clear %s first" % DB.biomes[biome].name
+	if not can_afford(patrol_fee(biome)): return "need " + cost_text(patrol_fee(biome))
 	return ""
+
+## Gold sink (DECISIONS #128): provisioning a patrol costs half the gold a full-length patrol of that biome yields.
+func patrol_fee(biome: String) -> Dictionary:
+	return {"gold": int(float(DB.biomes[biome].patrol_yield_per_hour.get("gold", 0)) * patrol_max_hours() / 2.0)}
 
 func start_patrol(c: String, biome: String) -> bool:
 	if can_patrol(c, biome) != "": return false
+	pay(patrol_fee(biome))
 	heroes[c].patrol = {"biome": biome, "start": now()}
 	say("%s sets out to patrol the %s." % [DB.heroes[c].name, DB.biomes[biome].name]); touch(); return true
 
@@ -969,6 +1011,7 @@ func end_run(result: String) -> void:
 					g.erase("owned")
 					if not DB.item(g.id).get("heirloom", false) and DB.item(g.id).type != "wand": g.cracked = true
 					gear.append(g)
+			h.best_level = maxi(int(h.get("best_level", 1)), int(h.level))
 			h.level = 1; h.xp = 0; h.str = 10; h.talents = []
 			var lost_sou := int(run.pack.get("scroll_upgrade", 0))
 			if lost_sou > 0:

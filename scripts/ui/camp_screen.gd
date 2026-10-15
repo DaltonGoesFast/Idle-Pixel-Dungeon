@@ -882,7 +882,7 @@ func _page_facility(page: String, id: String) -> void:
 	if id == "enchanter": _identify_section(v)
 
 func _forge_upgrade_section(v: VBoxContainer) -> void:
-	v.add_child(UIKit.header("Upgrade & repair (cap +%d)" % GameState.facility_level("blacksmith")))
+	v.add_child(UIKit.header("Upgrade & repair (cap +%d)" % GameState.forge_cap()))
 	var rw := UIKit.hbox(v)
 	var nc := GameState.cracked_gear().size()
 	var rl := UIKit.label("Cracked: %d" % nc, 0.85, Color("ff8a7a") if nc else Color("9a9488")); rl.size_flags_vertical = SIZE_SHRINK_CENTER; rl.autowrap_mode = TextServer.AUTOWRAP_OFF; rw.add_child(rl)
@@ -949,10 +949,12 @@ func _patrol_list(v: Control) -> void:
 		var cv := UIKit.vbox(row); cv.size_flags_horizontal = SIZE_EXPAND_FILL
 		if h.patrol.is_empty():
 			cv.add_child(UIKit.label("%s - idle" % DB.heroes[c].name, 0.9))
+			if int(h.level) < GameState.train_cap(c):
+				cv.add_child(UIKit.button("Retrain to Lv %d (%s)" % [int(h.level) + 1, GameState.cost_text(GameState.train_cost(c))], func(): GameState.train(c), GameState.can_train(c) == "", GameState.can_train(c)))
 			var bf := HFlowContainer.new(); cv.add_child(bf)
 			for b in DB.biomes:
 				if GameState.can_patrol(c, b) != "" and not GameState.can_patrol(c, b).begins_with("need"): continue
-				var pb := UIKit.button("%s %d%%" % [DB.biomes[b].name, int(GameState.patrol_efficiency(c, b) * 100)], func(): GameState.start_patrol(c, b), GameState.can_patrol(c, b) == "", GameState.can_patrol(c, b))
+				var pb := UIKit.button("%s %d%%  (%dg)" % [DB.biomes[b].name, int(GameState.patrol_efficiency(c, b) * 100), int(GameState.patrol_fee(b).gold)], func(): GameState.start_patrol(c, b), GameState.can_patrol(c, b) == "", GameState.can_patrol(c, b))
 				bf.add_child(pb)
 			if bf.get_child_count() == 0: cv.add_child(UIKit.label("Clear a biome first.", 0.8, Color("9a9488")))
 		else:

@@ -36,6 +36,7 @@ func _ready() -> void:
 	test_floor_label(gs)
 	test_total_wipe(gs)
 	test_rogue_cloak(gs)
+	test_gold_sinks(gs)
 	test_level_cap(gs)
 	test_dew_sink(gs)
 	test_old_run_load(gs)
@@ -1083,7 +1084,7 @@ func test_forge_bulk(gs) -> void:
 	check(gs.craft_n("guild", r.id, 2) and gs.mat("ration") == before + 2 * int(r.get("out_n", 1)), "Buy x2 adds 2 rations")
 	check(gs.mat("gold") == gold0 - 2 * int(cost0.get("gold", 0)), "Buy x2 pays 2x gold")
 	var uid: int = gs.add_gear("shortsword", true, 0)
-	check(gs.upgrade_max(uid) >= 2 and gs.upgrade_cost_n(uid, 2) == {"iron_ore": 4 + 8}, "upgrade 0->1->2 costs 4+8 ore")
+	check(gs.upgrade_max(uid) >= 2 and gs.upgrade_cost_n(uid, 2) == {"iron_ore": 4 + 8, "gold": 10 + 40}, "upgrade 0->1->2 costs 4+8 ore, 10+40 gold")
 	var ore0: int = gs.mat("iron_ore"); check(gs.upgrade_item_n(uid, 2) and int(gs.gear_by_uid(uid).lvl) == 2, "Upgrade x2 raises level to +2")
 	check(gs.mat("iron_ore") == ore0 - 12, "Upgrade x2 spends 12 ore")
 	var a: int = gs.add_gear("cloth_armor", true, 1); var b: int = gs.add_gear("mace", true, 0)
@@ -1771,3 +1772,33 @@ func test_rogue_cloak(gs) -> void:
 	check(int(c.hero.cloak_charges) == 3, "a fight starts with 3 cloak charges")
 	gs.end_run("abandon")
 
+
+func test_gold_sinks(gs) -> void:
+	print("[gold sinks]")
+	gs.new_game()
+	var uid: int = gs.add_gear("shortsword", true, 1)
+	check(gs.item_upgrade_cost(uid) == {"iron_ore": 8, "gold": 40}, "+1->+2 costs 8 ore and 40 gold")
+	gs.heroes.warrior.cleared.append("sewers")
+	var fee := int(gs.patrol_fee("sewers").gold)
+	check(fee == int(15 * gs.patrol_max_hours() / 2.0) and fee > 0, "sewers patrol fee is half a full patrol's gold (%d)" % fee)
+	gs.mats.gold = fee - 1
+	check(gs.can_patrol("warrior", "sewers").begins_with("need"), "can't patrol without the fee")
+	gs.mats.gold = fee + 5
+	check(gs.start_patrol("warrior", "sewers") and gs.mat("gold") == 5, "starting a patrol pays the fee")
+	# masterwork: a max Blacksmith takes gear past +3 for steep gold
+	gs.facilities.blacksmith.level = int(DB.facilities.blacksmith.max); gs.facilities.blacksmith.cap = gs.facilities.blacksmith.level
+	var mw: int = gs.add_gear("mace", true, 3)
+	gs.mats.gold = 3199; gs.mats.iron_ore = 100
+	check(gs.can_upgrade_item(mw).begins_with("need"), "+4 masterwork needs 3200 gold")
+	gs.mats.gold = 3200
+	check(gs.upgrade_item(mw) and gs.mat("gold") == 0, "+4 masterwork costs 3200 gold")
+	gs.gear_by_uid(mw).lvl = gs.MASTERWORK_MAX; gs.mats.gold = 99999
+	check(gs.can_upgrade_item(mw) != "", "masterwork stops at +%d" % gs.MASTERWORK_MAX)
+	# training: buy back lost levels, never past best - 2
+	gs.heroes.mage.unlocked = true; gs.heroes.mage.level = 1; gs.heroes.mage.best_level = 6
+	check(gs.train_cap("mage") == 4, "retrain up to best level - 2")
+	var spent := 0
+	while gs.can_train("mage") == "": spent += int(gs.train_cost("mage").gold); gs.train("mage")
+	check(int(gs.heroes.mage.level) == 4 and spent == 20 * (1 + 4 + 9), "Lv1->4 costs 20+80+180 gold")
+	gs.heroes.rogue.unlocked = true
+	check(gs.can_train("rogue") != "", "a hero that never fell can't train")
