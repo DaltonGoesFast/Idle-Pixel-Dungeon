@@ -4,7 +4,7 @@
 ##   avatar    hero frame centred at (15,16) in the portrait box; level number centred at (15,33) in the badge strip
 ##   buffs     row at (31,0..16): hero name, then BuffIndicator icons; depth + danger at the right end
 ##   hp        bar at (30,19), 9 tall: shield (grey) under hp (red) like SPD's shieldHP/hp scale.x; "HP/HT" centred
-##   exp       row at (30,28), 16 tall when torch/food icons are shown (else 7); pane grows to fit
+##   minis     torch/food row at (30,29), 9 tall like the HP bar, equal widths, same left/right edges (DECISIONS #133)
 class_name StatusPane
 extends Control
 
@@ -41,16 +41,23 @@ func _k() -> float:
 
 func set_data(data: Dictionary) -> void:
 	d = data
-	custom_minimum_size = Vector2(0, (_mini_row_h() + 30) * _k())
+	custom_minimum_size = Vector2(0, PANE_H * _k())
 	queue_redraw()
 
-## Game-pixel height of the torch/food row: a full 16px item cell when icons are shown.
-func _mini_row_h() -> float:
-	for m in d.get("minis", []):
-		var ic: String = String(m.get("icon", ""))
-		if ic != "": return 16.0
-		if MINI_ICONS.has(String(m.get("text", "")).get_slice(" ", 0)): return 16.0
-	return 7.0
+const PANE_H := 39     # SPD bg height: everything fits inside the nine-patch
+const BAR_H := 9       # HP and every mini bar share this height
+const BAR_X := 30
+const HP_Y := 19
+const MINI_Y := 29
+
+## Bar rects in pixels for a pane `w` wide at scale k (also used by the layout test).
+static func layout(w: float, k: float, n_minis: int) -> Dictionary:
+	var hp := Rect2(Vector2(BAR_X, HP_Y) * k, Vector2(w - BAR_X * k - (BG_R + 1) * k, BAR_H * k))
+	var minis := []
+	if n_minis > 0:
+		var mw := floorf((hp.size.x - k * (n_minis - 1)) / n_minis)
+		for i in n_minis: minis.append(Rect2(hp.position.x + i * (mw + k), MINI_Y * k, mw, BAR_H * k))
+	return {"hp": hp, "minis": minis, "level": Rect2(Vector2(1, 29) * k, Vector2(28, 8) * k), "height": PANE_H * k}
 
 ## Pixel-font size whose glyphs fit a bar of h pixels (pixel_font cap ~ 0.73 em).
 func _fit_fs(h: float) -> int:
@@ -117,8 +124,8 @@ func _draw() -> void:
 		_text(font, Vector2(right - sw, floorf(13 * k)), s, tfs, Color("ff6666"), k)
 		var skull := UIKit.spd_icon("skull")
 		draw_texture_rect(skull, Rect2(right - sw - 9 * k, 5 * k, 8 * k, 8 * k), false)
-	# HP bar (30,19) 9 tall: shield first (hp+shield), then hp on top
-	var bar := Rect2(Vector2(30 * k, 19 * k), Vector2(w - 30 * k - (BG_R + 1) * k, 9 * k))
+	var lay := layout(w, k, d.get("minis", []).size())
+	var bar: Rect2 = lay.hp
 	draw_rect(bar, Color(0, 0, 0, 0.6))
 	var ht := maxf(1.0, float(d.get("ht", 1)))
 	var hp := float(d.get("hp", 0))
@@ -130,40 +137,37 @@ func _draw() -> void:
 	_centred(font, bar, hp_txt, _fit_fs(bar.size.y), Color.WHITE, k)
 	# EXP / supply row under HP
 	var minis: Array = d.get("minis", [])
-	if minis.size() > 0:
-		var row := Rect2(Vector2(30 * k, 28 * k), Vector2(bar.size.x, _mini_row_h() * k))
-		var mw := floorf((row.size.x - k * (minis.size() - 1)) / minis.size())
-		var mx := row.position.x
-		for m in minis:
-			var r := Rect2(mx, row.position.y, mw, row.size.y)
-			var ic: String = String(m.get("icon", ""))
-			if ic == "": ic = MINI_ICONS.get(String(m.get("text", "")).get_slice(" ", 0), "")
-			if ic != "": _mini_icon(font, r, ic, float(m.frac), k)
-			else:
-				draw_rect(r, Color(0, 0, 0, 0.6))
-				_strip(EXP if m.kind == "exp" else SHIELD, r, float(m.frac))
-				_centred(font, r, m.text, _fit_fs(r.size.y), Color.WHITE, k)
-			mx += mw + k
+	for i in minis.size():
+		var m: Dictionary = minis[i]
+		var r: Rect2 = lay.minis[i]
+		var ic: String = String(m.get("icon", ""))
+		if ic == "": ic = MINI_ICONS.get(String(m.get("text", "")).get_slice(" ", 0), "")
+		if ic != "": _mini_icon(font, r, ic, float(m.frac), k)
+		else:
+			draw_rect(r, Color(0, 0, 0, 0.6))
+			_strip(EXP if m.kind == "exp" else SHIELD, r, float(m.frac))
+			_centred(font, r, m.text, _fit_fs(r.size.y), Color.WHITE, k)
 
 ## Supply as a filled bar with an item icon on the left and a percent over the fill.
-## Draws the full 16px item cell at the pane's pixel scale so torch and food match HP text size.
+## The icon is fitted to the bar height, so torch and food are the same height as the HP bar.
 func _mini_icon(font: Font, r: Rect2, id: String, frac: float, k: float) -> void:
 	if items_tex == null: items_tex = load("res://assets/sprites/items.png")
 	draw_rect(r, Color(0, 0, 0, 0.6))
 	var fw := floorf(r.size.x * clampf(frac, 0.0, 1.0))
 	if fw > 0.0:
 		draw_rect(Rect2(r.position, Vector2(fw, r.size.y)), Color("e0a030") if id == "torch" else Color("9a8a68"))
-	var idx := DB.icon_index(id)
-	var sc := maxi(2, int(k))   # never below 2x; matches toolbar/item chip scale on the cover
-	var cell := Rect2((idx % 16) * 16, int(idx / 16) * 16, 16, 16)
-	var isz := Vector2(16, 16) * float(sc)
-	# centre the trimmed pixels inside that cell, like PixelIcon
-	var vis := UIKit.item_rect(idx)
-	var vsz := vis.size * float(sc)
+	# item icon fitted to the bar height (trimmed pixels, nearest scaling), left-aligned with a 1px inset
+	var vis := UIKit.item_rect(DB.icon_index(id))
+	var isz := icon_size(vis.size, r.size.y)
 	var origin := Vector2(floorf(r.position.x + k), floorf(r.position.y + (r.size.y - isz.y) / 2.0))
-	var ip := origin + ((isz - vsz) / 2.0).floor()
 	var tint: String = DB.materials.get(id, {}).get("tint", "")
-	draw_texture_rect_region(items_tex, Rect2(ip, vsz), vis, Color(tint) if tint != "" else Color.WHITE)
+	draw_texture_rect_region(items_tex, Rect2(origin, isz), vis, Color(tint) if tint != "" else Color.WHITE)
 	var pct := roundi(clampf(frac, 0.0, 1.0) * 100.0)
 	var col := Color.WHITE if pct >= 30 else (Color("ff8800") if pct > 0 else Color("ff4444"))
 	_centred(font, Rect2(origin.x + isz.x + k, r.position.y, r.end.x - origin.x - isz.x - k, r.size.y), "%d%%" % pct, _fit_fs(r.size.y), col, k)
+
+## Icon size that fits inside a bar `h` tall (keeps aspect; integer multiple of the source when it fits).
+static func icon_size(src: Vector2, h: float) -> Vector2:
+	var fit := (h - 2.0) / maxf(1.0, src.y)
+	var sc := floorf(fit) if fit >= 1.0 else fit
+	return (src * sc).floor()

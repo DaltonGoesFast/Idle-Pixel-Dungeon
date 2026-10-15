@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Status pane: the torch and food bars are now the same height as the HP bar (they were nearly twice as tall and spilled past the pane frame). They share its left and right edges, their icons fit the bar, and the level badge is no longer cramped. New layout test covers cover and inner screens.
 - Delve Brought/Found chips stay at 48px (font_size*2 was 80px on the Fold cover and starved the corridor) (+test).
 - UI smoke test: "a talent was learned through the UI" no longer fails at random (about 1 in 3). It is now checked when Learn is pressed, because a later death in the late-boss chain wiped the hero's talents before the end-of-run check.
 - Goo is harder and closer to SPD: HT 70->90, it regenerates in water, and its arena has two water pools. First-attempt win rate for a fresh hero goes from 87% to 27%. Safety nets: each Goo death leaves Goo 15 HT weaker (floor 70, and at the floor it no longer enrages) and restocks 2 Potions of Healing (+tests).
