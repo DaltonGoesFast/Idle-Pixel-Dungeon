@@ -17,6 +17,7 @@ func _ready() -> void:
 	ss.path = "user://test_save.json"
 	gs.new_game()
 	test_rules(gs)
+	test_rogue_goo_bot(gs)
 	test_barrier_spd(gs)
 	test_status_pane_layout(gs)
 	test_balance(gs)
@@ -1962,3 +1963,19 @@ func test_barrier_spd(gs) -> void:
 	var cc = Delve.new_combat(gs, Delve.combat_event(gs.run, Delve.rng_for(gs.run, 1), ["rat"]))
 	check(int(cc.hero.barrier) <= int(cc.hero.ht), "Shielding never stacks Barrier above max HP")
 	gs.end_run("abandon")
+
+func test_rogue_goo_bot(gs) -> void:
+	print("[rogue bot vs Goo]")
+	gs.new_game(); gs.heroes.rogue.unlocked = true; gs.heroes.rogue.level = 4
+	var hs: Dictionary = gs.hero_stats("rogue")
+	var c := Combat.new(); c.setup(DB.boss_rooms[0], hs, hs.ht, ["goo"])
+	var g: Dictionary = c.enemies()[0]
+	# put Goo next to the rogue on plain floor, one action before its pump
+	c._place(c.hero, Vector2i(3, 2)); c._place(g, Vector2i(3, 3))   # open floor in the middle of the arena
+	g.pump_count = int(g.pump_every) - 1
+	var s: Dictionary = CombatBot.suggest(c, 2, 10)
+	check(s.act != "cloak", "no cloak right before Goo's pump (it would be wasted on the dodge): %s" % s.why)
+	g.pump_count = 0
+	if c.tile(c.hero.pos) == Combat.T.FLOOR:
+		s = CombatBot.suggest(c, 2, 10)
+		check(s.act == "cloak" or s.why.begins_with("step into cover"), "cloak or take cover when Goo isn't about to pump: %s" % s.why)

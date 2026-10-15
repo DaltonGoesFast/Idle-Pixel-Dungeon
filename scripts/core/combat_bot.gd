@@ -20,7 +20,8 @@ static func suggest(c: Combat, potions := 0, heal_amount := 10) -> Dictionary:
 			for e in es:
 				score -= 2 if Combat.cheb(e.pos, p) == 1 else 0
 				if e.get("ability", "") == "pump": score += mini(3, _escapes(c, p, e.pos)) * 2  # never dodge into a corner
-			if c.surprise_ready() == false and (c.tile(p) == Combat.T.GRASS or c.tile(p) == Combat.T.DOOR): score += 1
+			# land in cover: Surprise attacks from grass/doors (worth more with a dagger) (DECISIONS #135)
+			if c.tile(p) == Combat.T.GRASS or c.tile(p) == Combat.T.DOOR: score += 3 if float(h.get("surprise_mult", 1.5)) >= 2.0 else 1
 			if score > best_score: best_score = score; best = p
 		if best != null: return {"act": "tap", "pos": best, "mode": "", "why": "dodge the red tiles"}
 		# big areas (3x3 shadow blast): no safe tile one step away - head for the nearest safe one
@@ -75,8 +76,18 @@ static func suggest(c: Combat, potions := 0, heal_amount := 10) -> Dictionary:
 		if adj.size() >= 3 or into_chasm:
 			return {"act": "slam", "why": "slam the crowd"}
 	# 3b. rogue: cloak when swarmed or hurt, then strike from the shadows
-	if "cloak" in h.abilities and int(h.cloak_charges) > 0 and not c.hidden() and (adj.size() >= 2 or (adj.size() == 1 and _hits_to_kill(c, adj[0]) >= 2)):
+	# (DECISIONS #135) never waste a charge: not while already able to Surprise (grass/door), and not while a
+	# telegraph is pending or the target is charging - the dodge would spend the short cloak window.
+	var telegraph := not c.danger.is_empty() or adj.any(func(e): return e.get("charging", false) or _pumps_next(c, e))
+	if "cloak" in h.abilities and int(h.cloak_charges) > 0 and not c.hidden() and not c.surprise_ready() and not telegraph and (adj.size() >= 2 or (adj.size() == 1 and _hits_to_kill(c, adj[0]) >= 2)):
 		return {"act": "cloak", "why": "cloak, then strike with a Surprise"}
+	# 3c. Surprise weapons (dagger x2) vs a lone tough enemy: fight from tall grass / a doorway next to it
+	if float(h.get("surprise_mult", 1.5)) >= 2.0 and adj.size() == 1 and not c.surprise_ready() and not telegraph and _hits_to_kill(c, adj[0]) >= 4:
+		for d in Combat.DIRS:
+			var p: Vector2i = h.pos + d
+			var t := c.tile(p)
+			if (t == Combat.T.GRASS or t == Combat.T.DOOR) and c.passable(p) and c.unit_at(p) == null and not c.is_danger(p) and not c.visible_trap(p) and Combat.cheb(p, adj[0].pos) == 1:
+				return {"act": "tap", "pos": p, "mode": "", "why": "step into cover for Surprise attacks"}
 	# 4. ranged: bolts (limited) prefer kills; infinite arrows shoot whenever nothing is adjacent
 	if c.has_ranged():
 		var tgt = null
@@ -122,6 +133,13 @@ static func _open(c: Combat, p: Vector2i) -> int:
 	for d in Combat.DIRS:
 		if c.passable(p + d): n += 1
 	return n
+
+## Goo's slam is on a fixed cadence: true when its next action is the pump-up telegraph.
+static func _pumps_next(c: Combat, e: Dictionary) -> bool:
+	if e.get("ability", "") != "pump": return false
+	var every := int(e.pump_every)
+	if int(e.hp) * 2 <= int(e.ht) and e.has("pump_every_enraged"): every = int(e.pump_every_enraged)
+	return int(e.get("pump_count", 0)) + 1 >= every
 
 static func _hits_to_kill(c: Combat, e: Dictionary) -> int:
 	var d := maxi(1, int(c.hero.dmg) - int(e.dr))
