@@ -103,6 +103,15 @@
    "min_level": 1
   },
   {
+   "id": "condense_dew",
+   "name": "Condense Dew into Healing",
+   "out_mat": "potion_healing",
+   "cost": {
+    "dew": 20
+   },
+   "min_level": 1
+  },
+  {
    "id": "brew_elixir",
    "name": "Brew Starter Elixir",
    "out_mat": "elixir_starter",

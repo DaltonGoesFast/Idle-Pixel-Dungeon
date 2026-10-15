@@ -630,18 +630,28 @@ func _recipe_slots(v: VBoxContainer, id: String, title: String) -> void:
 	if rs.is_empty(): return
 	v.add_child(UIKit.header(title))
 	var g := slot_grid(v)
-	for r in rs:
-		var out: String = r.get("out", r.get("out_mat", ""))
-		var why: String = GameState.can_craft(id, r.id)
-		var have := "" if r.has("out") else str(GameState.mat(out))
-		# build the cost row on click: the popup frees it when you click away, so a stored node is dead next time
-		g.add_child(item_slot(out, have, "", func(): _recipe_info(id, r, out, _recipe_lines(r), GameState.can_craft(id, r.id)),
-			Color.WHITE if why == "" else Color(1, 1, 1, 0.45), "6bff6b" if why == "" else ""))
+	for r in rs: g.add_child(recipe_slot(id, r))
+
+## Pack size of a recipe that makes several of one material ("x3" for the Guild ration crate), else "".
+static func recipe_qty(r: Dictionary) -> String:
+	var n := int(r.get("out_n", 1))
+	return "x%d" % n if n > 1 and not r.has("out") else ""
+
+## One recipe/supply slot: stash count bottom-right, pack size top-left (like the Alchemy "=> x2" slot), so the
+## Guild ration crate is not a second, identical Ration slot (DECISIONS #115).
+func recipe_slot(id: String, r: Dictionary) -> Button:
+	var out: String = r.get("out", r.get("out_mat", ""))
+	var why: String = GameState.can_craft(id, r.id)
+	var have := "" if r.has("out") else str(GameState.mat(out))
+	# build the cost row on click: the popup frees it when you click away, so a stored node is dead next time
+	return item_slot(out, have, recipe_qty(r), func(): _recipe_info(id, r, out, _recipe_lines(r), GameState.can_craft(id, r.id)),
+		Color.WHITE if why == "" else Color(1, 1, 1, 0.45), "6bff6b" if why == "" else "")
 
 ## Fresh cost row + stat lines. Never keep the Control: closing the popup frees it.
 func _recipe_lines(r: Dictionary) -> Array:
 	var out: String = r.get("out", r.get("out_mat", ""))
 	var lines: Array = [cost_row(r.cost)]
+	if recipe_qty(r) != "": lines.append("Gives %d %s." % [int(r.out_n), DB.mat_name(out) + ("s" if not DB.mat_name(out).ends_with("s") else "")])
 	var od: Dictionary = DB.item(out) if r.has("out") else DB.materials.get(out, {})
 	if od.has("desc"): lines.append(od.desc)
 	if r.has("out") and od.has("dmg"): lines.append("Dmg %d  Str %d" % [od.dmg, od.get("str", 10)])

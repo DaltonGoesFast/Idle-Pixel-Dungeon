@@ -35,9 +35,13 @@ func _ready() -> void:
 	test_armor_tiers(gs)
 	test_floor_label(gs)
 	test_total_wipe(gs)
+	test_level_cap(gs)
+	test_dew_sink(gs)
+	test_old_run_load(gs)
 	test_goo_spiral(gs)
 	test_food_sources(gs)
 	test_facility_cap(gs)
+	test_crate_slot(gs)
 	test_owed_sou(gs)
 	await test_icon_sizes(gs)
 	test_full_auto(gs)
@@ -1632,4 +1636,69 @@ func test_facility_cap(gs) -> void:
 	m_slot2.pressed.emit()
 	check(cs.open_name == "Heroes", "tapping the selected hero again opens Heroes")
 	m_slot.free(); m_slot2.free(); cs.queue_free()
+
+## DECISIONS #115: the Guild ration crate slot is told apart from the single Ration slot by its pack size.
+func _slot_texts(slot: Control) -> Array:
+	var t := []
+	for l in slot.find_children("*", "Label", true, false): t.append(String(l.text))
+	return t
+
+func test_crate_slot(gs) -> void:
+	print("[crate slot]")
+	gs.new_game()
+	gs.facilities.guild.level = 2; gs.mats.gold = 100; gs.mats.ration = 4
+	var cs = load("res://scripts/ui/camp_screen.gd").new()
+	var crate: Dictionary = gs.recipe("guild", "buy_ration_crate")
+	var single: Dictionary = gs.recipe("guild", "buy_ration")
+	check(cs.recipe_qty(crate) == "x3" and cs.recipe_qty(single) == "", "pack size tag only on multi-output supplies")
+	var a: Button = cs.recipe_slot("guild", crate); var b: Button = cs.recipe_slot("guild", single)
+	var ta := _slot_texts(a); var tb := _slot_texts(b)
+	check("x3" in ta and "4" in ta, "crate slot shows x3 and the stash count (%s)" % [ta])
+	check(not ("x3" in tb) and "4" in tb, "single Ration slot has no pack tag (%s)" % [tb])
+	check(ta != tb, "crate and single Ration slots differ")
+	var lines: Array = cs._recipe_lines(crate)
+	check(lines.any(func(x): return x is String and x.begins_with("Gives 3 Ration")), "crate info says it gives 3 Rations")
+	for n in lines: if n is Node: n.free()
+	for n in cs._recipe_lines(single): if n is Node: n.free()
+	a.free(); b.free(); cs.free()
+
+## DECISIONS #116: dew is no longer a dead currency.
+func test_dew_sink(gs) -> void:
+	print("[dew sink]")
+	gs.new_game()
+	var users := []
+	for fac in DB.recipes:
+		for r in DB.recipes[fac]:
+			if r.cost.has("dew"): users.append(r.id)
+	check(not users.is_empty(), "some recipe spends dew %s" % [users])
+	gs.mats.dew = 45; gs.mats.potion_healing = 0
+	check(gs.craft_max("alchemy", "condense_dew") == 2, "45 dew condenses into 2 potions")
+	check(gs.craft_n("alchemy", "condense_dew", 2) and gs.mat("potion_healing") == 2 and gs.mat("dew") == 5, "condensing spends 20 dew per potion")
+
+## DECISIONS #117: a run saved before the backpack (or other run fields) loads and plays on.
+func test_old_run_load(gs) -> void:
+	print("[old run load]")
+	gs.new_game()
+	var st := {"mats": {"gold": 5.0}, "run": {"hero": "warrior", "biome": "sewers", "floor": 2.0, "hp": 10.0, "pack": {"gold": 4.0}, "supplies": {"ration": 1.0}, "progress": 10.0, "torch": 50.0, "satiety": 50.0, "seed": 3.0}}
+	gs.from_dict(JSON.parse_string(JSON.stringify(st)))
+	check(not gs.run.is_empty() and gs.run.has("pack_gear") and gs.run.pack_gear is Array, "old run gets an empty backpack")
+	check(gs.run.has("milestones_done") and gs.run.has("boss_dead") and int(gs.run.floor) == 2 and int(gs.run.hp) == 10, "missing run fields filled, saved ones kept")
+	var ev: Dictionary = {}
+	for i in 30:
+		ev = Delve.advance(gs, 2.0)
+		if not ev.is_empty(): break
+	check(gs.backpack_used() == 0 and not gs.run.is_empty(), "the loaded run keeps going")
+	gs.end_run("extract")
+	check(gs.mat("gold") >= 9, "and extracts its pack (%d gold)" % gs.mat("gold"))
+
+## DECISIONS #118: SPD level cap.
+func test_level_cap(gs) -> void:
+	print("[level cap]")
+	gs.new_game()
+	gs.grant_xp("mage", 1000000)
+	check(int(gs.heroes.mage.level) == gs.MAX_LEVEL and int(gs.heroes.mage.xp) == 0, "xp stops at Lv%d (got Lv%d)" % [gs.MAX_LEVEL, gs.heroes.mage.level])
+	check(not gs.grant_xp("mage", 500), "no level up past the cap")
+	gs.heroes.warrior.level = 94; gs.heroes.warrior.xp = 12
+	gs.from_dict(JSON.parse_string(JSON.stringify(gs.to_dict())))
+	check(int(gs.heroes.warrior.level) == gs.MAX_LEVEL, "an over-cap save loads at Lv%d" % gs.MAX_LEVEL)
 

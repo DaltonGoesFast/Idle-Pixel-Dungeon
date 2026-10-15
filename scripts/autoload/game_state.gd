@@ -141,6 +141,8 @@ static func cost_text(cost: Dictionary) -> String:
 	return ", ".join(parts)
 
 # ---------------------------------------------------------------- hero stats
+## SPD Hero.MAX_LEVEL: heroes stop gaining levels (and HP/accuracy/talent points) at 30 (DECISIONS #118).
+const MAX_LEVEL := 30
 func xp_to_next(level: int) -> int:
 	return 5 + level * 5   # SPD Hero.maxExp()
 
@@ -514,8 +516,9 @@ func grant_xp(c: String, n: int) -> bool:
 	var h: Dictionary = heroes[c]
 	h.xp += n
 	var up := false
-	while h.xp >= xp_to_next(h.level):
+	while h.level < MAX_LEVEL and h.xp >= xp_to_next(h.level):
 		h.xp -= xp_to_next(h.level); h.level += 1; up = true
+	if h.level >= MAX_LEVEL: h.level = MAX_LEVEL; h.xp = 0
 	return up
 
 # ---------------------------------------------------------------- facilities & crafting
@@ -1081,6 +1084,10 @@ func _fix_gear(g: Dictionary) -> void:
 	if not g.has("cracked"): g.cracked = false
 	if LEGACY_IDS.has(g.id): g.id = LEGACY_IDS[g.id]
 
+## Every key start_run creates, with its start value (for loading runs saved by older versions).
+const RUN_DEFAULTS := {"biome": "sewers", "floor": 1, "progress": 0.0, "torch": 100.0, "satiety": 100.0, "hp": 1, "pack": {}, "pack_gear": [],
+	"supplies": {}, "seed": 0, "events": [], "next_event": 0, "gather": 0, "starve": 0, "milestones_done": [], "pending_loot": 0, "boss_dead": false}
+
 ## JSON turns every number into float; normalise ints we compare/use as keys.
 func _fix_types() -> void:
 	next_uid = int(next_uid)
@@ -1090,11 +1097,15 @@ func _fix_types() -> void:
 		var h: Dictionary = heroes[c]
 		if not h.has("artifact"): h.artifact = 0
 		for k in ["level", "xp", "str", "weapon", "armor", "ring", "artifact"]: h[k] = int(h[k])
+		if h.level > MAX_LEVEL: h.level = MAX_LEVEL; h.xp = 0   # saves from before the cap
 	for f in facilities:
 		facilities[f].level = int(facilities[f].level); facilities[f].cap = int(facilities[f].cap)
 		if DB.facilities.has(f): facilities[f].cap = facility_cap(f)
 	for q in id_queue: q.uid = int(q.uid)
 	if not run.is_empty():
+		# runs saved before a field existed (backpack #67, milestones, boss flag...) get its start value (DECISIONS #117)
+		for k in RUN_DEFAULTS:
+			if not run.has(k): run[k] = RUN_DEFAULTS[k].duplicate(true) if RUN_DEFAULTS[k] is Array or RUN_DEFAULTS[k] is Dictionary else RUN_DEFAULTS[k]
 		for k in ["floor", "next_event", "gather", "starve", "seed", "hp", "pending_loot"]: run[k] = int(run.get(k, 0))
 		if DB.biomes.has(run.get("biome", "")):   # a save can never show "Floor 25 / 5": keep floor inside its biome
 			var fr: Array = DB.biomes[run.biome].floors; run.floor = clampi(int(run.floor), int(fr[0]), int(fr[1]))

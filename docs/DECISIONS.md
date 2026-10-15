@@ -327,3 +327,15 @@ The "+3" gold pop in delve_enemy / delve_special / delve_auto shots was not a ga
 
 ## 114. Facility header: level / max, cap never below level
 The Guild header read "Lv 2 / 1" beside a "capped" Upgrade button: the header printed the Scroll-of-Upgrade `cap` (not the facility max), and nothing kept `cap >= level` (the screenshot harness, debug edits or an old save can set a level without the cap). `GameState.facility_cap(id)` = clamp(max(cap, level), 1, max) is used by can_upgrade_facility, apply_sou and on load; the header shows "Lv level / max" and adds "(cap N)" only while the cap is what blocks the next level. test_facility_cap covers the reported state.
+
+## 115. Supply slots show their pack size
+Playtest at 42b0c29: with the Guild at Lv2 the Supplies grid showed two identical Ration slots (the single Ration and the new 3-ration crate from #110), both with the same stash count, so you could only tell them apart by opening each. Now `CampScreen.recipe_slot` puts the pack size ("x3") in the slot's top-left corner for any material recipe with `out_n > 1` (the same tag the Alchemy brew card already used for its output), the stash count stays bottom-right, and the buy popup adds "Gives 3 Rations.". No new art: SPD has no crate sprite, and its shops show stack sizes on the item sprite the same way. Test: `test_crate_slot`.
+
+## 116. Dew has a use
+Dewdrops (+1 per 12% of every floor, plus events) had no sink at all: nothing in recipes, facilities or the delve spent them, and a 40-expedition campaign ended with 1.7k-6k dew. Alchemy now has "Condense Dew into Healing" (20 dew -> 1 Potion of Healing, Alchemy Lv1), echoing SPD's Dew Vial. This gives dew a purpose and early players a second potion source; it does not by itself stop late-game stockpiling (see the playtest report on gold/dew inflation). test_dew_sink.
+
+## 117. Old in-progress runs load
+A run saved before the backpack existed (no `pack_gear`) threw a script error in _fix_types (`run.pack_gear + run.overflow`), which aborted the rest of type fixing and left the run unplayable. `RUN_DEFAULTS` lists every key start_run creates; on load any missing run key gets its start value before types are fixed. test_old_run_load loads a pre-backpack run, advances and extracts it.
+
+## 118. Hero level cap 30
+Heroes levelled without limit: a 40-expedition Full Auto campaign reached Lv103 (Mage Lv94 by run 35), with HP, accuracy and stat growth unbounded and the late game trivial. SPD caps at Hero.MAX_LEVEL = 30; `GameState.MAX_LEVEL` = 30 now stops grant_xp (xp held at 0) and over-cap saves load at Lv30. Death still resets to Lv1. test_level_cap.
