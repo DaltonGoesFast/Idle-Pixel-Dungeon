@@ -149,7 +149,9 @@ func _refresh() -> void:
 	status.visible = not finished
 	_guide_update()
 	if main and not finished:
-		if combat.surprise_ready(): main.tip("surprise")
+		# the guided first fight teaches move/attack; Surprise is easy to "have" at the start of a
+		# multi-chamber fight (a foe out of sight), so its tip waits until the guide is done (DECISIONS #139)
+		if combat.surprise_ready() and (guide == 0 or guide >= 4): main.tip("surprise")
 		if not combat.danger.is_empty(): main.tip("telegraph")
 		if combat.traps.values().any(func(t): return not t.hidden): main.tip("trap")
 	UIKit.clear(buttons)
@@ -198,7 +200,7 @@ func _guide_update() -> void:
 		if guide < 4:
 			guide = 4
 			if not ("guided_fight" in GameState.tutorial_done): GameState.tutorial_done.append("guided_fight")
-		guide_label.text = "Tutorial complete! Fights are won by positioning: fight in doorways, step off red tiles, and use your class ability." if combat.won else "You fell - that's part of learning. Gear cracks, but the Camp keeps everything you banked."
+		guide_label.text = "Tutorial complete! Fights are won by positioning: slip through doorways so foes lose sight of you, step off red tiles, and use your class ability." if combat.won else "You fell - that's part of learning. Gear cracks, but the Camp keeps everything you banked."
 		return
 	if guide <= 2 and (combat.kills > 0 or foes.any(func(e): return e.hp < e.ht)): guide = 3
 	if guide == 1 and not adj.is_empty(): guide = 2

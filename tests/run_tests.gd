@@ -51,6 +51,7 @@ func _ready() -> void:
 	test_facility_cap(gs)
 	test_crate_slot(gs)
 	await test_delve_chips(gs)
+	await test_guided_surprise_tip(gs)
 	test_owed_sou(gs)
 	await test_icon_sizes(gs)
 	test_full_auto(gs)
@@ -1912,6 +1913,33 @@ func test_delve_chips(gs) -> void:
 	check(main.delve.stats.size.y <= UIKit.font_size * 4.5, "Brought/Found row stays compact (h=%.0f fs=%d)" % [main.delve.stats.size.y, UIKit.font_size])
 	main.queue_free()
 	win.size = old
+	await get_tree().process_frame
+
+## DECISIONS #139: the guided first fight is not covered by the Surprise tip.
+func test_guided_surprise_tip(gs) -> void:
+	print("[guided surprise tip]")
+	gs.new_game(); gs.settings.tutorial = true; gs.tutorial_done = ["welcome", "delve_bar"]
+	gs.start_run("warrior", {"ration": 2, "torch": 2}, "sewers", 7)
+	var main = load("res://scenes/main.tscn").instantiate()
+	add_child(main)
+	await get_tree().process_frame
+	main.tips.queue.clear()
+	# rat behind a wall and a closed door: out of sight at the start, so a Surprise is "ready"
+	var room := ["########", "#H.#...#", "#..#...#", "#..+..1#", "#..#...#", "#..#...#", "#..#...#", "########"]
+	main.start_combat({"kind": "combat", "room": room, "mobs": ["rat"]}, func(_r): pass)
+	await get_tree().process_frame
+	var s = main.screen
+	check(s.guide == 1 and s.combat.surprise_ready(), "guided fight starts with a foe out of sight")
+	var ids: Array = main.tips.queue.map(func(t): return t.id)
+	check(not ("surprise" in ids), "Surprise tip does not open over the guided first fight (%s)" % [ids])
+	check(not ids.is_empty() and ids[0] == "first_fight", "first fight tip comes first (%s)" % [ids])
+	# a later, unguided fight still teaches Surprise
+	main.tips.queue.clear(); gs.tutorial_done.append("first_fight"); gs.tutorial_done.append("guided_fight")
+	main.start_combat({"kind": "combat", "room": room, "mobs": ["rat"]}, func(_r): pass)
+	await get_tree().process_frame
+	check(main.screen.guide == 0 and main.tips.queue.any(func(t): return t.id == "surprise"), "Surprise tip still shows in a later fight")
+	main.tips.queue.clear(); gs.settings.tutorial = false
+	main.queue_free()
 	await get_tree().process_frame
 
 ## DECISIONS #116: dew is no longer a dead currency.
