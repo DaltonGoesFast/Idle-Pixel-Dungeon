@@ -136,10 +136,25 @@ static func new_combat(gs, ev: Dictionary) -> Combat:
 	for m in ev.mobs: gs.discover("mob:" + m)
 	var c := Combat.new()
 	c.setup(ev.room, gs.hero_stats(run.hero), int(run.hp), ev.mobs, darkness(run), biome(run).get("traps", []))
+	run.fighting_goo = "goo" in ev.mobs
+	if run.fighting_goo: _weaken_goo(gs, c)
 	if int(run.get("shield_next", 0)) > 0:   # Potion of Shielding
 		c.hero.barrier = int(c.hero.barrier) + int(run.shield_next); run.shield_next = 0
 		c._log("Your shield shimmers: +Barrier.")
 	return c
+
+## Goo grudge (DECISIONS #125): Goo is SPD-strength (HT 100) but each earlier loss to it leaves it 15 HT weaker,
+## down to GOO_MIN_HT, so a struggling new player is never stuck. Reset when Goo is killed.
+const GOO_MIN_HT := 70
+static func goo_ht(gs) -> int:
+	return maxi(GOO_MIN_HT, int(DB.mobs.goo.ht) - 15 * int(gs.stats.get("goo_losses", 0)))
+
+static func _weaken_goo(gs, c: Combat) -> void:
+	var ht := goo_ht(gs)
+	for u in c.enemies():
+		if u.get("id", "") == "goo" and ht < int(u.ht):
+			u.ht = ht; u.hp = mini(int(u.hp), ht)
+			c._log("Goo still bears the wounds of your last fight (HP %d)." % ht)
 
 ## Horn of Plenty: satiety drain multiplier (cached per floor to keep hero_stats out of the per-frame tick).
 static func _hunger(gs) -> float:
@@ -436,6 +451,7 @@ static func apply_fight_result(gs, ev: Dictionary, res: Dictionary, reward: Dict
 		gs.grant_owed_sou()
 		# Goo always leaves a Potion of Healing on the belt; unused, it goes back to the stash (DECISIONS #109)
 		if ev.mobs[0] == "goo":
+			gs.stats.goo_losses = 0
 			run.supplies.potion_healing = int(run.supplies.get("potion_healing", 0)) + 1
 			gs.say("Goo leaves behind a Potion of Healing.", "positive")
 		if gs.record_boss_kill(run.hero, run.biome): gs.say("First %s kill for this class: Scroll of Upgrade!" % DB.mobs[ev.mobs[0]].name)

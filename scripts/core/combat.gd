@@ -640,6 +640,10 @@ func _mob_act(m: Dictionary) -> void:
 	_tick_poison(m)
 	if m.hp <= 0 or over: return
 	if m.charging: return  # waits for its telegraph to resolve
+	# SPD Goo: regenerates while standing in water (DECISIONS #125)
+	if int(m.get("water_heal", 0)) > 0 and tile(m.pos) == T.WATER and int(m.hp) < int(m.ht):
+		var wh := mini(int(m.water_heal), int(m.ht) - int(m.hp)); m.hp += wh
+		_ev({"t": "heal", "uid": m.uid, "amount": wh, "pos": m.pos}); _log("%s soaks up the water (+%d)." % [m.name, wh])
 	if m.has("enraged_dmg") and int(m.hp) * 2 <= int(m.ht) and int(m.dmg) != int(m.enraged_dmg):
 		m.dmg = int(m.enraged_dmg); _log("%s is enraged! (dmg %d)" % [m.name, m.dmg])
 	if m.has("hp_flee") and int(m.get("stolen", 0)) > 0:

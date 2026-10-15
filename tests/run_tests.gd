@@ -36,6 +36,7 @@ func _ready() -> void:
 	test_floor_label(gs)
 	test_total_wipe(gs)
 	test_rogue_cloak(gs)
+	test_goo_spd(gs)
 	test_level_cap(gs)
 	test_dew_sink(gs)
 	test_old_run_load(gs)
@@ -203,17 +204,23 @@ func test_boss(gs) -> void:
 
 func test_fullrun(gs) -> void:
 	print("[fullrun] CombatBot plays whole Sewers expeditions (2 rations, 2 torches, 2 potions), 10 seeds per class")
-	for cls in ["warrior", "mage", "rogue", "huntress"]:
-		var wins := 0; var deaths := []; var lv := 0
-		for seed in 10:
-			gs.new_game()
-			for c in gs.heroes: gs.heroes[c].unlocked = true
-			gs.add_mat("potion_healing", 1)
-			var r := RunSim.play(gs, cls, {"ration": 2, "torch": 2, "potion_healing": 2}, 1000 + seed)
-			if r.result == "extract": wins += 1; lv += r.level
-			else: deaths.append("f%d %s" % [r.floor, r.boss_entry])
-		print("  %s: cleared %d/10 (avg Lv at clear %.1f) deaths at %s" % [cls, wins, float(lv) / maxf(1, wins), deaths])
-		check(wins >= 5, "%s clears the Sewers in at least half the seeded runs" % cls)
+	# DECISIONS #125: a fresh save's first Goo is SPD-hard (~25%); after two Goo deaths the grudge makes it beatable.
+	var fresh_total := 0
+	for grudge in [0, 2]:
+		for cls in ["warrior", "mage", "rogue", "huntress"]:
+			var wins := 0; var deaths := []; var lv := 0
+			for seed in 10:
+				gs.new_game()
+				for c in gs.heroes: gs.heroes[c].unlocked = true
+				gs.add_mat("potion_healing", 1)
+				gs.stats.goo_losses = grudge
+				var r := RunSim.play(gs, cls, {"ration": 2, "torch": 2, "potion_healing": 2}, 1000 + seed)
+				if r.result == "extract": wins += 1; lv += r.level
+				else: deaths.append("f%d %s" % [r.floor, r.boss_entry])
+			print("  %s (goo losses %d): cleared %d/10 (avg Lv at clear %.1f) deaths at %s" % [cls, grudge, wins, float(lv) / maxf(1, wins), deaths])
+			if grudge == 0: fresh_total += wins
+			else: check(wins >= 5, "%s clears the Sewers in at least half the runs after two Goo deaths" % cls)
+	check(fresh_total >= 2 and fresh_total <= 24, "fresh-save Sewers clears are rare but possible (%d/40)" % fresh_total)
 	print("[deeprun] Lv1 hero with forged tier-2 gear, Sewers + Prison in one expedition (6 rations, 8 torches, 4 potions), 10 seeds")
 	for cls in ["warrior", "mage", "rogue", "huntress"]:
 		var wins := 0; var deaths := []
@@ -1771,3 +1778,21 @@ func test_rogue_cloak(gs) -> void:
 	check(int(c.hero.cloak_charges) == 3, "a fight starts with 3 cloak charges")
 	gs.end_run("abandon")
 
+
+func test_goo_spd(gs) -> void:
+	print("[goo spd]")
+	gs.new_game()
+	check(int(DB.mobs.goo.ht) == 100, "Goo has SPD's 100 HT")
+	gs.start_run("warrior", {}, "sewers", 2)
+	var c = Delve.new_combat(gs, Delve.combat_event(gs.run, Delve.rng_for(gs.run, 1), ["goo"]))
+	var g: Dictionary = c.enemies()[0]
+	check(int(g.ht) == 100, "a fresh save fights a full-strength Goo")
+	gs.end_run("death")
+	check(int(gs.stats.goo_losses) == 1, "dying to Goo is remembered")
+	gs.stats.goo_losses = 5
+	gs.start_run("warrior", {}, "sewers", 2)
+	c = Delve.new_combat(gs, Delve.combat_event(gs.run, Delve.rng_for(gs.run, 1), ["goo"]))
+	g = c.enemies()[0]
+	check(int(g.ht) == Delve.GOO_MIN_HT and int(g.hp) == Delve.GOO_MIN_HT, "repeated losses weaken Goo, floored at %d" % Delve.GOO_MIN_HT)
+	gs.end_run("abandon")
+	check(int(gs.stats.goo_losses) == 5, "only deaths count")

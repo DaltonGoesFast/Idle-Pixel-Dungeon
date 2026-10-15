@@ -76,7 +76,7 @@
  },
  "goo": {
   "name": "Goo",
-  "ht": 70,
+  "ht": 100,
   "dmg": 4,
   "dr": 0,
   "delay": 1.0,
@@ -88,10 +88,11 @@
   "boss": true,
   "ability": "pump",
   "pump_every": 4,
+  "water_heal": 1,
   "pump_mult": 3,
   "enraged_dmg": 6,
   "spd": "HT 100, dmg 1-8 (1-12 below half), DR 0-2, pump-up = 3x",
-  "tuned": "HT 100->70, enraged dmg 6. Pump every 4 acts, every 3 below half HP (v0.5: the first pumps are slower so a new player can learn the telegraph; the danger ramps in the second half)",
+  "tuned": "HT 100 like SPD (was 70), dmg 4, enraged 6. Pump every 4 acts, every 3 below half HP; regenerates 1 HP/turn standing in water. Each earlier death to Goo removes 15 HT (floor 70) until it is killed (DECISIONS #125).",
   "pump_every_enraged": 3
  },
  "skeleton": {

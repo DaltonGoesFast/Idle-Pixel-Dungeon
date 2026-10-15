@@ -22,7 +22,7 @@ var boss_kills: Dictionary = {}    # class -> [biome ids]  (first kill per class
 var settings := {"sfx": 0.8, "music": 0.5, "haptics": true, "text_scale": 1.0, "dev_tools": false, "tutorial": true,
 	"delve_speed": 1.0, "lighting": true, "full_auto": false}
 const STATS_DEFAULT := {"potions_brewed": 0, "deepest_floor": 0, "runs": 0, "deaths": 0, "extractions": 0, "kills": 0,
-	"traps_found": 0, "hidden_doors": 0, "goo_kills": 0, "tengu_kills": 0}
+	"traps_found": 0, "hidden_doors": 0, "goo_kills": 0, "tengu_kills": 0, "goo_losses": 0}
 var stats := STATS_DEFAULT.duplicate()
 var milestones_claimed: Array = []  # milestone ids already rewarded
 var seen: Dictionary = {}          # codex discoveries: "mob:rat", "trap:worn_dart", "item:dagger" -> true
@@ -960,6 +960,7 @@ func end_run(result: String) -> void:
 			say("Extracted! The pack is banked at Camp.")
 		"death":
 			stats.deaths += 1
+			if run.get("fighting_goo", false): stats.goo_losses = int(stats.get("goo_losses", 0)) + 1   # DECISIONS #125
 			for slot in ["weapon", "armor", "ring", "artifact"]:
 				var g := gear_by_uid(int(h.get(slot, 0)))
 				# heirlooms (Mage's Staff...) are permanent and never crack
