@@ -85,8 +85,13 @@ func apply_layout(portrait: bool, s: Vector2) -> void:
 		grid.size_flags_vertical = SIZE_FILL
 	_refresh()
 
+var _fin_t := 0.0
 func _process(d: float) -> void:
 	if main and main.tip_open(): return
+	if finished and GameState.settings.get("full_auto", false):
+		_fin_t += d
+		if _fin_t > 1.2: _fin_t = -999.0; _finish()   # Full Auto presses Continue
+		return
 	if auto and not finished:
 		_auto_t += d
 		if _auto_t > 0.35:

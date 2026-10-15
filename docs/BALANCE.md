@@ -243,3 +243,6 @@ Subclass + talents on a returning Lv8+ hero is meant to feel strong; the Caves b
 ## City (v0.15.0)
 - [city] Lv14 Warrior, Str 16, Longsword+1 / Scale+1: 99/99 City fights won; beats the King of Dwarves with 3 potions (14 HP left).
 - [cityrun] Lv12, Str 16, tier-4 + first subclass, floors 1-20 in one run, 6 seeds: Warrior 3/6, Huntress 4/6 (losses are at the King).
+
+## Owed Scrolls of Upgrade (v0.26.0)
+Pack Scrolls of Upgrade lost on death return on the next boss kill (any hero), so dying costs time, never the permanent upgrade currency. Scroll economy otherwise unchanged (first boss kill per class/biome).

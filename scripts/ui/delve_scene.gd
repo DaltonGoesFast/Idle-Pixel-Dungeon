@@ -23,6 +23,18 @@ var _last := {}
 var _anims := {}
 var _tex := {}
 var _redraw_t := 0.0
+var glow := 0.0
+var _snd_t := {}
+
+func _pickup(idx: int, n: int, snd: String) -> void:
+	pops.append({"idx": idx, "age": 0.0, "n": n})
+	if pops.size() > 6: pops.pop_front()
+	glow = 1.0
+	var now := Time.get_ticks_msec()
+	if now - int(_snd_t.get(snd, 0)) > 180: _snd_t[snd] = now; Sfx.play(snd)   # no machine-gun clicks at x3
+var _hs := {}
+var _hs_t := 0.0
+var _light: GradientTexture2D
 
 func _ready() -> void:
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -42,23 +54,28 @@ func encounter() -> Dictionary:
 
 func _process(delta: float) -> void:
 	if not is_visible_in_tree() or _run().is_empty(): return
-	t += delta
+	t += delta; _hs_t -= delta
 	var r := _run()
 	target = (float(r.get("floor", 1)) - 1.0) * TILES_PER_FLOOR + float(r.get("progress", 0.0)) / 100.0 * TILES_PER_FLOOR
-	if scroll == 0.0 or absf(target - scroll) > 12.0: scroll = target - 0.001
+	# critically-damped chase: smooth at any Delve speed (x3 used to outrun a fixed cap and snap) (DECISIONS #99)
+	if scroll == 0.0 or absf(target - scroll) > 80.0 or target < scroll - 1.0: scroll = target - 0.001
 	var gap := target - scroll
 	moving = gap > 0.02 and encounter().is_empty()
-	if moving: scroll += minf(gap, maxf(delta * 3.0, gap * delta * 4.0))
+	if moving: scroll += gap * (1.0 - exp(-6.0 * delta))
 	# pickups: anything gold/dew grew since last frame pops above the hero
 	var pack: Dictionary = r.get("pack", {})
-	for id in ["gold", "dew"]:
+	# pickup feedback (DECISIONS #101): SPD gold/dewdrop/item sounds, a rising icon + "+N", a brief glow
+	for id in pack:
 		var n := int(pack.get(id, 0))
-		if _last.has(id) and n > int(_last[id]): pops.append({"id": "GOLD" if id == "gold" else "DEWDROP", "age": 0.0, "n": n - int(_last[id])})
+		if _last.has(id) and n > int(_last[id]): _pickup(DB.icon_index(id), n - int(_last[id]), "gold" if id == "gold" else ("dewdrop" if id == "dew" else "item"))
 		_last[id] = n
+	var ng: int = r.get("pack_gear", []).size()
+	if _last.has("_gear") and ng > int(_last._gear): _pickup(DB.icon_index(r.pack_gear[-1].id), 1, "item")
+	_last._gear = ng
 	for p in pops: p.age += delta
-	pops = pops.filter(func(p): return p.age < 0.9)
-	_redraw_t += delta
-	if _redraw_t >= 1.0 / 20.0: _redraw_t = 0.0; queue_redraw()   # 20 fps is plenty for pixel art
+	pops = pops.filter(func(p): return p.age < 1.1)
+	glow = maxf(0.0, glow - delta * 2.5)
+	queue_redraw()   # 60 fps: the draw is now ~40 quads (DECISIONS #99)
 
 ## The wall face at the encounter: door cards show their two doors (locked if one needs a key), special rooms an
 ## open doorway, a cleared floor the crystal exit.
@@ -146,24 +163,28 @@ func _draw() -> void:
 		var dc := Vector2(hero_x + 2.5 * cs, y0 + 1.5 * cs + sin(t * 3.0) * k)
 		draw_texture_rect_region(_t("res://assets/sprites/items.png"), Rect2((dc - isz / 2.0).floor(), isz), ir)
 	# hero
-	var hs: Dictionary = GameState.hero_stats(r.hero)
+	if _hs_t <= 0.0 or _hs.is_empty(): _hs = GameState.hero_stats(r.hero); _hs_t = 0.5
+	var hs: Dictionary = _hs
 	var hf := _frame(String(hs.sprite), "run") if moving else _frame(String(hs.sprite), "idle")
 	_sprite(hs.sprite, int(hs.fw), int(hs.fh), hf, int(hs.row), Vector2(hero_x + cs / 2.0, y0 + 3.8 * cs), k * SPRITE_K)
 	# torchlight: darkness falls off with distance from the hero (bigger pool with a lit torch)
 	var lit := float(r.get("torch", 0)) > 0 and not Delve.darkness(r)
 	var rad := cs * (5.5 if lit else (2.0 if Delve.darkness(r) else 3.8))
 	var hc := Vector2(hero_x + cs / 2.0, y0 + 3 * cs)
-	var step := floorf(cs / 4.0)
+	# one radial-gradient quad for the light pool + 4 solid rects around it (was ~2400 rects per frame)
+	if _light == null:
+		var g := Gradient.new(); g.offsets = PackedFloat32Array([0.0, 0.45, 1.0])
+		g.colors = PackedColorArray([Color(0.02, 0.01, 0.03, 0.0), Color(0.02, 0.01, 0.03, 0.0), Color(0.02, 0.01, 0.03, 0.6)])
+		_light = GradientTexture2D.new(); _light.gradient = g; _light.fill = GradientTexture2D.FILL_RADIAL
+		_light.fill_from = Vector2(0.5, 0.5); _light.fill_to = Vector2(1.0, 0.5); _light.width = 128; _light.height = 128
 	var flick := 1.0 + 0.04 * sin(t * 9.0) + 0.03 * sin(t * 23.0)
-	var yy := 0.0
-	while yy < size.y:
-		var xx := 0.0
-		while xx < size.x:
-			var d := (Vector2(xx + step / 2.0, yy + step / 2.0) - hc).length() / (rad * flick)
-			var a := clampf((d - 0.6) * 0.6, 0.0, 0.6)
-			if a > 0.01: draw_rect(Rect2(xx, yy, step, step), Color(0.02, 0.01, 0.03, a))
-			xx += step
-		yy += step
+	var lr := Rect2(hc - Vector2.ONE * rad * flick, Vector2.ONE * rad * flick * 2.0)
+	var dark := Color(0.02, 0.01, 0.03, 0.6)
+	draw_texture_rect(_light, lr, false)
+	draw_rect(Rect2(0, 0, size.x, maxf(0.0, lr.position.y)), dark)
+	draw_rect(Rect2(0, lr.end.y, size.x, maxf(0.0, size.y - lr.end.y)), dark)
+	draw_rect(Rect2(0, lr.position.y, maxf(0.0, lr.position.x), lr.size.y), dark)
+	draw_rect(Rect2(lr.end.x, lr.position.y, maxf(0.0, size.x - lr.end.x), lr.size.y), dark)
 	if lit: draw_circle(hc, rad * 0.35, Color(1.0, 0.75, 0.35, 0.06))
 	# parallax dust: far layer drifts at 0.3x the scroll, near at 1.4x
 	for layer in [[0.3, 0.25, 9], [1.4, 0.5, 6]]:
@@ -172,10 +193,17 @@ func _draw() -> void:
 			var py := fposmod(n * 59.0 * k + t * k * 2.0 * (n % 3 + 1), size.y)
 			draw_rect(Rect2(Vector2(px, py).floor(), Vector2(k, k)), Color(1, 0.9, 0.7, float(layer[1])))
 	# pickup pops
-	for p in pops:
-		var ir := UIKit.item_rect(DB.icon_index(p.id))
+	if glow > 0.0: draw_circle(hc - Vector2(0, cs * 0.6), cs * 0.9, Color(1.0, 0.9, 0.4, 0.18 * glow))
+	var font := get_theme_default_font(); var fs := int(UIKit.font_size * 0.8)
+	for i in pops.size():
+		var p: Dictionary = pops[i]
+		var ir := UIKit.item_rect(int(p.get("idx", DB.icon_index(String(p.get("id", "GOLD"))))))
 		var isz := ir.size * k
-		var c := Vector2(hc.x, hc.y - cs * 1.4 - p.age * cs * 1.2)
-		draw_texture_rect_region(_t("res://assets/sprites/items.png"), Rect2((c - isz / 2.0).floor(), isz), ir, Color(1, 1, 1, 1.0 - p.age / 0.9))
+		var a := clampf(1.0 - p.age / 1.1, 0.0, 1.0)
+		var c := Vector2(hc.x + (i % 3 - 1) * cs * 0.5, hc.y - cs * 1.4 - p.age * cs * 1.2)
+		draw_texture_rect_region(_t("res://assets/sprites/items.png"), Rect2((c - isz / 2.0).floor(), isz), ir, Color(1, 1, 1, a))
+		var tp := (c + Vector2(isz.x / 2.0 + k, fs * 0.35)).floor()
+		draw_string_outline(font, tp, "+%d" % int(p.n), HORIZONTAL_ALIGNMENT_LEFT, -1, fs, maxi(2, int(k)), Color(0, 0, 0, a))
+		draw_string(font, tp, "+%d" % int(p.n), HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(1, 0.95, 0.5, a))
 	# border
 	draw_rect(Rect2(Vector2.ZERO, size), Color(0, 0, 0, 0.9), false, maxf(2.0, k))

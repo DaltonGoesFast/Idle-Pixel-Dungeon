@@ -235,7 +235,8 @@ func info(id: String, title: String, lines: Array, actions: Array = []) -> void:
 	var top := UIKit.hbox(body); var ic := UIKit.icon(id, UIKit.font_size * 3); top.add_child(ic)
 	var tv := UIKit.vbox(top); tv.size_flags_horizontal = SIZE_EXPAND_FILL
 	for l in lines:
-		if l is Control: tv.add_child(l)
+		if l is Control and l.has_meta("wide"): body.add_child(l)   # quantity pickers span the window
+		elif l is Control: tv.add_child(l)
 		else: tv.add_child(UIKit.label(String(l), 0.9))
 	for a in actions:   # [text, callable, reason]
 		body.add_child(UIKit.action(a[0], func(): a[1].call(); _close_info(), a[2]))
@@ -248,6 +249,51 @@ func info(id: String, title: String, lines: Array, actions: Array = []) -> void:
 
 func _close_info() -> void:
 	if info_layer: info_layer.queue_free(); info_layer = null
+
+## Quantity picker (DECISIONS #97): [-] slider [+] count, live total cost, and the action button "<verb> xN".
+## max_n = affordable / cap; the button is disabled with `why0` when nothing can be done.
+func qty_picker(max_n: int, cost_fn: Callable, verb: String, act: Callable, why0 := "") -> VBoxContainer:
+	var box := UIKit.vbox()
+	var row := UIKit.hbox(box)
+	var n := [mini(1, max_n)]
+	var minus := UIKit.button("-", func(): pass); minus.custom_minimum_size.x = UIKit.btn_height(); minus.size_flags_horizontal = SIZE_SHRINK_BEGIN
+	var sl := HSlider.new(); sl.min_value = mini(1, max_n); sl.max_value = maxi(1, max_n); sl.step = 1; sl.value = n[0]
+	sl.size_flags_horizontal = SIZE_EXPAND_FILL; sl.size_flags_vertical = SIZE_SHRINK_CENTER; sl.editable = max_n > 1
+	sl.custom_minimum_size.y = UIKit.font_size * 1.2
+	var plus := UIKit.button("+", func(): pass); plus.custom_minimum_size.x = UIKit.btn_height(); plus.size_flags_horizontal = SIZE_SHRINK_BEGIN
+	var cnt := UIKit.label("x%d" % n[0], 1.0, Color("ffd27a")); cnt.autowrap_mode = TextServer.AUTOWRAP_OFF; cnt.custom_minimum_size.x = UIKit.font_size * 2.5
+	cnt.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT; cnt.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	for c in [minus, sl, plus, cnt]: row.add_child(c)
+	var total := UIKit.hbox(box)
+	var tl := UIKit.label("Total:", 0.85, Color("bdb3a0")); tl.autowrap_mode = TextServer.AUTOWRAP_OFF; tl.size_flags_vertical = SIZE_SHRINK_CENTER; total.add_child(tl)
+	var cost_host := HBoxContainer.new(); total.add_child(cost_host)
+	var why := why0 if max_n < 1 else ""
+	var act_host := UIKit.action("%s x%d" % [verb, maxi(1, n[0])], func(): if n[0] >= 1: act.call(n[0]); _close_info(), why if why != "" else ("" if max_n >= 1 else "can't afford"))
+	box.add_child(act_host)
+	var act_btn: Button = act_host.get_child(0) as Button
+	var upd := func(v: int):
+		n[0] = clampi(v, mini(1, max_n), max_n)
+		sl.set_value_no_signal(n[0]); cnt.text = "x%d" % n[0]
+		for c in cost_host.get_children(): c.queue_free()
+		cost_host.add_child(cost_row(cost_fn.call(maxi(1, n[0]))))
+		act_btn.text = "%s x%d" % [verb, maxi(1, n[0])]
+		minus.disabled = n[0] <= 1 or max_n < 1; plus.disabled = n[0] >= max_n or max_n < 1
+	sl.value_changed.connect(func(v): upd.call(int(v)))
+	minus.pressed.connect(func(): upd.call(n[0] - 1))
+	plus.pressed.connect(func(): upd.call(n[0] + 1))
+	upd.call(n[0])
+	box.set_meta("wide", true)
+	box.set_meta("set_n", upd); box.set_meta("n", n); box.set_meta("button", act_btn); box.set_meta("cost_host", cost_host)
+	return box
+
+## Live materials strip (Forge / Guild headers): icon + amount for each material the facility uses.
+const FAC_MATS := {"blacksmith": ["iron_ore", "dark_gold", "gold", "arcane_resin", "scroll_upgrade"], "guild": ["gold", "dew", "seeds", "iron_ore"]}
+func mats_header(id: String) -> HFlowContainer:
+	var f := HFlowContainer.new(); f.add_theme_constant_override("h_separation", int(UIKit.font_size * 0.8))
+	f.name = "MatsHeader"
+	for k in FAC_MATS.get(id, []):
+		f.add_child(UIKit.res_chip(k, "%d" % GameState.mat(k), 0.9))
+	return f
 
 ## Cost as resource chips; amounts you can't afford are red.
 func cost_row(cost: Dictionary) -> HFlowContainer:
@@ -268,6 +314,8 @@ func slot_grid(v: Control) -> GridContainer:
 # ------------------------------------------------------------ Delve (loadout & start)
 func _page_delve() -> void:
 	var v := _p("Delve")
+	if GameState.owed_sou > 0:
+		v.add_child(UIKit.label("Owed: %d Scroll%s of Upgrade - beat any boss to recover." % [GameState.owed_sou, "" if GameState.owed_sou == 1 else "s"], 0.85, Color("ffff66")))
 	var b: Dictionary = DB.biomes[chosen_biome]
 	var hd := UIKit.hbox(v)
 	var tr := UIKit.pixel(_hero_tex(chosen_hero), maxi(2, int(UIKit.font_size / 6.0))); tr.size_flags_vertical = SIZE_SHRINK_CENTER
@@ -336,7 +384,15 @@ func item_slot(id: String, br: String, tl: String, cb: Callable, tint := Color.W
 	b.add_theme_stylebox_override("normal", bg); b.add_theme_stylebox_override("hover", hv); b.add_theme_stylebox_override("pressed", hv)
 	b.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 	var ic := UIKit.icon(id, int(sz * 0.7)); ic.set_anchors_and_offsets_preset(PRESET_FULL_RECT); ic.mouse_filter = MOUSE_FILTER_IGNORE
-	ic.modulate *= tint; b.add_child(ic)
+	# cracked gear keeps its true colours (a tint hid small ring/potion sprites on device) and gets a red
+	# frame + "!" badge instead (DECISIONS #98)
+	var cracked: bool = gear.get("cracked", false)
+	if cracked:
+		bg.border_color = Color("ff5040"); bg.set_border_width_all(maxi(2, int(UIKit.font_size * 0.12)))
+		var bl := UIKit.label("!", 0.9, Color("ff5040")); bl.position = Vector2(UIKit.font_size * 0.2, 0); bl.autowrap_mode = TextServer.AUTOWRAP_OFF
+		bl.mouse_filter = MOUSE_FILTER_IGNORE; b.add_child(bl)
+	elif tint.a < 1.0 or tint.r < 0.99 or tint.g < 0.99: ic.modulate *= Color(1, 1, 1, maxf(0.55, tint.a))   # only dim, never recolour
+	b.add_child(ic)
 	if br != "":
 		var l := UIKit.label(br, 0.75); l.set_anchors_and_offsets_preset(PRESET_BOTTOM_RIGHT); l.grow_horizontal = GROW_DIRECTION_BEGIN; l.grow_vertical = GROW_DIRECTION_BEGIN
 		l.autowrap_mode = TextServer.AUTOWRAP_OFF; l.offset_right = -UIKit.font_size * 0.15; l.mouse_filter = MOUSE_FILTER_IGNORE; b.add_child(l)
@@ -444,6 +500,10 @@ func _page_heroes() -> void:
 # ------------------------------------------------------------ Stash
 func _page_stash() -> void:
 	var v := _p("Stash")
+	if GameState.owed_sou > 0:
+		var row := UIKit.hbox(v); row.add_child(UIKit.icon("scroll_upgrade"))
+		var ol := UIKit.label("%d lost Scroll%s of Upgrade will return on your next boss kill." % [GameState.owed_sou, "" if GameState.owed_sou == 1 else "s"], 0.85, Color("ffff66"))
+		ol.size_flags_horizontal = SIZE_EXPAND_FILL; row.add_child(ol)
 	v.add_child(UIKit.header("Materials & supplies"))
 	var grid := slot_grid(v)
 	for k in DB.materials:
@@ -471,6 +531,8 @@ func _preview(id: String, lvl: int) -> String:
 func _facility_header(v: VBoxContainer, id: String) -> void:
 	var f: Dictionary = GameState.facilities[id]
 	var d: Dictionary = DB.facilities[id]
+	if FAC_MATS.has(id):
+		var mc := UIKit.card(); v.add_child(mc); mc.add_child(mats_header(id))
 	var card := UIKit.card(); v.add_child(card)
 	var row := UIKit.hbox(card)
 	var kk := maxf(2.0, floorf(UIKit.font_size / 6.0))
@@ -508,8 +570,24 @@ func _recipe_slots(v: VBoxContainer, id: String, title: String) -> void:
 		if r.has("out") and od.has("dmg"): lines.append("Dmg %d  Str %d" % [od.dmg, od.get("str", 10)])
 		if r.has("out") and od.has("dr"): lines.append("DR %d  Str %d" % [od.dr, od.get("str", 10)])
 		var have := "" if r.has("out") else str(GameState.mat(out))
-		g.add_child(item_slot(out, have, "", func(): info(out, r.name, lines, [["Make", func(): GameState.craft(id, r.id), why]]),
+		g.add_child(item_slot(out, have, "", func(): _recipe_info(id, r, out, lines, why),
 			Color.WHITE if why == "" else Color(1, 1, 1, 0.45), "6bff6b" if why == "" else ""))
+
+## Recipe / supply info with a quantity picker (Forge "Make", Guild "Buy").
+func _recipe_info(id: String, r: Dictionary, out: String, lines: Array, why: String) -> void:
+	var verb := "Buy" if id == "guild" else "Make"
+	var cost: Dictionary = r.cost
+	var rid: String = r.id
+	info(out, r.name, lines + [qty_picker(GameState.craft_max(id, rid), func(n): return GameState.cost_mul(cost, n), verb,
+		func(n): GameState.craft_n(id, rid, n), why)])
+
+## Forge gear info: repair (single) or upgrade N levels with a quantity picker.
+func _gear_forge_info(g: Dictionary, lines: Array, why: String) -> void:
+	var uid: int = g.uid
+	if g.get("cracked", false):
+		info(gear_icon(g), GameState.gear_name(g), lines, [["Repair", func(): GameState.repair(uid), why]]); return
+	info(gear_icon(g), GameState.gear_name(g), lines + [qty_picker(GameState.upgrade_max(uid), func(n): return GameState.upgrade_cost_n(uid, n), "Upgrade",
+		func(n): GameState.upgrade_item_n(uid, n), why)])
 
 var alch_sel := ""
 ## Recipe names would give away an unidentified ingredient, so those read "Brew the <appearance>" until it is known.
@@ -561,18 +639,26 @@ func _page_facility(page: String, id: String) -> void:
 	else: _recipe_slots(v, id, "Recipes (tap for details)")
 	if id == "blacksmith":
 		v.add_child(UIKit.header("Upgrade & repair (cap +%d)" % GameState.facility_level("blacksmith")))
+		var rw := UIKit.hbox(v)
+		var nc := GameState.cracked_gear().size()
+		var rl := UIKit.label("Cracked: %d" % nc, 0.85, Color("ff8a7a") if nc else Color("9a9488")); rl.size_flags_vertical = SIZE_SHRINK_CENTER; rl.autowrap_mode = TextServer.AUTOWRAP_OFF; rw.add_child(rl)
+		if nc: rw.add_child(cost_row(GameState.repair_all_cost()))
+		var ra := UIKit.action("Repair all", func(): GameState.repair_all(), GameState.can_repair_all()); ra.size_flags_horizontal = SIZE_EXPAND_FILL; ra.name = "RepairAll"
+		v.add_child(ra)
+		if GameState.can_patch_up() == "":
+			var pu := UIKit.button("Patch up (free) - can't afford any repair", func(): GameState.patch_up()); pu.name = "PatchUp"; v.add_child(pu)
 		var g2 := slot_grid(v)
 		for g in GameState.gear:
 			var t: String = DB.item(g.id).type
-			if not (t in ["weapon", "armor"]): continue
 			var cracked: bool = g.get("cracked", false)
+			# weapons/armor upgrade here; cracked rings and artifacts come here to be repaired (DECISIONS #98)
+			if not (t in ["weapon", "armor"]) and not (cracked and t in ["ring", "artifact"]): continue
 			var cost: Dictionary = GameState.repair_cost(g.uid) if cracked else GameState.item_upgrade_cost(g.uid)
 			var why: String = ("" if GameState.can_afford(cost) else "need " + GameState.cost_text(cost)) if cracked else GameState.can_upgrade_item(g.uid)
 			var lines := gear_lines(g)
 			if not cracked and g.known: lines.push_front("+%d  ->  +%d" % [g.lvl, g.lvl + 1])
 			lines.push_front(cost_row(cost))
-			g2.add_child(item_slot(gear_icon(g), "", "+%d" % g.lvl if g.lvl > 0 and g.known else "", func():
-				info(gear_icon(g), GameState.gear_name(g), lines, [["Repair" if cracked else "Upgrade", func(): (GameState.repair(g.uid) if cracked else GameState.upgrade_item(g.uid)), why]]),
+			g2.add_child(item_slot(gear_icon(g), "", "+%d" % g.lvl if g.lvl > 0 and g.known else "", func(): _gear_forge_info(g, lines, why),
 				Color(1, 0.55, 0.5) if cracked else Color.WHITE, "6bff6b" if why == "" else "", g))
 	if id == "enchanter":
 		v.add_child(UIKit.header("Identifying (%d min each)" % int(GameState.identify_seconds() / 60)))

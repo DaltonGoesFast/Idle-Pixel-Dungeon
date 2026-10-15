@@ -1,6 +1,20 @@
 # Changelog
 
 
+## 0.26.0
+- Softlock fix: starter weapon + cloth armor when gear is cracked, free Patch up at the Forge when broke, relief ration/torch, 1 iron ore per floor (+test).
+- Scrolls of Upgrade lost on death are owed and return on the next boss kill (any hero); shown in Camp.
+- Smooth delve: no per-frame UI rebuilds, 60 fps corridor with a single-quad light, smooth Speed x3 scrolling.
+- Full Auto toggle: auto-fights, auto-picks doors/rooms/floor/campfire with a safe stop heuristic (saved setting, +tests).
+- Pickup feedback (SPD gold/dew/item sounds, +N icon pops, glow) and a colour-coded SPD-style log of finds, fights, traps, choices, warnings, floors, level ups and auto decisions.
+- Removed the alarm sound everywhere (soft door sound / haptic instead).
+- Item icons never below 2x (32 px): backpack potion/scroll buttons and carried rings no longer render as dots.
+- Cracked rings/artifacts repairable at the Forge and included in Repair all.
+- Cracked items keep their colours (red frame + "!") so ring icons stay visible; backpack potion icons scaled properly; old-save ring ids migrated (+tests).
+- Forge/Guild quantity picker (-/+ and slider, max = affordable/cap, live total cost) for buying, making and upgrading.
+- Forge "Repair all" with total cost; disabled when nothing is cracked or unaffordable.
+- Live materials header on Forge and Guild.
+
 ## 0.25.0
 - Tutorial tips laid out by containers: always on screen with margins, wrapped, fade in once sized (+test).
 - No stretched sprites: all UI sprites integer-scaled PixelIcons; every item id resolves to a visible SPD icon (+test).

@@ -20,7 +20,13 @@ func _ready() -> void:
 func _vol(lin: float) -> float:
 	return linear_to_db(maxf(lin, 0.0001))
 
+## The SPD alarm cues are never played: users found them grating (DECISIONS #100).
+const BANNED := ["alert", "health_warn"]
+var last_played := ""   # for tests
+
 func play(name: String, pitch := 1.0) -> void:
+	if name in BANNED: return
+	last_played = name
 	if DisplayServer.get_name() == "headless" or float(GameState.settings.sfx) <= 0.0: return
 	var s := _stream("res://assets/sounds/%s.mp3" % name)
 	if s == null: return

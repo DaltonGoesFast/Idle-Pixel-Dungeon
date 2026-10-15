@@ -71,7 +71,8 @@ static func _slot(c: String, s: String, mode: String, refresh: Callable) -> Butt
 	var icon_id: String = EMPTY_ICON[s] if it.is_empty() else (it.icon if it.has("pseudo") else it.id)
 	var ic := UIKit.icon(icon_id, int(sz * 0.7)); ic.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT); ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	if it.is_empty(): ic.modulate = Color(1, 1, 1, 0.3)
-	elif it.get("cracked", false): ic.modulate = Color(1, 0.55, 0.5)
+	elif it.get("cracked", false):   # red frame, true colours (DECISIONS #98)
+		bg.border_color = Color("ff5040"); bg.set_border_width_all(maxi(2, int(UIKit.font_size * 0.12)))
 	b.add_child(ic)
 	if not it.is_empty() and not it.has("pseudo") and it.known and int(it.lvl) > 0:
 		var l := UIKit.label("+%d" % it.lvl, 0.75, Color("66ffff")); l.autowrap_mode = TextServer.AUTOWRAP_OFF

@@ -58,23 +58,98 @@ func _process(delta: float) -> void:
 		_open_panel("backpack")   # full-pack loot needs a decision before exploring on
 	elif pending.is_empty() and running and GameState.talent_points_total_free(run.hero) > 0 and not run.get("talent_prompted", false):
 		run.talent_prompted = true; _open_panel("talents")   # level-up: offer the new talent once
+	if GameState.settings.get("full_auto", false): _auto_tick(delta)
 	if running and pending.is_empty():
 		if Delve.floor_done(run):
 			_floor_cleared()
 		else:
 			var ev := Delve.advance(GameState, delta * SPEED * speed_mult())
 			if not ev.is_empty():
-				pending = ev; Sfx.play("alert"); _show_card(); SaveSystem.save_game()
+				pending = ev; _encounter_cue(ev); _show_card(); SaveSystem.save_game()
 	_refresh()
+
+# ---------------------------------------------------------------- Full Auto (DECISIONS #102)
+var _auto_t := 0.0
+const AUTO_DELAY := 0.8     # seconds a card stays visible before Full Auto acts (so you can watch)
+
+func set_full_auto(on: bool) -> void:
+	GameState.settings.full_auto = on
+	GameState.log_line("Auto: Full Auto %s." % ("on" if on else "off"), "auto")
+	if on: running = true
+	SaveSystem.save_game(); _refresh_controls(); _show_card()
+
+func _auto_tick(delta: float) -> void:
+	var run: Dictionary = GameState.run
+	if pending.is_empty():
+		var why := Delve.auto_should_stop(GameState)
+		if why != "": set_full_auto(false); running = false; GameState.say("Auto: stopped - %s." % why, "warning"); _refresh_controls(); return
+		running = true
+		return
+	_auto_t += delta
+	if _auto_t < AUTO_DELAY: return
+	_auto_t = 0.0
+	match pending.kind:
+		"backpack":
+			while not run.get("overflow", []).is_empty(): GameState.resolve_overflow(-1)
+			GameState.log_line("Auto: dropped the least valuable item.", "auto"); _close_panel()
+		"talents":
+			GameState.auto_pick_talents(run.hero); GameState.log_line("Auto: picked talents.", "auto"); _close_panel()
+		"settings", "confirm_abandon": pass
+		_: auto_act(Delve.auto_decide(GameState, pending))
+
+## Carry out one Full Auto decision on the open card (also used by tests).
+func auto_act(d: Dictionary) -> void:
+	GameState.log_line("Auto: " + String(d.why), "auto")
+	match d.act:
+		"fight": _fight(pending, {})
+		"door": _choose_door(pending.door[d.side])
+		"special":
+			if int(d.index) >= 0: _special_option(pending.special.options[int(d.index)])
+			else: pending = {}; _show_card()
+		"ignore": pending = {}; _show_card()
+		"search": GameState.log_line(Delve.search_floor(GameState)); _show_card()
+		"descend": Sfx.play("descend"); Delve.descend(GameState); pending = {}; main.play_floor_music(); _show_card()
+		"deeper": Sfx.play("descend"); Delve.continue_deeper(GameState); pending = {}; main.play_floor_music(); _show_card()
+		"extract": GameState.end_run("extract"); main.show_camp()
+		"stop": set_full_auto(false); running = false; GameState.say("Auto: stopped - %s." % d.why, "warning")
+
+## A soft cue when a card opens (the SPD alarm is never used, DECISIONS #100).
+func _encounter_cue(ev: Dictionary) -> void:
+	match ev.get("kind", ""):
+		"door", "special": Sfx.play("door_open")
+		"combat": Sfx.buzz(25)
 
 ## Delve Bar speed = Settings "Delve speed" x the in-run x3 toggle.
 func speed_mult() -> float:
 	return float(GameState.settings.get("delve_speed", 1.0)) * (3.0 if fast else 1.0)
 
+var _log_box: VBoxContainer
+var _log_serial := -1
+const LOG_LINES := 8
+## SPD-coloured log under the bar; rebuilt only when a line is added.
+func _fill_log() -> void:
+	if not is_instance_valid(_log_box) or _log_serial == GameState.log_serial: return
+	_log_serial = GameState.log_serial
+	UIKit.clear(_log_box)
+	var msgs := GameState.messages; var kinds := GameState.message_kinds
+	for i in range(maxi(0, msgs.size() - LOG_LINES), msgs.size()):
+		var k: String = kinds[i] if i < kinds.size() else "info"
+		_log_box.add_child(UIKit.label(msgs[i], 0.8, GameState.LOG_COLORS.get(k, Color("bdb3a0"))))
+
+var _stats_cache := {}
+var _stats_key := ""
+var _pane_key := ""
+var _row_key := ""
+## Perf (DECISIONS #99): this runs every frame, so it only touches UI when something visible changed and only
+## recomputes hero_stats when level/gear change.
 func _refresh() -> void:
 	var run: Dictionary = GameState.run
 	if run.is_empty(): return
-	var s: Dictionary = GameState.hero_stats(run.hero)
+	var h: Dictionary = GameState.heroes[run.hero]
+	var sk := "%s|%d|%s|%s|%s|%s" % [run.hero, int(h.level), h.weapon, h.armor, h.ring, h.get("artifact", 0)]
+	if sk != _stats_key: _stats_key = sk; _stats_cache = GameState.hero_stats(run.hero)
+	var s: Dictionary = _stats_cache
+	if pending.is_empty(): _fill_log()
 	title.text = "%s - Floor %d / %d" % [DB.biomes[run.biome].name, run.floor, DB.biomes[run.biome].floors[1]]
 	bar.value = run.progress
 	if pane.hero_sprite == null or pane.hero_row != int(s.row): pane.set_hero(s.sprite, int(s.fw), int(s.fh), int(s.row))
@@ -83,10 +158,17 @@ func _refresh() -> void:
 	elif float(run.torch) > 0: bl.append(22)                   # LIGHT
 	if float(run.satiety) <= 0: bl.append(6)                   # STARVATION
 	elif float(run.satiety) < 30: bl.append(5)                 # HUNGER
-	pane.set_data({"name": s.name, "level": GameState.heroes[run.hero].level, "hp": run.hp, "ht": s.ht, "buffs": bl,
-		"depth": "F%d" % int(run.get("floor", 1)),
-		"minis": [{"kind": "exp", "frac": float(run.torch) / 100.0, "text": "Torch %d%%" % run.torch},
-			{"kind": "shield", "frac": float(run.satiety) / 100.0, "text": "Food %d%%" % run.satiety}]})
+	var pk := "%d|%d|%d|%d|%s|%d" % [int(run.hp), int(s.ht), int(run.torch), int(run.satiety), bl, int(run.get("floor", 1))]
+	if pk == _pane_key and _row_key == _supplies_key(run): return
+	if pk != _pane_key:
+		_pane_key = pk
+		pane.set_data({"name": s.name, "level": GameState.heroes[run.hero].level, "hp": run.hp, "ht": s.ht, "buffs": bl,
+			"depth": "F%d" % int(run.get("floor", 1)),
+			"minis": [{"kind": "exp", "frac": float(run.torch) / 100.0, "text": "Torch %d%%" % run.torch},
+				{"kind": "shield", "frac": float(run.satiety) / 100.0, "text": "Food %d%%" % run.satiety}]})
+	var rk := _supplies_key(run)
+	if rk == _row_key: return
+	_row_key = rk
 	UIKit.clear(stats)
 	var line := ""
 	if Delve.darkness(run): line += "DARK: no Barrier in fights!   "
@@ -105,6 +187,9 @@ func _refresh() -> void:
 	if not run.pack_gear.is_empty():
 		var il := UIKit.label("+%d items" % run.pack_gear.size(), 0.85); il.autowrap_mode = TextServer.AUTOWRAP_OFF; flow.add_child(il)
 
+func _supplies_key(run: Dictionary) -> String:
+	return "%s|%s|%d|%s|%s" % [run.supplies, run.pack, run.pack_gear.size(), Delve.darkness(run), float(run.satiety) <= 0.0]
+
 func _refresh_controls() -> void:
 	if controls == null: return
 	UIKit.clear(controls)
@@ -112,7 +197,10 @@ func _refresh_controls() -> void:
 	var b1 := UIKit.button("Pause" if running else "Resume", func(): running = not running; _refresh_controls()); b1.custom_minimum_size.x = w
 	var b2 := UIKit.button("Speed x3" if not fast else "Speed x1", func(): fast = not fast; _refresh_controls()); b2.custom_minimum_size.x = w
 	UIKit.as_toolbar(b1, "sleep" if running else "arrow"); UIKit.as_toolbar(b2, "busy")
-	controls.add_child(b1); controls.add_child(b2)
+	var fa: bool = GameState.settings.get("full_auto", false)
+	var b0 := UIKit.button("Full Auto: ON" if fa else "Full Auto", func(): set_full_auto(not GameState.settings.get("full_auto", false))); b0.custom_minimum_size.x = w
+	UIKit.as_toolbar(b0, "busy"); b0.name = "FullAuto"
+	controls.add_child(b1); controls.add_child(b2); controls.add_child(b0)
 	if int(GameState.run.get("supplies", {}).get("scroll_passage", 0)) > 0:
 		var b3 := UIKit.button("Read Scroll of Passage (extract)", func():
 			GameState.run.supplies.scroll_passage -= 1; Sfx.play("read"); GameState.end_run("extract"); main.show_camp()); b3.custom_minimum_size.x = w * 2
@@ -163,9 +251,7 @@ func _show_card() -> void:
 	if pending.is_empty():
 		var hint := "Exploring... encounters every ~20-25%." if running else "Paused."
 		card_host.add_child(UIKit.label(hint, 0.9, Color("9a8f7c")))
-		var log := UIKit.vbox(card_host)
-		var msgs := GameState.messages
-		for i in range(maxi(0, msgs.size() - 6), msgs.size()): log.add_child(UIKit.label(msgs[i], 0.8, Color("bdb3a0")))
+		_log_box = UIKit.vbox(card_host); _log_serial = -1; _fill_log()
 		return
 	if main and pending.kind in ["door", "special", "floor_done", "campfire"]: main.tip(pending.kind)
 	match pending.kind:
@@ -232,7 +318,7 @@ func _card_door() -> void:
 	v.add_child(UIKit.secondary(UIKit.button("Ignore both", func(): pending = {}; _show_card())))
 
 func _choose_door(o: Dictionary) -> void:
-	Sfx.play("door_open")
+	Sfx.play("door_open"); GameState.log_line("Chose: " + String(o.text), "info")
 	match o.kind:
 		"combat":
 			var ev := Delve.combat_event(GameState.run, Delve.rng_for(GameState.run, 77), o.mobs)
@@ -259,6 +345,7 @@ func _card_special() -> void:
 		v.add_child(UIKit.action(o.text, func(): _special_option(o), why))
 
 func _special_option(o: Dictionary) -> void:
+	GameState.log_line("Chose: " + String(o.text), "info")
 	if o.has("fight"):
 		# "biome": a regular encounter of this biome/floor (garden grass, sacrificial fire - DECISIONS #91)
 		var ev := Delve.combat_event(GameState.run, Delve.rng_for(GameState.run, 55), [] if typeof(o.fight) == TYPE_STRING else o.fight)

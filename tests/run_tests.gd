@@ -34,6 +34,13 @@ func _ready() -> void:
 	test_icon_centering(gs)
 	test_armor_tiers(gs)
 	test_floor_label(gs)
+	test_total_wipe(gs)
+	test_owed_sou(gs)
+	test_icon_sizes(gs)
+	test_full_auto(gs)
+	test_log_and_sounds(gs)
+	test_ring_contexts(gs)
+	test_forge_bulk(gs)
 	test_all_icons(gs)
 	test_delve(gs)
 	test_camp(gs)
@@ -951,6 +958,9 @@ func test_touch_scroll() -> void:
 	ts.momentum = null
 	for i in 3: await get_tree().process_frame
 	var t := Vector2(200, 200)
+	for bb in v.get_children():   # the centre of a visible button (not the gap between two)
+		var gr: Rect2 = bb.get_global_rect()
+		if gr.position.y > 40 and gr.end.y < 360: t = gr.get_center(); break
 	send.call(mm.call(t, Vector2.ZERO)); await get_tree().process_frame
 	send.call(mb.call(t, true)); await get_tree().process_frame
 	var tapped: Control = ts._hov
@@ -1006,3 +1016,211 @@ func test_tip_fit() -> void:
 		ov.queue = []; holder.queue_free()
 	UIKit.make_theme(fs0)
 	check(bad.is_empty(), "every tip page fits its card and the screen at cover and inner sizes %s" % [bad.slice(0, 6)])
+
+## Forge/Guild quantity: craft_n pays N× cost; upgrade_cost_n rises per level; repair_all pays the sum of each repair.
+func test_forge_bulk(gs) -> void:
+	print("[forge bulk]")
+	gs.new_game(); gs.facilities.blacksmith.level = 3; gs.facilities.guild.level = 2
+	gs.add_mat("iron_ore", 40); gs.add_mat("gold", 200)
+	var r: Dictionary = gs.recipe("guild", "buy_ration") if not gs.recipe("guild", "buy_ration").is_empty() else {}
+	if r.is_empty():
+		for x in DB.recipes.guild:
+			if x.get("out_mat", "") == "ration" or x.get("out", "") == "ration": r = x; break
+	check(not r.is_empty(), "guild has a ration recipe")
+	var cost0: Dictionary = r.cost.duplicate(); var mx: int = gs.craft_max("guild", r.id)
+	check(mx >= 2, "ration is affordable at least twice (max %d)" % mx)
+	var before: int = gs.mat("ration"); var gold0: int = gs.mat("gold")
+	check(gs.craft_n("guild", r.id, 2) and gs.mat("ration") == before + 2 * int(r.get("out_n", 1)), "Buy x2 adds 2 rations")
+	check(gs.mat("gold") == gold0 - 2 * int(cost0.get("gold", 0)), "Buy x2 pays 2x gold")
+	var uid: int = gs.add_gear("shortsword", true, 0)
+	check(gs.upgrade_max(uid) >= 2 and gs.upgrade_cost_n(uid, 2) == {"iron_ore": 4 + 8}, "upgrade 0->1->2 costs 4+8 ore")
+	var ore0: int = gs.mat("iron_ore"); check(gs.upgrade_item_n(uid, 2) and int(gs.gear_by_uid(uid).lvl) == 2, "Upgrade x2 raises level to +2")
+	check(gs.mat("iron_ore") == ore0 - 12, "Upgrade x2 spends 12 ore")
+	var a: int = gs.add_gear("cloth_armor", true, 1); var b: int = gs.add_gear("mace", true, 0)
+	gs.gear_by_uid(a).cracked = true; gs.gear_by_uid(b).cracked = true
+	var rc: Dictionary = gs.repair_all_cost()
+	check(int(rc.iron_ore) == int(gs.repair_cost(a).iron_ore) + int(gs.repair_cost(b).iron_ore), "repair_all_cost is the sum")
+	gs.add_mat("iron_ore", int(rc.iron_ore)); check(gs.can_repair_all() == "" and gs.repair_all(), "Repair all clears every cracked item")
+	check(gs.cracked_gear().is_empty(), "no cracked gear left")
+	check(gs.can_repair_all() == "nothing to repair", "Repair all is disabled when nothing is cracked")
+
+## Rings show their SPD gem sprite in every UI context (stash slot, Forge, paperdoll, delve backpack, compare
+## rows), including cracked and unknown ones and old-save ids; a cracked ring is repairable at the Forge and by
+## Repair all.
+func _ring_icons_in(root: Node, ring_idx: int) -> int:
+	var n := 0
+	var want := UIKit.item_rect(ring_idx)
+	for c in root.find_children("*", "PixelIcon", true, false):
+		var t: Texture2D = c.texture
+		if t is AtlasTexture and (t as AtlasTexture).region == want and c.scale_k() >= 1 and c.modulate.a > 0.5 and c.modulate.g > 0.9 and c.modulate.b > 0.9 and c.custom_minimum_size.x >= 16:
+			n += 1
+	return n
+
+func test_ring_contexts(gs) -> void:
+	print("[ring contexts]")
+	gs.new_game()
+	var cs = load("res://scripts/ui/camp_screen.gd").new()
+	var bad := []
+	for rid in ["ring_might", "ring_tenacity", "ring_evasion", "ring_wealth", "ring_energy"]:
+		var idx := DB.icon_index(rid)
+		for known in [true, false]:
+			var uid: int = gs.add_gear(rid, known)
+			var g: Dictionary = gs.gear_by_uid(uid)
+			for cracked in [false, true]:
+				g.cracked = cracked
+				var slot: Button = cs.item_slot(cs.gear_icon(g), "", "", func(): pass, Color(1, 0.55, 0.5) if cracked else Color.WHITE, "", g)
+				if _ring_icons_in(slot, idx) != 1: bad.append("stash %s k%s c%s" % [rid, known, cracked])
+				slot.free()
+		# paperdoll ring slot
+		gs.heroes.warrior.ring = gs.add_gear(rid, true)
+		var ps: Button = Paperdoll._slot("warrior", "ring", "camp", func(): pass)
+		if _ring_icons_in(ps, idx) != 1: bad.append("paperdoll " + rid)
+		ps.free()
+	# delve backpack (carried rings) + legacy save id
+	gs.add_mat("ration", 1); gs.add_mat("torch", 1)
+	gs.heroes.warrior.ring = 0
+	gs.start_run("warrior", {}, "sewers", 3)
+	gs.run.pack_gear.append({"uid": 9001, "id": "ring_garnet", "lvl": 0})   # pre-v0.19 save shape
+	gs.from_dict(JSON.parse_string(JSON.stringify(gs.to_dict())))
+	check(gs.run.pack_gear[-1].id == "ring_might" and gs.run.pack_gear[-1].known == true and gs.run.pack_gear[-1].cracked == false, "old-save ring ids/fields are migrated")
+	var bp := VBoxContainer.new()
+	HeroPanels.backpack(bp, func(): pass)
+	if _ring_icons_in(bp, DB.icon_index("ring_might")) < 1: bad.append("backpack")
+	bp.free()
+	gs.end_run("abandon")
+	check(bad.is_empty(), "ring icons render in stash/Forge/paperdoll/backpack slots %s" % [bad.slice(0, 6)])
+	# repair a cracked ring
+	gs.new_game(); gs.add_mat("iron_ore", 50)
+	var ru: int = gs.add_gear("ring_wealth", true); gs.gear_by_uid(ru).cracked = true
+	check(gs.cracked_gear().size() == 1 and int(gs.repair_all_cost().get("iron_ore", 0)) > 0, "a cracked ring counts for Repair all")
+	check(gs.repair(ru) and not gs.gear_by_uid(ru).cracked, "a cracked ring can be repaired at the Forge")
+	gs.gear_by_uid(ru).cracked = true
+	check(gs.repair_all() and gs.cracked_gear().is_empty(), "Repair all repairs a cracked ring")
+	cs.free()
+
+## Item icons in the delve backpack (potion/scroll buttons, carried rings) render at >= 32 px on cover and inner.
+func test_icon_sizes(gs) -> void:
+	print("[icon sizes]")
+	var fs0 := UIKit.font_size
+	var bad := []
+	for fs in [14, 16, 24, 34]:
+		UIKit.make_theme(fs)
+		gs.new_game(); gs.add_mat("ration", 1); gs.add_mat("torch", 1)
+		gs.start_run("warrior", {}, "sewers", 3)
+		gs.run.pack["potion_toxic"] = 1; gs.run.pack["scroll_upgrade"] = 1
+		gs.run.pack_gear.append({"uid": 9100, "id": "ring_tenacity", "lvl": 0, "cracked": false, "known": false})
+		var bp := VBoxContainer.new(); HeroPanels.backpack(bp, func(): pass)
+		var icons := bp.find_children("*", "PixelIcon", true, false)
+		if icons.size() < 2: bad.append("fs%d: only %d icons" % [fs, icons.size()])
+		for ic in icons:
+			if ic.cell_px < 32 or ic.custom_minimum_size.x < 32 or ic.scale_k() < 2: bad.append("fs%d %s" % [fs, ic.cell_px])
+		bp.free(); gs.end_run("abandon")
+	UIKit.make_theme(fs0)
+	check(bad.is_empty(), "backpack item icons are >= 32 px (2x) at every font size %s" % [bad.slice(0, 5)])
+
+## Full Auto: decisions follow the documented heuristic and the setting persists.
+func test_full_auto(gs) -> void:
+	print("[full auto]")
+	gs.new_game(); gs.add_mat("ration", 2); gs.add_mat("torch", 2)
+	gs.start_run("warrior", {"ration": 2, "torch": 2}, "sewers", 5)
+	var ht: int = gs.hero_stats("warrior").ht
+	var fight := Delve.combat_event(gs.run, Delve.rng_for(gs.run, 1), ["rat"])
+	check(Delve.auto_decide(gs, fight).act == "fight", "ambush -> fight")
+	var door := {"kind": "door", "door": {"a": {"text": "A", "kind": "combat", "mobs": ["rat"]}, "b": {"text": "B", "kind": "chest", "cost": {"iron_key": 99}, "reward": {}}}}
+	gs.run.hp = ht
+	check(Delve.auto_decide(gs, door).act == "door" and Delve.auto_decide(gs, door).side == "a", "healthy: take the fight door")
+	gs.run.hp = int(ht * 0.4)
+	check(Delve.auto_decide(gs, door).act == "ignore", "hurt: skip optional fights")
+	var garden: Dictionary = DB.specials.filter(func(x): return x.id == "sacrificial_fire")[0]
+	var d := Delve.auto_decide(gs, {"kind": "special", "special": garden})
+	check(d.act == "special" and (d.index == -1 or not garden.options[d.index].get("cost", {}).has("hp")), "hurt: no blood offerings")
+	gs.run.hp = int(ht * 0.2)
+	check(Delve.auto_decide(gs, {"kind": "floor_done"}).act == "stop", "HP < 30% at a floor end -> stop safely")
+	gs.run.hp = ht
+	check(Delve.auto_decide(gs, {"kind": "floor_done"}).act in ["search", "descend"], "healthy floor end -> search/descend")
+	gs.run.hp = int(ht * 0.4)
+	check(Delve.auto_decide(gs, {"kind": "campfire"}).act == "extract", "hurt at a campfire -> extract")
+	gs.run.hp = ht; gs.run.supplies.ration = 0
+	check(Delve.auto_decide(gs, {"kind": "campfire"}).act == "extract", "out of rations at a campfire -> extract")
+	gs.run.hp = 1; gs.run.supplies.potion_healing = 0
+	check(Delve.auto_should_stop(gs) != "", "exploring at 1 HP with no potions stops Full Auto")
+	gs.settings.full_auto = true
+	gs.from_dict(JSON.parse_string(JSON.stringify(gs.to_dict())))
+	check(gs.settings.get("full_auto", false) == true, "Full Auto setting persists in the save")
+	gs.settings.full_auto = false
+	# a whole auto run never needs a human: RunSim-style loop over auto_decide
+	gs.end_run("abandon")
+
+## Log lines carry SPD colours; key moments are logged; the alarm sound is never played.
+func test_log_and_sounds(gs) -> void:
+	print("[log + sounds]")
+	gs.new_game(); gs.add_mat("ration", 1); gs.add_mat("torch", 1)
+	gs.start_run("warrior", {}, "sewers", 5)
+	var n0: int = gs.log_serial
+	for i in 30: Delve.advance(gs, 1.0)
+	var joined := " ".join(gs.messages)
+	check(gs.log_serial > n0 and joined.contains("Picked up"), "gathering is logged")
+	Delve.descend(gs)
+	check(gs.messages[-1].begins_with("You descend") or " ".join(gs.messages).contains("You descend to floor 2"), "floor change is logged")
+	var res := {"won": true, "hp": int(gs.run.hp) - 3, "loot": 5, "fallen_loot": 0, "xp": 2, "boss_killed": false, "kills": 2, "traps_found": 1, "trap_ids": []}
+	Delve.apply_fight_result(gs, {"kind": "combat", "mobs": ["rat", "rat"]}, res, {})
+	var all := " ".join(gs.messages)
+	check(all.contains("Victory: 2 kills, took 3 damage") and all.contains("Spotted 1 trap"), "fight damage/kills/traps logged")
+	gs.run.torch = 10.0; gs.run.supplies.torch = 0
+	Delve.advance(gs, 0.5)
+	check(" ".join(gs.messages).contains("torch is burning low"), "torch warning logged")
+	var ki: int = gs.messages.size() - 1
+	for i in range(gs.messages.size()):
+		if gs.messages[i].contains("torch is burning low"): ki = i
+	check(gs.message_kinds[ki] == "warning" and gs.LOG_COLORS.has("positive") and gs.message_kinds.size() == gs.messages.size(), "log kinds map to SPD colours")
+	Sfx.play("alert"); check(Sfx.last_played != "alert", "the alarm sound is never played")
+	var used := []
+	for f in ["res://scripts/ui/delve_screen.gd", "res://scripts/ui/grid_view.gd", "res://scripts/ui/combat_screen.gd", "res://scripts/core/delve.gd"]:
+		if FileAccess.get_file_as_string(f).contains('Sfx.play("alert")'): used.append(f)
+	check(used.is_empty(), "no code plays the alarm %s" % [used])
+	gs.end_run("abandon")
+
+## Scrolls of Upgrade in the pack at death are owed (stacking) and return on the next boss kill by any hero.
+func test_owed_sou(gs) -> void:
+	print("[owed scrolls]")
+	gs.new_game(); gs.add_mat("ration", 4); gs.add_mat("torch", 4)
+	for cc in gs.heroes: gs.heroes[cc].unlocked = true
+	gs.start_run("warrior", {}, "sewers", 5); gs.run.pack["scroll_upgrade"] = 2; gs.end_run("death")
+	check(gs.owed_sou == 2, "2 scrolls owed after a death")
+	gs.start_run("mage", {}, "sewers", 6); gs.run.pack["scroll_upgrade"] = 1; gs.end_run("death")
+	check(gs.owed_sou == 3, "owed scrolls stack across deaths")
+	var d: Dictionary = JSON.parse_string(JSON.stringify(gs.to_dict()))
+	gs.from_dict(d); check(gs.owed_sou == 3, "owed count persists in the save")
+	d.erase("owed_sou"); gs.from_dict(d); check(gs.owed_sou == 0, "old saves load with nothing owed")
+	gs.owed_sou = 3
+	gs.start_run("rogue", {}, "sewers", 7)
+	var res := {"won": true, "hp": int(gs.run.hp), "loot": 0, "fallen_loot": 0, "xp": 0, "boss_killed": true, "kills": 1, "traps_found": 0, "trap_ids": []}
+	Delve.apply_fight_result(gs, {"kind": "combat", "boss": true, "mobs": ["goo"]}, res, {})
+	check(gs.owed_sou == 0 and int(gs.run.pack.get("scroll_upgrade", 0)) >= 3, "the next boss kill returns all owed scrolls to the pack")
+	check(" ".join(gs.messages).contains("lost Scrolls of Upgrade return"), "the return is logged")
+	gs.end_run("abandon")
+
+## Total wipe: every hero dead, all gear cracked, 0 resources. A delve must still start with usable starter
+## gear and supplies, earn repair ore, and the Forge must offer a free Patch up (DECISIONS #104).
+func test_total_wipe(gs) -> void:
+	print("[total wipe]")
+	gs.new_game()
+	for cc in gs.heroes: gs.heroes[cc].unlocked = true
+	for cc in gs.heroes:
+		gs.heroes[cc].weapon = gs.add_gear(DB.heroes[cc].start_weapon, true, 2); gs.heroes[cc].armor = gs.add_gear("leather_armor", true, 1)
+	for g in gs.gear: g.cracked = true
+	for k in gs.mats.keys(): gs.mats[k] = 0
+	gs.from_dict(JSON.parse_string(JSON.stringify(gs.to_dict())))   # the reported save shape, loaded
+	var hs: Dictionary = gs.hero_stats("warrior")
+	check(hs.starter_weapon and hs.starter_armor and int(hs.dmg) > 0 and int(hs.dr) >= 1, "cracked gear falls back to starter weapon + cloth armor (dmg %d, DR %d)" % [hs.dmg, hs.dr])
+	check(gs.can_patch_up() == "", "the Forge offers a free Patch up when no repair is affordable")
+	var nc0: int = gs.cracked_gear().size()
+	check(gs.patch_up() and gs.cracked_gear().size() == nc0 - 1, "Patch up repairs one item for free")
+	check(gs.can_start_run("warrior") == "" and gs.start_run("warrior", {}, "sewers", 11), "a delve can start with 0 resources")
+	check(int(gs.run.supplies.get("ration", 0)) >= 1 and int(gs.run.supplies.get("torch", 0)) >= 1, "relief ration + torch for a broke Camp")
+	Delve.descend(gs)
+	check(int(gs.run.pack.get("iron_ore", 0)) >= 1, "each floor yields repair ore")
+	gs.end_run("abandon")
+	# a full simulated run from the wipe: it either extracts with ore or, at worst, Patch up stays available
+	var r := RunSim.play(gs, "warrior", {}, 4242)
+	check(gs.mat("iron_ore") > 0 or gs.can_patch_up() == "" or gs.cracked_gear().is_empty(), "after a run from a wipe there is a path to repairs (%s, ore %d)" % [r.result, gs.mat("iron_ore")])

@@ -55,19 +55,41 @@ func _ready() -> void:
 			main.screen.compare(GameState.gear.filter(func(g): return g.id == "mace")[0])])
 		plan.append([sz, "camp_toast", func():
 			main.show_camp(); main.screen.open_page("Guild"); GameState.say("Bought a Ration.")])
-		plan.append([sz, "camp_stash", func(): main.show_camp(); main.screen.open_page("Stash")])
-		plan.append([sz, "forge", func(): main.show_camp(); main.screen.open_page("Forge")])
+		plan.append([sz, "camp_stash", func():
+			# every ring kind, known + unknown + cracked, a potion and a scroll: the icons must all show
+			for rid in ["ring_might", "ring_tenacity", "ring_evasion", "ring_wealth", "ring_energy"]:
+				GameState.add_gear(rid, true); GameState.add_gear(rid, false)
+			var cr: int = GameState.add_gear("ring_might", true); GameState.gear_by_uid(cr).cracked = true
+			GameState.add_mat("potion_toxic", 1); GameState.add_mat("scroll_upgrade", 1)
+			main.show_camp(); main.screen.open_page("Stash")])
+		plan.append([sz, "forge", func():
+			GameState.add_mat("iron_ore", 40); GameState.add_mat("dark_gold", 5); GameState.add_mat("gold", 100)
+			GameState.facilities.blacksmith.level = 3
+			var a: int = GameState.add_gear("shortsword", true, 0); var b: int = GameState.add_gear("cloth_armor", true, 1)
+			GameState.gear_by_uid(a).cracked = true; GameState.gear_by_uid(b).cracked = true
+			var rg: int = GameState.add_gear("ring_wealth", true); GameState.gear_by_uid(rg).cracked = true
+			main.show_camp(); main.screen.open_page("Forge")])
 		plan.append([sz, "camp_forge_info", func():
 			main.show_camp(); main.screen.open_page("Forge")
+			var uid: int = GameState.add_gear("mace", true, 0)
+			main.screen._gear_forge_info(GameState.gear_by_uid(uid), ["+0  ->  +N"], "")])
+		plan.append([sz, "camp_forge_buy", func():
+			main.show_camp(); main.screen.open_page("Forge")
 			var r: Dictionary = DB.recipes.blacksmith[0]
-			main.screen.info(r.out, r.name, [main.screen.cost_row(r.cost), "A sample recipe."], [["Make", func(): pass, ""]])])
+			main.screen._recipe_info("blacksmith", r, r.out, [main.screen.cost_row(r.cost)], "")])
 		plan.append([sz, "camp_alchemy", func():
 			GameState.add_mat("potion_toxic", 1); GameState.add_mat("seeds", 3)
 			main.show_camp(); main.screen.alch_sel = "transmute_toxic"; main.screen.open_page("Alchemy")])
 		plan.append([sz, "camp_enchanter", func():
 			var u: int = GameState.add_gear("ring_wealth", false); GameState.add_gear("ring_evasion", false); GameState.enqueue_identify(u)
 			main.show_camp(); main.screen.open_page("Enchanter")])
-		plan.append([sz, "camp_guild", func(): main.show_camp(); main.screen.open_page("Guild")])
+		plan.append([sz, "camp_guild", func():
+			GameState.add_mat("gold", 200); GameState.facilities.guild.level = 2
+			main.show_camp(); main.screen.open_page("Guild")])
+		plan.append([sz, "camp_guild_buy", func():
+			main.show_camp(); main.screen.open_page("Guild")
+			var r: Dictionary = GameState.recipe("guild", "buy_ration")
+			main.screen._recipe_info("guild", r, r.out_mat, [main.screen.cost_row(r.cost)], "")])
 		plan.append([sz, "journal", func():
 			GameState.stats.extractions = 1; GameState.stats.kills = 37; GameState.touch()
 			main.show_camp(); main.screen.open_page("Journal")])
@@ -86,19 +108,26 @@ func _ready() -> void:
 			for i in 30: Delve.advance(GameState, 1.0)
 			main.delve.pending = {"kind": "door", "door": DB.doors[0]}; main.delve._show_card()])
 		plan.append([sz, "delve_walk", func():
+			_fresh_warrior_run(); main.show_delve()
 			GameState.heroes.warrior.armor = GameState.add_gear("scale_armor")   # armor tier row must show
 			main.delve.pending = {}; main.delve.running = true; main.delve._show_card()
-			main.delve.scene.scroll = main.delve.scene.target - 0.6; main.delve.scene.pops.append({"id": "GOLD", "age": 0.2, "n": 1})])
+			main.delve.scene.scroll = main.delve.scene.target - 0.6; main.delve.scene.pops.append({"idx": DB.icon_index("gold"), "age": 0.2, "n": 3}); main.delve.scene.glow = 0.8])
 		plan.append([sz, "delve_enemy", func():
 			main.delve.running = false
 			main.delve.pending = Delve.combat_event(GameState.run, Delve.rng_for(GameState.run, 4), ["gnoll", "rat"]); main.delve._show_card()])
 		plan.append([sz, "delve_special", func():
 			main.delve.running = false
 			main.delve.pending = {"kind": "special", "special": DB.specials[0]}; main.delve._show_card()])
+		plan.append([sz, "delve_auto", func():
+			main.delve.pending = {}; GameState.settings.full_auto = true
+			GameState.log_line("Auto: fight Marsupial Rat", "auto"); GameState.log_line("Victory: 2 kills, took 3 damage, +5 gold, +2 xp.", "positive")
+			GameState.log_line("Warning: your torch is burning low.", "warning"); GameState.log_line("You descend to floor 2.", "highlight")
+			main.delve._refresh_controls(); main.delve._show_card(); GameState.settings.full_auto = false])
 		plan.append([sz, "backpack", func():
 			_fresh_warrior_run()
 			if GameState.run.pack_gear.is_empty():
 				Delve.reward(GameState, {"item": "mace"}); Delve.reward(GameState, {"item": "mail_armor"}); Delve.reward(GameState, {"item_unknown": "ring"})
+				GameState.run.pack["potion_toxic"] = 1; GameState.run.pack["scroll_upgrade"] = 1
 			main.show_delve(); main.delve._open_panel("backpack")])
 		plan.append([sz, "talents", func():
 			GameState.heroes.warrior.level = 9; GameState.heroes.warrior.talents = ["hearty_meal"]

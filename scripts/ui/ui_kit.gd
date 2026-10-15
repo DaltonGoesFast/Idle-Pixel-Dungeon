@@ -179,8 +179,9 @@ static func icon(id: String, px := -1) -> PixelIcon:
 	at.region = item_rect(DB.icon_index(id))
 	var t := PixelIcon.new()
 	t.texture = at
+	# never below 2x (32 px): at 1x an 8-px ring or potion is a dot on the Fold (DECISIONS #98)
 	var s := px if px > 0 else int(font_size * 1.5)
-	s = maxi(16, int(s / 16) * 16)
+	s = maxi(32, int(s / 16) * 16)
 	t.cell_px = s
 	t.custom_minimum_size = Vector2(s, s)
 	var tint: String = DB.materials.get(id, {}).get("tint", "")

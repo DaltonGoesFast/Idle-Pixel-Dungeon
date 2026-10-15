@@ -100,10 +100,11 @@ static func backpack(parent: Control, refresh: Callable, in_combat := false, on_
 			v.add_child(UIKit.label("Potions & scrolls", 0.9, Color("c9a96e")))
 			var cf := HFlowContainer.new(); v.add_child(cf)
 			for k in cons:
+				var pr := UIKit.hbox(); cf.add_child(pr)
+				pr.add_child(UIKit.icon(k))   # integer-scaled PixelIcon, not a 1x Button icon (DECISIONS #98)
 				var cb := UIKit.button("%s x%d" % [DB.mat_name(k), int(run.pack[k])], func(): GameState.delve_use_pack(k); refresh.call())
-				cb.icon = UIKit.icon(k).texture; cb.expand_icon = false
 				cb.tooltip_text = DB.materials[k].desc if GameState.is_mat_known(k) else "Unidentified - use it to find out."
-				cf.add_child(cb)
+				pr.add_child(cb)
 	# carried
 	v.add_child(UIKit.label("Carried" if not run.pack_gear.is_empty() else "Carried: nothing yet", 0.9, Color("c9a96e")))
 	for g in run.pack_gear:

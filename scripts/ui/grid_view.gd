@@ -132,7 +132,7 @@ func play_events(evs: Array) -> void:
 				streaks.append({"from": Vector2(e.from), "to": Vector2(e.to), "t": 0.0, "magic": e.get("magic", true)})
 				Sfx.play("zap" if e.get("magic", true) else "atk_spiritbow")
 			"blast": blasts.append({"pos": Vector2(e.pos), "t": 0.0}); Sfx.play("hit_crush")
-			"telegraph": Sfx.play("alert"); Sfx.buzz(20)
+			"telegraph": Sfx.buzz(20)   # no alarm sound (DECISIONS #100)
 			"shock": blasts.append({"pos": Vector2(e.pos), "t": 0.0, "shock": true})
 			"burn": blasts.append({"pos": Vector2(e.pos), "t": 0.0, "fire": true}); Sfx.play("burning")
 			"move":

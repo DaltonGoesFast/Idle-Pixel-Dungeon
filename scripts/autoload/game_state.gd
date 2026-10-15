@@ -20,7 +20,7 @@ var id_queue: Array = []           # [{uid, ready_at}]
 var boss_kills: Dictionary = {}    # class -> [biome ids]  (first kill per class drops a Scroll of Upgrade)
 ## text_scale multiplies the UI font size; haptics = vibrate on hits/traps (Android); dev_tools shows the Developer section.
 var settings := {"sfx": 0.8, "music": 0.5, "haptics": true, "text_scale": 1.0, "dev_tools": false, "tutorial": true,
-	"delve_speed": 1.0, "lighting": true}
+	"delve_speed": 1.0, "lighting": true, "full_auto": false}
 const STATS_DEFAULT := {"potions_brewed": 0, "deepest_floor": 0, "runs": 0, "deaths": 0, "extractions": 0, "kills": 0,
 	"traps_found": 0, "hidden_doors": 0, "goo_kills": 0, "tengu_kills": 0}
 var stats := STATS_DEFAULT.duplicate()
@@ -38,20 +38,51 @@ func _ready() -> void:
 func now() -> float:
 	return Time.get_unix_time_from_system() + time_offset
 
-func say(t: String) -> void:
-	messages.append(t)
-	if messages.size() > 80: messages.remove_at(0)
+## SPD GLog-style colours (DECISIONS #101).
+const LOG_COLORS := {"positive": Color("5cff5c"), "negative": Color("ff5a4a"), "warning": Color("ff9a3c"),
+	"highlight": Color("ffff66"), "info": Color("e8e0d0"), "auto": Color("9fd3ff")}
+var message_kinds: PackedStringArray = []
+var log_serial := 0
+
+static func classify(t: String) -> String:
+	var l := t.to_lower()
+	if l.begins_with("auto:"): return "auto"
+	if l.contains("level up") or l.contains("descend") or l.contains("milestone") or l.contains("first "): return "highlight"
+	if l.contains("starv") or l.contains("defeat") or l.contains("lost") or l.contains("died") or l.contains("took "): return "negative"
+	if l.contains("low") or l.contains("hungry") or l.contains("warning") or l.contains("dark"): return "warning"
+	if l.contains("found") or l.contains("reward") or l.contains("+") or l.contains("gold") or l.contains("repaired") or l.contains("victory"): return "positive"
+	return "info"
+
+## Message for the log *and* a toast.
+func say(t: String, kind := "") -> void:
+	log_line(t, kind)
 	toast.emit(t)
+
+## Log only (chatty lines: gathering, damage, auto decisions).
+func log_line(t: String, kind := "") -> void:
+	messages.append(t); message_kinds.append(kind if kind != "" else classify(t)); log_serial += 1
+	if messages.size() > 80: messages.remove_at(0); message_kinds.remove_at(0)
 
 func touch() -> void:
 	if not heroes.is_empty(): check_milestones()
 	changed.emit()
 
 # ---------------------------------------------------------------- setup
+## Scrolls of Upgrade lost in a death come back on the next boss kill, any hero (DECISIONS #103).
+var owed_sou := 0
+
+## Called on a boss kill: returns how many owed Scrolls of Upgrade were put back in the pack (0 if none).
+func grant_owed_sou() -> int:
+	if owed_sou <= 0 or run.is_empty(): return 0
+	var n := owed_sou; owed_sou = 0
+	pack_add("scroll_upgrade", n)
+	say("A lost Scroll of Upgrade returns!" if n == 1 else "%d lost Scrolls of Upgrade return!" % n, "highlight")
+	return n
+
 func new_game() -> void:
 	mats = {"gold": 30, "ration": 2, "torch": 2, "potion_healing": 1, "iron_key": 1, "seeds": 2}
 	gear = []; next_uid = 1; id_queue = []; boss_kills = {}; run = {}; time_offset = 0.0
-	stats = STATS_DEFAULT.duplicate(); milestones_claimed = []; seen = {}; tutorial_done = []
+	stats = STATS_DEFAULT.duplicate(); milestones_claimed = []; seen = {}; tutorial_done = []; owed_sou = 0
 	_roll_appearances()
 	facilities = {}
 	for f in DB.facilities: facilities[f] = {"level": 1, "cap": 1}
@@ -119,10 +150,11 @@ func hero_stats(c: String) -> Dictionary:
 	var def: Dictionary = DB.heroes[c]
 	var w := gear_by_uid(h.weapon); var a := gear_by_uid(h.armor); var r := gear_by_uid(h.ring)
 	var art := gear_by_uid(int(h.get("artifact", 0)))
-	# cracked/missing weapon: fight with the class's starting weapon stats (bare minimum)
-	var wd := DB.item(w.id) if not w.is_empty() and not w.cracked else DB.item(def.start_weapon)
-	var ad := DB.item(a.id) if not a.is_empty() and not a.cracked else {}
-	var wl := int(w.get("lvl", 0)); var al := int(a.get("lvl", 0))
+	# cracked/missing weapon or armor: the class's starter gear (SPD starting items: free, never cracks) (DECISIONS #104)
+	var w_ok: bool = not w.is_empty() and not w.cracked; var a_ok: bool = not a.is_empty() and not a.cracked
+	var wd := DB.item(w.id) if w_ok else DB.item(def.start_weapon)
+	var ad := DB.item(a.id) if a_ok else DB.item(def.get("start_armor", "cloth_armor"))
+	var wl := int(w.get("lvl", 0)) if w_ok else 0; var al := int(a.get("lvl", 0)) if a_ok else 0
 	var dmg := int(wd.dmg) + wl * (int(wd.tier) + 1) / 2          # upgrades: +((tier+1)/2) per level
 	if wd.has("dmg_per_levels"): dmg += int(h.level) / int(wd.dmg_per_levels)
 	var dr := int(ad.get("dr", 0)) + al
@@ -134,7 +166,7 @@ func hero_stats(c: String) -> Dictionary:
 	if not r.is_empty() and r.known and not r.cracked:
 		var rd := DB.item(r.id)
 		dmg += int(rd.get("dmg_bonus", 0)); barrier += int(rd.get("barrier_bonus", 0)); dr += int(rd.get("dr_bonus", 0))
-	var s := {"class": c, "name": def.name, "sprite": def.sprite, "fw": def.fw, "fh": def.fh, "row": armor_tier(c),
+	var s := {"starter_weapon": not w_ok, "starter_armor": not a_ok, "class": c, "name": def.name, "sprite": def.sprite, "fw": def.fw, "fh": def.fh, "row": armor_tier(c),
 		"ht": int(def.base_ht) + int(def.ht_per_level) * (int(h.level) - 1),
 		"dmg": dmg, "dr": dr, "barrier_max": barrier, "delay": float(wd.get("delay", 1.0)),
 		"surprise_mult": float(wd.get("surprise_mult", 1.5)), "abilities": def.abilities,
@@ -550,6 +582,98 @@ func repair(uid: int) -> bool:
 	if g.is_empty() or not g.cracked or not pay(repair_cost(uid)): return false
 	g.cracked = false; say("Repaired " + gear_name(g) + "."); touch(); return true
 
+# ---------------------------------------------------------------- bulk Forge/Guild actions (DECISIONS #97)
+const BULK_CAP := 99
+
+static func cost_mul(cost: Dictionary, n: int) -> Dictionary:
+	var out := {}
+	for k in cost: out[k] = int(cost[k]) * n
+	return out
+
+static func cost_add(a: Dictionary, b: Dictionary) -> Dictionary:
+	var out := a.duplicate()
+	for k in b: out[k] = int(out.get(k, 0)) + int(b[k])
+	return out
+
+## How many times recipe `rid` can be made right now (0 when locked/unaffordable), capped at BULK_CAP.
+func craft_max(fac: String, rid: String) -> int:
+	var r := recipe(fac, rid)
+	if r.is_empty() or facility_level(fac) < int(r.min_level): return 0
+	var n := BULK_CAP
+	for k in r.cost:
+		if int(r.cost[k]) > 0: n = mini(n, mat(k) / int(r.cost[k]))
+	return n
+
+## Make `n` copies; all or nothing. Returns true when all were made.
+func craft_n(fac: String, rid: String, n: int) -> bool:
+	if n < 1 or n > craft_max(fac, rid): return false
+	for i in n: craft(fac, rid)
+	return true
+
+## Total iron ore for `n` successive upgrades of one item (costs rise per level).
+func upgrade_cost_n(uid: int, n: int) -> Dictionary:
+	var g := gear_by_uid(uid); var total := {}
+	for i in n: total = cost_add(total, {"iron_ore": 4 * (int(g.lvl) + i + 1)})
+	return total
+
+## Most levels the item can gain now: limited by the Blacksmith cap and by what is affordable.
+func upgrade_max(uid: int) -> int:
+	var g := gear_by_uid(uid)
+	if g.is_empty() or g.get("cracked", false) or not (DB.item(g.id).type in ["weapon", "armor"]): return 0
+	var room := maxi(0, facility_level("blacksmith") - int(g.lvl))
+	var n := 0
+	while n < room and can_afford(upgrade_cost_n(uid, n + 1)): n += 1
+	return n
+
+func upgrade_item_n(uid: int, n: int) -> bool:
+	if n < 1 or n > upgrade_max(uid): return false
+	for i in n: upgrade_item(uid)
+	return true
+
+## "Patch up" (DECISIONS #104): when no cracked item's repair is affordable, the Blacksmith repairs the cheapest
+## cracked weapon/armor for free, so a total wipe can never lock the player out.
+func can_patch_up() -> String:
+	var cr := cracked_gear()
+	if cr.is_empty(): return "nothing to repair"
+	for g in cr:
+		if can_afford(repair_cost(g.uid)): return "you can afford a repair"
+	return ""
+
+func patch_up() -> bool:
+	if can_patch_up() != "": return false
+	var cr := cracked_gear()
+	cr.sort_custom(func(a, b):
+		var wa := 0 if DB.item(a.id).type in ["weapon", "armor"] else 1; var wb := 0 if DB.item(b.id).type in ["weapon", "armor"] else 1
+		if wa != wb: return wa < wb
+		return int(repair_cost(a.uid).iron_ore) < int(repair_cost(b.uid).iron_ore))
+	var g: Dictionary = cr[0]; g.cracked = false
+	say("The Blacksmith patches up your %s for free." % gear_name(g), "positive"); touch(); return true
+
+## Relief supplies: a broke Camp (no rations or torches, can't buy one) gets 1 of each when a run starts.
+const RELIEF_GOLD := 10
+func needs_relief() -> bool:
+	return mat("ration") == 0 and mat("torch") == 0 and mat("gold") < RELIEF_GOLD
+
+func cracked_gear() -> Array:
+	return gear.filter(func(g): return g.get("cracked", false))
+
+func repair_all_cost() -> Dictionary:
+	var total := {}
+	for g in cracked_gear(): total = cost_add(total, repair_cost(g.uid))
+	return total
+
+func can_repair_all() -> String:
+	if cracked_gear().is_empty(): return "nothing to repair"
+	if not can_afford(repair_all_cost()): return "need " + cost_text(repair_all_cost())
+	return ""
+
+func repair_all() -> bool:
+	if can_repair_all() != "": return false
+	var n := 0
+	for g in cracked_gear():
+		if repair(g.uid): n += 1
+	say("Repaired %d item%s." % [n, "" if n == 1 else "s"]); touch(); return true
+
 ## Drink a Starter Elixir at the elevator: raises a level-1 hero to the Sewers baseline (Lv3).
 func use_elixir(c: String) -> bool:
 	var h: Dictionary = heroes[c]
@@ -649,6 +773,10 @@ func can_start_run(c: String) -> String:
 ## loadout: {ration:n, torch:n, potion_healing:n, scroll_passage:n}; taken out of the stash.
 func start_run(c: String, loadout: Dictionary, biome := "sewers", seed := -1) -> bool:
 	if can_start_run(c) != "": return false
+	if needs_relief():
+		add_mat("ration", 1); add_mat("torch", 1)
+		loadout = loadout.duplicate(); loadout.ration = maxi(1, int(loadout.get("ration", 0))); loadout.torch = maxi(1, int(loadout.get("torch", 0)))
+		say("The Camp cook spares you a ration and a torch.", "positive")
 	var sup := {}
 	for k in SUPPLY_KEYS:
 		var n := mini(int(loadout.get(k, 0)), mat(k))
@@ -693,6 +821,10 @@ func end_run(result: String) -> void:
 					if not DB.item(g.id).get("heirloom", false) and DB.item(g.id).type != "wand": g.cracked = true
 					gear.append(g)
 			h.level = 1; h.xp = 0; h.str = 10; h.talents = []
+			var lost_sou := int(run.pack.get("scroll_upgrade", 0))
+			if lost_sou > 0:
+				owed_sou += lost_sou
+				log_line("%d Scroll%s of Upgrade will return on the next boss kill (%d owed)." % [lost_sou, "" if lost_sou == 1 else "s", owed_sou], "highlight")
 			say("%s fell. Pack lost, gear cracked, back to Lv1 / 10 Str." % DB.heroes[c].name)
 		"abandon":
 			for g in run.pack_gear:
@@ -768,7 +900,7 @@ func note_floor(f: int) -> void:
 func to_dict() -> Dictionary:
 	return {"mats": mats, "gear": gear, "next_uid": next_uid, "heroes": heroes, "facilities": facilities,
 		"id_queue": id_queue, "boss_kills": boss_kills, "settings": settings, "run": run, "stats": stats,
-		"milestones_claimed": milestones_claimed, "seen": seen, "tutorial_done": tutorial_done, "looks": looks, "ided": ided}
+		"milestones_claimed": milestones_claimed, "seen": seen, "tutorial_done": tutorial_done, "looks": looks, "ided": ided, "owed_sou": owed_sou}
 
 func from_dict(d: Dictionary) -> void:
 	new_game()
@@ -780,6 +912,7 @@ func from_dict(d: Dictionary) -> void:
 	for f in d.get("facilities", {}):
 		if facilities.has(f): facilities[f].merge(d.facilities[f], true)
 	id_queue = d.get("id_queue", []); boss_kills = d.get("boss_kills", {})
+	owed_sou = int(d.get("owed_sou", 0))   # older saves: nothing owed
 	settings.merge(d.get("settings", {}), true); run = d.get("run", {})
 	stats.merge(d.get("stats", {}), true)
 	milestones_claimed = Array(d.get("milestones_claimed", [])); seen = d.get("seen", {}); tutorial_done = Array(d.get("tutorial_done", []))
@@ -788,12 +921,20 @@ func from_dict(d: Dictionary) -> void:
 	_fix_types()
 	touch()
 
+## Old saves (DECISIONS #98): gear from before item ID lacks known/cracked, and early ring ids used gem names.
+const LEGACY_IDS := {"ring_garnet": "ring_might", "ring_ruby": "ring_tenacity", "ring_topaz": "ring_evasion",
+	"ring_emerald": "ring_wealth", "ring_onyx": "ring_energy", "ring_of_might": "ring_might", "ring_of_tenacity": "ring_tenacity"}
+func _fix_gear(g: Dictionary) -> void:
+	g.uid = int(g.uid); g.lvl = int(g.get("lvl", 0))
+	if not g.has("known"): g.known = true
+	if not g.has("cracked"): g.cracked = false
+	if LEGACY_IDS.has(g.id): g.id = LEGACY_IDS[g.id]
+
 ## JSON turns every number into float; normalise ints we compare/use as keys.
 func _fix_types() -> void:
 	next_uid = int(next_uid)
 	for k in mats: mats[k] = int(mats[k])
-	for g in gear:
-		g.uid = int(g.uid); g.lvl = int(g.lvl)
+	for g in gear: _fix_gear(g)
 	for c in heroes:
 		var h: Dictionary = heroes[c]
 		if not h.has("artifact"): h.artifact = 0
@@ -808,7 +949,7 @@ func _fix_types() -> void:
 		for k in run.pack: run.pack[k] = int(run.pack[k])
 		for k in run.supplies: run.supplies[k] = int(run.supplies[k])
 		for g in run.pack_gear + run.get("overflow", []):
-			g.uid = int(g.uid); g.lvl = int(g.lvl)
+			_fix_gear(g)
 		if run.has("pending_card") and run.pending_card.has("room"):
 			run.pending_card.room = Array(run.pending_card.room); run.pending_card.mobs = Array(run.pending_card.mobs)
 		if run.has("active_fight"):
