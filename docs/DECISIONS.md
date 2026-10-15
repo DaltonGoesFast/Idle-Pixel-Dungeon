@@ -196,3 +196,6 @@ Once the bot could escape multi-tile telegraphs, every Caves sim rose to 9-10/10
 - A heal-per-dwarf lifelink was tried and dropped (King out-healed all damage).
 - Sim: Lv14 tier-4 Warrior wins 6/6 King seeds with 3 potions; cityrun 6/6 Warrior, 5/6 Huntress; hallsrun (floors 1-25 in one run, Lv16 tier-5) 3/4.
 - UI smoke now continues King -> Demon Halls -> Yog-Dzewa -> extract.
+
+## 80. Items with ID (v0.19.0)
+Rings of Evasion/Wealth/Energy and an Artifact slot (Chalice of Blood, Talisman of Foresight, Horn of Plenty) are added. There are six unidentified potions/scrolls with appearances rolled per save. Using one identifies it. Bosses drop an artifact you don't own yet. Teleport skips the next non-boss fight. Wands stay as the class staff, and Ring of Energy adds +1 charge to it.

@@ -6,6 +6,10 @@
 
 
 
+## 0.19.0
+- Items with ID: 3 new rings, artifact slot with 3 artifacts, 6 unidentified potions/scrolls usable from the backpack; boss artifact drops; build.sh renders screenshots (non-blocking).
+- Fix: identified potions/scrolls were reset on load.
+
 ## v0.18.0 — King phases
 - King of Dwarves: lifelinked to his Risen Dwarves (takes 2/3 damage while they live), enrages at half HP, throne cracks at 1/4 (no more summons).
 - Camp tabs fit the cover screen (icons, selected tab named).

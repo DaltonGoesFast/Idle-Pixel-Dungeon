@@ -44,7 +44,15 @@ static func item_line(id: String) -> String:
 		"weapon": return "tier %d weapon, %d dmg%s, %d Str" % [it.tier, it.dmg, (", %.1f ticks" % it.delay) if float(it.get("delay", 1.0)) != 1.0 else "", it.str]
 		"armor": return "tier %d armor, DR %d, +%d Barrier, %d Str" % [it.tier, it.dr, it.barrier, it.str]
 		"wand": return "wand, bolt %d dmg (ignores DR), %d charges%s%s" % [it.bolt_dmg, it.charges, ", burns grass" if it.get("burns_grass", false) else "", ", chains through water" if it.get("chains_water", false) else ""]
-		"ring": return "ring" + (", +%d dmg" % it.dmg_bonus if it.has("dmg_bonus") else "") + (", +%d Barrier" % it.barrier_bonus if it.has("barrier_bonus") else "")
+		"ring":
+			var bits := []
+			if it.has("dmg_bonus"): bits.append("+%d dmg" % it.dmg_bonus)
+			if it.has("barrier_bonus"): bits.append("+%d Barrier" % it.barrier_bonus)
+			if it.has("dr_bonus"): bits.append("+%d DR" % it.dr_bonus)
+			if it.has("gold_mult"): bits.append("+%d%% gold" % int(round((float(it.gold_mult) - 1.0) * 100)))
+			if it.has("charges_bonus"): bits.append("+%d staff charge, +%d HP" % [it.charges_bonus, it.get("ht_bonus", 0)])
+			return "ring, " + ", ".join(bits)
+		"artifact": return "artifact, " + String(it.get("desc", ""))
 	if it.get("heirloom", false): return "heirloom: a permanent class item that never cracks"
 	return it.get("desc", it.type)
 

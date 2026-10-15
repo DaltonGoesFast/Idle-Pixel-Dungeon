@@ -18,3 +18,10 @@ godot --headless --path . --export-debug "Linux" "builds/linux/spd-tactics.x86_6
 godot --headless --path . --export-debug "Windows Desktop" "builds/windows/spd-tactics.exe"
 tools/verify_apk.sh "builds/spd-tactics-v$VER.apk"
 echo "Built builds/spd-tactics-v$VER.apk"
+# screenshots: non-blocking but reported (needs xvfb-run; full plan, cover + inner)
+if command -v xvfb-run >/dev/null; then
+  if timeout 600 xvfb-run -a godot --path . --rendering-driver opengl3 res://tests/screenshots.tscn > /tmp/spd_shots.log 2>&1; then :; fi
+  NERR=$(grep -c "SCRIPT ERROR" /tmp/spd_shots.log || true)
+  NSHOT=$(find /workspace/builds/shots -name '*.png' -newer "builds/spd-tactics-v$VER.apk" | wc -l)
+  if [ "$NERR" = "0" ]; then echo "SCREENSHOTS: OK ($NSHOT png in /workspace/builds/shots)"; else echo "SCREENSHOTS: WARN $NERR script errors ($NSHOT png) - see /tmp/spd_shots.log"; fi
+else echo "SCREENSHOTS: SKIPPED (no xvfb-run)"; fi

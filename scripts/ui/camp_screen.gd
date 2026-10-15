@@ -114,8 +114,8 @@ func _stats_card(c: String) -> Control:
 	if s.has("sub_name"): v.add_child(UIKit.label("Subclass: %s - %s" % [s.sub_name, DB.heroes[c].subclasses[s.sub].desc], 0.9, Color("9fd3ff")))
 	elif h.get("mask", false): v.add_child(UIKit.label("Tengu's Mask: choose a subclass below.", 0.9, Color("9fd3ff")))
 	if s.has("bolt"): v.add_child(UIKit.label("Staff bolt: %s, %d dmg (ignores DR), %d charges" % [s.bolt.name, s.bolt.dmg, s.bolt.charges], 0.9))
-	v.add_child(UIKit.label("Weapon: %s\nArmor: %s\nRing: %s" % [GameState.gear_name(GameState.gear_by_uid(h.weapon)),
-		GameState.gear_name(GameState.gear_by_uid(h.armor)), GameState.gear_name(GameState.gear_by_uid(h.ring))], 0.9))
+	v.add_child(UIKit.label("Weapon: %s\nArmor: %s\nRing: %s\nArtifact: %s" % [GameState.gear_name(GameState.gear_by_uid(h.weapon)),
+		GameState.gear_name(GameState.gear_by_uid(h.armor)), GameState.gear_name(GameState.gear_by_uid(h.ring)), GameState.gear_name(GameState.gear_by_uid(int(h.get("artifact", 0))))], 0.9))
 	if not h.unlocked: v.add_child(UIKit.label("Unlock: " + DB.heroes[c].get("unlock", ""), 0.9, Color("c9a96e")))
 	v.add_child(UIKit.label(DB.heroes[c].desc, 0.8, Color("bdb3a0")))
 	return card
@@ -134,9 +134,9 @@ func _page_heroes() -> void:
 		var flow := HFlowContainer.new(); v.add_child(flow)
 		for g in GameState.gear:
 			var t: String = DB.item(g.id).type
-			if not (t in ["weapon", "armor", "ring"]): continue
+			if not (t in ["weapon", "armor", "ring", "artifact"]): continue
 			var h: Dictionary = GameState.heroes[c]
-			if h.weapon == g.uid or h.armor == g.uid or h.ring == g.uid: continue
+			if h.weapon == g.uid or h.armor == g.uid or h.ring == g.uid or int(h.get("artifact", 0)) == g.uid: continue
 			var why: String = GameState.can_equip(c, g.uid)
 			if why.begins_with("heirloom") or why.begins_with("equipped"): continue
 			var b := UIKit.button("Equip " + GameState.gear_name(g), func(): GameState.equip(c, g.uid), why == "", why)

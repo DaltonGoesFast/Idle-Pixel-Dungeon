@@ -172,6 +172,48 @@
   "elixir_starter": {
    "name": "Starter Elixir",
    "icon": "POTION_GOLDEN"
+  },
+  "potion_experience": {
+   "name": "Potion of Experience",
+   "icon": "POTION_HOLDER",
+   "unknown": true,
+   "kind": "potion",
+   "desc": "Grants a level's worth of XP."
+  },
+  "potion_toxic": {
+   "name": "Potion of Toxic Gas",
+   "icon": "POTION_HOLDER",
+   "unknown": true,
+   "kind": "potion",
+   "desc": "Choking gas: lose 25% of max HP."
+  },
+  "potion_shielding": {
+   "name": "Potion of Shielding",
+   "icon": "POTION_HOLDER",
+   "unknown": true,
+   "kind": "potion",
+   "desc": "Your next fight starts with +10 Barrier."
+  },
+  "scroll_identify": {
+   "name": "Scroll of Identify",
+   "icon": "SCROLL_HOLDER",
+   "unknown": true,
+   "kind": "scroll",
+   "desc": "Identifies every unknown ring and wand in your backpack."
+  },
+  "scroll_mapping": {
+   "name": "Scroll of Magic Mapping",
+   "icon": "SCROLL_HOLDER",
+   "unknown": true,
+   "kind": "scroll",
+   "desc": "Maps the floor: +40% floor progress."
+  },
+  "scroll_teleport": {
+   "name": "Scroll of Teleportation",
+   "icon": "SCROLL_HOLDER",
+   "unknown": true,
+   "kind": "scroll",
+   "desc": "Whisks you past the current encounter."
   }
  },
  "studded_gloves": {
@@ -246,5 +288,49 @@
   "barrier": 5,
   "str": 18,
   "icon": "ARMOR_PLATE"
+ },
+ "ring_evasion": {
+  "name": "Ring of Evasion",
+  "type": "ring",
+  "unknown_name": "Topaz Ring",
+  "dr_bonus": 1,
+  "icon": "RING_TOPAZ"
+ },
+ "ring_wealth": {
+  "name": "Ring of Wealth",
+  "type": "ring",
+  "unknown_name": "Emerald Ring",
+  "gold_mult": 1.3,
+  "icon": "RING_EMERALD"
+ },
+ "ring_energy": {
+  "name": "Ring of Energy",
+  "type": "ring",
+  "unknown_name": "Onyx Ring",
+  "charges_bonus": 1,
+  "ht_bonus": 4,
+  "icon": "RING_ONYX"
+ },
+ "chalice_blood": {
+  "name": "Chalice of Blood",
+  "type": "artifact",
+  "ht_bonus": 15,
+  "icon": "ARTIFACT_CHALICE1",
+  "desc": "+15 max HP."
+ },
+ "talisman_foresight": {
+  "name": "Talisman of Foresight",
+  "type": "artifact",
+  "search_add": 1,
+  "keen_eyes": true,
+  "icon": "ARTIFACT_TALISMAN",
+  "desc": "+1 search radius; hidden traps next to you are revealed."
+ },
+ "horn_plenty": {
+  "name": "Horn of Plenty",
+  "type": "artifact",
+  "hunger_mult": 0.6,
+  "icon": "ARTIFACT_HORN1",
+  "desc": "Satiety drains 40% slower in the delve."
  }
 }

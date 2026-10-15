@@ -64,6 +64,7 @@ func item(id: String) -> Dictionary:
 	return items.get(id, {})
 
 func mat_name(id: String) -> String:
+	if materials.get(id, {}).get("unknown", false): return GameState.mat_label(id)
 	return materials.get(id, {}).get("name", id.capitalize())
 
 func display_name(id: String) -> String:
@@ -73,5 +74,8 @@ func display_name(id: String) -> String:
 ## Icon index into assets/sprites/items.png (16x16 cells, 16 per row).
 func icon_index(id: String) -> int:
 	if icons.has(id): return int(icons[id])
+	if materials.get(id, {}).get("unknown", false):
+		var lk: String = GameState.mat_icon_key(id)
+		if lk != "": return int(icons.get(lk, 0))
 	var key: String = items.get(id, materials.get(id, {})).get("icon", "SOMETHING")
 	return int(icons.get(key, 0))

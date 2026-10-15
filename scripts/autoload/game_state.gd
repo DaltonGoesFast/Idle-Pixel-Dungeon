@@ -52,13 +52,14 @@ func new_game() -> void:
 	mats = {"gold": 30, "ration": 2, "torch": 2, "potion_healing": 1, "iron_key": 1, "seeds": 2}
 	gear = []; next_uid = 1; id_queue = []; boss_kills = {}; run = {}; time_offset = 0.0
 	stats = STATS_DEFAULT.duplicate(); milestones_claimed = []; seen = {}; tutorial_done = []
+	_roll_appearances()
 	facilities = {}
 	for f in DB.facilities: facilities[f] = {"level": 1, "cap": 1}
 	heroes = {}
 	for c in DB.heroes:
 		var h: Dictionary = DB.heroes[c]
 		heroes[c] = {"class": c, "unlocked": h.unlocked_by_default, "level": 1, "xp": 0, "str": 10,
-			"weapon": add_gear(h.start_weapon), "armor": add_gear(h.start_armor), "ring": 0,
+			"weapon": add_gear(h.start_weapon), "armor": add_gear(h.start_armor), "ring": 0, "artifact": 0,
 			"wand": "wand_magic_missile" if c == "mage" else "", "cleared": [], "patrol": {}, "mask": false, "subclass": "", "talents": []}
 
 func add_gear(id: String, known := true, lvl := 0) -> int:
@@ -84,7 +85,7 @@ func gear_name(g: Dictionary) -> String:
 func equipped_by(uid: int) -> String:
 	for c in heroes:
 		var h: Dictionary = heroes[c]
-		if h.weapon == uid or h.armor == uid or h.ring == uid: return c
+		if h.weapon == uid or h.armor == uid or h.ring == uid or int(h.get("artifact", 0)) == uid: return c
 	return ""
 
 func mat(id: String) -> int:
@@ -117,6 +118,7 @@ func hero_stats(c: String) -> Dictionary:
 	var h: Dictionary = heroes[c]
 	var def: Dictionary = DB.heroes[c]
 	var w := gear_by_uid(h.weapon); var a := gear_by_uid(h.armor); var r := gear_by_uid(h.ring)
+	var art := gear_by_uid(int(h.get("artifact", 0)))
 	# cracked/missing weapon: fight with the class's starting weapon stats (bare minimum)
 	var wd := DB.item(w.id) if not w.is_empty() and not w.cracked else DB.item(def.start_weapon)
 	var ad := DB.item(a.id) if not a.is_empty() and not a.cracked else {}
@@ -131,12 +133,21 @@ func hero_stats(c: String) -> Dictionary:
 	dr = maxi(0, dr - maxi(0, int(ad.get("str", 10)) - int(h.str)))
 	if not r.is_empty() and r.known and not r.cracked:
 		var rd := DB.item(r.id)
-		dmg += int(rd.get("dmg_bonus", 0)); barrier += int(rd.get("barrier_bonus", 0))
+		dmg += int(rd.get("dmg_bonus", 0)); barrier += int(rd.get("barrier_bonus", 0)); dr += int(rd.get("dr_bonus", 0))
 	var s := {"class": c, "name": def.name, "sprite": def.sprite, "fw": def.fw, "fh": def.fh,
 		"ht": int(def.base_ht) + int(def.ht_per_level) * (int(h.level) - 1),
 		"dmg": dmg, "dr": dr, "barrier_max": barrier, "delay": float(wd.get("delay", 1.0)),
 		"surprise_mult": float(wd.get("surprise_mult", 1.5)), "abilities": def.abilities,
 		"search_radius": int(def.get("search_radius", 1)), "keen_eyes": def.get("keen_eyes", false)}
+	# ring / artifact extras (DECISIONS #80)
+	for eq in [r, art]:
+		if eq.is_empty() or eq.cracked or not eq.known: continue
+		var ed := DB.item(eq.id)
+		s.ht += int(ed.get("ht_bonus", 0)); s.search_radius += int(ed.get("search_add", 0))
+		if ed.get("keen_eyes", false): s.keen_eyes = true
+		if ed.has("gold_mult"): s.gold_mult = float(ed.gold_mult)
+		if ed.has("hunger_mult"): s.hunger_mult = float(ed.hunger_mult)
+		s.charges_bonus = int(s.get("charges_bonus", 0)) + int(ed.get("charges_bonus", 0))
 	if "bolt" in def.abilities and h.wand != "":
 		var wn := DB.item(h.wand)
 		s.bolt = {"dmg": int(wn.bolt_dmg) + int(h.level) / 2, "charges": int(wn.charges) + int(h.level) / int(def.get("charge_per_levels", 99)), "recharge": int(wn.recharge),
@@ -158,6 +169,7 @@ func hero_stats(c: String) -> Dictionary:
 		if s.has("bolt"):
 			s.bolt.dmg += int(td.get("bolt_add", 0))
 			if not s.bolt.get("infinite", false): s.bolt.charges += int(td.get("charges_add", 0))
+	if s.has("bolt") and not s.bolt.get("infinite", false): s.bolt.charges += int(s.get("charges_bonus", 0))   # Ring of Energy
 	# Subclass (Tengu's Mask, DECISIONS #61): flat modifiers here, "perk" hooks in Combat.
 	var sub: Dictionary = def.get("subclasses", {}).get(String(h.get("subclass", "")), {})
 	if not sub.is_empty():
@@ -232,7 +244,7 @@ func pack_item(uid: int) -> Dictionary:
 	return {}
 
 func _slot_for(t: String) -> String:
-	return t if t in ["weapon", "armor", "ring"] else ""
+	return t if t in ["weapon", "armor", "ring", "artifact"] else ""
 
 ## Why a backpack item can't be equipped right now ("" = ok).
 func can_delve_equip(uid: int) -> String:
@@ -321,6 +333,66 @@ static func compare_text(cmp: Dictionary) -> String:
 	return "  ".join(parts)
 
 ## Use a belt supply outside combat.
+## Unknown potions/scrolls (DECISIONS #80): each save rolls SPD appearances; using one identifies its kind.
+const POTION_LOOKS := [["Jade", "POTION_JADE"], ["Turquoise", "POTION_TURQUOISE"], ["Azure", "POTION_AZURE"], ["Indigo", "POTION_INDIGO"], ["Magenta", "POTION_MAGENTA"], ["Bistre", "POTION_BISTRE"]]
+const SCROLL_LOOKS := [["Sowilo", "SCROLL_SOWILO"], ["Laguz", "SCROLL_LAGUZ"], ["Yngvi", "SCROLL_YNGVI"], ["Gyfu", "SCROLL_GYFU"], ["Raido", "SCROLL_RAIDO"], ["Mannaz", "SCROLL_MANNAZ"]]
+var looks := {}     # mat id -> [appearance name, icon key]
+var ided := {}      # mat id -> true once identified
+
+func _roll_appearances() -> void:
+	looks = {}; ided = {}
+	var r := RandomNumberGenerator.new(); r.randomize()
+	var pl := POTION_LOOKS.duplicate(); var sl := SCROLL_LOOKS.duplicate()
+	for k in DB.materials:
+		var md: Dictionary = DB.materials[k]
+		if not md.get("unknown", false): continue
+		var pool: Array = pl if md.kind == "potion" else sl
+		looks[k] = pool.pop_at(r.randi() % pool.size())
+
+func unknown_mats() -> Array:
+	return DB.materials.keys().filter(func(k): return DB.materials[k].get("unknown", false))
+
+func is_mat_known(k: String) -> bool:
+	return not DB.materials.get(k, {}).get("unknown", false) or ided.has(k)
+
+func mat_label(k: String) -> String:
+	if is_mat_known(k) or not looks.has(k): return DB.materials.get(k, {}).get("name", k.capitalize())
+	return "%s %s" % [looks[k][0], "Potion" if DB.materials[k].kind == "potion" else "Scroll"]
+
+func mat_icon_key(k: String) -> String:
+	if is_mat_known(k) or not looks.has(k): return ""
+	return looks[k][1]
+
+func identify_mat(k: String) -> void:
+	if not ided.has(k): ided[k] = true; say("It was a %s!" % DB.materials[k].name)
+
+## Use an unknown-kind potion/scroll from the pack mid-delve (identifies it).
+func delve_use_pack(k: String) -> bool:
+	if run.is_empty() or int(run.pack.get(k, 0)) <= 0: return false
+	var c: String = run.hero
+	run.pack[k] = int(run.pack[k]) - 1
+	identify_mat(k)
+	match k:
+		"potion_experience":
+			var need := xp_to_next(int(heroes[c].level))
+			if grant_xp(c, need): say("Level up! %s is now Lv%d." % [DB.heroes[c].name, heroes[c].level])
+		"potion_toxic":
+			var ht := int(hero_stats(c).ht)
+			run.hp = maxi(1, int(run.hp) - ht / 4); say("Choking gas! -%d HP." % (ht / 4))
+		"potion_shielding":
+			run.shield_next = int(run.get("shield_next", 0)) + 10; say("A shimmering shield: +10 Barrier in your next fight.")
+		"scroll_identify":
+			var n := 0
+			for g in run.pack_gear:
+				if not g.known: g.known = true; seen["item:" + g.id] = true; n += 1
+			say("Identified %d item(s)." % n if n > 0 else "Nothing to identify.")
+		"scroll_mapping":
+			run.progress = minf(99.0, float(run.get("progress", 0.0)) + 40.0); say("The floor's layout floods your mind (+40%).")
+		"scroll_teleport":
+			run.skip_card = true; say("You blink past whatever lies ahead.")
+		_: run.pack[k] = int(run.pack[k]) + 1; return false
+	touch(); return true
+
 func delve_use(k: String) -> bool:
 	if run.is_empty() or int(run.supplies.get(k, 0)) <= 0: return false
 	match k:
@@ -387,6 +459,7 @@ func equip(c: String, uid: int) -> bool:
 		"weapon": heroes[c].weapon = uid
 		"armor": heroes[c].armor = uid
 		"ring": heroes[c].ring = uid
+		"artifact": heroes[c].artifact = uid
 		_: return false
 	touch(); return true
 
@@ -605,8 +678,8 @@ func end_run(result: String) -> void:
 			say("Extracted! The pack is banked at Camp.")
 		"death":
 			stats.deaths += 1
-			for slot in ["weapon", "armor", "ring"]:
-				var g := gear_by_uid(int(h[slot]))
+			for slot in ["weapon", "armor", "ring", "artifact"]:
+				var g := gear_by_uid(int(h.get(slot, 0)))
 				# heirlooms (Mage's Staff...) are permanent and never crack
 				if not g.is_empty() and not DB.item(g.id).get("heirloom", false): g.cracked = true
 			for g in run.pack_gear:
@@ -690,10 +763,12 @@ func note_floor(f: int) -> void:
 func to_dict() -> Dictionary:
 	return {"mats": mats, "gear": gear, "next_uid": next_uid, "heroes": heroes, "facilities": facilities,
 		"id_queue": id_queue, "boss_kills": boss_kills, "settings": settings, "run": run, "stats": stats,
-		"milestones_claimed": milestones_claimed, "seen": seen, "tutorial_done": tutorial_done}
+		"milestones_claimed": milestones_claimed, "seen": seen, "tutorial_done": tutorial_done, "looks": looks, "ided": ided}
 
 func from_dict(d: Dictionary) -> void:
 	new_game()
+	looks = d.get("looks", {}); ided = d.get("ided", {})
+	if looks.is_empty(): _roll_appearances()
 	mats = d.get("mats", mats); gear = d.get("gear", gear); next_uid = int(d.get("next_uid", next_uid))
 	for c in d.get("heroes", {}):
 		if heroes.has(c): heroes[c].merge(d.heroes[c], true)
@@ -716,7 +791,8 @@ func _fix_types() -> void:
 		g.uid = int(g.uid); g.lvl = int(g.lvl)
 	for c in heroes:
 		var h: Dictionary = heroes[c]
-		for k in ["level", "xp", "str", "weapon", "armor", "ring"]: h[k] = int(h[k])
+		if not h.has("artifact"): h.artifact = 0
+		for k in ["level", "xp", "str", "weapon", "armor", "ring", "artifact"]: h[k] = int(h[k])
 	for f in facilities:
 		facilities[f].level = int(facilities[f].level); facilities[f].cap = int(facilities[f].cap)
 	for q in id_queue: q.uid = int(q.uid)

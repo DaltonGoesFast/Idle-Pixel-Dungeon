@@ -55,8 +55,8 @@ static func backpack(parent: Control, refresh: Callable, in_combat := false, on_
 			b.custom_minimum_size.x = UIKit.font_size * 7; flow.add_child(b)
 	# equipped
 	v.add_child(UIKit.label("Equipped", 0.9, Color("c9a96e")))
-	for slot in ["weapon", "armor", "ring"]:
-		var g := GameState.gear_by_uid(int(h[slot]))
+	for slot in ["weapon", "armor", "ring", "artifact"]:
+		var g := GameState.gear_by_uid(int(h.get(slot, 0)))
 		var row := UIKit.hbox(v)
 		if not g.is_empty(): row.add_child(UIKit.icon(g.id))
 		var l := UIKit.label("%s: %s" % [slot.capitalize(), GameState.gear_name(g)], 0.9); l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -65,6 +65,17 @@ static func backpack(parent: Control, refresh: Callable, in_combat := false, on_
 			var ub := UIKit.button("Unequip", func(): GameState.delve_unequip(slot); refresh.call(), not GameState.backpack_full(), "backpack full")
 			ub.size_flags_horizontal = Control.SIZE_SHRINK_END; ub.custom_minimum_size.x = UIKit.font_size * 5; row.add_child(ub)
 	if c == "mage" and h.wand != "": v.add_child(UIKit.label("Staff: %s" % DB.item(h.wand).name, 0.9))
+	# unknown / found potions and scrolls (use identifies them, DECISIONS #80)
+	if not in_combat:
+		var cons: Array = GameState.unknown_mats().filter(func(k): return int(run.pack.get(k, 0)) > 0)
+		if not cons.is_empty():
+			v.add_child(UIKit.label("Potions & scrolls", 0.9, Color("c9a96e")))
+			var cf := HFlowContainer.new(); v.add_child(cf)
+			for k in cons:
+				var cb := UIKit.button("%s x%d" % [DB.mat_name(k), int(run.pack[k])], func(): GameState.delve_use_pack(k); refresh.call())
+				cb.icon = UIKit.icon(k).texture; cb.expand_icon = false
+				cb.tooltip_text = DB.materials[k].desc if GameState.is_mat_known(k) else "Unidentified - use it to find out."
+				cf.add_child(cb)
 	# carried
 	v.add_child(UIKit.label("Carried" if not run.pack_gear.is_empty() else "Carried: nothing yet", 0.9, Color("c9a96e")))
 	for g in run.pack_gear:

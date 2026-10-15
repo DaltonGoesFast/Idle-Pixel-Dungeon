@@ -51,7 +51,7 @@ static func advance(gs, pct: float) -> Dictionary:
 	run.progress = minf(100.0, before + pct)
 	var d: float = run.progress - before
 	run.torch = maxf(0.0, run.torch - d * TORCH_DRAIN)
-	run.satiety = maxf(0.0, run.satiety - d * SATIETY_DRAIN)
+	run.satiety = maxf(0.0, run.satiety - d * SATIETY_DRAIN * _hunger(gs))   # Horn of Plenty slows this
 	# auto-use supplies when low (decision: no micromanagement in the delve)
 	if run.torch < 20.0 and int(run.supplies.get("torch", 0)) > 0:
 		run.supplies.torch -= 1; run.torch = minf(100.0, run.torch + TORCH_RESTORE); gs.say("Lit a fresh torch.")
@@ -78,7 +78,12 @@ static func advance(gs, pct: float) -> Dictionary:
 	if run.next_event < run.events.size() and run.progress >= float(run.events[run.next_event].at):
 		var ev: Dictionary = run.events[run.next_event]
 		run.next_event += 1
-		return build_event(run, ev)
+		var built := build_event(run, ev)
+		# Scroll of Teleportation: the next non-boss fight is skipped
+		if run.get("skip_card", false) and built.get("kind", "") == "combat" and not built.get("boss", false):
+			run.skip_card = false; gs.say("Teleported past a fight!")
+			return {}
+		return built
 	return {}
 
 static func darkness(run: Dictionary) -> bool:
@@ -117,7 +122,17 @@ static func new_combat(gs, ev: Dictionary) -> Combat:
 	for m in ev.mobs: gs.discover("mob:" + m)
 	var c := Combat.new()
 	c.setup(ev.room, gs.hero_stats(run.hero), int(run.hp), ev.mobs, darkness(run), biome(run).get("traps", []))
+	if int(run.get("shield_next", 0)) > 0:   # Potion of Shielding
+		c.hero.barrier = int(c.hero.barrier) + int(run.shield_next); run.shield_next = 0
+		c._log("Your shield shimmers: +Barrier.")
 	return c
+
+## Horn of Plenty: satiety drain multiplier (cached per floor to keep hero_stats out of the per-frame tick).
+static func _hunger(gs) -> float:
+	var run: Dictionary = gs.run
+	if int(run.get("_hunger_floor", -1)) != int(run.floor):
+		run._hunger_floor = int(run.floor); run._hunger = float(gs.hero_stats(run.hero).get("hunger_mult", 1.0))
+	return float(run.get("_hunger", 1.0))
 
 static func combat_event(run: Dictionary, r: RandomNumberGenerator, mobs := []) -> Dictionary:
 	if mobs.is_empty():
@@ -162,7 +177,12 @@ static func reward(gs, rw: Dictionary) -> String:
 	for k in rw:
 		match k:
 			"item_unknown":
-				var pool: Array = ["ring_might", "ring_tenacity"] if rw[k] == "ring" else ["wand_magic_missile", "wand_firebolt", "wand_lightning"]
+				if rw[k] in ["potion", "scroll"]:
+					var cands: Array = gs.unknown_mats().filter(func(m): return DB.materials[m].kind == rw[k])
+					var mid: String = cands[(int(run.seed) + int(run.floor) * 7 + int(gs.next_uid)) % cands.size()]
+					gs.pack_add(mid, 1); gs.next_uid += 1
+					parts.append(DB.mat_name(mid)); continue
+				var pool: Array = ["ring_might", "ring_tenacity", "ring_evasion", "ring_wealth", "ring_energy"] if rw[k] == "ring" else ["wand_magic_missile", "wand_firebolt", "wand_lightning"]
 				var id: String = pool[(int(run.seed) + int(run.floor) + run.pack_gear.size()) % pool.size()]
 				_stow(gs, _new_gear(gs, id, false))
 				parts.append(DB.item(id).unknown_name)
@@ -239,7 +259,11 @@ static func apply_fight_result(gs, ev: Dictionary, res: Dictionary, reward: Dict
 	for t in res.get("trap_ids", []): gs.discover("trap:" + t)
 	if not res.won: return false
 	run.hp = int(res.hp)
-	gs.pack_add("gold", int(res.loot))
+	gs.pack_add("gold", int(round(int(res.loot) * float(gs.hero_stats(run.hero).get("gold_mult", 1.0)))))   # Ring of Wealth
+	# every 4th won fight drops an unknown potion or scroll (SPD-style consumable loot, DECISIONS #80)
+	run.fights_won = int(run.get("fights_won", 0)) + 1
+	if run.fights_won % 4 == 0:
+		gs.say("Found: " + reward(gs, {"item_unknown": "potion" if (run.fights_won / 4) % 2 == 1 else "scroll"}))
 	run.pending_loot = int(run.pending_loot) + int(res.fallen_loot)
 	if gs.grant_xp(run.hero, int(res.xp)):
 		gs.say("Level up! %s is now Lv%d." % [DB.heroes[run.hero].name, gs.heroes[run.hero].level])
@@ -247,6 +271,10 @@ static func apply_fight_result(gs, ev: Dictionary, res: Dictionary, reward: Dict
 	if not reward.is_empty(): gs.say("Reward: " + reward(gs, reward))
 	if res.boss_killed:
 		run.boss_dead = true
+		# bosses drop an artifact you don't own yet (DECISIONS #80)
+		var owned: Array = gs.gear.map(func(g): return g.id) + run.pack_gear.map(func(g): return g.id)
+		var arts: Array = DB.items.keys().filter(func(k): return DB.items[k].get("type", "") == "artifact" and not (k in owned))
+		if not arts.is_empty(): gs.say("The boss drops: " + reward(gs, {"item": arts[0]}))
 		if gs.record_boss_kill(run.hero, run.biome): gs.say("First %s kill for this class: Scroll of Upgrade!" % DB.mobs[ev.mobs[0]].name)
 	gs.touch()
 	return true
