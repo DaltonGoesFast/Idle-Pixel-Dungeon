@@ -9,5 +9,5 @@ BT="$(ls -d "$SDK"/build-tools/* | sort -V | tail -1)"
 TMP="$(mktemp -d)"
 unzip -q "$APK" 'assets/*' -d "$TMP"
 cp "$(dirname "$0")/verify_pack.gd" "$TMP/assets/"
-godot --headless --path "$TMP/assets" -s verify_pack.gd
+"${GODOT:-godot}" --headless --path "$TMP/assets" -s verify_pack.gd
 rm -rf "$TMP"

@@ -4,6 +4,9 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+# Override with GODOT=/path/to/Godot_v4.7.2-stable_win64.exe when `godot` is not on PATH.
+GODOT_BIN="${GODOT:-godot}"
+
 # Gradle Android export needs res://android/build from the 4.7.2 export templates (gitignored).
 ensure_android_template() {
   if [ -d android/build ]; then return; fi
@@ -26,10 +29,10 @@ ensure_android_template() {
   echo "Installed Android build template into android/build from $zip"
 }
 
-godot --headless --path . --import >/dev/null 2>&1 || true
+"$GODOT_BIN" --headless --path . --import >/dev/null 2>&1 || true
 # fail the build on any GDScript runtime error, even if the suite itself reported PASS
-godot --headless --path . res://tests/run_tests.tscn > /tmp/spd_tests.log 2>&1; grep "TESTS:.*-> PASS" /tmp/spd_tests.log
-godot --headless --path . res://tests/ui_smoke.tscn > /tmp/spd_smoke.log 2>&1 || true
+"$GODOT_BIN" --headless --path . res://tests/run_tests.tscn > /tmp/spd_tests.log 2>&1; grep "TESTS:.*-> PASS" /tmp/spd_tests.log
+"$GODOT_BIN" --headless --path . res://tests/ui_smoke.tscn > /tmp/spd_smoke.log 2>&1 || true
 grep "UI SMOKE: PASS" /tmp/spd_smoke.log
 if grep -q "SCRIPT ERROR" /tmp/spd_tests.log /tmp/spd_smoke.log; then grep -m5 -A2 "SCRIPT ERROR" /tmp/spd_tests.log /tmp/spd_smoke.log; echo "SCRIPT ERRORS -> FAIL"; exit 1; fi
 mkdir -p builds/linux builds/windows
@@ -41,14 +44,14 @@ IOS_CODE="$(grep -m1 '^application/version=' export_presets.cfg | cut -d'"' -f2)
 CODE="$(grep -m1 '^version/code=' export_presets.cfg | cut -d'=' -f2)"
 if [ "$IOS_VER" != "$VER" ] || [ "$IOS_CODE" != "$CODE" ]; then echo "VERSION MISMATCH ios=$IOS_VER ($IOS_CODE) android=$VER ($CODE) -> FAIL"; exit 1; fi
 ensure_android_template
-godot --headless --path . --export-debug "Android" "builds/spd-tactics-v$VER.apk"
-godot --headless --path . --export-debug "Linux" "builds/linux/spd-tactics.x86_64"
-godot --headless --path . --export-debug "Windows Desktop" "builds/windows/spd-tactics.exe"
-tools/verify_apk.sh "builds/spd-tactics-v$VER.apk"
+"$GODOT_BIN" --headless --path . --export-debug "Android" "builds/spd-tactics-v$VER.apk"
+"$GODOT_BIN" --headless --path . --export-debug "Linux" "builds/linux/spd-tactics.x86_64"
+"$GODOT_BIN" --headless --path . --export-debug "Windows Desktop" "builds/windows/spd-tactics.exe"
+GODOT="$GODOT_BIN" tools/verify_apk.sh "builds/spd-tactics-v$VER.apk"
 echo "Built builds/spd-tactics-v$VER.apk"
 # screenshots: non-blocking but reported (needs xvfb-run; full plan, cover + inner)
 if command -v xvfb-run >/dev/null; then
-  if timeout 600 xvfb-run -a godot --path . --rendering-driver opengl3 res://tests/screenshots.tscn > /tmp/spd_shots.log 2>&1; then :; fi
+  if timeout 600 xvfb-run -a "$GODOT_BIN" --path . --rendering-driver opengl3 res://tests/screenshots.tscn > /tmp/spd_shots.log 2>&1; then :; fi
   NERR=$(grep -c "SCRIPT ERROR" /tmp/spd_shots.log || true)
   NSHOT=$(find /workspace/builds/shots -name '*.png' -newer "builds/spd-tactics-v$VER.apk" | wc -l)
   if [ "$NERR" = "0" ]; then echo "SCREENSHOTS: OK ($NSHOT png in /workspace/builds/shots)"; else echo "SCREENSHOTS: WARN $NERR script errors ($NSHOT png) - see /tmp/spd_shots.log"; fi

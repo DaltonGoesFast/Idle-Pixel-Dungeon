@@ -1,0 +1,14 @@
+---
+description: Where the Godot 4.7.2 binary lives on this machine
+alwaysApply: true
+---
+
+# Godot binary path
+
+`godot` is not on PATH. When running Godot from a shell (tests, export, import), call this executable by full path:
+
+```
+C:\Users\dalto\Documents\My Games\idlrPD\Godot_v4.7.2-stable_win64.exe
+```
+
+The same path is in `.vscode/settings.json` as `godotTools.editorPath.godot4` for the Godot Tools extension. Prefer the console build (`Godot_v4.7.2-stable_win64_console.exe` in the same folder) when you need reliable headless stdout, if that file exists.
