@@ -102,9 +102,22 @@ func _btn(text: String, cb: Callable, enabled := true) -> void:
 func _refresh() -> void:
 	if status == null: return
 	var h := combat.hero
-	pane.refresh("%s" % h.name, [
-		{"kind": "hp", "frac": float(h.hp) / float(h.ht), "text": "HP %d/%d" % [h.hp, h.ht]},
-		{"kind": "shield", "frac": float(h.barrier) / maxf(1.0, float(h.barrier_max)), "text": "Barrier %d/%d" % [h.barrier, h.barrier_max]}])
+	var bl := []
+	if int(h.get("poison", 0)) > 0: bl.append(3)              # POISON
+	if combat.hidden(): bl.append(12)                          # INVISIBLE
+	if int(h.barrier) > 0: bl.append(20)                       # ARMOR
+	var run: Dictionary = GameState.run
+	var lvl := 1
+	if not run.is_empty(): lvl = int(GameState.heroes[run.hero].level)
+	var minis := []
+	if not run.is_empty():
+		minis = [{"kind": "exp", "frac": float(run.torch) / 100.0, "text": "Torch %d%%" % run.torch},
+			{"kind": "shield", "frac": float(h.barrier) / maxf(1.0, float(h.barrier_max)), "text": "Barrier %d/%d" % [h.barrier, h.barrier_max]}]
+	else:
+		minis = [{"kind": "shield", "frac": float(h.barrier) / maxf(1.0, float(h.barrier_max)), "text": "Barrier %d/%d" % [h.barrier, h.barrier_max]}]
+	pane.set_data({"name": h.name, "level": lvl, "hp": h.hp, "ht": h.ht, "shield": h.barrier, "buffs": bl,
+		"depth": ("F%d" % int(run.get("floor", 1))) if not run.is_empty() else "",
+		"danger": combat.enemies().filter(func(e): return e.hp > 0).size(), "minis": minis})
 	var line := "DR %d  Dmg %d   t=%.1f" % [h.dr, h.dmg, combat.time]
 	if not h.bolt.is_empty():
 		if h.bolt.get("infinite", false): line += "\nTap any enemy in sight to shoot %s (%d dmg)" % [h.bolt.name, h.bolt.dmg]

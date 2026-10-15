@@ -9,7 +9,10 @@ static var _items_tex: Texture2D
 ## multiples of 20.48 give whole-pixel glyphs. Every text size is snapped to that grid (DECISIONS #71).
 const FONT_PX := 20.48
 static func font_px(sz: float) -> int:
-	return int(round(maxf(1.0, round(sz / FONT_PX)) * FONT_PX))
+	var n := sz / FONT_PX
+	# whole font pixels, plus half steps above 1x so hint text sits between body sizes (DECISIONS #73)
+	n = maxf(1.0, round(n * 2.0) / 2.0) if n >= 1.25 else 1.0
+	return int(round(n * FONT_PX))
 
 static func btn_height() -> float:
 	return font_size * 2.4
@@ -38,7 +41,7 @@ static func label(text: String, scale := 1.0, color := Color.WHITE) -> Label:
 	var l := Label.new()
 	l.text = text
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	l.add_theme_font_size_override("font_size", font_px(font_size * scale))
+	l.add_theme_font_size_override("font_size", font_px(font_size * maxf(scale, 0.75)))   # hints never shrink past 3/4
 	if color != Color.WHITE: l.add_theme_color_override("font_color", color)
 	return l
 
@@ -83,14 +86,35 @@ static func toolbar_style(tint := Color.WHITE) -> StyleBoxTexture:
 
 ## SPD toolbar icons: backpack / wait (clock) / search (magnifier), from toolbar.png.
 const TOOLBAR_ICONS := {"backpack": Rect2(161, 0, 14, 15), "wait": Rect2(178, 2, 12, 12), "search": Rect2(194, 2, 12, 12)}
+## SPD interfaces/icons.png regions (from SPD Icons.java).
+const SPD_ICONS := {"enter": Rect2(0, 0, 16, 16), "gold": Rect2(17, 0, 17, 16), "rankings": Rect2(34, 0, 17, 16),
+	"badges": Rect2(51, 0, 16, 16), "changes": Rect2(85, 0, 15, 15), "prefs": Rect2(102, 0, 14, 14),
+	"journal": Rect2(136, 0, 17, 15), "exit": Rect2(0, 16, 15, 11), "data": Rect2(48, 16, 14, 15),
+	"audio": Rect2(64, 16, 14, 14), "target": Rect2(0, 32, 16, 16), "info": Rect2(16, 32, 14, 14),
+	"warning": Rect2(32, 32, 14, 14), "plus": Rect2(96, 32, 11, 11), "arrow": Rect2(128, 32, 11, 11),
+	"challenge": Rect2(144, 32, 15, 12), "scroll": Rect2(160, 32, 15, 14), "backpack_lrg": Rect2(0, 48, 16, 16),
+	"talent": Rect2(16, 48, 13, 13), "magnify": Rect2(32, 48, 14, 14), "buffs": Rect2(64, 48, 16, 15),
+	"catalog": Rect2(80, 48, 13, 16), "alchemy": Rect2(96, 48, 16, 16), "stairs": Rect2(0, 64, 15, 16),
+	"skull": Rect2(0, 80, 8, 8), "busy": Rect2(8, 80, 8, 8), "sleep": Rect2(7, 88, 9, 8), "alert": Rect2(16, 80, 8, 8)}
+
+## Toolbar icon (toolbar.png) or any SPD icons.png icon by name, upscaled by px_scale with nearest filtering.
 static func toolbar_icon(name: String) -> Texture2D:
 	if not _ui_icons.has(name):
-		var at := AtlasTexture.new(); at.atlas = load("res://assets/ui/toolbar.png"); at.region = TOOLBAR_ICONS[name]
+		var at := AtlasTexture.new()
+		if TOOLBAR_ICONS.has(name): at.atlas = load("res://assets/ui/toolbar.png"); at.region = TOOLBAR_ICONS[name]
+		else: at.atlas = load("res://assets/ui/icons.png"); at.region = SPD_ICONS[name]
 		var img := at.get_image(); img.resize(int(at.region.size.x) * px_scale, int(at.region.size.y) * px_scale, Image.INTERPOLATE_NEAREST)
 		_ui_icons[name] = ImageTexture.create_from_image(img)
 	return _ui_icons[name]
 
 ## Restyle a button as an SPD toolbar slot (used for the in-run action bars).
+static func spd_icon(name: String) -> Texture2D: return toolbar_icon(name)
+
+## Put an SPD icon on any button (keeps its chrome style).
+static func with_icon(b: Button, icon_name: String) -> Button:
+	b.icon = toolbar_icon(icon_name); b.expand_icon = false
+	return b
+
 static func as_toolbar(b: Button, icon_name := "") -> Button:
 	b.add_theme_stylebox_override("normal", toolbar_style())
 	b.add_theme_stylebox_override("hover", toolbar_style(Color(1.12, 1.12, 1.12)))

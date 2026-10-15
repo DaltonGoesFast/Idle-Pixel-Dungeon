@@ -2,6 +2,12 @@
 
 
 
+
+## v0.16.1 — SPD status pane
+- Status pane rebuilt from SPD's StatusPane: level number in the portrait badge, filled HP bar with shield overlay and centred HP/MaxHP, name beside the portrait, buff icons, depth and danger count, compact Torch/Food (or Barrier) row.
+- Toasts no longer cover the arena; the combat arena fills more of the cover screen; hint text is larger.
+- Correct SPD buff icons on enemies.
+
 ## v0.16.0 — SPD gameplay graphics
 - SPD wall autotiling with raised wall faces and wall tops drawn over characters; floor variants; water/chasm/door/grass stitching; arena framed by walls.
 - Full SPD character animations (idle/run/attack/die) with facing flip and death fade.

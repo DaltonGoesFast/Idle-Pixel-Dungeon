@@ -201,11 +201,11 @@ func light_radius() -> float:
 ## SPD-style camera: the arena plus a half-tile wall border fills the view; cells snap to whole
 ## multiples of the 16 px art (integer zoom) whenever the screen allows it (DECISIONS #72).
 func cell_size() -> float:
-	var raw := floorf(minf(size.x, size.y) / (Combat.SIZE + 0.6))
+	var raw := floorf(minf(size.x, size.y) / (Combat.SIZE + 0.3))
 	if raw < 16.0: return raw
 	var snapped := floorf(raw / 16.0) * 16.0
 	# integer zoom unless it would waste >15% of the screen; then 1/4-pixel steps (still nearest-filtered)
-	return snapped if snapped >= raw * 0.85 else floorf(raw / 4.0) * 4.0
+	return snapped if snapped >= raw * 0.9 else floorf(raw / 4.0) * 4.0
 
 func origin() -> Vector2:
 	var cs := cell_size() * Combat.SIZE
@@ -464,7 +464,7 @@ func _status_icons(u: Dictionary, top: Vector2, scale: float) -> void:
 	var x := top.x
 	for k in list:
 		var i: int = BUFF_IDX[k]
-		draw_texture_rect_region(buff_icons, Rect2(x, top.y - maxf(2.0, scale) * 3.0 - s, s, s), Rect2((i % 16) * 8, (i / 16) * 8, 7, 7))
+		draw_texture_rect_region(buff_icons, Rect2(x, top.y - maxf(2.0, scale) * 3.0 - s, s, s), Rect2((i % 18) * 7, (i / 18) * 7, 7, 7))
 		x += s + scale
 
 

@@ -157,3 +157,14 @@ Once the bot could escape multi-tile telegraphs, every Caves sim rose to 9-10/10
 - SPD HealthBar (red bg/green hp/pale shield, mobs only when hurt), BuffIndicator small icons (poison, charging, enraged, invisible), FloatingText centred pixel-font numbers.
 - Fog/light: per-corner darkness blended across each cell (bilinear like SPD FogOfWar's texture); out-of-LOS = SPD "visited" darkening, torch radius on top.
 - Not ported: SPD's Emitter particle classes (kept our pixel particles), shadows, exact SPD fog colours for MAPPED.
+
+## 73. v0.16.1 — readability fixes
+- Hint/small labels never go below 3/4 of body size; font_px allows half font-pixel steps above 1x so hints sit between body sizes.
+- Toasts moved to 76% of screen height (below the arena / delve card). Combat camera margin 0.3 tile, integer zoom kept unless it wastes >10%.
+- SPD icons.png regions added to UIKit (SPD_ICONS, spd_icon, with_icon).
+
+## 74. v0.16.1 — StatusPane is a port of SPD's large StatusPane
+- Follows StatusPane.java large layout: bg NinePatch (0,64,41,39 L33 R4), avatar centred at (15,16), level number in the badge strip at (15,33), buffs row at (31,0), HP bar at (30,19) 9 tall with shield drawn under HP like SPD's shieldHP and "HP/HT" (or "HP+shield/HT") centred, EXP row at (30,30).
+- Name sits in the buff row beside the portrait (never in a bar). Depth "F#" and danger (skull + living enemies) right-aligned like SPD's depth/danger indicators.
+- The EXP row shows compact Torch | Food in delves and Torch | Barrier in fights (no hero EXP bar in this game).
+- Buff icons use SPD buffs.png with its real 7x7 grid (18 per row) — fixes wrong icons in v0.16.0 enemy status icons too.

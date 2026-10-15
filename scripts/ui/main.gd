@@ -125,7 +125,7 @@ func _toast(text: String) -> void:
 	l.custom_minimum_size.x = minf(get_viewport_rect().size.x * 0.8, 900)
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	toast_box.add_child(p)
-	toast_box.position = Vector2((get_viewport_rect().size.x - l.custom_minimum_size.x) / 2.0, get_viewport_rect().size.y * 0.62)
+	toast_box.position = Vector2((get_viewport_rect().size.x - l.custom_minimum_size.x) / 2.0, get_viewport_rect().size.y * 0.76)   # below the combat arena / delve card (DECISIONS #73)
 	while toast_box.get_child_count() > 3:
 		var old := toast_box.get_child(0); toast_box.remove_child(old); old.queue_free()
 	var tw := create_tween()

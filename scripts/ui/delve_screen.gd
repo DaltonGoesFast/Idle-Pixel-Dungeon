@@ -74,10 +74,15 @@ func _refresh() -> void:
 	title.text = "%s - Floor %d / %d" % [DB.biomes[run.biome].name, run.floor, DB.biomes[run.biome].floors[1]]
 	bar.value = run.progress
 	if pane.hero_sprite == null: pane.set_hero(s.sprite, int(s.fw), int(s.fh))
-	pane.refresh("%s  Lv%d" % [s.name, GameState.heroes[run.hero].level], [
-		{"kind": "hp", "frac": float(run.hp) / float(s.ht), "text": "HP %d/%d" % [run.hp, s.ht]},
-		{"kind": "exp", "frac": float(run.torch) / 100.0, "text": "Torch %d%%" % run.torch},
-		{"kind": "shield", "frac": float(run.satiety) / 100.0, "text": "Satiety %d%%" % run.satiety}])
+	var bl := []
+	if Delve.darkness(run): bl.append(16)                      # BLINDNESS
+	elif float(run.torch) > 0: bl.append(22)                   # LIGHT
+	if float(run.satiety) <= 0: bl.append(6)                   # STARVATION
+	elif float(run.satiety) < 30: bl.append(5)                 # HUNGER
+	pane.set_data({"name": s.name, "level": GameState.heroes[run.hero].level, "hp": run.hp, "ht": s.ht, "buffs": bl,
+		"depth": "F%d" % int(run.get("floor", 1)),
+		"minis": [{"kind": "exp", "frac": float(run.torch) / 100.0, "text": "Torch %d%%" % run.torch},
+			{"kind": "shield", "frac": float(run.satiety) / 100.0, "text": "Food %d%%" % run.satiety}]})
 	UIKit.clear(stats)
 	var line := ""
 	if Delve.darkness(run): line += "DARK: no Barrier in fights!   "
