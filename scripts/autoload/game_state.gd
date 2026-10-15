@@ -148,6 +148,11 @@ func hero_stats(c: String) -> Dictionary:
 		s.cloak = {"charges": int(def.cloak_charges), "ticks": float(def.cloak_ticks)}
 	return s
 
+## Potion of Healing: flat 10 early, 30% of max HP later so potions stay relevant in deep biomes.
+func potion_heal(c: String) -> int:
+	var p: Dictionary = DB.materials.potion_healing
+	return maxi(int(p.heal), int(float(hero_stats(c).ht) * float(p.get("heal_pct", 0.0))))
+
 func power_rating(c: String) -> int:
 	var s := hero_stats(c)
 	return int(heroes[c].str) + int(s.dmg / 3) + s.dr

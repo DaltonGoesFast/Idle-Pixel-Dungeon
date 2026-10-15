@@ -52,12 +52,22 @@ func _ready() -> void:
 		plan.append([sz, "tengu", func():
 			main.start_combat({"kind": "combat", "boss": true, "room": DB.boss_rooms[1], "mobs": ["tengu"]}, func(_r): pass)
 			for i in 4: main.screen._do_bot()])
+		plan.append([sz, "caves", func():
+			GameState.run.biome = "caves"; GameState.run.floor = 12
+			main.start_combat({"kind": "combat", "room": DB.biome_rooms.caves[0], "mobs": ["brute", "shaman", "bat"]}, func(_r): pass)
+			for i in 3: main.screen._do_bot()])
+		plan.append([sz, "dm300", func():
+			main.start_combat({"kind": "combat", "boss": true, "room": DB.boss_rooms[2], "mobs": ["dm300"]}, func(_r): pass)
+			for i in 4: main.screen._do_bot()])
 		plan.append([sz, "boss", func():
 			GameState.run.biome = "sewers"
 			main.start_combat({"kind": "combat", "boss": true, "room": DB.boss_rooms[0], "mobs": ["goo"]}, func(_r): pass)
 			for i in 3: main.screen._do_bot()])
 
 func _process(_d: float) -> void:
+	if f == 0 and OS.has_environment("SHOTS"):  # SHOTS=caves,dm300 -> only those steps
+		var only: PackedStringArray = OS.get_environment("SHOTS").split(",")
+		plan = plan.filter(func(st): return st[1] in only)
 	f += 1
 	var i := f / 12
 	if i >= plan.size():

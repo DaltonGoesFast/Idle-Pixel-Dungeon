@@ -11,6 +11,7 @@ const TORCH_RESTORE := 60.0
 const RATION_RESTORE := 70.0
 const FLOOR_REST_HEAL := 0.2  # fraction of HT healed when descending
 const SEARCH_TORCH := 10.0    # torch spent searching a cleared floor for hidden doors
+const CAMPFIRE_REST := 50.0  # torch and satiety restored when pressing on from a boss campfire
 const SEARCH_CHANCE := 50     # % to find a hidden door (Rogue: always)
 
 static func biome(run: Dictionary) -> Dictionary:
@@ -205,6 +206,8 @@ static func continue_deeper(gs) -> void:
 	var run: Dictionary = gs.run
 	run.biome = next_biome(run)
 	run.boss_dead = false
+	# resting at the campfire: half a torch and half a meal (DECISIONS #57)
+	run.torch = minf(100.0, float(run.torch) + CAMPFIRE_REST); run.satiety = minf(100.0, float(run.satiety) + CAMPFIRE_REST)
 	descend(gs)
 	gs.say("You enter the %s. Traps lurk on these floors - search before you step." % biome(run).name)
 

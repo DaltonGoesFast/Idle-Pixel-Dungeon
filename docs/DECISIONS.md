@@ -97,3 +97,18 @@ Tengu blinking away every 15 HP wastes the Mage's walk-up time while her 2 charg
 
 ## 55. Delve speed is a setting, the x3 button stays
 Some players want to watch every encounter, others want to skip the walking. The setting multiplies the base 5%/s; the in-run x3 toggle is a quick "skip this floor" and stacks.
+
+## 56. Caves: SPD mobs, simple versions, and DM-300 telegraphs everything
+Floors 11-15 use SPD's bat (life drain), brute (enrages at low HP), gnoll shaman (piercing zap), spinner (poison bite) and DM-300. DM-300 telegraphs a plus-shaped rockfall 2 ticks ahead and a 1-tick toxic gas line (pierces barrier, poisons); below half HP it supercharges once (+2 DR, abilities more often). Everything dangerous is a red tile, matching the readability rule.
+
+## 57. Boss campfires restore +50 torch and satiety
+The Caves are long; without a rest, darkness and hunger killed most sim runs before DM-300. Continuing from a boss campfire now rests the party.
+
+## 58. Potions heal a percentage (max(10, 30% HT)); supplies capped at 10
+Flat 10 HP potions were useless at Caves HP levels. The cap stops stockpiling from trivialising the Caves.
+
+## 59. Rogue is weak in the Caves for now (0/10 in the sim)
+Accepted for v0.9.0 to keep the release stable; subclasses (next milestone) are the planned fix rather than raw stat buffs.
+
+## 60. Screenshot runs can be split (SHOTS=a,b)
+Long xvfb screenshot runs on software GL sometimes drop textures in later shots (prison/early shots fine, same shots render correctly when run alone; node counts show no leak). Treated as a test-harness rendering artifact, not a game bug; the exported pck verify still loads every sprite and tileset.

@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.9.0 — 2026-10-14
+- **Caves biome (floors 11-15)**: continue from the Tengu campfire. SPD Caves tiles and music, 4 new rooms, crystal vein special room and den door.
+- New mobs: Vampire Bat (drains HP), Gnoll Brute (enrages), Gnoll Shaman (piercing zap), Cave Spinner (poison).
+- **DM-300 boss**: telegraphed rockfall and toxic gas, supercharges below half HP.
+- Boss campfires restore +50 torch/satiety; potions heal max(10, 30% HT); supplies capped at 10.
+- Tests: 117 checks; UI smoke plays through Tengu into the Caves and beats DM-300.
+
 ## v0.8.0 — 2026-10-14
 - **Mage vs Tengu**: the Mage's Staff gains +1 charge at hero Lv7 (and every 7 levels, `charge_per_levels` in heroes.json). Deep-run Sewers+Prison clears: Mage 3/10 -> 6/10; Sewers unchanged (9/10).
 - **Toasts no longer cover tutorial cards**: they are hidden while a tip is open and reappear when it closes.

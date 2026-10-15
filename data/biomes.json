@@ -224,6 +224,122 @@
   "music_tracks": [
    "prison_1",
    "prison_2"
+  ],
+  "next": "caves"
+ },
+ "caves": {
+  "name": "Caves",
+  "floors": [
+   11,
+   15
+  ],
+  "str_gate": 14,
+  "tile": "tiles_caves",
+  "music": "caves_1",
+  "music_tracks": [
+   "caves_1",
+   "caves_2",
+   "caves_3"
+  ],
+  "boss_music": "caves_boss",
+  "boss": "dm300",
+  "boss_floor": 15,
+  "boss_room": 2,
+  "traps": [
+   "worn_dart",
+   "gripping",
+   "teleport",
+   "poison_dart"
+  ],
+  "strength_potions_at": [
+   [
+    12,
+    50
+   ],
+   [
+    14,
+    50
+   ]
+  ],
+  "event_weights": {
+   "combat": 5,
+   "door": 2,
+   "special": 3
+  },
+  "patrol_yield_per_hour": {
+   "iron_ore": 7,
+   "dark_gold": 2,
+   "arcane_resin": 2,
+   "dew": 3,
+   "gold": 35
+  },
+  "patrol_curio_every_hours": 2,
+  "secret_cache": {
+   "gold": 30,
+   "dark_gold": 2,
+   "iron_key": 1
+  },
+  "encounter_sets": [
+   {
+    "min_floor": 11,
+    "mobs": [
+     "bat"
+    ]
+   },
+   {
+    "min_floor": 11,
+    "mobs": [
+     "brute"
+    ]
+   },
+   {
+    "min_floor": 11,
+    "mobs": [
+     "shaman",
+     "bat"
+    ]
+   },
+   {
+    "min_floor": 12,
+    "mobs": [
+     "spinner"
+    ]
+   },
+   {
+    "min_floor": 12,
+    "mobs": [
+     "brute",
+     "shaman"
+    ]
+   },
+   {
+    "min_floor": 13,
+    "mobs": [
+     "bat",
+     "bat"
+    ]
+   },
+   {
+    "min_floor": 13,
+    "mobs": [
+     "spinner",
+     "shaman"
+    ]
+   },
+   {
+    "min_floor": 14,
+    "mobs": [
+     "brute",
+     "bat"
+    ]
+   },
+   {
+    "min_floor": 14,
+    "mobs": [
+     "spinner",
+     "brute"
+    ]
+   }
   ]
  }
 }

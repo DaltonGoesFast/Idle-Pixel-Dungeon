@@ -21,7 +21,9 @@ func _ready() -> void:
 	test_boss(gs)
 	test_traps(gs)
 	test_prison(gs)
+	test_caves(gs)
 	test_fullrun(gs)
+	test_cavesrun(gs)
 	test_delve(gs)
 	test_camp(gs)
 	test_save(gs, ss)
@@ -183,7 +185,7 @@ func test_fullrun(gs) -> void:
 			for c in gs.heroes: gs.heroes[c].unlocked = true
 			gs.add_mat("potion_healing", 2); gs.add_mat("ration", 4); gs.add_mat("torch", 6); gs.facilities.alchemy.level = 3
 			_kit_tier2(gs, cls)
-			var r := RunSim.play(gs, cls, {"ration": 6, "torch": 8, "potion_healing": 4}, 2000 + seed, true)
+			var r := RunSim.play(gs, cls, {"ration": 6, "torch": 8, "potion_healing": 4}, 2000 + seed, true, "prison")
 			if r.result == "extract" and r.biome == "prison": wins += 1
 			else: deaths.append("f%d" % r.floor)
 		print("  %s: cleared Prison %d/10, ended at %s" % [cls, wins, deaths])
@@ -258,6 +260,41 @@ func test_prison(gs) -> void:
 	sk.hit_mob(s0, 99, false, true)
 	check(sk.danger.size() >= 6, "Skeleton death telegraphs a bone burst")
 
+func test_caves(gs) -> void:
+	print("[caves] Lv10 Warrior, Str 14, Mace+1 / Mail+1 (GDD Caves: 14-15 Str, tier 3) vs every Caves fight")
+	gs.new_game()
+	var w: Dictionary = gs.heroes.warrior
+	w.level = 10; w.str = 14; w.weapon = gs.add_gear("mace", true, 1); w.armor = gs.add_gear("mail_armor", true, 1)
+	var hs := warrior(gs)
+	var b: Dictionary = DB.biomes.caves
+	var wins := 0; var total := 0; var worst := 999
+	for set in b.encounter_sets:
+		for room in DB.rooms + DB.biome_rooms.caves:
+			var c := Combat.new(); c.setup(room, hs, hs.ht, set.mobs, false, b.traps)
+			var r := CombatBot.play(c)
+			total += 1
+			if r.won: wins += 1; worst = mini(worst, r.hp)
+	print("  warrior Lv10: %d/%d wins, lowest end HP %d/%d" % [wins, total, worst, hs.ht])
+	check(wins >= total * 0.95, "Lv10 tier-3 Warrior wins >= 95% of Caves fights")
+	var c := Combat.new(); c.setup(DB.boss_rooms[2], hs, hs.ht, ["dm300"], false, b.traps)
+	var r := CombatBot.play(c, 3, 10)
+	print("  DM-300 vs Lv10 Warrior + 3 potions: won=%s hp=%d turns=%d" % [r.won, r.hp, r.turns])
+	check(r.won, "DM-300 is beatable by a Lv10 tier-3 Warrior with 3 potions")
+	var d := Combat.new(); d.setup(DB.boss_rooms[2], hs, hs.ht, ["dm300"])
+	var dm = d.enemies()[0]
+	for i in 6: d.hero_wait()
+	check(d.danger.size() > 0 or d.log_lines.size() > 4, "DM-300 telegraphs abilities")
+	dm.hp = 60; d.hero_wait(); d.hero_wait()
+	check(dm.get("supercharged", false) and int(dm.dr) == 6, "DM-300 supercharges below half HP")
+	var bt := Combat.new(); bt.setup(DB.rooms[0], hs, hs.ht, ["bat"])
+	var bat = bt.enemies()[0]; bat.hp = 10; bat.pos = bt.hero.pos + Vector2i(1, 0)
+	bt.hero.barrier = 0; bt.hero.dr = 0; bt.hero_wait()
+	check(bat.hp > 10, "Vampire Bat heals when it bites")
+	var sp := Combat.new(); sp.setup(DB.rooms[0], hs, hs.ht, ["spinner"])
+	var spn = sp.enemies()[0]; spn.pos = sp.hero.pos + Vector2i(1, 0)
+	sp.hero.barrier = 0; sp.hero.dr = 0; sp.hero_wait(); sp.hero_wait()
+	check(int(sp.hero.poison) > 0, "Cave Spinner bite poisons")
+
 ## The kit a player can forge after a couple of Sewers clears (see docs/BALANCE.md "Prison readiness").
 func _kit_tier2(gs, cls: String) -> void:
 	var h: Dictionary = gs.heroes[cls]
@@ -316,6 +353,25 @@ func test_meta(gs, ss) -> void:
 	for id in DB.tips:
 		for p in DB.tips[id].get("pages", [DB.tips[id]]): tips_ok = tips_ok and p.has("title") and p.has("text")
 	check(tips_ok and DB.tips.size() >= 15, "every tutorial page has a title and text")
+
+func test_cavesrun(gs) -> void:
+	print("[cavesrun] returning Lv8 / Str 14 hero (levels persist between runs) with tier-3 gear, all 15 floors in one expedition, 10 seeds")
+	for cls in ["warrior", "huntress", "mage", "rogue"]:
+		var wins := 0; var ends := []
+		for seed in 10:
+			gs.new_game()
+			for c in gs.heroes: gs.heroes[c].unlocked = true
+			gs.add_mat("potion_healing", 3); gs.add_mat("ration", 8); gs.add_mat("torch", 9); gs.facilities.alchemy.level = 4
+			var h: Dictionary = gs.heroes[cls]
+			h.level = 8; h.str = 14
+			h.armor = gs.add_gear("mail_armor", true, 1)
+			if cls in ["warrior", "huntress"]: h.weapon = gs.add_gear("mace", true, 1)
+			elif cls == "rogue": h.weapon = gs.add_gear("dagger", true, 3)
+			var r := RunSim.play(gs, cls, {"ration": 8, "torch": 9, "potion_healing": 5}, 3000 + seed, true)
+			if r.result == "extract" and r.biome == "caves": wins += 1
+			else: ends.append("f%d L%d" % [r.floor, r.level])
+		print("  %s: cleared Caves %d/10, ended at %s" % [cls, wins, ends])
+		if cls == "warrior": check(wins >= 2, "a geared Warrior can clear all 15 floors in one run sometimes")
 
 func test_delve(gs) -> void:
 	print("[delve]")

@@ -5,7 +5,8 @@ extends RefCounted
 
 ## Returns {result: "extract"|"death", floor, level, hp, fights, gold}
 ## deep = true: continue past the Goo campfire into the Prison instead of extracting.
-static func play(gs, hero: String, loadout: Dictionary, seed: int, deep := false) -> Dictionary:
+## last_biome: with deep, stop (extract) at this biome's campfire instead of going further.
+static func play(gs, hero: String, loadout: Dictionary, seed: int, deep := false, last_biome := "") -> Dictionary:
 	gs.start_run(hero, loadout, "sewers", seed)
 	var fights := 0
 	var guard := 0
@@ -14,7 +15,7 @@ static func play(gs, hero: String, loadout: Dictionary, seed: int, deep := false
 		var run: Dictionary = gs.run
 		if Delve.floor_done(run):
 			if Delve.is_campfire(run):
-				if deep and Delve.next_biome(run) != "":
+				if deep and Delve.next_biome(run) != "" and run.biome != last_biome:
 					Delve.continue_deeper(gs); continue
 				var out := _summary(gs, "extract", fights); gs.end_run("extract"); return out
 			if Delve.can_search_floor(run) and float(run.torch) > 40.0: Delve.search_floor(gs)
@@ -45,9 +46,11 @@ static func play(gs, hero: String, loadout: Dictionary, seed: int, deep := false
 		if ev.get("boss", false): run["boss_entry"] = "Lv%d hp%d/%d pots%d" % [gs.heroes[hero].level, run.hp, gs.hero_stats(hero).ht, int(run.supplies.get("potion_healing", 0))]
 		var c := Delve.new_combat(gs, ev)
 		var pots := int(run.supplies.get("potion_healing", 0))
-		var r := CombatBot.play(c, pots, int(DB.materials.potion_healing.heal))
+		var r := CombatBot.play(c, pots, gs.potion_heal(hero))
 		run.supplies.potion_healing = pots - int(r.potions_used)
 		var res := {"won": c.won, "hp": c.hero.hp, "loot": c.loot, "fallen_loot": c.fallen_loot, "xp": c.xp, "boss_killed": c.boss_killed, "kills": c.kills, "traps_found": c.traps_found, "trap_ids": c.trap_ids_seen}
+		if not res.won and OS.has_environment("SIM_DEBUG"):  # SIM_DEBUG=1 godot ... run_tests.tscn: explain every death
+			print("    died f%d L%d vs %s hp_in=%d torch=%d sat=%d pots=%d" % [run.floor, gs.heroes[hero].level, ev.mobs, int(run.hp), int(run.torch), int(run.satiety), pots])
 		if not Delve.apply_fight_result(gs, ev, res, reward):
 			var out := _summary(gs, "death", fights); gs.end_run("death"); return out
 	var o := _summary(gs, "timeout", fights); gs.end_run("abandon"); return o

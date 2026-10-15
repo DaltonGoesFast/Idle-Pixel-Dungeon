@@ -24,29 +24,31 @@ Assets used (all from Shattered Pixel Dungeon, GPL-3.0): hero sprites (warrior, 
 
 | Id | Biomes | Door A | Door B |
 |---|---|---|---|
-| ozone | sewers, prison | Door A: Smells of ozone (combat) | Door B: Locked (chest) |
-| scratch | sewers, prison | Door A: Frantic scratching (combat) | Door B: Damp, quiet (special) |
-| glint | sewers, prison | Door A: A metallic glint (combat) | Door B: Barred (1 Iron Key) (chest) |
-| cells | prison | Door A: Rattling bones (combat) | Door B: A guard's footlocker (1 Iron Key) (chest) |
-| workshop | prison | Door A: Humming machinery (combat) | Door B: A quiet storeroom (special) |
+| ozone | caves, prison, sewers | Door A: Smells of ozone (combat) | Door B: Locked (chest) |
+| scratch | caves, prison, sewers | Door A: Frantic scratching (combat) | Door B: Damp, quiet (special) |
+| glint | caves, prison, sewers | Door A: A metallic glint (combat) | Door B: Barred (1 Iron Key) (chest) |
+| cells | caves, prison | Door A: Rattling bones (combat) | Door B: A guard's footlocker (1 Iron Key) (chest) |
+| workshop | caves, prison | Door A: Humming machinery (combat) | Door B: A quiet storeroom (special) |
+| den | caves | Door A: Leathery wings flapping (combat) | Door B: A gnoll camp's strongbox (1 Iron Key) (chest) |
 
 ### Special rooms (UI cards)
 
 | Id | Biomes | Title | Options |
 |---|---|---|---|
-| piranha | sewers, prison | Piranha Pool | Wade in (-5 HP) / Distract with a Ration / Leave |
-| sacrificial_fire | sewers, prison | Sacrificial Fire | Offer blood (-4 HP) / Leave |
-| statue | sewers, prison | Animated Statue | Challenge it (fight) / Leave |
-| barricade | sewers, prison | Barricade | Burn it (1 Torch) / Smash it (-3 HP) / Leave |
-| garden | sewers, prison | Overgrown Garden | Forage |
-| trapped_hall | sewers, prison | Trapped Corridor | Search for a safe path (-10 torch) / Disarm the plates (Rogue) / Run through (-5 HP) / Leave |
-| odd_wall | sewers, prison | Suspicious Wall | Search the wall (-8 torch) / Leave |
-| cell_block | prison | Locked Cell | Unlock (1 Iron Key) / Pry the bars (-6 HP) / Leave |
-| armory | prison | Guard Armory | Scavenge / Leave |
+| piranha | caves, prison, sewers | Piranha Pool | Wade in (-5 HP) / Distract with a Ration / Leave |
+| sacrificial_fire | caves, prison, sewers | Sacrificial Fire | Offer blood (-4 HP) / Leave |
+| statue | caves, prison, sewers | Animated Statue | Challenge it (fight) / Leave |
+| barricade | caves, prison, sewers | Barricade | Burn it (1 Torch) / Smash it (-3 HP) / Leave |
+| garden | caves, prison, sewers | Overgrown Garden | Forage |
+| trapped_hall | caves, prison, sewers | Trapped Corridor | Search for a safe path (-10 torch) / Disarm the plates (Rogue) / Run through (-5 HP) / Leave |
+| odd_wall | caves, prison, sewers | Suspicious Wall | Search the wall (-8 torch) / Leave |
+| cell_block | caves, prison | Locked Cell | Unlock (1 Iron Key) / Pry the bars (-6 HP) / Leave |
+| armory | caves, prison | Guard Armory | Scavenge / Leave |
+| crystal_vein | caves | Crystal Vein | Mine it (-12 torch) / Pry a chunk loose (-6 HP) / Leave |
 
 ### Arenas
 
-7 shared 8x8 rooms, 4 prison-only, 2 boss rooms (data/rooms.json). Legend: # wall . floor " tall grass + door _ chasm ~ shallow water (conducts lightning) H hero start, 1-4 enemy spawn slots (filled in order), B boss ^ visible trap, ? hidden trap (type from the biome's trap pool)
+7 shared 8x8 rooms, 4 prison-only, 4 caves-only, 3 boss rooms (data/rooms.json). Legend: # wall . floor " tall grass + door _ chasm ~ shallow water (conducts lightning) H hero start, 1-4 enemy spawn slots (filled in order), B boss ^ visible trap, ? hidden trap (type from the biome's trap pool)
 
 Shared room 0:
 ```
@@ -180,6 +182,54 @@ prison room 3:
 ########
 ```
 
+caves room 0:
+```
+########
+#H..##.#
+#.~~..1#
+#.~~.#.#
+#..^...#
+##..?..#
+#2...3.#
+########
+```
+
+caves room 1:
+```
+########
+#H....##
+#..#...#
+#.###.1#
+#..?...#
+#__..^.#
+#__2.3.#
+########
+```
+
+caves room 2:
+```
+####.###
+#H.~~..#
+#..~~#1#
+#.....##
+##.?...#
+#..#^..#
+#2....3#
+########
+```
+
+caves room 3:
+```
+########
+#H.#...#
+#..#.1.#
+#..~~..#
+#.^~~?.#
+#..#...#
+#2.#.3.#
+########
+```
+
 Boss room 0:
 ```
 ########
@@ -201,6 +251,18 @@ Boss room 1:
 #...B.^#
 #.#..#.#
 #..?...#
+########
+```
+
+Boss room 2:
+```
+########
+#H.....#
+#.~~...#
+#......#
+#..B...#
+#...~~.#
+#......#
 ########
 ```
 <!-- /GENERATED -->

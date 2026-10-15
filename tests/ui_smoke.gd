@@ -46,15 +46,17 @@ func _process(_d: float) -> void:
 			_check(main.delve.card_host.get_child_count() > 0, "delve settings card opens")
 			main.delve.pending = {}; main.delve.running = true; main.delve._show_card()
 		_:
-			if f > 8 and f < 12000: _drive()
-	if f == 12000:
-		print("UI SMOKE: timeout at stage ", stage); get_tree().quit(1)
+			if f > 8 and f < 20000: _drive()
+	if f == 20000:
+		print("UI SMOKE: timeout at stage ", stage, " screen ", main.screen.get_script().resource_path, " run ", GameState.run.get("biome"), " f", GameState.run.get("floor"), " pending ", main.delve.pending if main.delve else "-")
+		if main.screen.get("combat") != null: print("  last log: ", main.screen.combat.log_lines.slice(-6))
+		get_tree().quit(1)
 
 func _drive() -> void:
 	var s = main.screen
 	if s.get_script().resource_path.ends_with("combat_screen.gd"):
-		if GameState.run.biome == "prison" and not s.finished and s.grid.tileset != "tiles_prison":
-			_check(false, "prison fights use the prison tileset")
+		if not s.finished and s.grid.tileset != DB.biomes[GameState.run.biome].tile:
+			_check(false, "fights use the biome's tileset")
 		if not s.finished:
 			s._do_bot()
 			if stage == 0 and s.combat.log_lines.size() >= 3 and not s.finished and not resumed:
@@ -82,9 +84,17 @@ func _drive() -> void:
 			"door": s._choose_door(p.door.a)
 			"special": s._special_option(p.special.options.back())
 			"campfire":
-				_check(GameState.run.biome == "prison", "campfire reached after Tengu")
-				print("  Tengu defeated through the UI, extracting")
-				GameState.end_run("extract"); main.show_camp()
+				if GameState.run.biome == "prison":
+					print("  Tengu defeated through the UI, continuing into the Caves")
+					s._show_card()
+					_check(Delve.next_biome(GameState.run) == "caves", "Tengu campfire offers the Caves")
+					Delve.continue_deeper(GameState); s.pending = {}; main.play_floor_music()
+					_check(GameState.run.biome == "caves" and int(GameState.run.floor) == 11, "continue enters Caves floor 11")
+					GameState.run.floor = 14; Delve.descend(GameState); s._show_card()
+				else:
+					_check(GameState.run.biome == "caves", "campfire reached after DM-300")
+					print("  DM-300 defeated through the UI, extracting")
+					GameState.end_run("extract"); main.show_camp()
 			"floor_done":
 				if Delve.can_search_floor(GameState.run):
 					s._show_card()
@@ -106,7 +116,7 @@ func _drive() -> void:
 		if ci < classes.size():
 			if ci == classes.size() - 1:
 				var h: Dictionary = GameState.heroes[classes[ci]]
-				h.level = 7; h.str = 13; h.weapon = GameState.add_gear("shortsword", true, 2); h.armor = GameState.add_gear("leather_armor", true, 2)
+				h.level = 11; h.str = 14; h.weapon = GameState.add_gear("mace", true, 2); h.armor = GameState.add_gear("mail_armor", true, 2)
 				GameState.add_mat("potion_healing", 3); s.loadout.potion_healing = 3; GameState.facilities.alchemy.level = 3
 			s.chosen_hero = classes[ci]; s._start(); main.delve.fast = true
 			return

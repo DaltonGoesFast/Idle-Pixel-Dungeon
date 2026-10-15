@@ -34,7 +34,7 @@ func setup(ev: Dictionary, done: Callable, saved := {}) -> void:
 		combat = Combat.new(); combat.from_dict(saved)
 		combat._log("(fight resumed)")
 	potions = int(run.supplies.get("potion_healing", 0))
-	heal = int(DB.materials.potion_healing.heal)
+	heal = GameState.potion_heal(run.hero)
 
 func _ready() -> void:
 	split = BoxContainer.new(); add_child(split); split.set_anchors_and_offsets_preset(PRESET_FULL_RECT)

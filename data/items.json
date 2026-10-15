@@ -151,7 +151,9 @@
   "potion_healing": {
    "name": "Potion of Healing",
    "icon": "POTION_CRIMSON",
-   "heal": 10
+   "heal": 10,
+   "heal_pct": 0.3,
+   "desc": "Heals max(10, 30% of max HP)."
   },
   "potion_strength": {
    "name": "Potion of Strength",

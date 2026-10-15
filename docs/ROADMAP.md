@@ -3,13 +3,16 @@
 ## Next up (suggested order)
 - [ ] Real-device playtest on the Fold 6 (cover + inner): text sizes, tip card sizing at Huge text, haptic strength, Prison difficulty for a human player (the sim bot is better than a new player).
 - [x] Mage vs Tengu (v0.8.0: 6/10).
+- [x] Caves biome, floors 11-15, DM-300 (v0.9.0).
+- [ ] Rogue in the Caves (cavesrun 0/10): needs a Caves-specific tool (subclass work).
+- [ ] Tengu's Mask + 2 subclasses per class.
+- [ ] Guided first-fight tutorial.
 - [ ] Playtest pass on the Fold 6: tap targets, text sizes, delve speed (`DelveScreen.SPEED`), fight length.
 - [x] Save/restore in-progress fights (v0.4.0).
 - [x] Prison biome + Tengu (v0.5.0).
 - [x] Traps, searching, hidden doors (v0.5.0).
 - [ ] Caves biome (floors 11-15, DM-300) - the Tengu campfire currently only extracts.
 - [ ] Tengu's Mask / subclasses (GDD Q D).
-- [ ] Mage vs Tengu: blinks waste charges (deeprun 3/10). Consider letting bolts recharge faster in boss fights or a Mage-specific hint.
 - [ ] Huntress overwatch tiles, Mage frost wand (slow).
 - [ ] More room templates (10x10 variant).
 - [ ] Enchantments on a deterministic trigger (e.g. every 3rd hit / on surprise) - GDD Q E.

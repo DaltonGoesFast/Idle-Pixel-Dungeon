@@ -12,7 +12,12 @@ static func ability_text(m: Dictionary) -> String:
 		"zap": return "Zaps at range 2-4: red tile, %d dmg, every %d actions." % [m.zap_dmg, m.zap_cooldown]
 		"chain": return "Once per fight, chains you from 2-3 tiles away and drags you next to it."
 		"tengu": return "Throws shurikens (red tile, %d dmg) and teleports away every %d HP lost. Below half HP lobs 3x3 bombs (2-tick fuse, %d dmg)." % [m.throw_dmg, m.blink_every, m.bomb_dmg]
-	return ""
+		"dm300": return "Every %d actions (%d when supercharged below half HP, +2 DR) alternates rockfall (+ shape on you, 2-tick fuse, %d dmg) and a toxic gas line (1 tick, %d + %d poison)." % [int(m.ability_every), int(m.ability_every_super), int(m.rock_dmg), int(m.gas_dmg), int(m.gas_poison)]
+	var extra := []
+	if m.has("drain"): extra.append("Heals %d when its bite gets through." % int(m.drain))
+	if m.has("bite_poison"): extra.append("Venomous bite: +%d poison." % int(m.bite_poison))
+	if m.has("enraged_dmg") and m.get("ability", "") == "": extra.append("Enrages below half HP: %d dmg." % int(m.enraged_dmg))
+	return " ".join(extra)
 
 static func mob_line(id: String) -> String:
 	var m: Dictionary = DB.mobs[id]

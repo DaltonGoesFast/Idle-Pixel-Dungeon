@@ -26,8 +26,9 @@
     }
    },
    "biomes": [
-    "sewers",
-    "prison"
+    "caves",
+    "prison",
+    "sewers"
    ]
   },
   {
@@ -49,8 +50,9 @@
     "kind": "special"
    },
    "biomes": [
-    "sewers",
-    "prison"
+    "caves",
+    "prison",
+    "sewers"
    ]
   },
   {
@@ -78,13 +80,15 @@
     }
    },
    "biomes": [
-    "sewers",
-    "prison"
+    "caves",
+    "prison",
+    "sewers"
    ]
   },
   {
    "id": "cells",
    "biomes": [
+    "caves",
     "prison"
    ],
    "a": {
@@ -115,6 +119,7 @@
   {
    "id": "workshop",
    "biomes": [
+    "caves",
     "prison"
    ],
    "a": {
@@ -131,6 +136,36 @@
    "b": {
     "text": "Door B: A quiet storeroom",
     "kind": "special"
+   }
+  },
+  {
+   "id": "den",
+   "biomes": [
+    "caves"
+   ],
+   "a": {
+    "text": "Door A: Leathery wings flapping",
+    "kind": "combat",
+    "mobs": [
+     "bat",
+     "bat"
+    ],
+    "reward": {
+     "dark_gold": 2,
+     "gold": 20
+    }
+   },
+   "b": {
+    "text": "Door B: A gnoll camp's strongbox (1 Iron Key)",
+    "kind": "chest",
+    "cost": {
+     "iron_key": 1
+    },
+    "reward": {
+     "gold": 40,
+     "iron_ore": 5,
+     "ration": 1
+    }
    }
   }
  ],
@@ -163,8 +198,9 @@
     }
    ],
    "biomes": [
-    "sewers",
-    "prison"
+    "caves",
+    "prison",
+    "sewers"
    ]
   },
   {
@@ -187,8 +223,9 @@
     }
    ],
    "biomes": [
-    "sewers",
-    "prison"
+    "caves",
+    "prison",
+    "sewers"
    ]
   },
   {
@@ -210,8 +247,9 @@
     }
    ],
    "biomes": [
-    "sewers",
-    "prison"
+    "caves",
+    "prison",
+    "sewers"
    ]
   },
   {
@@ -243,8 +281,9 @@
     }
    ],
    "biomes": [
-    "sewers",
-    "prison"
+    "caves",
+    "prison",
+    "sewers"
    ]
   },
   {
@@ -261,15 +300,17 @@
     }
    ],
    "biomes": [
-    "sewers",
-    "prison"
+    "caves",
+    "prison",
+    "sewers"
    ]
   },
   {
    "id": "trapped_hall",
    "biomes": [
-    "sewers",
-    "prison"
+    "caves",
+    "prison",
+    "sewers"
    ],
    "title": "Trapped Corridor",
    "text": "Pressure plates line the floor. Something valuable glints at the far end.",
@@ -311,8 +352,9 @@
   {
    "id": "odd_wall",
    "biomes": [
-    "sewers",
-    "prison"
+    "caves",
+    "prison",
+    "sewers"
    ],
    "title": "Suspicious Wall",
    "text": "A draft whistles through a crack in the stonework. A hidden door?",
@@ -336,6 +378,7 @@
   {
    "id": "cell_block",
    "biomes": [
+    "caves",
     "prison"
    ],
    "title": "Locked Cell",
@@ -369,6 +412,7 @@
   {
    "id": "armory",
    "biomes": [
+    "caves",
     "prison"
    ],
    "title": "Guard Armory",
@@ -379,6 +423,38 @@
      "reward": {
       "iron_ore": 5,
       "torch": 1
+     }
+    },
+    {
+     "text": "Leave"
+    }
+   ]
+  },
+  {
+   "id": "crystal_vein",
+   "biomes": [
+    "caves"
+   ],
+   "title": "Crystal Vein",
+   "text": "Dark Gold glitters in a crumbling wall. Mining it will take time - and light.",
+   "options": [
+    {
+     "text": "Mine it (-12 torch)",
+     "cost": {
+      "torch_fuel": 12
+     },
+     "reward": {
+      "dark_gold": 3,
+      "iron_ore": 3
+     }
+    },
+    {
+     "text": "Pry a chunk loose (-6 HP)",
+     "cost": {
+      "hp": 6
+     },
+     "reward": {
+      "dark_gold": 1
      }
     },
     {

@@ -10,6 +10,7 @@ var pages := {}
 var loadout := {"ration": 2, "torch": 2, "potion_healing": 1, "scroll_passage": 0, "elixir_starter": 0}
 var chosen_hero := "warrior"
 var portrait := true
+const MAX_SUPPLY := 10   # torches / rations per expedition (a 15-floor dive needs ~9 torches)
 const TAB_ORDER := ["Delve", "Heroes", "Stash", "Forge", "Alchemy", "Enchanter", "Guild", "Journal", "Settings"]
 
 func _ready() -> void:
@@ -53,7 +54,7 @@ func _p(name: String) -> VBoxContainer:
 # ------------------------------------------------------------ Delve (loadout & start)
 func _page_delve() -> void:
 	var v := _p("Delve")
-	v.add_child(UIKit.label("Choose a hero, pack supplies, and descend into the Sewers (floors 1-5, Goo waits on 5). After Goo you may extract or press on into the Prison (6-10, Tengu). Extract at a boss campfire or with a Scroll of Passage; dying loses the pack."))
+	v.add_child(UIKit.label("Choose a hero, pack supplies, and descend into the Sewers (floors 1-5, Goo waits on 5). After each boss you may extract or press on: Prison (6-10, Tengu), then Caves (11-15, DM-300). Extract at a boss campfire or with a Scroll of Passage; dying loses the pack."))
 	var hb := HFlowContainer.new(); v.add_child(hb)
 	for c in GameState.heroes:
 		var h: Dictionary = GameState.heroes[c]
@@ -65,7 +66,7 @@ func _page_delve() -> void:
 	v.add_child(UIKit.header("Supplies"))
 	for k in ["ration", "torch", "potion_healing", "scroll_passage", "elixir_starter"]:
 		var have := GameState.mat(k)
-		var cap := GameState.belt_size() if k == "potion_healing" else (1 if k == "scroll_passage" else 6)
+		var cap := GameState.belt_size() if k == "potion_healing" else (1 if k == "scroll_passage" else MAX_SUPPLY)
 		loadout[k] = clampi(int(loadout[k]), 0, mini(have, cap))
 		if k == "elixir_starter" and have == 0: continue
 		var row := UIKit.hbox(v)

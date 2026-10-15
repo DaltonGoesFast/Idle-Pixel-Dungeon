@@ -100,7 +100,7 @@ func from_dict(d: Dictionary) -> void:
 	for u in d.units:
 		var x: Dictionary = u.duplicate(true)
 		x.pos = Vector2i(int(u.pos[0]), int(u.pos[1]))
-		for k in ["uid", "hp", "ht", "dmg", "dr", "barrier", "barrier_max", "charges", "cloak_charges", "cooldown", "acts", "exp", "loot", "pump_count", "poison", "search_radius", "stolen", "slams", "bombs", "blinks", "steal_gold"]:
+		for k in ["uid", "hp", "ht", "dmg", "dr", "barrier", "barrier_max", "charges", "cloak_charges", "cooldown", "acts", "exp", "loot", "pump_count", "poison", "search_radius", "stolen", "slams", "bombs", "blinks", "steal_gold", "abil", "abil_n"]:
 			if x.has(k): x[k] = int(x[k])
 		units.append(x)
 		if x.has("hero"): hero = x
@@ -536,7 +536,10 @@ func _resolve_danger() -> void:
 		if d.at <= time:
 			danger.erase(d)
 			_ev({"t": "blast", "pos": d.pos})
-			if hero.pos == d.pos: hit_hero(d.dmg, d.src)
+			if hero.pos == d.pos:
+				hit_hero(d.dmg, d.src, d.get("pierce", false))
+				if d.has("poison") and not over:
+					hero.poison = int(hero.get("poison", 0)) + int(d.poison); _ev({"t": "sfx", "name": "debuff"})
 			elif d.get("hits_mobs", false):
 				var u = unit_at(d.pos)
 				if u != null and u != hero: _trap_hit(u, int(d.dmg))
@@ -550,6 +553,8 @@ func _mob_act(m: Dictionary) -> void:
 	_tick_poison(m)
 	if m.hp <= 0 or over: return
 	if m.charging: return  # waits for its telegraph to resolve
+	if m.has("enraged_dmg") and int(m.hp) * 2 <= int(m.ht) and int(m.dmg) != int(m.enraged_dmg):
+		m.dmg = int(m.enraged_dmg); _log("%s is enraged! (dmg %d)" % [m.name, m.dmg])
 	if m.has("hp_flee") and int(m.get("stolen", 0)) > 0:
 		_flee(m); return
 	match m.get("ability", ""):
@@ -565,7 +570,7 @@ func _mob_act(m: Dictionary) -> void:
 		"zap":
 			# DM-100: telegraphed lightning bolt (ignores DR); conducts through water to the hero
 			if not hidden() and m.cooldown <= 0 and cheb(m.pos, hero.pos) >= 2 and cheb(m.pos, hero.pos) <= 4 and line_clear(m.pos, hero.pos):
-				danger.append({"pos": hero.pos, "dmg": int(m.zap_dmg), "at": m.next + 1.0, "src": m.name + "'s lightning", "uid": m.uid})
+				danger.append({"pos": hero.pos, "dmg": int(m.zap_dmg), "at": m.next + 1.0, "src": m.name + "'s lightning", "uid": m.uid, "pierce": m.get("zap_magic", false)})
 				m.cooldown = int(m.zap_cooldown)
 				_log("%s crackles with energy! (red tile)" % m.name)
 				_ev({"t": "telegraph", "uid": m.uid}); _ev({"t": "sfx", "name": "chargeup"})
@@ -583,6 +588,8 @@ func _mob_act(m: Dictionary) -> void:
 					return
 		"tengu":
 			if _tengu_act(m): return
+		"dm300":
+			if _dm300_act(m): return
 		"pump":
 			var every := int(m.pump_every)
 			if int(m.hp) * 2 <= int(m.ht) and m.has("pump_every_enraged"): every = int(m.pump_every_enraged)
@@ -603,7 +610,14 @@ func _mob_act(m: Dictionary) -> void:
 		return  # lost track of the hero: searches in place
 	if cheb(m.pos, hero.pos) == 1:
 		_ev({"t": "attack", "uid": m.uid, "to": hero.pos})
+		var hp_before: int = hero.hp + hero.barrier
 		hit_hero(int(m.dmg), m.name)
+		var dealt: int = hp_before - (hero.hp + hero.barrier)
+		if m.has("drain") and dealt > 0 and m.hp < m.ht:
+			var h := mini(int(m.drain), int(m.ht) - int(m.hp)); m.hp += h
+			_ev({"t": "heal", "uid": m.uid, "amount": h, "pos": m.pos}); _log("%s drinks your blood (+%d)." % [m.name, h])
+		if m.has("bite_poison") and dealt > 0 and not over:
+			hero.poison = int(hero.get("poison", 0)) + int(m.bite_poison); _log("The bite is venomous!"); _ev({"t": "sfx", "name": "debuff"})
 		if m.get("ability", "") == "steal" and int(m.get("stolen", 0)) == 0 and not over:
 			m.stolen = int(m.steal_gold)
 			_log("%s snatches %d gold and runs! Kill it to get it back." % [m.name, m.stolen]); _ev({"t": "sfx", "name": "gold"})
@@ -645,6 +659,34 @@ func _tengu_act(m: Dictionary) -> bool:
 		return true
 	m.cooldown = maxi(0, int(m.cooldown) - 1)
 	return false
+
+## DM-300 (SPD Caves boss), simple version. Alternates two telegraphed abilities every `ability_every` actions:
+##  rockfall - a plus-shaped 5-tile area centred on the hero, 2-tick warning (rock_dmg);
+##  toxic vent - the line from DM-300 to the hero, 1 tick, low damage (ignores DR) + poison.
+## Below half HP it SUPERCHARGES once: +2 DR and abilities every `ability_every_super` actions.
+func _dm300_act(m: Dictionary) -> bool:
+	if hidden(): return false
+	var sup := int(m.hp) * 2 <= int(m.ht)
+	if sup and not m.get("supercharged", false):
+		m.supercharged = true; m.dr = int(m.dr) + 2
+		_log("DM-300 SUPERCHARGES! (+2 DR, abilities come faster)"); _ev({"t": "sfx", "name": "chargeup"}); _ev({"t": "telegraph", "uid": m.uid})
+	m.abil = int(m.get("abil", 0)) + 1
+	if m.abil < int(m.ability_every_super if sup else m.ability_every): return false
+	m.abil = 0
+	m.abil_n = int(m.get("abil_n", 0)) + 1
+	if m.abil_n % 2 == 1:
+		for o in [Vector2i.ZERO, Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+			if tile(hero.pos + o) != T.WALL:
+				danger.append({"pos": hero.pos + o, "dmg": int(m.rock_dmg), "at": m.next + 2.0, "src": "Falling rocks", "uid": m.uid, "hits_mobs": true})
+		_log("DM-300 shakes the ceiling! Rocks will fall in 2 ticks (red tiles)."); _ev({"t": "sfx", "name": "rocks"})
+	else:
+		var pts := _line(m.pos, hero.pos)
+		for i in range(1, pts.size()):
+			if tile(pts[i]) == T.WALL: break
+			danger.append({"pos": pts[i], "dmg": int(m.gas_dmg), "at": m.next + 1.0, "src": "Toxic gas", "uid": m.uid, "pierce": true, "poison": int(m.gas_poison)})
+		_log("DM-300 vents toxic gas at you! (red line, 1 tick)"); _ev({"t": "sfx", "name": "gas"})
+	_ev({"t": "telegraph", "uid": m.uid})
+	return true
 
 ## Called after Tengu takes damage: every `blink_every` HP lost it teleports to the far side of the arena.
 func _tengu_hurt(m: Dictionary) -> void:
