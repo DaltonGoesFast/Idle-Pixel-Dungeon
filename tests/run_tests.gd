@@ -1602,3 +1602,15 @@ func test_facility_cap(gs) -> void:
 	gs.facilities.guild.level = 2; gs.facilities.guild.cap = 1
 	gs.from_dict(JSON.parse_string(JSON.stringify(gs.to_dict())))
 	check(int(gs.facilities.guild.cap) == 2, "loading a save repairs cap < level")
+	# hero slots show Lv + Str; tapping a second time opens Heroes
+	gs.heroes.mage.unlocked = true; gs.heroes.mage.level = 4; gs.heroes.mage.str = 12
+	var cs = load("res://scripts/ui/camp_screen.gd").new(); add_child(cs)
+	var m_slot: Button = cs._hero_slot("mage")
+	check(_node_text(m_slot).contains("Lv4") and _node_text(m_slot).contains("Str 12"), "hero slot shows level and Str (%s)" % _node_text(m_slot))
+	m_slot.pressed.emit()
+	check(cs.chosen_hero == "mage" and cs.open_name == "", "first tap selects the hero")
+	var m_slot2: Button = cs._hero_slot("mage")
+	m_slot2.pressed.emit()
+	check(cs.open_name == "Heroes", "tapping the selected hero again opens Heroes")
+	m_slot.free(); m_slot2.free(); cs.queue_free()
+

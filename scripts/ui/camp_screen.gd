@@ -91,7 +91,7 @@ func _build_side() -> void:
 	for c in GameState.heroes:
 		hr.add_child(_hero_slot(c))
 	var hb := UIKit.button("Heroes", func(): open_page("Heroes")); UIKit.with_icon(hb, PAGE_ICONS.Heroes); UIKit.secondary(hb)
-	hb.custom_minimum_size = Vector2(UIKit.font_size * 6, UIKit.font_size * 3.4); hr.add_child(hb)
+	hb.custom_minimum_size = Vector2(UIKit.font_size * 6, UIKit.font_size * 4.0); hr.add_child(hb)
 	# one-line hero summary
 	var s := GameState.hero_stats(chosen_hero); var h: Dictionary = GameState.heroes[chosen_hero]
 	var line := UIKit.label("%s  Lv%d   HP %d  DR %d  Dmg %d  Str %d" % [s.name, h.level, s.ht, s.dr, s.dmg, h.str], 0.85, Color("ffd27a"))
@@ -122,21 +122,25 @@ func _build_side() -> void:
 func _hero_slot(c: String) -> Control:
 	var h: Dictionary = GameState.heroes[c]
 	var b := Button.new(); b.focus_mode = FOCUS_NONE
-	var sz := UIKit.font_size * 3.4
-	b.custom_minimum_size = Vector2(sz, sz)
+	var sz := UIKit.font_size * 3.4; var ht := UIKit.font_size * 4.0
+	b.custom_minimum_size = Vector2(sz, ht)
 	var sel := c == chosen_hero
 	for st in ["normal", "hover", "pressed", "disabled"]:
 		b.add_theme_stylebox_override(st, UIKit.chrome("red_button" if sel else "grey_button", Color(1, 1, 1) if st != "disabled" else Color(0.5, 0.5, 0.5), UIKit.font_size * 0.3))
 	b.tooltip_text = DB.heroes[c].name + ("" if h.unlocked else " (locked): " + DB.heroes[c].get("unlock", ""))
 	b.disabled = not h.unlocked
-	b.pressed.connect(func(): chosen_hero = c; Sfx.play("click"); rebuild())
+	b.pressed.connect(func():
+		Sfx.play("click")
+		if c == chosen_hero: open_page("Heroes")
+		else: chosen_hero = c; rebuild())
 	var tr := UIKit.pixel(_hero_tex(c), maxi(1, int(sz * 0.62 / 15.0)))
-	tr.set_anchors_and_offsets_preset(PRESET_FULL_RECT); tr.offset_bottom = -int(UIKit.font_size * 0.9)
+	tr.set_anchors_and_offsets_preset(PRESET_FULL_RECT); tr.offset_bottom = -int(UIKit.font_size * 1.55)
 	if not h.unlocked: tr.modulate = Color(0, 0, 0, 0.75)
 	b.add_child(tr)
-	var lv := UIKit.label(("Lv%d" % h.level) if h.unlocked else "?", 0.75, Color("ffffaa"))
+	var lv := UIKit.label(("Lv%d\nStr %d" % [h.level, h.str]) if h.unlocked else "?", 0.75, Color("ffffaa"))
+	lv.add_theme_constant_override("line_spacing", -int(UIKit.font_size * 0.1))
 	lv.set_anchors_and_offsets_preset(PRESET_BOTTOM_WIDE); lv.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	lv.offset_top = -UIKit.font_size * 1.05; lv.mouse_filter = MOUSE_FILTER_IGNORE; b.add_child(lv)
+	lv.offset_top = -UIKit.font_size * 1.75; lv.mouse_filter = MOUSE_FILTER_IGNORE; b.add_child(lv)
 	return b
 
 func _hero_tex(c: String) -> Texture2D:
