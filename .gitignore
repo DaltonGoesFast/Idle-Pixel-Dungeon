@@ -1,0 +1,13 @@
+# Godot
+.godot/
+/android/
+export_credentials.cfg
+# Builds / signing (never commit keys)
+builds/
+*.apk
+*.aab
+*.idsig
+*.keystore
+*.jks
+*.tmp
+.DS_Store
