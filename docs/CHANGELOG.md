@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Updater: a malformed GitHub reply (null/odd `assets` or `tag_name`, non-JSON body) now ends in an error instead of a script error that left the Update button stuck on "Checking…" until restart. The release check times out after 20 s (downloads keep 10 min), and an HTTP error such as a rate limit shows its code instead of "No network" (+tests).
 
 ## 0.29.0
 - In-game Update on Android and Windows: Camp / Settings checks GitHub releases, downloads the APK or zip, and on Android opens the system Install screen. iOS stays on TestFlight; `tools/upload_testflight.sh` archives and uploads on a Mac. Android export uses Gradle so the updater can request install permission (+tests).

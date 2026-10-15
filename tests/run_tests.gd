@@ -1703,6 +1703,25 @@ func test_updater() -> void:
 	check(zip.get("name") == "spd-tactics-v0.29.0-windows.zip", "picks Windows zip asset")
 	check(Updater.pick_asset(assets, "0.29.0", "").is_empty(), "unsupported platform picks nothing")
 	check(Updater.local_version() != "", "local version comes from project settings")
+	# bad or odd API replies never raise and never leave the updater stuck on CHECKING (DECISIONS #138)
+	var saved_state: int = Updater.state; var saved_text: String = Updater.status_text
+	var stuck := 0
+	for body in ['{"tag_name":"v0.29.0","assets":null}', '{"tag_name":"v0.29.0","assets":"x"}', '{"tag_name":"v0.29.0","assets":{"a":1}}',
+			'{"tag_name":null,"assets":[]}', '{"tag_name":29}', '[]', 'not json', '', '{"message":"API rate limit exceeded"}']:
+		Updater.state = Updater.State.CHECKING
+		Updater._finish_check(HTTPRequest.RESULT_SUCCESS, 200, String(body).to_utf8_buffer())
+		if Updater.state == Updater.State.CHECKING: stuck += 1
+	check(stuck == 0, "malformed release JSON ends in an error state, not Checking")
+	Updater.state = Updater.State.CHECKING
+	Updater._finish_check(HTTPRequest.RESULT_SUCCESS, 403, PackedByteArray())
+	check(Updater.state == Updater.State.ERROR and Updater.status_text.contains("403"), "HTTP error code is reported, not shown as No network")
+	Updater.state = Updater.State.CHECKING
+	Updater._finish_check(HTTPRequest.RESULT_CANT_RESOLVE, 0, PackedByteArray())
+	check(Updater.state == Updater.State.ERROR and Updater.status_text == "No network", "no network ends the check")
+	check(Updater.pick_asset(null, "0.29.0", ".apk").is_empty() and Updater.pick_asset("x", "0.29.0", ".apk").is_empty(), "non-array assets pick nothing")
+	check(Updater.pick_asset([5, {"name": null}, {"name": "spd-tactics-v0.29.0.apk", "browser_download_url": null}], "0.29.0", ".apk").is_empty(), "assets with null name/url are skipped")
+	check(Updater.CHECK_TIMEOUT <= 30.0 and Updater.DOWNLOAD_TIMEOUT >= 300.0, "short timeout for the check, long one for the download")
+	Updater.state = saved_state; Updater.status_text = saved_text
 
 ## Log lines carry SPD colours; key moments are logged; the alarm sound is never played.
 func test_log_and_sounds(gs) -> void:
