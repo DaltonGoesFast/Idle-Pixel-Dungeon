@@ -339,3 +339,9 @@ A run saved before the backpack existed (no `pack_gear`) threw a script error in
 
 ## 118. Hero level cap 30
 Heroes levelled without limit: a 40-expedition Full Auto campaign reached Lv103 (Mage Lv94 by run 35), with HP, accuracy and stat growth unbounded and the late game trivial. SPD caps at Hero.MAX_LEVEL = 30; `GameState.MAX_LEVEL` = 30 now stops grant_xp (xp held at 0) and over-cap saves load at Lv30. Death still resets to Lv1. test_level_cap.
+
+## 119. Returned Scrolls of Upgrade go to Camp
+#103 returned owed Scrolls of Upgrade into the pack on the next boss kill, so abandoning (or dying on) that same run lost them a second time. grant_owed_sou now adds them straight to the Camp stash with a highlighted "return to Camp" log line. Supersedes the "back to the pack" part of #103.
+
+## 121. Rogue: SPD cloak charges
+Deep campaign sims had the Rogue dying 26 times in 120 expeditions (Warrior 8, Mage 7, Huntress 9), most of it at Goo, with Sewers-only progress on one seed. SPD's Cloak of Shadows has chargeCap = min(level + 3, 10), i.e. 3 at +0; ours had 2. Cloak charges are now 3 per fight (data/heroes.json). Rogue deaths in the same sim: 26 -> 6 (40 runs x 3 seeds), 7 -> 3 (12 x 3). test_rogue_cloak.

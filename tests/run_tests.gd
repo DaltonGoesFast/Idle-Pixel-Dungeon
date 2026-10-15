@@ -35,6 +35,7 @@ func _ready() -> void:
 	test_armor_tiers(gs)
 	test_floor_label(gs)
 	test_total_wipe(gs)
+	test_rogue_cloak(gs)
 	test_level_cap(gs)
 	test_dew_sink(gs)
 	test_old_run_load(gs)
@@ -1544,9 +1545,11 @@ func test_owed_sou(gs) -> void:
 	gs.start_run("rogue", {}, "sewers", 7)
 	var res := {"won": true, "hp": int(gs.run.hp), "loot": 0, "fallen_loot": 0, "xp": 0, "boss_killed": true, "kills": 1, "traps_found": 0, "trap_ids": []}
 	Delve.apply_fight_result(gs, {"kind": "combat", "boss": true, "mobs": ["goo"]}, res, {})
-	check(gs.owed_sou == 0 and int(gs.run.pack.get("scroll_upgrade", 0)) >= 3, "the next boss kill returns all owed scrolls to the pack")
+	check(gs.owed_sou == 0 and gs.mat("scroll_upgrade") >= 3 and int(gs.run.pack.get("scroll_upgrade", 0)) < 3, "the next boss kill returns all owed scrolls to the Camp stash, not the pack")
 	check(" ".join(gs.messages).contains("lost Scrolls of Upgrade return"), "the return is logged")
+	var held: int = gs.mat("scroll_upgrade")
 	gs.end_run("abandon")
+	check(gs.mat("scroll_upgrade") == held, "abandoning that run can't lose the returned scrolls again (DECISIONS #119)")
 
 ## Total wipe: every hero dead, all gear cracked, 0 resources. A delve must still start with usable starter
 ## gear and supplies, earn repair ore, and the Forge must offer a free Patch up (DECISIONS #104).
@@ -1701,4 +1704,15 @@ func test_level_cap(gs) -> void:
 	gs.heroes.warrior.level = 94; gs.heroes.warrior.xp = 12
 	gs.from_dict(JSON.parse_string(JSON.stringify(gs.to_dict())))
 	check(int(gs.heroes.warrior.level) == gs.MAX_LEVEL, "an over-cap save loads at Lv%d" % gs.MAX_LEVEL)
+
+## DECISIONS #121: Rogue Cloak of Shadows has SPD's 3 charges at +0.
+func test_rogue_cloak(gs) -> void:
+	print("[rogue cloak]")
+	gs.new_game()
+	for cc in gs.heroes: gs.heroes[cc].unlocked = true
+	check(int(gs.hero_stats("rogue").get("cloak", {}).get("charges", 0)) == 3, "rogue cloak has 3 charges")
+	gs.start_run("rogue", {}, "sewers", 2)
+	var c = Delve.new_combat(gs, Delve.combat_event(gs.run, Delve.rng_for(gs.run, 1), ["rat"]))
+	check(int(c.hero.cloak_charges) == 3, "a fight starts with 3 cloak charges")
+	gs.end_run("abandon")
 

@@ -1,6 +1,8 @@
 # Changelog
 
 ## Unreleased
+- Rogue: Cloak of Shadows has 3 charges per fight like SPD (was 2); Rogue death rate now in line with other classes (+test).
+- Owed Scrolls of Upgrade return straight to the Camp stash on the next boss kill, so the same run can no longer lose them again (+test).
 - Heroes cap at level 30 like SPD (was unlimited: Lv100+ in long campaigns); over-cap saves load at 30 (+test).
 - Expeditions saved by older versions (before the backpack) load and continue instead of erroring (+test).
 - Alchemy: condense 20 dew into a Potion of Healing (dew had no use) (+test).
