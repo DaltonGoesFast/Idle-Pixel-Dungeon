@@ -91,3 +91,9 @@ A scripted tutorial run would have to be maintained alongside the real game. Ins
 
 ## 53. Tips pause the game
 While a tip card is open the Delve Bar stops and Auto play waits, so reading never costs progress or HP. Fights are turn-based, so nothing else needs pausing.
+
+## 54. Mage vs Tengu: more staff charges with level, not a Tengu nerf
+Tengu blinking away every 15 HP wastes the Mage's walk-up time while her 2 charges recharge, so she was the only class losing (3/10). SPD's staff gains charges as it levels; the simple version is +1 charge every 7 hero levels. The result is very sensitive (every 6 levels = 9/10, every 3-5 = 10/10), so 7 was chosen: 6/10, close to the ~7/10 target, and it changes nothing in the Sewers where the Mage is below Lv7.
+
+## 55. Delve speed is a setting, the x3 button stays
+Some players want to watch every encounter, others want to skip the walking. The setting multiplies the base 5%/s; the in-run x3 toggle is a quick "skip this floor" and stacks.

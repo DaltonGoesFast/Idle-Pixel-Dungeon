@@ -52,10 +52,14 @@ func _process(delta: float) -> void:
 		if Delve.floor_done(run):
 			_floor_cleared()
 		else:
-			var ev := Delve.advance(GameState, delta * SPEED * (3.0 if fast else 1.0))
+			var ev := Delve.advance(GameState, delta * SPEED * speed_mult())
 			if not ev.is_empty():
 				pending = ev; Sfx.play("alert"); _show_card(); SaveSystem.save_game()
 	_refresh()
+
+## Delve Bar speed = Settings "Delve speed" x the in-run x3 toggle.
+func speed_mult() -> float:
+	return float(GameState.settings.get("delve_speed", 1.0)) * (3.0 if fast else 1.0)
 
 func _refresh() -> void:
 	var run: Dictionary = GameState.run

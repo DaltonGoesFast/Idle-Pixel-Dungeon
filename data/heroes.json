@@ -36,12 +36,13 @@
   ],
   "unlocked_by_default": false,
   "unlock": "Defeat Goo (Sewers boss) with any hero.",
-  "desc": "Zone control. The Mage's Staff fires its imbued wand as a bolt that ignores DR.",
+  "desc": "Zone control. The Mage's Staff fires its imbued wand as a bolt that ignores DR. The staff gains +1 charge at Lv7 (and every 7 levels).",
   "search_radius": 1,
   "unlock_rule": {
    "stat": "boss:goo",
    "goal": 1
-  }
+  },
+  "charge_per_levels": 7
  },
  "rogue": {
   "name": "Rogue",

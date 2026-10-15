@@ -37,6 +37,8 @@ func _ready() -> void:
 		if GameState.run.has("active_fight"): delve.resume_fight()
 
 func _process(delta: float) -> void:
+	# toasts never cover a tutorial card (they keep their timers and reappear when it closes)
+	toast_box.visible = not tip_open()
 	_id_timer += delta
 	if _id_timer > 1.0:
 		_id_timer = 0.0

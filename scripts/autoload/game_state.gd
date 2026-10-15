@@ -18,7 +18,8 @@ var facilities: Dictionary = {}    # id -> {level, cap}
 var id_queue: Array = []           # [{uid, ready_at}]
 var boss_kills: Dictionary = {}    # class -> [biome ids]  (first kill per class drops a Scroll of Upgrade)
 ## text_scale multiplies the UI font size; haptics = vibrate on hits/traps (Android); dev_tools shows the Developer section.
-var settings := {"sfx": 0.8, "music": 0.5, "haptics": true, "text_scale": 1.0, "dev_tools": false, "tutorial": true}
+var settings := {"sfx": 0.8, "music": 0.5, "haptics": true, "text_scale": 1.0, "dev_tools": false, "tutorial": true,
+	"delve_speed": 1.0}
 const STATS_DEFAULT := {"potions_brewed": 0, "deepest_floor": 0, "runs": 0, "deaths": 0, "extractions": 0, "kills": 0,
 	"traps_found": 0, "hidden_doors": 0, "goo_kills": 0, "tengu_kills": 0}
 var stats := STATS_DEFAULT.duplicate()
@@ -136,7 +137,7 @@ func hero_stats(c: String) -> Dictionary:
 		"search_radius": int(def.get("search_radius", 1)), "keen_eyes": def.get("keen_eyes", false)}
 	if "bolt" in def.abilities and h.wand != "":
 		var wn := DB.item(h.wand)
-		s.bolt = {"dmg": int(wn.bolt_dmg) + int(h.level) / 2, "charges": int(wn.charges), "recharge": int(wn.recharge),
+		s.bolt = {"dmg": int(wn.bolt_dmg) + int(h.level) / 2, "charges": int(wn.charges) + int(h.level) / int(def.get("charge_per_levels", 99)), "recharge": int(wn.recharge),
 			"burns_grass": wn.get("burns_grass", false), "chains_water": wn.get("chains_water", false), "name": wn.name, "magic": true}
 	if "shoot" in def.abilities:
 		# SPD Spirit Bow: (1 + lvl/5) - (6 + lvl/2.5), collapsed to the average
@@ -475,7 +476,7 @@ func from_dict(d: Dictionary) -> void:
 	settings.merge(d.get("settings", {}), true); run = d.get("run", {})
 	stats.merge(d.get("stats", {}), true)
 	milestones_claimed = Array(d.get("milestones_claimed", [])); seen = d.get("seen", {}); tutorial_done = Array(d.get("tutorial_done", []))
-	settings.text_scale = float(settings.text_scale)
+	settings.text_scale = float(settings.text_scale); settings.delve_speed = float(settings.delve_speed)
 	for k in stats: stats[k] = int(stats[k])
 	_fix_types()
 	touch()

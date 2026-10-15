@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.8.0 — 2026-10-14
+- **Mage vs Tengu**: the Mage's Staff gains +1 charge at hero Lv7 (and every 7 levels, `charge_per_levels` in heroes.json). Deep-run Sewers+Prison clears: Mage 3/10 -> 6/10; Sewers unchanged (9/10).
+- **Toasts no longer cover tutorial cards**: they are hidden while a tip is open and reappear when it closes.
+- **Delve speed setting** (Slow 0.5x / Normal / Fast 1.5x / Faster 2x) in Settings; the in-run x3 button stacks on top.
+- Tests: 110 checks; UI smoke checks the speed multiplier and the toast/tip behaviour.
+
 ## v0.7.0 — 2026-10-14
 - **First-run onboarding**: a 3-page welcome (the Camp -> Delve -> fight -> extract loop and what death costs) on a brand-new save, followed by a supplies tip on the Delve tab.
 - **Contextual tutorial tips** (17, data/tutorial.json) shown once each as a modal card: Delve Bar, first fight (2 pages), Surprise, red-tile telegraphs, traps, boss fights, Door Choices, special rooms, floor cleared / hidden doors, campfire, Forge, Journal, and what happens after a death or an extraction. The delve bar and Auto play pause while a tip is open.

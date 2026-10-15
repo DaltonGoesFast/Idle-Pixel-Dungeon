@@ -39,6 +39,9 @@ func _process(_d: float) -> void:
 		8:
 			_check(main.screen == main.delve, "delve screen shown")
 			main.delve.fast = true
+			GameState.settings.delve_speed = 2.0
+			_check(is_equal_approx(main.delve.speed_mult(), 6.0), "delve speed setting stacks with x3")
+			GameState.settings.delve_speed = 1.0
 			main.delve.pending = {"kind": "settings"}; main.delve._show_card()
 			_check(main.delve.card_host.get_child_count() > 0, "delve settings card opens")
 			main.delve.pending = {}; main.delve.running = true; main.delve._show_card()
@@ -110,6 +113,10 @@ func _drive() -> void:
 		for t in ["welcome", "delve_bar", "first_fight", "floor_done"]:
 			_check(tips_seen.has(t), "tutorial tip shown: " + t)
 		_check(not main.tip_open() and "welcome" in GameState.tutorial_done, "tips are remembered once dismissed")
+		GameState.tutorial_done.erase("after_death"); main.tip("after_death"); main._process(0.0)
+		_check(main.tip_open() and not main.toast_box.visible, "toasts hide while a tip is open")
+		main.tips.next(); main._process(0.0)
+		_check(main.toast_box.visible, "toasts come back after the tip closes")
 		print("  tutorial tips shown: ", tips_seen.keys())
 		print("UI SMOKE: PASS (fights=%d, stash gold=%d)" % [stage, GameState.mat("gold")])
 		SaveSystem.wipe()

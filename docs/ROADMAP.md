@@ -2,7 +2,7 @@
 
 ## Next up (suggested order)
 - [ ] Real-device playtest on the Fold 6 (cover + inner): text sizes, tip card sizing at Huge text, haptic strength, Prison difficulty for a human player (the sim bot is better than a new player).
-- [ ] Mage vs Tengu (deeprun 3/10).
+- [x] Mage vs Tengu (v0.8.0: 6/10).
 - [ ] Playtest pass on the Fold 6: tap targets, text sizes, delve speed (`DelveScreen.SPEED`), fight length.
 - [x] Save/restore in-progress fights (v0.4.0).
 - [x] Prison biome + Tengu (v0.5.0).

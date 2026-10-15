@@ -4,6 +4,7 @@ class_name SettingsPanel
 extends RefCounted
 
 const TEXT_SIZES := [["Small", 0.85], ["Normal", 1.0], ["Large", 1.15], ["Huge", 1.3]]
+const DELVE_SPEEDS := [["Slow", 0.5], ["Normal", 1.0], ["Fast", 1.5], ["Faster", 2.0]]
 
 static func build(v: VBoxContainer, show_dev := true) -> void:
 	v.add_child(UIKit.header("Audio"))
@@ -22,6 +23,14 @@ static func build(v: VBoxContainer, show_dev := true) -> void:
 	v.add_child(UIKit.button("Haptics: %s" % ("ON" if hap else "OFF"), func():
 		GameState.set_setting("haptics", not hap); Sfx.buzz(50); SaveSystem.save_game(); GameState.touch()))
 	v.add_child(UIKit.label("Vibrates when you take damage, trigger a trap, or an enemy telegraphs an attack (phones only).", 0.75, Color("9a8f7c")))
+	v.add_child(UIKit.header("Delve speed"))
+	var sf := HFlowContainer.new(); v.add_child(sf)
+	for t in DELVE_SPEEDS:
+		var cur := absf(float(GameState.settings.get("delve_speed", 1.0)) - float(t[1])) < 0.01
+		var b := UIKit.button(("> " if cur else "") + t[0], func():
+			GameState.set_setting("delve_speed", t[1]); SaveSystem.save_game(); GameState.touch())
+		b.custom_minimum_size.x = UIKit.font_size * 5; sf.add_child(b)
+	v.add_child(UIKit.label("How fast the Delve Bar explores (%d s per floor at Normal). The x3 button in a run stacks on top." % int(100.0 / 5.0), 0.75, Color("9a8f7c")))
 	v.add_child(UIKit.header("Text size"))
 	var flow := HFlowContainer.new(); v.add_child(flow)
 	for t in TEXT_SIZES:

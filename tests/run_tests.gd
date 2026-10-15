@@ -300,6 +300,10 @@ func test_meta(gs, ss) -> void:
 	gs.new_game(); gs.from_dict(d)
 	check(is_equal_approx(float(gs.settings.text_scale), 1.3) and gs.settings.haptics == false and "first_steps" in gs.milestones_claimed, "settings + milestones persist")
 	gs.settings.text_scale = 1.0; gs.settings.haptics = true
+	gs.settings.delve_speed = 2.0
+	var d2: Dictionary = JSON.parse_string(JSON.stringify(gs.to_dict())); gs.from_dict(d2)
+	check(is_equal_approx(float(gs.settings.delve_speed), 2.0), "delve speed setting persists")
+	gs.settings.delve_speed = 1.0
 	# tutorial bookkeeping
 	gs.settings.tutorial = true; gs.tutorial_done = []
 	check(gs.wants_tip("welcome") and not gs.wants_tip("no_such_tip"), "tips: known tip wanted once")
