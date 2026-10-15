@@ -76,7 +76,7 @@
  },
  "goo": {
   "name": "Goo",
-  "ht": 100,
+  "ht": 90,
   "dmg": 4,
   "dr": 0,
   "delay": 1.0,
@@ -92,7 +92,7 @@
   "pump_mult": 3,
   "enraged_dmg": 6,
   "spd": "HT 100, dmg 1-8 (1-12 below half), DR 0-2, pump-up = 3x",
-  "tuned": "HT 100 like SPD (was 70), dmg 4, enraged 6. Pump every 4 acts, every 3 below half HP; regenerates 1 HP/turn standing in water. Each earlier death to Goo removes 15 HT (floor 70) until it is killed (DECISIONS #125).",
+  "tuned": "HT 90 (SPD 100; was 70), dmg 4, enraged 6. Pump every 4 acts, every 3 below half HP. Regenerates 1 HP/turn in water; the arena has 2 water tiles like SPD's pools. Each earlier death to Goo removes 15 HT (floor 70, which also stops the enrage) until it is killed. A Goo death also restocks 2 Potions of Healing (DECISIONS #129).",
   "pump_every_enraged": 3
  },
  "skeleton": {

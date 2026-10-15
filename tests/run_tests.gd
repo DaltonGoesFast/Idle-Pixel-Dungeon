@@ -1782,17 +1782,19 @@ func test_rogue_cloak(gs) -> void:
 func test_goo_spd(gs) -> void:
 	print("[goo spd]")
 	gs.new_game()
-	check(int(DB.mobs.goo.ht) == 100, "Goo has SPD's 100 HT")
+	check(int(DB.mobs.goo.ht) == 90, "Goo has 90 HT (SPD 100)")
 	gs.start_run("warrior", {}, "sewers", 2)
 	var c = Delve.new_combat(gs, Delve.combat_event(gs.run, Delve.rng_for(gs.run, 1), ["goo"]))
 	var g: Dictionary = c.enemies()[0]
-	check(int(g.ht) == 100, "a fresh save fights a full-strength Goo")
+	check(int(g.ht) == 90, "a fresh save fights a full-strength Goo")
 	gs.end_run("death")
 	check(int(gs.stats.goo_losses) == 1, "dying to Goo is remembered")
+	check(gs.mat("potion_healing") >= 2, "a Goo death restocks 2 Potions of Healing")
 	gs.stats.goo_losses = 5
 	gs.start_run("warrior", {}, "sewers", 2)
 	c = Delve.new_combat(gs, Delve.combat_event(gs.run, Delve.rng_for(gs.run, 1), ["goo"]))
 	g = c.enemies()[0]
 	check(int(g.ht) == Delve.GOO_MIN_HT and int(g.hp) == Delve.GOO_MIN_HT, "repeated losses weaken Goo, floored at %d" % Delve.GOO_MIN_HT)
+	check(not g.has("enraged_dmg"), "a floored Goo no longer enrages")
 	gs.end_run("abandon")
 	check(int(gs.stats.goo_losses) == 5, "only deaths count")

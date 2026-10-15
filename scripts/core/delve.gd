@@ -143,8 +143,8 @@ static func new_combat(gs, ev: Dictionary) -> Combat:
 		c._log("Your shield shimmers: +Barrier.")
 	return c
 
-## Goo grudge (DECISIONS #125): Goo is SPD-strength (HT 100) but each earlier loss to it leaves it 15 HT weaker,
-## down to GOO_MIN_HT, so a struggling new player is never stuck. Reset when Goo is killed.
+## Goo grudge (DECISIONS #129): Goo is SPD-strength (HT 100) but each earlier loss to it leaves it 15 HT weaker,
+## down to GOO_MIN_HT; at the floor it no longer enrages, so a struggling new player is never stuck. Reset when Goo is killed.
 const GOO_MIN_HT := 70
 static func goo_ht(gs) -> int:
 	return maxi(GOO_MIN_HT, int(DB.mobs.goo.ht) - 15 * int(gs.stats.get("goo_losses", 0)))
@@ -155,6 +155,7 @@ static func _weaken_goo(gs, c: Combat) -> void:
 		if u.get("id", "") == "goo" and ht < int(u.ht):
 			u.ht = ht; u.hp = mini(int(u.hp), ht)
 			c._log("Goo still bears the wounds of your last fight (HP %d)." % ht)
+			if ht <= GOO_MIN_HT: u.erase("enraged_dmg"); u.pump_every_enraged = int(u.pump_every)   # worn out: no enrage
 
 ## Horn of Plenty: satiety drain multiplier (cached per floor to keep hero_stats out of the per-frame tick).
 static func _hunger(gs) -> float:

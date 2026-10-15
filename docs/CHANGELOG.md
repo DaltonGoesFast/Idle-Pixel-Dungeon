@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Goo is harder and closer to SPD: HT 70->90, it regenerates in water, and its arena has two water pools. First-attempt win rate for a fresh hero goes from 87% to 27%. Safety nets: each Goo death leaves Goo 15 HT weaker (floor 70, and at the floor it no longer enrages) and restocks 2 Potions of Healing (+tests).
 - Delve screen: taller corridor, encounter cards as windows over it, SPD icon toolbar with a Menu for Settings / Scroll of Passage / Abandon, floor pips, torch and food bars with icons, Brought vs Found (lost on death) rows, low-HP red edges, and a campfire bank preview. Encounter windows keep reward toasts but no longer embed the delve log.
 - Rogue: Cloak of Shadows has 3 charges per fight like SPD (was 2); Rogue death rate now in line with other classes (+test).
 - Owed Scrolls of Upgrade return straight to the Camp stash on the next boss kill, so the same run can no longer lose them again (+test).

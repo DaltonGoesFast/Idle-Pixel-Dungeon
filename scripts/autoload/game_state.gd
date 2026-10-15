@@ -960,7 +960,10 @@ func end_run(result: String) -> void:
 			say("Extracted! The pack is banked at Camp.")
 		"death":
 			stats.deaths += 1
-			if run.get("fighting_goo", false): stats.goo_losses = int(stats.get("goo_losses", 0)) + 1   # DECISIONS #125
+			if run.get("fighting_goo", false):   # DECISIONS #129: Goo is a skill check, not a death spiral
+				stats.goo_losses = int(stats.get("goo_losses", 0)) + 1
+				if mat("potion_healing") < 2:
+					add_mat("potion_healing", 2 - mat("potion_healing")); log_line("The Camp healer sends you back to Goo with 2 Potions of Healing.", "positive")
 			for slot in ["weapon", "armor", "ring", "artifact"]:
 				var g := gear_by_uid(int(h.get(slot, 0)))
 				# heirlooms (Mage's Staff...) are permanent and never crack
