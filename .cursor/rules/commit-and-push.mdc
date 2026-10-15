@@ -1,0 +1,34 @@
+---
+description: Commit and push finished changes so Grok Bot PRs stay on the latest code
+alwaysApply: true
+---
+
+# Commit and push finished work
+
+When a requested change is done, commit it and push it without waiting to be asked. Grok Bot opens and updates pull requests from the remote, so unpushed local work leaves those PRs on stale code.
+
+## What to commit
+
+- Stage only the files that belong to the change you just finished.
+- Leave unrelated dirty files alone. Godot `.import` churn, `.godot/`, `.vscode/`, and local editor metadata are not part of a feature unless that task changed them on purpose.
+- Never commit secrets or signing material: `export_credentials.cfg`, `*.keystore`, `*.jks`, `builds/`, `*.apk`, `*.aab`.
+
+## How to commit
+
+- Follow the repo style: one or two sentences on why the change exists.
+- On PowerShell, pass the message with a here-string:
+
+```powershell
+git commit -m @"
+Keep camp windows open on the click that opened them.
+
+"@
+```
+
+- If a hook rejects the commit, fix the problem and make a new commit. Do not amend unless the user asked for an amend and the commit is still local and yours.
+
+## How to push
+
+- Push the current branch to `origin` (`git push -u origin HEAD` when it has no upstream).
+- Do not force-push. Do not skip hooks.
+- If the push is rejected because the remote moved, pull/rebase only when it is safe, then push again. Stop and say so if that would rewrite commits you did not make.
