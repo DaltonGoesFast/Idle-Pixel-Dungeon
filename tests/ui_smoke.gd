@@ -54,6 +54,7 @@ func _process(_d: float) -> void:
 		get_tree().quit(1)
 var guided_checked := false
 var talents_ui := false
+var talent_learned_ui := false   # set the moment Learn actually adds the talent (DECISIONS #132)
 var backpack_ui := false
 
 func _drive() -> void:
@@ -106,6 +107,7 @@ func _drive() -> void:
 						if tb: tb.pressed.emit()
 						var lb = _find_button(s.card_host, "Learn")
 						if lb: lb.pressed.emit(); picked = true
+						if picked and t in GameState.heroes[GameState.run.hero].get("talents", []): talent_learned_ui = true
 						break
 				GameState.auto_pick_talents(GameState.run.hero)
 				s._close_panel()
@@ -185,7 +187,8 @@ func _drive() -> void:
 			s.chosen_hero = classes[ci]; s._start(); main.delve.fast = true
 			return
 		_check(talents_ui, "level-up opened the Talents card mid-delve")
-		_check(GameState.heroes.values().any(func(h): return not h.get("talents", []).is_empty()), "a talent was learned through the UI")
+		# checked when Learn is pressed, not at the end: a later death (random late-boss fights) resets the hero's talents
+		_check(talent_learned_ui, "a talent was learned through the UI")
 		_check("guided_fight" in GameState.tutorial_done, "guided first fight completed and remembered")
 		for t in ["welcome", "delve_bar", "first_fight", "floor_done"]:
 			_check(tips_seen.has(t), "tutorial tip shown: " + t)

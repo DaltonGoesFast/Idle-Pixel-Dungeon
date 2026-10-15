@@ -301,7 +301,8 @@ func _refresh() -> void:
 	if line != "": stats.add_child(UIKit.label(line, 0.95, Color("ff7070")))
 	# Brought comes back to the stash on every ending; Found is lost if the hero dies.
 	# Chips use a larger icon than the default 32px so torch and ration stay readable on the cover.
-	var chip_px := maxi(48, int(UIKit.font_size * 2.0))
+	# Fixed 48px: font_size*2 is 80+ on the Fold cover (font_size 40) and starves the corridor (DECISIONS #127).
+	var chip_px := 48
 	var brought := _chip_row("Brought:", Color("9a8f7c"))
 	for k in run.supplies:
 		if int(run.supplies[k]) > 0: brought.add_child(UIKit.res_chip(k, str(run.supplies[k]), 0.85, chip_px))
@@ -650,10 +651,11 @@ func _campfire_stakes(v: VBoxContainer, run: Dictionary, nb: String) -> void:
 	if nb == "": return
 	var b: Dictionary = DB.biomes[nb]
 	var hero_str := int(GameState.heroes[run.hero].str)
+	var hero_lv := int(GameState.heroes[run.hero].level)
 	v.add_child(UIKit.label("Pressing on:", 0.95, Color("ff9944")))
-	var gate := "%d Str recommended (you have %d)" % [int(b.str_gate), hero_str]
+	var gate := "Lv %d / %d Str recommended (you have Lv %d / %d)" % [int(b.get("rec_level", 1)), int(b.str_gate), hero_lv, hero_str]
 	v.add_child(UIKit.label("%s, floors %d-%d, %s. Nothing is banked until you extract; a death loses all of it." % [b.name, int(b.floors[0]), int(b.floors[1]), gate],
-		0.85, Color("ff7070") if hero_str < int(b.str_gate) else Color("bdb3a0")))
+		0.85, Color("ff7070") if hero_str < int(b.str_gate) or hero_lv < int(b.get("rec_level", 1)) else Color("bdb3a0")))
 
 ## Result window: what the encounter gave and took. The bar waits until OK.
 var _summary_on := false

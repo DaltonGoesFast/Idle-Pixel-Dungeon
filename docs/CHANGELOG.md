@@ -1,6 +1,13 @@
 # Changelog
 
 ## Unreleased
+- Delve Brought/Found chips stay at 48px (font_size*2 was 80px on the Fold cover and starved the corridor) (+test).
+- UI smoke test: "a talent was learned through the UI" no longer fails at random (about 1 in 3). It is now checked when Learn is pressed, because a later death in the late-boss chain wiped the hero's talents before the end-of-run check.
+- Goo is harder and closer to SPD: HT 70->90, it regenerates in water, and its arena has two water pools. First-attempt win rate for a fresh hero goes from 87% to 27%. Safety nets: each Goo death leaves Goo 15 HT weaker (floor 70, and at the floor it no longer enrages) and restocks 2 Potions of Healing (+tests).
+- Late-game gold sinks: Masterwork Forge upgrades past +3 up to +6 with a max Blacksmith (3.2k/5k/7.2k gold), Guild retraining after a death (20 x Lv^2 gold per level, up to 2 below the best level reached), patrol provisioning fee (half a full patrol's gold), and normal upgrades cost 10 x Lv^2 gold. Deep sim median stash gold after 40 expeditions: 37.5k -> 2.9k (+test).
+- Heroes ring swap list: Ring of Energy shows "Charges +1" only for a hero whose staff gains the charge (the Mage); Warrior, Rogue and Huntress see just "HP +4" (+test).
+- Strength: each delve Strength milestone gives its Potion of Strength once per hero life (it was every expedition, so Str reached 111-152 after 40 expeditions; now 18-20) (+test).
+- Expedition and campfire texts show a recommended level (sewers 4, prison 6, caves 9, city 16, halls 22), picked from the boss probe for a smooth curve. No boss stat changes (+test).
 
 ## 0.27.1
 - Patrol progress survives a relaunch. Fast-forward time is saved, so a patrol no longer snaps back to 0% when the game restarts (+test).

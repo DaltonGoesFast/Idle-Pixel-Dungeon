@@ -36,6 +36,11 @@ func _ready() -> void:
 	test_floor_label(gs)
 	test_total_wipe(gs)
 	test_rogue_cloak(gs)
+	test_ring_charges_delta(gs)
+	test_rec_levels(gs)
+	test_strength_once(gs)
+	test_gold_sinks(gs)
+	test_goo_spd(gs)
 	test_level_cap(gs)
 	test_dew_sink(gs)
 	test_old_run_load(gs)
@@ -43,6 +48,7 @@ func _ready() -> void:
 	test_food_sources(gs)
 	test_facility_cap(gs)
 	test_crate_slot(gs)
+	await test_delve_chips(gs)
 	test_owed_sou(gs)
 	await test_icon_sizes(gs)
 	test_full_auto(gs)
@@ -203,17 +209,23 @@ func test_boss(gs) -> void:
 
 func test_fullrun(gs) -> void:
 	print("[fullrun] CombatBot plays whole Sewers expeditions (2 rations, 2 torches, 2 potions), 10 seeds per class")
-	for cls in ["warrior", "mage", "rogue", "huntress"]:
-		var wins := 0; var deaths := []; var lv := 0
-		for seed in 10:
-			gs.new_game()
-			for c in gs.heroes: gs.heroes[c].unlocked = true
-			gs.add_mat("potion_healing", 1)
-			var r := RunSim.play(gs, cls, {"ration": 2, "torch": 2, "potion_healing": 2}, 1000 + seed)
-			if r.result == "extract": wins += 1; lv += r.level
-			else: deaths.append("f%d %s" % [r.floor, r.boss_entry])
-		print("  %s: cleared %d/10 (avg Lv at clear %.1f) deaths at %s" % [cls, wins, float(lv) / maxf(1, wins), deaths])
-		check(wins >= 5, "%s clears the Sewers in at least half the seeded runs" % cls)
+	# DECISIONS #131: a fresh save's first Goo is SPD-hard (~25%); after two Goo deaths the grudge makes it beatable.
+	var fresh_total := 0
+	for grudge in [0, 2]:
+		for cls in ["warrior", "mage", "rogue", "huntress"]:
+			var wins := 0; var deaths := []; var lv := 0
+			for seed in 10:
+				gs.new_game()
+				for c in gs.heroes: gs.heroes[c].unlocked = true
+				gs.add_mat("potion_healing", 1)
+				gs.stats.goo_losses = grudge
+				var r := RunSim.play(gs, cls, {"ration": 2, "torch": 2, "potion_healing": 2}, 1000 + seed)
+				if r.result == "extract": wins += 1; lv += r.level
+				else: deaths.append("f%d %s" % [r.floor, r.boss_entry])
+			print("  %s (goo losses %d): cleared %d/10 (avg Lv at clear %.1f) deaths at %s" % [cls, grudge, wins, float(lv) / maxf(1, wins), deaths])
+			if grudge == 0: fresh_total += wins
+			else: check(wins >= 5, "%s clears the Sewers in at least half the runs after two Goo deaths" % cls)
+	check(fresh_total >= 2 and fresh_total <= 24, "fresh-save Sewers clears are rare but possible (%d/40)" % fresh_total)
 	print("[deeprun] Lv1 hero with forged tier-2 gear, Sewers + Prison in one expedition (6 rations, 8 torches, 4 potions), 10 seeds")
 	for cls in ["warrior", "mage", "rogue", "huntress"]:
 		var wins := 0; var deaths := []
@@ -1099,7 +1111,7 @@ func test_forge_bulk(gs) -> void:
 	check(gs.craft_n("guild", r.id, 2) and gs.mat("ration") == before + 2 * int(r.get("out_n", 1)), "Buy x2 adds 2 rations")
 	check(gs.mat("gold") == gold0 - 2 * int(cost0.get("gold", 0)), "Buy x2 pays 2x gold")
 	var uid: int = gs.add_gear("shortsword", true, 0)
-	check(gs.upgrade_max(uid) >= 2 and gs.upgrade_cost_n(uid, 2) == {"iron_ore": 4 + 8}, "upgrade 0->1->2 costs 4+8 ore")
+	check(gs.upgrade_max(uid) >= 2 and gs.upgrade_cost_n(uid, 2) == {"iron_ore": 4 + 8, "gold": 10 + 40}, "upgrade 0->1->2 costs 4+8 ore, 10+40 gold")
 	var ore0: int = gs.mat("iron_ore"); check(gs.upgrade_item_n(uid, 2) and int(gs.gear_by_uid(uid).lvl) == 2, "Upgrade x2 raises level to +2")
 	check(gs.mat("iron_ore") == ore0 - 12, "Upgrade x2 spends 12 ore")
 	var a: int = gs.add_gear("cloth_armor", true, 1); var b: int = gs.add_gear("mace", true, 0)
@@ -1549,6 +1561,11 @@ class ToastHost:
 	func tip_open() -> bool:
 		return false
 
+func _all_nodes(n: Node) -> Array:
+	var out: Array = [n]
+	for c in n.get_children(): out.append_array(_all_nodes(c))
+	return out
+
 func _find_btn(n: Node, text: String):
 	if n is Button and n.text == text: return n
 	for ch in n.get_children():
@@ -1736,6 +1753,36 @@ func test_crate_slot(gs) -> void:
 	for n in cs._recipe_lines(single): if n is Node: n.free()
 	a.free(); b.free(); cs.free()
 
+## DECISIONS #127: Brought/Found chips stay at 48px. font_size*2 is 80 on the Fold cover and starves the corridor.
+func test_delve_chips(gs) -> void:
+	print("[delve chips]")
+	var win := get_window()
+	var old := win.size
+	win.size = Vector2i(484, 1188)
+	await get_tree().process_frame
+	gs.new_game(); gs.settings.tutorial = false
+	gs.start_run("warrior", {"ration": 2, "torch": 2, "potion_healing": 1}, "sewers", 7)
+	var main = load("res://scenes/main.tscn").instantiate()
+	add_child(main)
+	await get_tree().process_frame
+	main._relayout()
+	await get_tree().process_frame
+	main.show_delve()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	check(UIKit.font_size >= 36, "cover layout uses a large font_size (%d) where font_size*2 would overshoot" % UIKit.font_size)
+	var biggest := 0
+	for n in _all_nodes(main.delve.stats):
+		if n is PixelIcon:
+			biggest = maxi(biggest, int((n as PixelIcon).cell_px))
+		elif n is Control and n.get_parent() is HBoxContainer and (n as Control).custom_minimum_size.x >= 32:
+			biggest = maxi(biggest, int((n as Control).custom_minimum_size.x))
+	check(biggest > 0 and biggest <= 48, "Brought/Found chip icons are at most 48px (got %d; font_size=%d)" % [biggest, UIKit.font_size])
+	check(main.delve.stats.size.y <= UIKit.font_size * 4.5, "Brought/Found row stays compact (h=%.0f fs=%d)" % [main.delve.stats.size.y, UIKit.font_size])
+	main.queue_free()
+	win.size = old
+	await get_tree().process_frame
+
 ## DECISIONS #116: dew is no longer a dead currency.
 func test_dew_sink(gs) -> void:
 	print("[dew sink]")
@@ -1786,4 +1833,91 @@ func test_rogue_cloak(gs) -> void:
 	var c = Delve.new_combat(gs, Delve.combat_event(gs.run, Delve.rng_for(gs.run, 1), ["rat"]))
 	check(int(c.hero.cloak_charges) == 3, "a fight starts with 3 cloak charges")
 	gs.end_run("abandon")
+
+## DECISIONS #126: the Heroes ring swap list only shows "Charges +N" for heroes whose staff gains them.
+func test_ring_charges_delta(gs) -> void:
+	print("[ring charges delta]")
+	gs.new_game()
+	for cc in gs.heroes: gs.heroes[cc].unlocked = true
+	var uid: int = gs.add_gear("ring_energy", true)
+	for cc in ["warrior", "rogue", "huntress"]:
+		var t: String = Paperdoll._delta_text(gs.hero_stats(cc), Paperdoll._stats_with(cc, "ring", uid))[0]
+		check(t.contains("HP +4") and not t.contains("Charges"), "%s: Ring of Energy shows HP +4 but no staff charge (%s)" % [cc, t])
+	var tm: String = Paperdoll._delta_text(gs.hero_stats("mage"), Paperdoll._stats_with("mage", "ring", uid))[0]
+	check(tm.contains("Charges +1"), "mage: Ring of Energy shows Charges +1 (%s)" % tm)
+
+func test_rec_levels(_gs) -> void:
+	print("[recommended levels]")
+	var prev := 0
+	for b in ["sewers", "prison", "caves", "city", "halls"]:
+		var l := int(DB.biomes[b].get("rec_level", 0))
+		check(l > prev, "%s has a rising recommended level (%d)" % [b, l])
+		prev = l
+	check(int(DB.biomes.halls.rec_level) == 22, "halls recommends Lv 22")
+	check(int(DB.mobs.dking.ht) == 140 and int(DB.mobs.yog.dmg) == 14, "late bosses are not eased")
+
+## DECISIONS #129: each fixed Potion of Strength is found once per hero life.
+func test_strength_once(gs) -> void:
+	print("[strength once]")
+	gs.new_game()
+	for i in 3:
+		gs.start_run("warrior", {"ration": 3, "torch": 3}, "sewers", 5 + i)
+		gs.run.floor = 2; gs.run.events = [{"at": 999.0, "kind": "combat", "salt": 0}]; gs.run.next_event = 0
+		Delve.advance(gs, 60.0)
+		gs.end_run("extract")
+	check(int(gs.heroes.warrior.str) == 11, "the floor-2 Strength potion counts once across 3 delves (Str %d)" % int(gs.heroes.warrior.str))
+	gs.start_run("warrior", {}, "sewers", 9); gs.end_run("death")
+	check(gs.heroes.warrior.str_found.is_empty() and int(gs.heroes.warrior.str) == 10, "death resets Str and the found list")
+	gs.from_dict(JSON.parse_string(JSON.stringify(gs.to_dict())))
+	check(gs.heroes.warrior.str_found is Array, "str_found survives save/load")
+
+func test_gold_sinks(gs) -> void:
+	print("[gold sinks]")
+	gs.new_game()
+	var uid: int = gs.add_gear("shortsword", true, 1)
+	check(gs.item_upgrade_cost(uid) == {"iron_ore": 8, "gold": 40}, "+1->+2 costs 8 ore and 40 gold")
+	gs.heroes.warrior.cleared.append("sewers")
+	var fee := int(gs.patrol_fee("sewers").gold)
+	check(fee == int(15 * gs.patrol_max_hours() / 2.0) and fee > 0, "sewers patrol fee is half a full patrol's gold (%d)" % fee)
+	gs.mats.gold = fee - 1
+	check(gs.can_patrol("warrior", "sewers").begins_with("need"), "can't patrol without the fee")
+	gs.mats.gold = fee + 5
+	check(gs.start_patrol("warrior", "sewers") and gs.mat("gold") == 5, "starting a patrol pays the fee")
+	# masterwork: a max Blacksmith takes gear past +3 for steep gold
+	gs.facilities.blacksmith.level = int(DB.facilities.blacksmith.max); gs.facilities.blacksmith.cap = gs.facilities.blacksmith.level
+	var mw: int = gs.add_gear("mace", true, 3)
+	gs.mats.gold = 3199; gs.mats.iron_ore = 100
+	check(gs.can_upgrade_item(mw).begins_with("need"), "+4 masterwork needs 3200 gold")
+	gs.mats.gold = 3200
+	check(gs.upgrade_item(mw) and gs.mat("gold") == 0, "+4 masterwork costs 3200 gold")
+	gs.gear_by_uid(mw).lvl = gs.MASTERWORK_MAX; gs.mats.gold = 99999
+	check(gs.can_upgrade_item(mw) != "", "masterwork stops at +%d" % gs.MASTERWORK_MAX)
+	# training: buy back lost levels, never past best - 2
+	gs.heroes.mage.unlocked = true; gs.heroes.mage.level = 1; gs.heroes.mage.best_level = 6
+	check(gs.train_cap("mage") == 4, "retrain up to best level - 2")
+	var spent := 0
+	while gs.can_train("mage") == "": spent += int(gs.train_cost("mage").gold); gs.train("mage")
+	check(int(gs.heroes.mage.level) == 4 and spent == 20 * (1 + 4 + 9), "Lv1->4 costs 20+80+180 gold")
+	gs.heroes.rogue.unlocked = true
+	check(gs.can_train("rogue") != "", "a hero that never fell can't train")
+
+func test_goo_spd(gs) -> void:
+	print("[goo spd]")
+	gs.new_game()
+	check(int(DB.mobs.goo.ht) == 90, "Goo has 90 HT (SPD 100)")
+	gs.start_run("warrior", {}, "sewers", 2)
+	var c = Delve.new_combat(gs, Delve.combat_event(gs.run, Delve.rng_for(gs.run, 1), ["goo"]))
+	var g: Dictionary = c.enemies()[0]
+	check(int(g.ht) == 90, "a fresh save fights a full-strength Goo")
+	gs.end_run("death")
+	check(int(gs.stats.goo_losses) == 1, "dying to Goo is remembered")
+	check(gs.mat("potion_healing") >= 2, "a Goo death restocks 2 Potions of Healing")
+	gs.stats.goo_losses = 5
+	gs.start_run("warrior", {}, "sewers", 2)
+	c = Delve.new_combat(gs, Delve.combat_event(gs.run, Delve.rng_for(gs.run, 1), ["goo"]))
+	g = c.enemies()[0]
+	check(int(g.ht) == Delve.GOO_MIN_HT and int(g.hp) == Delve.GOO_MIN_HT, "repeated losses weaken Goo, floored at %d" % Delve.GOO_MIN_HT)
+	check(not g.has("enraged_dmg"), "a floored Goo no longer enrages")
+	gs.end_run("abandon")
+	check(int(gs.stats.goo_losses) == 5, "only deaths count")
 
