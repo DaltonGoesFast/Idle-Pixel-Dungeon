@@ -1211,6 +1211,15 @@ func test_item_badges(gs) -> void:
 	check(scroll.badge is AtlasTexture and (scroll.badge as AtlasTexture).region == UIKit.badge_rect("SCROLL_MAGICMAP"), "an identified scroll keeps its rune and gains the glyph")
 	var plain: PixelIcon = UIKit.icon("GOLD")
 	check(plain.badge == null, "materials without a type glyph stay a single sprite")
+	var ring_unk: PixelIcon = UIKit.icon("ring_might")
+	check(ring_unk.badge == null, "an unseen ring id without a known copy stays a plain gem")
+	var r_uid: int = gs.add_gear("ring_might", true)
+	var ring_known: PixelIcon = UIKit.icon("ring_might")
+	check(ring_known.badge is AtlasTexture and (ring_known.badge as AtlasTexture).region == UIKit.badge_rect("RING_MIGHT"), "UIKit.icon resolves a known ring's glyph directly")
+	var ring_suppressed: PixelIcon = UIKit.icon("ring_might", -1, "NONE")
+	check(ring_suppressed.badge == null, "explicit NONE suppresses the glyph on an unidentified copy")
+	gs.gear_by_uid(r_uid).erase("known")
+	check(UIKit.gear_badge(gs.gear_by_uid(r_uid)) == "RING_MIGHT", "legacy gear entries without a known key still resolve their ring glyph")
 
 func _glyph_rgb(sheet: Image, name: String) -> Vector3:
 	var sub := sheet.get_region(Rect2i(UIKit.badge_rect(name)))

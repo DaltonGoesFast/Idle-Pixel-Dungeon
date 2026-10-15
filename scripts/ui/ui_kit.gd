@@ -182,12 +182,12 @@ static func badge_rect(name: String) -> Rect2:
 
 ## The type glyph for one gear piece. Unidentified rings stay a plain gem (SPD hides itemIcon until the ring is known).
 static func gear_badge(g: Dictionary) -> String:
-	if g.is_empty() or g.get("pseudo", false) or not g.get("known", false): return ""
+	if g.is_empty() or g.get("pseudo", false) or not g.get("known", true): return ""
 	return String(DB.item(String(g.get("id", ""))).get("badge", ""))
 
 ## SPD item icon at an integer scale of the 16-px cell (`px` rounds down to a multiple of 16), centred on its
 ## visible pixels (DECISIONS #89). `badge` is an ItemSpriteSheet.Icons name drawn in the top-right; an empty
-## badge follows a material's identification (potions and scrolls keep their colour/rune and gain the glyph).
+## badge follows a material's or item's identification (potions, scrolls, and rings keep their colour/rune/gem and gain the glyph).
 static func icon(id: String, px := -1, badge := "") -> PixelIcon:
 	if _items_tex == null: _items_tex = load("res://assets/sprites/items.png")
 	var at := AtlasTexture.new()
@@ -202,9 +202,12 @@ static func icon(id: String, px := -1, badge := "") -> PixelIcon:
 	t.custom_minimum_size = Vector2(s, s)
 	var tint: String = DB.materials.get(id, {}).get("tint", "")
 	if tint != "": t.modulate = Color(tint)
-	if badge == "" and DB.materials.has(id) and GameState.is_mat_known(id):
-		badge = String(DB.materials[id].get("badge", ""))
-	if badge != "":
+	if badge == "":
+		if DB.materials.has(id) and GameState.is_mat_known(id):
+			badge = String(DB.materials[id].get("badge", ""))
+		elif DB.items.has(id) and (GameState.seen.has("item:" + id) or GameState.gear.any(func(g): return g.get("id", "") == id and g.get("known", true))):
+			badge = String(DB.items[id].get("badge", ""))
+	if badge != "" and badge != "NONE":
 		var br := badge_rect(badge)
 		if br.size != Vector2.ZERO:
 			if _badge_tex == null: _badge_tex = load("res://assets/sprites/item_icons.png")

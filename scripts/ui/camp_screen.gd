@@ -405,7 +405,9 @@ func item_slot(id: String, br: String, tl: String, cb: Callable, tint := Color.W
 	var hv := bg.duplicate(); hv.bg_color = Color(0.45, 0.46, 0.40, 0.75)
 	b.add_theme_stylebox_override("normal", bg); b.add_theme_stylebox_override("hover", hv); b.add_theme_stylebox_override("pressed", hv)
 	b.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
-	if badge == "" and not gear.is_empty(): badge = UIKit.gear_badge(gear)
+	if badge == "" and not gear.is_empty():
+		badge = UIKit.gear_badge(gear)
+		if badge == "": badge = "NONE"
 	var ic := UIKit.icon(id, int(sz * 0.7), badge); ic.set_anchors_and_offsets_preset(PRESET_FULL_RECT); ic.mouse_filter = MOUSE_FILTER_IGNORE
 	# cracked gear keeps its true colours (a tint hid small ring/potion sprites on device) and gets a red
 	# frame + "!" badge instead (DECISIONS #98)
@@ -479,7 +481,9 @@ func compare(g: Dictionary) -> void:
 	var acts := []
 	if SLOT_OF.has(t) and GameState.equipped_by(g.uid) == "":
 		acts.append(["Equip on " + DB.heroes[chosen_hero].name, func(): GameState.equip(chosen_hero, g.uid), GameState.can_equip(chosen_hero, g.uid)])
-	info(gear_icon(g), "Compare: " + GameState.gear_name(g), lines, acts, UIKit.gear_badge(g))
+	var bdg := UIKit.gear_badge(g)
+	if bdg == "": bdg = "NONE"
+	info(gear_icon(g), "Compare: " + GameState.gear_name(g), lines, acts, bdg)
 
 func gear_icon(g: Dictionary) -> String:
 	return g.id   # rings show their gem, as in SPD (the gem is the appearance, not the identity)
@@ -538,8 +542,10 @@ func _page_stash() -> void:
 	var gg := slot_grid(v)
 	for g in GameState.gear:
 		var who := GameState.equipped_by(g.uid)
+		var bdg := UIKit.gear_badge(g)
+		if bdg == "": bdg = "NONE"
 		gg.add_child(item_slot(gear_icon(g), DB.heroes[who].name.substr(0, 1) if who != "" else "", "+%d" % g.lvl if g.lvl > 0 and g.known else "",
-			func(): info(gear_icon(g), GameState.gear_name(g), gear_lines(g), [], UIKit.gear_badge(g)), Color(1, 0.55, 0.5) if g.get("cracked", false) else Color.WHITE, "c9a96e" if who != "" else "", g))
+			func(): info(gear_icon(g), GameState.gear_name(g), gear_lines(g), [], bdg), Color(1, 0.55, 0.5) if g.get("cracked", false) else Color.WHITE, "c9a96e" if who != "" else "", g))
 
 # ------------------------------------------------------------ Facilities
 const NEXT_TEXT := {"blacksmith": "Gear upgrade cap +%d", "alchemy": "Potion belt %d slots", "enchanter": "Faster identification (Lv%d)", "guild": "Patrols up to %dh"}
@@ -626,6 +632,7 @@ func _open_gear_forge(uid: int) -> void:
 func _gear_forge_info(g: Dictionary, lines: Array, why: String) -> void:
 	var uid: int = g.uid
 	var bdg := UIKit.gear_badge(g)
+	if bdg == "": bdg = "NONE"
 	if g.get("cracked", false):
 		info(gear_icon(g), GameState.gear_name(g), lines, [["Repair", func(): GameState.repair(uid), why]], bdg); return
 	info(gear_icon(g), GameState.gear_name(g), lines + [qty_picker(GameState.upgrade_max(uid), func(n): return GameState.upgrade_cost_n(uid, n), "Upgrade",
@@ -683,7 +690,7 @@ func _open_ring_stack(id: String) -> void:
 	if extra_n > 0:
 		acts.append(["Break down extras (%d)" % extra_n, func():
 			if GameState.break_rings(GameState.ring_extras_of(rid)): Sfx.play("shatter"), ""])
-	info(id, title, lines, acts, UIKit.gear_badge(sample) if all_known else "")
+	info(id, title, lines, acts, UIKit.gear_badge(sample) if known_n > 0 else "NONE")
 
 func _ring_forge_section(v: VBoxContainer) -> void:
 	v.add_child(UIKit.header("Break down rings"))
@@ -711,7 +718,7 @@ func _ring_forge_section(v: VBoxContainer) -> void:
 		var list: Array = GameState.rings_of(rid)
 		var one: Dictionary = list[0] if list.size() == 1 else {}
 		var frame := "6bff6b" if GameState.ring_extras_of(rid).size() > 0 else ""
-		var bdg := ""
+		var bdg := "NONE"
 		for g in list:
 			if g.known: bdg = UIKit.gear_badge(g); break
 		g2.add_child(item_slot(rid, str(list.size()) if list.size() > 1 else "", "", func(): _open_ring_stack(rid), Color.WHITE, frame, one, bdg))
@@ -794,7 +801,7 @@ func _page_facility(page: String, id: String) -> void:
 			var g := GameState.gear_by_uid(q.uid)
 			var left := maxf(0.0, float(q.ready_at) - GameState.now())
 			var row := UIKit.hbox(v)
-			row.add_child(UIKit.icon(gear_icon(g)))
+			row.add_child(UIKit.icon(gear_icon(g), -1, "NONE"))
 			var cv := UIKit.vbox(row); cv.size_flags_horizontal = SIZE_EXPAND_FILL
 			cv.add_child(UIKit.label("%s   %d:%02d" % [GameState.gear_name(g), int(left) / 60, int(left) % 60], 0.85))
 			var pb := ProgressBar.new(); pb.max_value = 1.0; pb.step = 0.0; pb.show_percentage = false
@@ -805,7 +812,7 @@ func _page_facility(page: String, id: String) -> void:
 			v.add_child(UIKit.header("Unknown items"))
 			var ug := slot_grid(v)
 			for g in unk:
-				ug.add_child(item_slot(gear_icon(g), "", "?", func(): info(gear_icon(g), GameState.gear_name(g), gear_lines(g), [["Queue for identification", func(): GameState.enqueue_identify(g.uid), ""]])))
+				ug.add_child(item_slot(gear_icon(g), "", "?", func(): info(gear_icon(g), GameState.gear_name(g), gear_lines(g), [["Queue for identification", func(): GameState.enqueue_identify(g.uid), ""]], "NONE"), Color.WHITE, "", g))
 		if not GameState.id_queue.is_empty():
 			var t := Timer.new(); t.wait_time = 1.0; t.autostart = true; v.add_child(t)
 			t.timeout.connect(func(): if open_name == "Enchanter" and info_layer == null: _fill_window())
