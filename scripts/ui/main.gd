@@ -104,6 +104,7 @@ func play_floor_music() -> void:
 
 ## Called by DelveScreen. on_done(result: Dictionary) gets {won, hp, loot, fallen_loot, xp, boss_killed, potions_used}.
 func start_combat(event: Dictionary, on_done: Callable, saved := {}) -> void:
+	for t in toast_box.get_children(): t.queue_free()   # nothing floats over the fight
 	var s := CombatScreen.new(); s.main = self
 	s.setup(event, on_done, saved)
 	_set_screen(s)
@@ -120,6 +121,9 @@ func tip_open() -> bool:
 	return tips != null and tips.is_open()
 
 func _toast(text: String) -> void:
+	# in a fight, toasts go to the combat log instead of floating over the arena/log (DECISIONS #75)
+	if screen != null and screen.get("combat") != null and screen.has_method("_refresh") and not screen.combat.over:
+		screen.combat._log(text); screen._refresh(); return
 	var l := UIKit.label(text, 0.85)
 	var p := UIKit.card(); p.add_child(l); p.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	l.custom_minimum_size.x = minf(get_viewport_rect().size.x * 0.8, 900)

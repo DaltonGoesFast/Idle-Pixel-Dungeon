@@ -89,12 +89,15 @@ func _refresh() -> void:
 	if float(run.satiety) <= 0.0: line += "STARVING"
 	if line != "": stats.add_child(UIKit.label(line, 0.95, Color("ff7070")))
 	var flow := HFlowContainer.new(); stats.add_child(flow)
+	flow.add_theme_constant_override("h_separation", int(UIKit.font_size * 0.9))
+	flow.add_theme_constant_override("v_separation", int(UIKit.font_size * 0.25))
 	for k in run.supplies:
-		if int(run.supplies[k]) > 0: flow.add_child(UIKit.icon_row(k, str(run.supplies[k]), 0.85))
-	var pl := UIKit.label("|  Pack:", 0.85, Color("c9a96e")); pl.autowrap_mode = TextServer.AUTOWRAP_OFF
+		if int(run.supplies[k]) > 0: flow.add_child(UIKit.res_chip(k, str(run.supplies[k])))
+	var pl := UIKit.label("Pack:", 0.85, Color("c9a96e")); pl.autowrap_mode = TextServer.AUTOWRAP_OFF
+	pl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	flow.add_child(pl)
 	for k in run.pack:
-		if int(run.pack[k]) > 0: flow.add_child(UIKit.icon_row(k, str(run.pack[k]), 0.85))
+		if int(run.pack[k]) > 0: flow.add_child(UIKit.res_chip(k, str(run.pack[k])))
 	if not run.pack_gear.is_empty():
 		var il := UIKit.label("+%d items" % run.pack_gear.size(), 0.85); il.autowrap_mode = TextServer.AUTOWRAP_OFF; flow.add_child(il)
 
@@ -104,7 +107,7 @@ func _refresh_controls() -> void:
 	var w := UIKit.font_size * 7.0
 	var b1 := UIKit.button("Pause" if running else "Resume", func(): running = not running; _refresh_controls()); b1.custom_minimum_size.x = w
 	var b2 := UIKit.button("Speed x3" if not fast else "Speed x1", func(): fast = not fast; _refresh_controls()); b2.custom_minimum_size.x = w
-	UIKit.as_toolbar(b1); UIKit.as_toolbar(b2)
+	UIKit.as_toolbar(b1, "sleep" if running else "arrow"); UIKit.as_toolbar(b2, "busy")
 	controls.add_child(b1); controls.add_child(b2)
 	if int(GameState.run.get("supplies", {}).get("scroll_passage", 0)) > 0:
 		var b3 := UIKit.button("Read Scroll of Passage (extract)", func():
@@ -114,11 +117,11 @@ func _refresh_controls() -> void:
 	var bb := UIKit.button("Backpack %d/%d" % [GameState.backpack_used(), GameState.BACKPACK_SLOTS], func(): _open_panel("backpack")); bb.custom_minimum_size.x = w
 	UIKit.as_toolbar(bb, "backpack"); controls.add_child(bb)
 	var bt := UIKit.button("Talents" + (" (%d!)" % nfree if nfree > 0 else ""), func(): _open_panel("talents")); bt.custom_minimum_size.x = w
-	UIKit.as_toolbar(bt); controls.add_child(bt)
+	UIKit.as_toolbar(bt, "talent"); controls.add_child(bt)
 	var b5 := UIKit.button("Settings", func(): _open_panel("settings")); b5.custom_minimum_size.x = w
-	UIKit.as_toolbar(b5); controls.add_child(b5)
+	UIKit.as_toolbar(b5, "prefs"); controls.add_child(b5)
 	var b4 := UIKit.button("Abandon run", _confirm_abandon); b4.custom_minimum_size.x = w
-	UIKit.as_toolbar(b4); controls.add_child(b4)
+	UIKit.as_toolbar(b4, "exit"); controls.add_child(b4)
 
 ## Backpack / Talents cards pause the bar; closing resumes it.
 ## Opening over an encounter card (door, campfire...) remembers it and brings it back on close.
@@ -220,7 +223,7 @@ func _card_door() -> void:
 		if not cost.is_empty(): label += "  [costs %s]" % GameState.cost_text(cost)
 		var ok := cost.is_empty() or Delve.pay_possible(GameState, cost)
 		v.add_child(UIKit.action(label, func(): _choose_door(o), "" if ok else "can't afford"))
-	v.add_child(UIKit.button("Ignore both", func(): pending = {}; _show_card()))
+	v.add_child(UIKit.secondary(UIKit.button("Ignore both", func(): pending = {}; _show_card())))
 
 func _choose_door(o: Dictionary) -> void:
 	Sfx.play("door_open")

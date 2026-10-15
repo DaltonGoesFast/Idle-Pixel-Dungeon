@@ -3,6 +3,12 @@
 
 
 
+
+## v0.16.2
+- SPD icons on camp tabs, delve toolbar and fight buttons.
+- Delve resource row: icons and numbers aligned and grouped; "Ignore both" is a grey secondary button.
+- Fight messages go to the combat log instead of floating over it; top wall of the arena visible; barrier shown once (HP bar shield).
+
 ## v0.16.1 — SPD status pane
 - Status pane rebuilt from SPD's StatusPane: level number in the portrait badge, filled HP bar with shield overlay and centred HP/MaxHP, name beside the portrait, buff icons, depth and danger count, compact Torch/Food (or Barrier) row.
 - Toasts no longer cover the arena; the combat arena fills more of the cover screen; hint text is larger.

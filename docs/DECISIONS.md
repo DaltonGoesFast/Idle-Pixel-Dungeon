@@ -168,3 +168,13 @@ Once the bot could escape multi-tile telegraphs, every Caves sim rose to 9-10/10
 - Name sits in the buff row beside the portrait (never in a bar). Depth "F#" and danger (skull + living enemies) right-aligned like SPD's depth/danger indicators.
 - The EXP row shows compact Torch | Food in delves and Torch | Barrier in fights (no hero EXP bar in this game).
 - Buff icons use SPD buffs.png with its real 7x7 grid (18 per row) — fixes wrong icons in v0.16.0 enemy status icons too.
+
+## 75. v0.16.2 — polish + SPD icon sheet
+- Toasts during a fight go into the combat log; toasts still floating are cleared when a fight starts.
+- Arena origin puts most vertical slack on top (max 0.75 tile) so the raised top wall face shows.
+- Barrier shows only as SPD's shield overlay on the HP bar; the bottom row is Torch | Food everywhere.
+- SPD icons.png on camp tabs (enter, rankings, backpack, challenge, alchemy, scroll, badges, journal, prefs), delve toolbar (sleep/arrow, busy, talent, prefs, exit) and fight buttons (info, busy, arrow, warning, plus, buffs, target).
+
+## 76. v0.16.2 — resource row + secondary buttons
+- Delve resource row uses UIKit.res_chip: icon vertically centred, number immediately after its own icon, fixed chip spacing, HFlow wraps whole chips.
+- "Ignore both" (and future skip/cancel actions) use SPD grey_button chrome via UIKit.secondary; real choices keep the red primary button.

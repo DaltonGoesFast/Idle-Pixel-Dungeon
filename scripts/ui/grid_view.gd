@@ -209,7 +209,9 @@ func cell_size() -> float:
 
 func origin() -> Vector2:
 	var cs := cell_size() * Combat.SIZE
-	return ((size - Vector2(cs, cs)) / 2.0).floor()
+	var slack := size - Vector2(cs, cs)
+	# most vertical slack goes on top so the raised top wall face is visible (SPD rooms read from their top wall)
+	return Vector2(slack.x / 2.0, minf(slack.y * 0.8, cell_size() * 0.75)).floor()
 
 func cell_rect(p: Vector2) -> Rect2:
 	var cs := cell_size()

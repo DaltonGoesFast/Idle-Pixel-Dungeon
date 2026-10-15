@@ -188,6 +188,31 @@ static func icon_row(id: String, text: String, scale := 1.0) -> HBoxContainer:
 	h.add_child(l)
 	return h
 
+## Compact resource chip for wrapping rows: icon vertically centred, number right after it (DECISIONS #76).
+static func res_chip(id: String, text: String, scale := 0.85) -> HBoxContainer:
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", maxi(2, px_scale))
+	h.alignment = BoxContainer.ALIGNMENT_BEGIN
+	var ic := icon(id); ic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	h.add_child(ic)
+	var l := label(text, scale)
+	l.autowrap_mode = TextServer.AUTOWRAP_OFF
+	l.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	l.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	h.add_child(l)
+	return h
+
+## SPD grey_button chrome for secondary actions (skip / ignore / cancel).
+static func secondary(b: Button) -> Button:
+	var bp := font_size * 0.4
+	b.add_theme_stylebox_override("normal", chrome("grey_button", Color.WHITE, bp))
+	b.add_theme_stylebox_override("hover", chrome("grey_button", Color(1.12, 1.12, 1.12), bp))
+	b.add_theme_stylebox_override("pressed", chrome("grey_button", Color(0.8, 0.8, 0.8), bp))
+	b.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+	b.add_theme_color_override("font_color", Color("e8e8e8"))
+	return b
+
 static func clear(n: Node) -> void:
 	for c in n.get_children():
 		n.remove_child(c); c.queue_free()

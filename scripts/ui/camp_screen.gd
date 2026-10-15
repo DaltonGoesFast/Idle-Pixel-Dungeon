@@ -11,6 +11,9 @@ var loadout := {"ration": 2, "torch": 2, "potion_healing": 1, "scroll_passage": 
 var chosen_hero := "warrior"
 var portrait := true
 const MAX_SUPPLY := 10   # torches / rations per expedition (a 15-floor dive needs ~9 torches)
+## SPD icons.png on the camp tabs (DECISIONS #75)
+const TAB_ICONS := {"Delve": "enter", "Heroes": "rankings", "Stash": "backpack_lrg", "Forge": "challenge", "Alchemy": "alchemy",
+	"Enchanter": "scroll", "Guild": "badges", "Journal": "journal", "Settings": "prefs"}
 const TAB_ORDER := ["Delve", "Heroes", "Stash", "Forge", "Alchemy", "Enchanter", "Guild", "Journal", "Settings"]
 
 func _ready() -> void:
@@ -26,6 +29,7 @@ func _ready() -> void:
 		sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 		var v := UIKit.vbox(sc); v.size_flags_horizontal = SIZE_EXPAND_FILL
 		tabs.add_child(sc); pages[t] = v
+		if TAB_ICONS.has(t): tabs.set_tab_icon(tabs.get_tab_count() - 1, UIKit.spd_icon(TAB_ICONS[t]))
 	GameState.changed.connect(rebuild)
 	tabs.tab_changed.connect(func(i: int):
 		var t: String = TAB_ORDER[i].to_lower()

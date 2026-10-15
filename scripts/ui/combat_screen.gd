@@ -92,11 +92,16 @@ func _process(d: float) -> void:
 		if _auto_t > 0.35:
 			_auto_t = 0.0; _do_bot()
 
-const BTN_ICONS := {"Wait": "wait", "Search": "search", "Search again": "search", "Bag": "backpack"}
+const BTN_ICONS := {"Wait": "wait", "Search": "search", "Search again": "search", "Bag": "backpack", "Hint": "info",
+	"Auto": "busy", "Auto: ON": "busy", "Shove": "arrow", "Shove: ON": "arrow"}
+const BTN_PREFIX_ICONS := {"Slam": "warning", "Potion": "plus", "Cloak": "buffs", "Bolt": "target"}
 func _btn(text: String, cb: Callable, enabled := true) -> void:
 	var b := UIKit.button(text, cb, enabled)
 	b.custom_minimum_size.x = UIKit.font_size * 6.5
-	UIKit.as_toolbar(b, BTN_ICONS.get(text, ""))   # SPD toolbar slots for in-fight actions
+	var ic: String = BTN_ICONS.get(text, "")
+	for pre in BTN_PREFIX_ICONS:
+		if text.begins_with(pre): ic = BTN_PREFIX_ICONS[pre]
+	UIKit.as_toolbar(b, ic)   # SPD toolbar slots for in-fight actions
 	buttons.add_child(b)
 
 func _refresh() -> void:
@@ -112,9 +117,7 @@ func _refresh() -> void:
 	var minis := []
 	if not run.is_empty():
 		minis = [{"kind": "exp", "frac": float(run.torch) / 100.0, "text": "Torch %d%%" % run.torch},
-			{"kind": "shield", "frac": float(h.barrier) / maxf(1.0, float(h.barrier_max)), "text": "Barrier %d/%d" % [h.barrier, h.barrier_max]}]
-	else:
-		minis = [{"kind": "shield", "frac": float(h.barrier) / maxf(1.0, float(h.barrier_max)), "text": "Barrier %d/%d" % [h.barrier, h.barrier_max]}]
+			{"kind": "shield", "frac": float(run.satiety) / 100.0, "text": "Food %d%%" % run.satiety}]
 	pane.set_data({"name": h.name, "level": lvl, "hp": h.hp, "ht": h.ht, "shield": h.barrier, "buffs": bl,
 		"depth": ("F%d" % int(run.get("floor", 1))) if not run.is_empty() else "",
 		"danger": combat.enemies().filter(func(e): return e.hp > 0).size(), "minis": minis})
