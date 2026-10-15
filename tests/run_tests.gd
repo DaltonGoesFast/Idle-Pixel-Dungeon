@@ -1540,9 +1540,11 @@ func test_owed_sou(gs) -> void:
 	gs.start_run("rogue", {}, "sewers", 7)
 	var res := {"won": true, "hp": int(gs.run.hp), "loot": 0, "fallen_loot": 0, "xp": 0, "boss_killed": true, "kills": 1, "traps_found": 0, "trap_ids": []}
 	Delve.apply_fight_result(gs, {"kind": "combat", "boss": true, "mobs": ["goo"]}, res, {})
-	check(gs.owed_sou == 0 and int(gs.run.pack.get("scroll_upgrade", 0)) >= 3, "the next boss kill returns all owed scrolls to the pack")
+	check(gs.owed_sou == 0 and gs.mat("scroll_upgrade") >= 3 and int(gs.run.pack.get("scroll_upgrade", 0)) < 3, "the next boss kill returns all owed scrolls to the Camp stash, not the pack")
 	check(" ".join(gs.messages).contains("lost Scrolls of Upgrade return"), "the return is logged")
+	var held: int = gs.mat("scroll_upgrade")
 	gs.end_run("abandon")
+	check(gs.mat("scroll_upgrade") == held, "abandoning that run can't lose the returned scrolls again (DECISIONS #119)")
 
 ## Total wipe: every hero dead, all gear cracked, 0 resources. A delve must still start with usable starter
 ## gear and supplies, earn repair ore, and the Forge must offer a free Patch up (DECISIONS #104).

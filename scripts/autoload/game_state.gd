@@ -75,8 +75,9 @@ var owed_sou := 0
 func grant_owed_sou() -> int:
 	if owed_sou <= 0 or run.is_empty(): return 0
 	var n := owed_sou; owed_sou = 0
-	pack_add("scroll_upgrade", n)
-	say("A lost Scroll of Upgrade returns!" if n == 1 else "%d lost Scrolls of Upgrade return!" % n, "highlight")
+	# straight to the Camp stash, so they can't be lost again on this run (DECISIONS #119)
+	add_mat("scroll_upgrade", n)
+	say("A lost Scroll of Upgrade returns to Camp!" if n == 1 else "%d lost Scrolls of Upgrade return to Camp!" % n, "highlight")
 	return n
 
 func new_game() -> void:

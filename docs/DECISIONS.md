@@ -327,3 +327,6 @@ The "+3" gold pop in delve_enemy / delve_special / delve_auto shots was not a ga
 
 ## 114. Facility header: level / max, cap never below level
 The Guild header read "Lv 2 / 1" beside a "capped" Upgrade button: the header printed the Scroll-of-Upgrade `cap` (not the facility max), and nothing kept `cap >= level` (the screenshot harness, debug edits or an old save can set a level without the cap). `GameState.facility_cap(id)` = clamp(max(cap, level), 1, max) is used by can_upgrade_facility, apply_sou and on load; the header shows "Lv level / max" and adds "(cap N)" only while the cap is what blocks the next level. test_facility_cap covers the reported state.
+
+## 119. Returned Scrolls of Upgrade go to Camp
+#103 returned owed Scrolls of Upgrade into the pack on the next boss kill, so abandoning (or dying on) that same run lost them a second time. grant_owed_sou now adds them straight to the Camp stash with a highlighted "return to Camp" log line. Supersedes the "back to the pack" part of #103.
