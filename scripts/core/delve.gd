@@ -87,6 +87,10 @@ static func advance(gs, pct: float) -> Dictionary:
 		var key := "%d_%d" % [int(m[0]), int(m[1])]
 		if int(run.floor) == int(m[0]) and run.progress >= float(m[1]) and not (key in run.milestones_done):
 			run.milestones_done.append(key)
+			# once per hero life, like SPD's fixed 10 potions per game: repeat delves no longer stack Str (DECISIONS #122)
+			var found: Array = gs.heroes[run.hero].get("str_found", [])
+			if key in found: continue
+			found.append(key); gs.heroes[run.hero].str_found = found
 			gs.heroes[run.hero].str += 1
 			gs.say("Found a Potion of Strength! %s is now %d Str." % [gs.heroes[run.hero].class.capitalize(), gs.heroes[run.hero].str])
 	if run.next_event < run.events.size() and run.progress >= float(run.events[run.next_event].at):

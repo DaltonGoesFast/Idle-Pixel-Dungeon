@@ -35,6 +35,7 @@ func _ready() -> void:
 	test_armor_tiers(gs)
 	test_floor_label(gs)
 	test_total_wipe(gs)
+	test_strength_once(gs)
 	test_rogue_cloak(gs)
 	test_level_cap(gs)
 	test_dew_sink(gs)
@@ -1771,3 +1772,18 @@ func test_rogue_cloak(gs) -> void:
 	check(int(c.hero.cloak_charges) == 3, "a fight starts with 3 cloak charges")
 	gs.end_run("abandon")
 
+
+## DECISIONS #122: each fixed Potion of Strength is found once per hero life.
+func test_strength_once(gs) -> void:
+	print("[strength once]")
+	gs.new_game()
+	for i in 3:
+		gs.start_run("warrior", {"ration": 3, "torch": 3}, "sewers", 5 + i)
+		gs.run.floor = 2; gs.run.events = [{"at": 999.0, "kind": "combat", "salt": 0}]; gs.run.next_event = 0
+		Delve.advance(gs, 60.0)
+		gs.end_run("extract")
+	check(int(gs.heroes.warrior.str) == 11, "the floor-2 Strength potion counts once across 3 delves (Str %d)" % int(gs.heroes.warrior.str))
+	gs.start_run("warrior", {}, "sewers", 9); gs.end_run("death")
+	check(gs.heroes.warrior.str_found.is_empty() and int(gs.heroes.warrior.str) == 10, "death resets Str and the found list")
+	gs.from_dict(JSON.parse_string(JSON.stringify(gs.to_dict())))
+	check(gs.heroes.warrior.str_found is Array, "str_found survives save/load")

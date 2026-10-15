@@ -90,7 +90,7 @@ func new_game() -> void:
 	heroes = {}
 	for c in DB.heroes:
 		var h: Dictionary = DB.heroes[c]
-		heroes[c] = {"class": c, "unlocked": h.unlocked_by_default, "level": 1, "xp": 0, "str": 10,
+		heroes[c] = {"class": c, "unlocked": h.unlocked_by_default, "level": 1, "xp": 0, "str": 10, "str_found": [],
 			"weapon": add_gear(h.start_weapon), "armor": add_gear(h.start_armor), "ring": 0, "artifact": 0,
 			"wand": "wand_magic_missile" if c == "mage" else "", "cleared": [], "patrol": {}, "mask": false, "subclass": "", "talents": []}
 
@@ -969,7 +969,7 @@ func end_run(result: String) -> void:
 					g.erase("owned")
 					if not DB.item(g.id).get("heirloom", false) and DB.item(g.id).type != "wand": g.cracked = true
 					gear.append(g)
-			h.level = 1; h.xp = 0; h.str = 10; h.talents = []
+			h.level = 1; h.xp = 0; h.str = 10; h.talents = []; h.str_found = []
 			var lost_sou := int(run.pack.get("scroll_upgrade", 0))
 			if lost_sou > 0:
 				owed_sou += lost_sou
@@ -1097,6 +1097,8 @@ func _fix_types() -> void:
 	for c in heroes:
 		var h: Dictionary = heroes[c]
 		if not h.has("artifact"): h.artifact = 0
+		if not h.has("str_found"): h.str_found = []   # saves before #122: past potions unknown, Str kept as is
+		h.str_found = Array(h.str_found)
 		for k in ["level", "xp", "str", "weapon", "armor", "ring", "artifact"]: h[k] = int(h[k])
 		if h.level > MAX_LEVEL: h.level = MAX_LEVEL; h.xp = 0   # saves from before the cap
 	for f in facilities:
