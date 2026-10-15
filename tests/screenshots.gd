@@ -6,6 +6,9 @@ var main
 var f := 0
 var out := "/workspace/builds/shots"
 const SIZES := {"cover": Vector2i(484, 1188), "inner": Vector2i(928, 1080)}
+## The window at SIZES is a 0.5x stretch of the 968x2376 viewport, which drops 1-px pixel-font columns
+## ("i", ":", ".") that are fine on device. Render at 2x and downsample (SHOT_NATIVE=1 keeps the 2x image) (DECISIONS #112).
+const RENDER_SCALE := 2
 var plan := []
 
 func _ready() -> void:
@@ -209,10 +212,12 @@ func _process(_d: float) -> void:
 		SaveSystem.wipe(); get_tree().quit(); return
 	var step = plan[i]
 	if f % 12 == 1:
-		get_window().size = SIZES[step[0]]
+		get_window().size = SIZES[step[0]] * RENDER_SCALE
 		step[2].call()
 	if f % 12 == 11:
-		get_viewport().get_texture().get_image().save_png("%s/%s_%s.png" % [out, step[0], step[1]])
+		var img := get_viewport().get_texture().get_image()
+		if not OS.has_environment("SHOT_NATIVE"): img.resize(SIZES[step[0]].x, SIZES[step[0]].y, Image.INTERPOLATE_LANCZOS)
+		img.save_png("%s/%s_%s.png" % [out, step[0], step[1]])
 		if main.screen.get("grid") != null: print("GRID ", step[1], " ", main.screen.grid.size, " cs=", main.screen.grid.cell_size(), " win=", get_viewport().get_visible_rect().size)
 		if false: print("box ", main.screen.root_box.size, " title ", main.screen.root_box.get_child(0).size, " tabs ", main.screen.tabs.size, " anchors ", main.screen.root_box.anchor_right, " off ", main.screen.root_box.offset_right)
 
