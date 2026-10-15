@@ -413,11 +413,15 @@ func _page_delve() -> void:
 	hv.add_child(UIKit.label("%s  ->  %s" % [DB.heroes[chosen_hero].name, b.name], 1.0, Color("ffd27a")))
 	hv.add_child(UIKit.label("Floors %d-%d, boss: %s. Recommended: Lv %d, Strength %d." % [b.floors[0], b.floors[1], DB.mobs.get(b.get("boss", ""), {}).get("name", "?"), int(b.get("rec_level", 1)), b.str_gate], 0.8, Color("bdb3a0")))
 	hv.add_child(UIKit.label("Extract at a boss campfire or with a Scroll of Passage. Dying loses the pack.", 0.75, Color("9a9488")))
-	v.add_child(UIKit.header("Supplies"))
-	for k in ["ration", "torch", "potion_healing", "scroll_passage", "elixir_starter"]:
+	var caps := supply_max()
+	for k in SUPPLY_KEYS: loadout[k] = clampi(int(loadout.get(k, 0)), 0, int(caps[k]))
+	var sh := UIKit.hbox(v)
+	var shl := UIKit.header("Supplies"); shl.size_flags_horizontal = SIZE_EXPAND_FILL; sh.add_child(shl)
+	var mall := UIKit.button("Max all", func(): max_all_supplies(); _fill_window(), not supplies_all_max())
+	mall.name = "MaxAll"; mall.autowrap_mode = TextServer.AUTOWRAP_OFF; mall.custom_minimum_size.x = UIKit.font_size * 5; mall.size_flags_horizontal = 0; mall.size_flags_vertical = SIZE_SHRINK_CENTER; UIKit.secondary(mall); sh.add_child(mall)
+	for k in SUPPLY_KEYS:
 		var have := GameState.mat(k)
-		var cap := GameState.belt_size() if k == "potion_healing" else (1 if k == "scroll_passage" else MAX_SUPPLY)
-		loadout[k] = clampi(int(loadout[k]), 0, mini(have, cap))
+		var cap := int(caps[k])
 		if k == "elixir_starter" and have == 0: continue
 		var row := UIKit.hbox(v)
 		var r := UIKit.icon_row(k, "%s  x%d" % [DB.mat_name(k), loadout[k]], 0.9)
@@ -435,6 +439,26 @@ func _page_delve() -> void:
 		v.add_child(UIKit.button("Drink Starter Elixir (boost to Lv3)", func(): GameState.use_elixir(chosen_hero)))
 	var go := UIKit.action("Descend into the %s" % b.name, _start, GameState.can_start_run(chosen_hero))
 	go.custom_minimum_size.y = UIKit.btn_height() * 1.3; _foot().add_child(go)
+
+const SUPPLY_KEYS := ["ration", "torch", "potion_healing", "scroll_passage", "elixir_starter"]
+## Most of each supply the pack can take: the stash count, capped by belt size (potions), 1 (Passage) or MAX_SUPPLY.
+func supply_max() -> Dictionary:
+	var out := {}
+	for k in SUPPLY_KEYS:
+		var cap := GameState.belt_size() if k == "potion_healing" else (1 if k == "scroll_passage" else MAX_SUPPLY)
+		out[k] = mini(GameState.mat(k), cap)
+	return out
+
+## Supplies header "Max all": every row to its max (disabled once they all are).
+func max_all_supplies() -> void:
+	var caps := supply_max()
+	for k in SUPPLY_KEYS: loadout[k] = int(caps[k])
+
+func supplies_all_max() -> bool:
+	var caps := supply_max()
+	for k in SUPPLY_KEYS:
+		if int(loadout.get(k, 0)) < int(caps[k]): return false
+	return true
 
 func _start() -> void:
 	if GameState.start_run(chosen_hero, loadout, chosen_biome):

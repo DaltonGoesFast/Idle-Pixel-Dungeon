@@ -50,6 +50,7 @@ func _ready() -> void:
 	test_food_sources(gs)
 	test_facility_cap(gs)
 	test_crate_slot(gs)
+	test_max_all_supplies(gs)
 	await test_delve_chips(gs)
 	test_owed_sou(gs)
 	await test_icon_sizes(gs)
@@ -1862,6 +1863,31 @@ func _slot_texts(slot: Control) -> Array:
 	var t := []
 	for l in slot.find_children("*", "Label", true, false): t.append(String(l.text))
 	return t
+
+## DECISIONS #142: Expedition Supplies header "Max all" fills every row to its own max and is off once they all are.
+func _btn_named(root: Node, nm: String) -> Button:
+	for b in (root.win_layer if root.win_layer else root).find_children(nm, "Button", true, false):
+		if not b.is_queued_for_deletion(): return b
+	return null
+
+func test_max_all_supplies(gs) -> void:
+	print("[max all supplies]")
+	gs.new_game()
+	gs.mats.ration = 14; gs.mats.torch = 3; gs.mats.potion_healing = 9; gs.mats.scroll_passage = 0
+	var cs = load("res://scripts/ui/camp_screen.gd").new(); add_child(cs)
+	var caps: Dictionary = cs.supply_max()
+	check(caps.ration == 10 and caps.torch == 3 and caps.potion_healing == gs.belt_size() and caps.scroll_passage == 0, "supply max = stash capped per row (%s)" % [caps])
+	cs.open_page("Delve")
+	var b := _btn_named(cs, "MaxAll")
+	check(b != null and not b.disabled, "Supplies header has an enabled Max all button")
+	if b: b.pressed.emit()
+	check(cs.loadout.ration == 10 and cs.loadout.torch == 3 and cs.loadout.potion_healing == gs.belt_size() and cs.loadout.scroll_passage == 0, "Max all sets every supply to its max (%s)" % [cs.loadout])
+	var b2 := _btn_named(cs, "MaxAll")
+	check(b2 != null and b2.disabled and cs.supplies_all_max(), "Max all is disabled when everything is already at max (%s %s %s)" % [b2 != null and b2.disabled, cs.loadout, cs.supply_max()])
+	cs.loadout.torch = 1; cs.close_page(); cs.open_page("Delve")
+	var b3 := _btn_named(cs, "MaxAll")
+	check(b3 != null and not b3.disabled, "lowering one supply re-enables Max all")
+	cs.close_page(); cs.queue_free()
 
 func test_crate_slot(gs) -> void:
 	print("[crate slot]")

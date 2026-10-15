@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Expedition Supplies: a "Max all" button in the Supplies header sets every row to its max (disabled once they all are) (+test).
 
 ## 0.29.0
 - In-game Update on Android and Windows: Camp / Settings checks GitHub releases, downloads the APK or zip, and on Android opens the system Install screen. iOS stays on TestFlight; `tools/upload_testflight.sh` archives and uploads on a Mac. Android export uses Gradle so the updater can request install permission (+tests).

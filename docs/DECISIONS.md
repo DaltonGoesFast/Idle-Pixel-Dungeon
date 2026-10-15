@@ -395,3 +395,6 @@ a6b9d18/09b3032 drew the torch/food row as a full 16-game-px item cell (HP is 9)
 
 ## 135. In-game updater (Android / Windows) + TestFlight script (iOS)
 Sideloaded Android players were opening GitHub in a browser for every APK. `Updater` checks `releases/latest`, downloads the platform asset, and on Android opens the system installer via `JavaClassWrapper` + Godot's FileProvider. That needs `REQUEST_INSTALL_PACKAGES`, which the stock permission list does not expose, so Gradle is on and `addons/apk_install` injects the permission (still official templates — #2). Windows gets the zip opened in Explorer. iOS has no in-app check: `tools/upload_testflight.sh` archives and uploads; TestFlight delivers the update.
+
+## 142. Expedition Supplies: Max all
+Filling a pack meant tapping + up to ten times per row. The Supplies header now has a "Max all" button that sets every supply to the same max its row shows (`CampScreen.supply_max()`: stash count capped by belt size for potions, 1 for Passage, MAX_SUPPLY otherwise), so the button and the rows can never disagree. It is disabled when every row is already at its max (`supplies_all_max()`), the same way + greys out. Covered by `test_max_all_supplies`.
