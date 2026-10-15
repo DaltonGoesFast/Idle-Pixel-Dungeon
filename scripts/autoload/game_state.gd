@@ -141,6 +141,8 @@ static func cost_text(cost: Dictionary) -> String:
 	return ", ".join(parts)
 
 # ---------------------------------------------------------------- hero stats
+## SPD Hero.MAX_LEVEL: heroes stop gaining levels (and HP/accuracy/talent points) at 30 (DECISIONS #115).
+const MAX_LEVEL := 30
 func xp_to_next(level: int) -> int:
 	return 5 + level * 5   # SPD Hero.maxExp()
 
@@ -514,8 +516,9 @@ func grant_xp(c: String, n: int) -> bool:
 	var h: Dictionary = heroes[c]
 	h.xp += n
 	var up := false
-	while h.xp >= xp_to_next(h.level):
+	while h.level < MAX_LEVEL and h.xp >= xp_to_next(h.level):
 		h.xp -= xp_to_next(h.level); h.level += 1; up = true
+	if h.level >= MAX_LEVEL: h.level = MAX_LEVEL; h.xp = 0
 	return up
 
 # ---------------------------------------------------------------- facilities & crafting
@@ -1090,6 +1093,7 @@ func _fix_types() -> void:
 		var h: Dictionary = heroes[c]
 		if not h.has("artifact"): h.artifact = 0
 		for k in ["level", "xp", "str", "weapon", "armor", "ring", "artifact"]: h[k] = int(h[k])
+		if h.level > MAX_LEVEL: h.level = MAX_LEVEL; h.xp = 0   # saves from before the cap
 	for f in facilities:
 		facilities[f].level = int(facilities[f].level); facilities[f].cap = int(facilities[f].cap)
 		if DB.facilities.has(f): facilities[f].cap = facility_cap(f)

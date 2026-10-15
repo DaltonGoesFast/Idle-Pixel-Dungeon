@@ -35,6 +35,7 @@ func _ready() -> void:
 	test_armor_tiers(gs)
 	test_floor_label(gs)
 	test_total_wipe(gs)
+	test_level_cap(gs)
 	test_goo_spiral(gs)
 	test_food_sources(gs)
 	test_facility_cap(gs)
@@ -1633,3 +1634,14 @@ func test_facility_cap(gs) -> void:
 	check(cs.open_name == "Heroes", "tapping the selected hero again opens Heroes")
 	m_slot.free(); m_slot2.free(); cs.queue_free()
 
+
+## DECISIONS #115: SPD level cap.
+func test_level_cap(gs) -> void:
+	print("[level cap]")
+	gs.new_game()
+	gs.grant_xp("mage", 1000000)
+	check(int(gs.heroes.mage.level) == gs.MAX_LEVEL and int(gs.heroes.mage.xp) == 0, "xp stops at Lv%d (got Lv%d)" % [gs.MAX_LEVEL, gs.heroes.mage.level])
+	check(not gs.grant_xp("mage", 500), "no level up past the cap")
+	gs.heroes.warrior.level = 94; gs.heroes.warrior.xp = 12
+	gs.from_dict(JSON.parse_string(JSON.stringify(gs.to_dict())))
+	check(int(gs.heroes.warrior.level) == gs.MAX_LEVEL, "an over-cap save loads at Lv%d" % gs.MAX_LEVEL)
