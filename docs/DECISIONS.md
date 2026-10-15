@@ -40,3 +40,12 @@ Calls made while building the base game overnight (2026-10-14/15) where the GDD 
 | 34 | **Torch drain 0.4/%**: default loadout (2 torches) lasts exactly the 5 floors | The sim showed every run hitting darkness at Goo with 0.5 | core/delve.gd |
 | 35 | **Heirlooms (Mage's Staff...) never crack on death** | They're permanent class items in the GDD | GameState.end_run |
 | 36 | **Potions are consumed the moment they're drunk** (not refunded on death) | Fixes a refund exploit | combat_screen.gd |
+
+## 37. Mid-fight resume replaces "fight restarts on relaunch"
+Supersedes part of #21. The Combat state is serialized to `run.active_fight` after every hero action and every 3 s; on launch main.gd resumes it. This is cheap (small grid) and kills the app-kill exploit.
+
+## 38. Warrior Slam
+Adjacent AoE + knockback, cooldown-based. Gives Warrior a crowd answer without stealing Mage's ranged niche.
+
+## 39. Lightning conducts through water, including to the hero
+Matches SPD's spirit (lightning + water risk). The hero takes half damage so it's a positioning puzzle, not a trap.

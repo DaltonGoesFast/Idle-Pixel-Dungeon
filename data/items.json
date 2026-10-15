@@ -193,5 +193,16 @@
   "type": "heirloom_cloak",
   "icon": "ARTIFACT_CLOAK",
   "heirloom": true
+ },
+ "wand_lightning": {
+  "name": "Wand of Lightning",
+  "type": "wand",
+  "bolt_dmg": 7,
+  "charges": 2,
+  "recharge": 5,
+  "chains_water": true,
+  "unknown_name": "Birch Wand",
+  "icon": "WAND_LIGHTNING",
+  "spd": "dmg 5-10"
  }
 }

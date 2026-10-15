@@ -5,7 +5,7 @@ extends Control
 
 signal tapped(cell: Vector2i)
 
-const TILE_IDX := {Combat.T.FLOOR: 0, Combat.T.GRASS: 66, Combat.T.WALL: 48, Combat.T.DOOR: 56, Combat.T.CHASM: 24, Combat.T.WATER: 32}
+const TILE_IDX := {Combat.T.FLOOR: 0, Combat.T.GRASS: 66, Combat.T.WALL: 48, Combat.T.DOOR: 56, Combat.T.CHASM: 24, Combat.T.WATER: 0}
 const MOVE_TIME := 0.12
 
 var combat: Combat
@@ -61,6 +61,7 @@ func play_events(evs: Array) -> void:
 				Sfx.play("zap" if e.get("magic", true) else "atk_spiritbow")
 			"blast": blasts.append({"pos": Vector2(e.pos), "t": 0.0}); Sfx.play("hit_crush")
 			"telegraph": Sfx.play("alert")
+			"shock": blasts.append({"pos": Vector2(e.pos), "t": 0.0, "shock": true})
 			"burn": blasts.append({"pos": Vector2(e.pos), "t": 0.0, "fire": true}); Sfx.play("burning")
 			"move": if e.uid == combat.hero.uid: Sfx.play("step", 1.1)
 			"sfx": Sfx.play(e.name)
@@ -113,6 +114,7 @@ func _draw() -> void:
 			if t == Combat.T.GRASS or t == Combat.T.DOOR: _tile(r, 0)
 			_tile(r, TILE_IDX[t])
 			if t == Combat.T.CHASM: draw_rect(r, Color(0, 0, 0, 0.6))
+			if t == Combat.T.WATER: draw_rect(r, Color(0.25, 0.45, 0.8, 0.45 + 0.05 * sin(anim_t * 2.0 + x + y)))
 	# reachable / targetable highlights
 	var hp: Vector2i = combat.hero.pos
 	if not combat.over:
@@ -162,6 +164,7 @@ func _draw() -> void:
 		draw_line(a, a.lerp(b, clampf(s.t / 0.12, 0, 1)), sc, maxf(3, cs * 0.08))
 	for b in blasts:
 		var c := Color(1, 0.6, 0.1, 1.0 - b.t / 0.35) if b.get("fire", false) else Color(1, 0.3, 0.2, 1.0 - b.t / 0.35)
+		if b.get("shock", false): c = Color(0.7, 0.9, 1.0, 1.0 - b.t / 0.35)
 		draw_rect(cell_rect(b.pos).grow(b.t * cs * 0.3), c, false, 3.0)
 	var font := get_theme_default_font()
 	var fs := int(maxf(14, cs * 0.38))

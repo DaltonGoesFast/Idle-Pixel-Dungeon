@@ -138,7 +138,7 @@ static func reward(gs, rw: Dictionary) -> String:
 	for k in rw:
 		match k:
 			"item_unknown":
-				var pool: Array = ["ring_might", "ring_tenacity"] if rw[k] == "ring" else ["wand_magic_missile", "wand_firebolt"]
+				var pool: Array = ["ring_might", "ring_tenacity"] if rw[k] == "ring" else ["wand_magic_missile", "wand_firebolt", "wand_lightning"]
 				var id: String = pool[(int(run.seed) + int(run.floor) + run.pack_gear.size()) % pool.size()]
 				run.pack_gear.append(_new_gear(gs, id, false))
 				parts.append(DB.item(id).unknown_name)

@@ -110,6 +110,31 @@ func test_balance(gs) -> void:
 	check(cc.hero.hp + cc.hero.barrier == hp_before, "hidden rogue isn't attacked")
 	cc.hero_tap(rat.pos)
 	check(rat.hp <= 0, "cloaked dagger surprise (x2) kills a rat")
+	# warrior slam knocks a crowd back
+	var sl := Combat.new(); var ws := warrior(gs); sl.setup(DB.rooms[0], ws, ws.ht, ["rat", "rat"])
+	var r1 = sl.enemies()[0]; var r2 = sl.enemies()[1]
+	sl.hero.pos = Vector2i(3, 4); r1.pos = Vector2i(3, 3); r2.pos = Vector2i(4, 4)   # chasm at (3,2)? room0 rows 2-3 x3-4
+	check(sl.hero_slam(), "warrior can slam")
+	check(r1.hp <= 0, "slam knocks a rat into the chasm")
+	check(not sl.hero_slam(), "slam is once per fight")
+	# lightning chains through water
+	gs.heroes.mage.wand = "wand_lightning"
+	var ls: Dictionary = gs.hero_stats("mage")
+	var lc := Combat.new(); lc.setup(DB.rooms[6], ls, ls.ht, ["rat", "rat"])
+	var la = lc.enemies()[0]; var lb = lc.enemies()[1]
+	la.pos = Vector2i(4, 2); lb.pos = Vector2i(5, 3); lc.hero.pos = Vector2i(2, 2)
+	check(lc.tile(la.pos) == Combat.T.WATER and lc.tile(lb.pos) == Combat.T.WATER, "test rats stand in water")
+	la.hp = 5; lb.hp = 3
+	lc.hero_bolt(la.pos)
+	check(la.hp <= 0 and lb.hp <= 0, "lightning chains through connected water")
+	gs.heroes.mage.wand = "wand_magic_missile"
+	# combat save/restore round trip
+	var sv := Combat.new(); sv.setup(DB.rooms[1], ws, ws.ht, ["gnoll", "crab"])
+	for i in 3: sv.hero_wait()
+	var snap: Dictionary = JSON.parse_string(JSON.stringify(sv.to_dict()))
+	var rs2 := Combat.new(); rs2.from_dict(snap)
+	CombatBot.play(sv); CombatBot.play(rs2)
+	check(sv.log_lines == rs2.log_lines, "restored fight plays out identically")
 	# huntress arrows are unlimited and respect DR
 	var hu: Dictionary = gs.hero_stats("huntress")
 	var hc := Combat.new(); hc.setup(DB.rooms[0], hu, hu.ht, ["crab"])

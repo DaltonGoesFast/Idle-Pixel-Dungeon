@@ -40,7 +40,7 @@ Assets used (all from Shattered Pixel Dungeon, GPL-3.0): hero sprites (warrior, 
 
 ### Arenas
 
-6 handcrafted 8x8 rooms + 1 boss room (data/rooms.json). Legend: # wall . floor " tall grass + door _ chasm ~ water(cosmetic) H hero start, 1-4 enemy spawn slots (filled in order), B boss
+7 handcrafted 8x8 rooms + 1 boss room (data/rooms.json). Legend: # wall . floor " tall grass + door _ chasm ~ shallow water (conducts lightning) H hero start, 1-4 enemy spawn slots (filled in order), B boss
 
 Room 0:
 ```
@@ -83,8 +83,8 @@ Room 3:
 ########
 #H.""..#
 #..##..#
-#.....1#
-#__..".#
+#.~~~.1#
+#__~~".#
 #__.2..#
 #...+.3#
 ########
@@ -115,6 +115,18 @@ Room 5:
 ```
 
 Room 6:
+```
+########
+#H..~~.#
+#.".~~1#
+#..+~~.#
+####..##
+#2..~~.#
+#."..~3#
+########
+```
+
+Room 7:
 ```
 ########
 #H...."#

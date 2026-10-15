@@ -48,6 +48,11 @@ static func suggest(c: Combat, potions := 0, heal_amount := 10) -> Dictionary:
 			var dir: Vector2i = e.pos - h.pos
 			if c.tile(e.pos + dir) == Combat.T.CHASM and not e.get("boss", false):
 				return {"act": "tap", "pos": e.pos, "mode": "shove", "why": "shove it into the chasm"}
+	# 3a. warrior slam: 2+ adjacent, or one would fall into a chasm
+	if "slam" in h.abilities and int(h.get("slams", 0)) > 0:
+		var into_chasm := adj.any(func(e): return c.tile(e.pos + (e.pos - h.pos)) == Combat.T.CHASM and not e.get("boss", false))
+		if adj.size() >= 3 or into_chasm:
+			return {"act": "slam", "why": "slam the crowd"}
 	# 3b. rogue: cloak when swarmed or hurt, then strike from the shadows
 	if "cloak" in h.abilities and int(h.cloak_charges) > 0 and not c.hidden() and (adj.size() >= 2 or (adj.size() == 1 and _hits_to_kill(c, adj[0]) >= 2)):
 		return {"act": "cloak", "why": "cloak, then strike with a Surprise"}
@@ -104,6 +109,7 @@ static func play(c: Combat, potions := 0, heal := 10, max_turns := 300) -> Dicti
 		match s.act:
 			"heal": used += 1; c.hero_heal(heal)
 			"cloak": if not c.hero_cloak(): c.hero_wait()
+			"slam": if not c.hero_slam(): c.hero_wait()
 			"wait": c.hero_wait()
 			"tap":
 				if not c.hero_tap(s.pos, s.mode): c.hero_wait()

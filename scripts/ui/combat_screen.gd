@@ -23,12 +23,17 @@ var auto := false
 var _auto_t := 0.0
 var finished := false
 
-func setup(ev: Dictionary, done: Callable) -> void:
+## `saved` (optional) = Combat.to_dict() from GameState.run.active_fight when resuming after the app was killed.
+func setup(ev: Dictionary, done: Callable, saved := {}) -> void:
 	event = ev; on_done = done
 	var run: Dictionary = GameState.run
 	var hs: Dictionary = GameState.hero_stats(run.hero)
 	combat = Combat.new()
-	combat.setup(ev.room, hs, int(run.hp), ev.mobs, Delve.darkness(run))
+	if saved.is_empty():
+		combat.setup(ev.room, hs, int(run.hp), ev.mobs, Delve.darkness(run))
+	else:
+		combat.from_dict(saved)
+		combat._log("(fight resumed)")
 	potions = int(run.supplies.get("potion_healing", 0))
 	heal = int(DB.materials.potion_healing.heal)
 
@@ -89,6 +94,8 @@ func _refresh() -> void:
 	_btn("Wait", func(): _act(func(): combat.hero_wait()))
 	if "shove" in h.abilities:
 		_btn("Shove: ON" if mode == "shove" else "Shove", func(): mode = "" if mode == "shove" else "shove"; grid.mode = mode; _refresh())
+	if "slam" in h.abilities:
+		_btn("Slam (%d)" % h.slams, func(): _act(func(): combat.hero_slam()), int(h.slams) > 0 and combat.enemies().any(func(e): return Combat.cheb(e.pos, h.pos) == 1))
 	if not h.cloak.is_empty():
 		_btn("Cloak (%d)" % h.cloak_charges, func(): _act(func(): combat.hero_cloak()), int(h.cloak_charges) > 0 and not combat.hidden())
 	if not h.bolt.is_empty() and not h.bolt.get("infinite", false):
@@ -115,6 +122,12 @@ func _on_cell(c: Vector2i) -> void:
 			if m != "": mode = ""; grid.mode = ""
 		)
 
+## Keep the fight in the save so Android killing the app doesn't lose it.
+func _persist() -> void:
+	if GameState.run.has("active_fight"):
+		GameState.run.active_fight.combat = combat.to_dict()
+		SaveSystem.save_game()
+
 func _inspect(u: Dictionary) -> void:
 	var spd := "fast (%.1f ticks)" % u.delay if float(u.delay) < 1.0 else "normal"
 	var extra := ""
@@ -127,6 +140,7 @@ func _act(f: Callable) -> void:
 	grid.hint_cell = Vector2i(-1, -1)
 	f.call()
 	grid.play_events(combat.drain_events())
+	_persist()
 	if combat.over and not finished:
 		finished = true; auto = false
 		Sfx.play("levelup" if combat.won else "death")
@@ -150,6 +164,7 @@ func _do_bot() -> void:
 		"heal": _drink()
 		"wait": _act(func(): combat.hero_wait())
 		"cloak": _act(func(): if not combat.hero_cloak(): combat.hero_wait())
+		"slam": _act(func(): if not combat.hero_slam(): combat.hero_wait())
 		"tap": _act(func(): if not combat.hero_tap(s.pos, s.mode): combat.hero_wait())
 
 func _result_buttons() -> void:
@@ -167,4 +182,5 @@ func result() -> Dictionary:
 		"boss_killed": combat.boss_killed, "potions_used": potions_used}
 
 func _finish() -> void:
+	GameState.run.erase("active_fight")
 	on_done.call(result())

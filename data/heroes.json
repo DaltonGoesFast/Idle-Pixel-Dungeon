@@ -12,10 +12,11 @@
   "start_weapon": "worn_shortsword",
   "start_armor": "cloth_armor",
   "abilities": [
-   "shove"
+   "shove",
+   "slam"
   ],
   "unlocked_by_default": true,
-  "desc": "Tank & displacement. Broken Seal grants extra Barrier; Shove knocks foes into chasms."
+  "desc": "Tank & displacement. Broken Seal grants extra Barrier; Shove pushes a foe 1 tile; Slam (1/fight) hits all adjacent foes and knocks them back - into chasms if you line it up."
  },
  "mage": {
   "name": "Mage",

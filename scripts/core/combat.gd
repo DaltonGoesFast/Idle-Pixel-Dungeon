@@ -39,7 +39,8 @@ func setup(room_rows: Array, hs: Dictionary, hp: int, mob_ids: Array, darkness :
 		"barrier": 0 if darkness else hs.barrier_max, "barrier_max": hs.barrier_max, "delay": hs.delay, "next": 0.0,
 		"pos": Vector2i.ZERO, "sprite": hs.sprite, "fw": hs.fw, "fh": hs.fh, "surprise_mult": hs.get("surprise_mult", 1.5),
 		"abilities": hs.get("abilities", []), "bolt": hs.get("bolt", {}), "charges": 0, "recharge_t": 0.0, "hero": true,
-		"cloak": hs.get("cloak", {}), "cloak_charges": int(hs.get("cloak", {}).get("charges", 0)), "hidden_until": -1.0}
+		"cloak": hs.get("cloak", {}), "cloak_charges": int(hs.get("cloak", {}).get("charges", 0)), "hidden_until": -1.0,
+		"slams": 1 if "slam" in hs.get("abilities", []) else 0}
 	if not hero.bolt.is_empty(): hero.charges = hero.bolt.charges
 	units.append(hero)
 	var slots := {}
@@ -63,6 +64,35 @@ func setup(room_rows: Array, hs: Dictionary, hp: int, mob_ids: Array, darkness :
 		var p: Vector2i = slots.get(i, _free_tile_near(Vector2i(SIZE - 2, SIZE - 2)))
 		spawn(mob_ids[i], p)
 	_log("A fight! Barrier %d, HP %d/%d%s." % [hero.barrier, hero.hp, hero.ht, " (darkness: no Barrier)" if darkness else ""])
+
+# ------------------------------------------------------------------ persistence
+## Serialise to JSON-safe data (Vector2i -> [x, y]) so a fight survives the app being killed.
+func to_dict() -> Dictionary:
+	var us := []
+	for u in units:
+		var d: Dictionary = u.duplicate(true); d.pos = [u.pos.x, u.pos.y]; us.append(d)
+	var dz := []
+	for d in danger:
+		var e: Dictionary = d.duplicate(); e.pos = [d.pos.x, d.pos.y]; dz.append(e)
+	return {"terrain": terrain, "units": us, "danger": dz, "time": time, "log": Array(log_lines), "loot": loot,
+		"fallen_loot": fallen_loot, "xp": xp, "over": over, "won": won, "boss_killed": boss_killed, "uid": _uid}
+
+func from_dict(d: Dictionary) -> void:
+	terrain = []
+	for row in d.terrain: terrain.append(row.map(func(t): return int(t)))
+	units = []
+	for u in d.units:
+		var x: Dictionary = u.duplicate(true)
+		x.pos = Vector2i(int(u.pos[0]), int(u.pos[1]))
+		for k in ["uid", "hp", "ht", "dmg", "dr", "barrier", "barrier_max", "charges", "cloak_charges", "cooldown", "acts", "exp", "loot"]:
+			if x.has(k): x[k] = int(x[k])
+		units.append(x)
+		if x.has("hero"): hero = x
+	danger = []
+	for e in d.danger:
+		var y: Dictionary = e.duplicate(); y.pos = Vector2i(int(e.pos[0]), int(e.pos[1])); y.dmg = int(e.dmg); y.uid = int(e.uid); danger.append(y)
+	time = float(d.time); log_lines = PackedStringArray(d.log); loot = int(d.loot); fallen_loot = int(d.fallen_loot)
+	xp = int(d.xp); over = d.over; won = d.won; boss_killed = d.boss_killed; _uid = int(d.uid); events = []
 
 func _next_uid() -> int:
 	_uid += 1
@@ -223,6 +253,22 @@ func _kill(m: Dictionary, chasm: bool) -> void:
 		over = true; won = true
 		_log("Room cleared!")
 
+## Lightning conducts through connected shallow water: everyone standing in it (hero included!) takes damage.
+func _shock(p: Vector2i, dmg: int) -> void:
+	var q := [p]; var seen := {p: true}
+	while not q.is_empty():
+		var c: Vector2i = q.pop_front()
+		_ev({"t": "shock", "pos": c})
+		var u = unit_at(c)
+		if c != p and u != null:
+			if u == hero: hit_hero(dmg / 2, "Your own lightning", true)
+			else: hit_mob(u, dmg, false, true)
+		for d in DIRS:
+			var n: Vector2i = c + d
+			if not seen.has(n) and tile(n) == T.WATER:
+				seen[n] = true; q.append(n)
+	_ev({"t": "sfx", "name": "lightning"})
+
 func _burn(p: Vector2i) -> void:
 	# fire spreads across connected tall grass
 	var q := [p]; var seen := {p: true}
@@ -278,10 +324,27 @@ func hero_bolt(p: Vector2i) -> bool:
 	var sur := surprise_ready() and not magic
 	_break_cloak()
 	hit_mob(u, int(hero.bolt.dmg), sur, magic)
+	if hero.bolt.get("chains_water", false) and tile(p) == T.WATER:
+		_shock(p, int(hero.bolt.dmg))
 	if hero.bolt.get("burns_grass", false):
 		for d in [Vector2i.ZERO] + DIRS:
 			if tile(p + d) == T.GRASS: _burn(p + d); break
 	_end_hero_turn(1.0)
+	return true
+
+## Warrior: Slam (1 per fight, 1.5 ticks). Hits every adjacent enemy for half damage (ignores DR) and knocks them all back.
+func hero_slam() -> bool:
+	if over or not ("slam" in hero.abilities) or int(hero.get("slams", 0)) <= 0: return false
+	var adj := enemies().filter(func(e): return cheb(e.pos, hero.pos) == 1)
+	if adj.is_empty(): return false
+	hero.slams -= 1
+	_log("%s SLAMS the ground!" % hero.name)
+	_ev({"t": "sfx", "name": "rocks"}); _ev({"t": "slam", "pos": hero.pos})
+	for e in adj:
+		if e.hp <= 0: continue
+		hit_mob(e, maxi(1, int(hero.dmg) / 2), false, true)
+		if e.hp > 0: knockback(e, e.pos - hero.pos)
+	_end_hero_turn(1.5)
 	return true
 
 ## Rogue: Cloak of Shadows. Enemies lose track of you; your next attack is a Surprise.

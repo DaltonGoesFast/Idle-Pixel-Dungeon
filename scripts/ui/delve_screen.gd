@@ -34,11 +34,17 @@ func apply_layout(p: bool, s: Vector2) -> void:
 	_refresh_controls(); _show_card()
 
 func on_shown() -> void:
+	if pending.is_empty() and GameState.run.has("pending_card"): pending = GameState.run.pending_card
 	_refresh(); _show_card()
+
+var _save_t := 0.0
 
 func _process(delta: float) -> void:
 	var run: Dictionary = GameState.run
 	if run.is_empty(): return
+	_save_t += delta
+	if _save_t > 3.0:
+		_save_t = 0.0; SaveSystem.save_game()
 	if running and pending.is_empty():
 		if Delve.floor_done(run):
 			_floor_cleared()
@@ -98,6 +104,10 @@ func _card(title_text: String, body: String) -> VBoxContainer:
 func _show_card() -> void:
 	if card_host == null: return
 	UIKit.clear(card_host)
+	# remember the open card in the save (an app kill must not skip an encounter)
+	if not GameState.run.is_empty():
+		if pending.is_empty() or pending.kind == "confirm_abandon": GameState.run.erase("pending_card")
+		else: GameState.run.pending_card = pending
 	if pending.is_empty():
 		var hint := "Exploring... encounters every ~20-25%." if running else "Paused."
 		card_host.add_child(UIKit.label(hint, 0.9, Color("9a8f7c")))
@@ -124,8 +134,16 @@ func _card_combat() -> void:
 	var v := _card("BOSS: " + DB.mobs[pending.mobs[0]].name if boss else "Ambush!", "You face: " + _mob_names(pending.mobs))
 	v.add_child(UIKit.button("Fight", func(): _fight(pending, {})))
 
-func _fight(ev: Dictionary, reward: Dictionary) -> void:
-	main.start_combat(ev, func(res: Dictionary): _after_fight(ev, res, reward))
+func _fight(ev: Dictionary, reward: Dictionary, saved := {}) -> void:
+	GameState.run.erase("pending_card")
+	GameState.run.active_fight = {"event": ev, "reward": reward, "combat": saved}
+	main.start_combat(ev, func(res: Dictionary): _after_fight(ev, res, reward), saved)
+	SaveSystem.save_game()
+
+## Called on launch when the save holds an unfinished fight.
+func resume_fight() -> void:
+	var af: Dictionary = GameState.run.active_fight
+	_fight(af.event, af.get("reward", {}), af.get("combat", {}))
 
 func _after_fight(ev: Dictionary, res: Dictionary, reward: Dictionary) -> void:
 	pending = {}

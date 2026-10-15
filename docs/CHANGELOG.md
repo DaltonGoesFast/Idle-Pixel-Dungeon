@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.4.0 — 2026-10-14
+- **Warrior Slam**: new ability that hits every adjacent enemy and knocks them back (and into chasms, for a kill).
+- **Mid-fight save/resume**: the fight state is serialized into the run, so killing the app mid-fight resumes on the same turn.
+- Pending door card persists across app kill; the game also saves on pause, focus-loss and close.
+- **Wand of Lightning** (Birch Wand, unidentified): bolt dmg 7; when the target stands in shallow water, the shock conducts to everyone in the connected water, the hero included (half damage).
+- Water tiles are now real (animated blue), and there's a new flooded room.
+- Tests: 78 checks (lightning chain, slam, combat round-trip); UI smoke test simulates an app kill.
+
 ## v0.3.0 - all four classes
 - **Rogue** (Cloak of Shadows: hide 2 ticks, next hit is a Surprise; Dagger x2 surprise) - unlocks at Sewers floor 4.
 - **Huntress** (Spirit Bow: unlimited arrows in line of sight; fast Studded Gloves) - unlocks after brewing 5 potions.

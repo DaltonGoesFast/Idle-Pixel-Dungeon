@@ -1,5 +1,5 @@
 {
- "_legend": "# wall . floor \" tall grass + door _ chasm ~ water(cosmetic) H hero start, 1-4 enemy spawn slots (filled in order), B boss",
+ "_legend": "# wall . floor \" tall grass + door _ chasm ~ shallow water (conducts lightning) H hero start, 1-4 enemy spawn slots (filled in order), B boss",
  "rooms": [
   [
    "########",
@@ -35,8 +35,8 @@
    "########",
    "#H.\"\"..#",
    "#..##..#",
-   "#.....1#",
-   "#__..\".#",
+   "#.~~~.1#",
+   "#__~~\".#",
    "#__.2..#",
    "#...+.3#",
    "########"
@@ -59,6 +59,16 @@
    "#####+##",
    "#2.....#",
    "#..__.3#",
+   "########"
+  ],
+  [
+   "########",
+   "#H..~~.#",
+   "#.\".~~1#",
+   "#..+~~.#",
+   "####..##",
+   "#2..~~.#",
+   "#.\"..~3#",
    "########"
   ]
  ],

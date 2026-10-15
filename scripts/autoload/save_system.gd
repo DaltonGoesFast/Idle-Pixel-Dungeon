@@ -9,6 +9,11 @@ func _ready() -> void:
 	load_game()
 	GameState.changed.connect(_on_changed)
 
+## Android may kill a backgrounded app at any time: save whenever we lose focus or are asked to quit.
+func _notification(what: int) -> void:
+	if what in [NOTIFICATION_APPLICATION_PAUSED, NOTIFICATION_APPLICATION_FOCUS_OUT, NOTIFICATION_WM_CLOSE_REQUEST]:
+		if autosave: save_game()
+
 func _on_changed() -> void:
 	if autosave: save_game()
 

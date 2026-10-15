@@ -126,7 +126,7 @@ func hero_stats(c: String) -> Dictionary:
 	if "bolt" in def.abilities and h.wand != "":
 		var wn := DB.item(h.wand)
 		s.bolt = {"dmg": int(wn.bolt_dmg) + int(h.level) / 2, "charges": int(wn.charges), "recharge": int(wn.recharge),
-			"burns_grass": wn.get("burns_grass", false), "name": wn.name, "magic": true}
+			"burns_grass": wn.get("burns_grass", false), "chains_water": wn.get("chains_water", false), "name": wn.name, "magic": true}
 	if "shoot" in def.abilities:
 		# SPD Spirit Bow: (1 + lvl/5) - (6 + lvl/2.5), collapsed to the average
 		var lv := int(h.level)
@@ -444,3 +444,9 @@ func _fix_types() -> void:
 		for k in run.supplies: run.supplies[k] = int(run.supplies[k])
 		for g in run.pack_gear:
 			g.uid = int(g.uid); g.lvl = int(g.lvl)
+		if run.has("pending_card") and run.pending_card.has("room"):
+			run.pending_card.room = Array(run.pending_card.room); run.pending_card.mobs = Array(run.pending_card.mobs)
+		if run.has("active_fight"):
+			# rooms/mob lists come back as plain arrays; Combat.from_dict handles the combat itself
+			var ev: Dictionary = run.active_fight.event
+			ev.room = Array(ev.room); ev.mobs = Array(ev.mobs)

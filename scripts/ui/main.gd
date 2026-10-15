@@ -28,7 +28,9 @@ func _ready() -> void:
 	_relayout()
 	GameState.tick_identify()
 	if GameState.run.is_empty(): show_camp()
-	else: show_delve()
+	else:
+		show_delve()
+		if GameState.run.has("active_fight"): delve.resume_fight()
 
 func _process(delta: float) -> void:
 	_id_timer += delta
@@ -83,9 +85,9 @@ func show_delve() -> void:
 	Sfx.music(DB.biomes[GameState.run.biome].music)
 
 ## Called by DelveScreen. on_done(result: Dictionary) gets {won, hp, loot, fallen_loot, xp, boss_killed, potions_used}.
-func start_combat(event: Dictionary, on_done: Callable) -> void:
+func start_combat(event: Dictionary, on_done: Callable, saved := {}) -> void:
 	var s := CombatScreen.new(); s.main = self
-	s.setup(event, on_done)
+	s.setup(event, on_done, saved)
 	_set_screen(s)
 	if event.get("boss", false): Sfx.music(DB.biomes[GameState.run.biome].boss_music); Sfx.play("boss")
 

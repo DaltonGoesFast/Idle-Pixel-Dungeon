@@ -7,9 +7,11 @@ var f := 0
 var stage := 0
 var classes := ["warrior", "mage", "rogue", "huntress"]
 var ci := 0
+var resumed := false
 
 func _ready() -> void:
 	SaveSystem.autosave = false
+	SaveSystem.wipe()
 	SaveSystem.path = "user://ui_smoke.json"
 	GameState.new_game()
 	for c in GameState.heroes: GameState.heroes[c].unlocked = true
@@ -35,7 +37,19 @@ func _process(_d: float) -> void:
 func _drive() -> void:
 	var s = main.screen
 	if s.get_script().resource_path.ends_with("combat_screen.gd"):
-		if not s.finished: s._do_bot()
+		if not s.finished:
+			s._do_bot()
+			if stage == 0 and s.combat.log_lines.size() >= 3 and not s.finished and not resumed:
+				# simulate Android killing the app mid-fight: save, rebuild everything from disk, resume
+				resumed = true
+				SaveSystem.save_game()
+				main.queue_free(); main = load("res://scenes/main.tscn").instantiate()
+				GameState.new_game(); SaveSystem.load_game()
+				add_child(main)
+				await get_tree().process_frame
+				_check(main.screen.get_script().resource_path.ends_with("combat_screen.gd"), "fight resumed after simulated kill")
+				_check(main.screen.combat.log_lines.size() >= 4, "resumed fight kept its state")
+				print("  resumed fight after simulated app kill OK")
 		else:
 			stage += 1
 			if stage == 1:
