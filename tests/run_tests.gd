@@ -50,6 +50,7 @@ func _ready() -> void:
 	test_food_sources(gs)
 	test_facility_cap(gs)
 	test_crate_slot(gs)
+	test_identify_queue_all(gs)
 	await test_delve_chips(gs)
 	test_owed_sou(gs)
 	await test_icon_sizes(gs)
@@ -1862,6 +1863,54 @@ func _slot_texts(slot: Control) -> Array:
 	var t := []
 	for l in slot.find_children("*", "Label", true, false): t.append(String(l.text))
 	return t
+
+## DECISIONS #145: Enchanter "Queue all", and an Enchanter upgrade shortens identifications already running.
+func test_identify_queue_all(gs) -> void:
+	print("[identify queue all]")
+	gs.new_game(); gs.time_offset = 0.0
+	var a: int = gs.add_gear("ring_wealth", false); var b: int = gs.add_gear("ring_evasion", false); var c: int = gs.add_gear("ring_might", false)
+	gs.enqueue_identify(a)
+	check(gs.identify_candidates().size() == 2, "candidates skip known and already-queued items")
+	var cs = load("res://scripts/ui/camp_screen.gd").new(); add_child(cs)
+	cs.open_page("Enchanter")
+	var qa = null
+	for n in cs.win_layer.find_children("QueueAll", "Button", true, false): qa = n
+	check(qa != null and not qa.disabled, "Queue all is enabled with unknown items")
+	if qa: qa.pressed.emit()
+	check(gs.id_queue.size() == 3 and gs.identify_candidates().is_empty(), "Queue all queues every unknown item (%d queued)" % gs.id_queue.size())
+	qa = null
+	for n in cs.win_layer.find_children("QueueAll", "Button", true, false): qa = n
+	check(qa != null and qa.disabled, "Queue all is disabled when nothing is left to queue")
+	cs.close_page(); cs.queue_free()
+	check(gs.enqueue_identify_all() == 0, "Queue all with nothing to queue is a no-op")
+	# Upgrade mid-identification: 600 s each at Lv1, chained a=600 b=1200 c=1800. After 300 s, upgrade to Lv2 (420 s).
+	var s1: float = gs.identify_seconds()
+	gs.time_offset += 300.0
+	var t0: float = gs.now()
+	var left0 := []
+	for q in gs.id_queue: left0.append(float(q.ready_at) - t0)
+	gs.mats.gold = 10000; gs.facilities.enchanter.cap = 3
+	var cost: Dictionary = gs.facility_upgrade_cost("enchanter"); for k in cost: gs.mats[k] = int(cost[k]) + 100
+	check(gs.upgrade_facility("enchanter"), "Enchanter upgrades")
+	var k: float = gs.identify_seconds() / s1
+	var ok := true
+	for i in gs.id_queue.size():
+		ok = ok and absf((float(gs.id_queue[i].ready_at) - t0) - left0[i] * k) < 0.5
+	check(ok and k < 1.0, "upgrade scales every remaining time by new/old (%.2f): %s -> %s" % [k, left0, gs.id_queue.map(func(q): return snappedf(float(q.ready_at) - t0, 0.1))])
+	# save/load keeps the rescaled timers; offline time then finishes them on schedule
+	var d: Dictionary = JSON.parse_string(JSON.stringify(gs.to_dict()))
+	gs.from_dict(d)
+	check(absf(float(gs.id_queue[0].ready_at) - (t0 + left0[0] * k)) < 0.5, "rescaled timer survives save/load")
+	gs.time_offset += left0[0] * k + 1.0
+	var done: Array = gs.tick_identify()
+	check(done.size() == 1 and int(done[0]) == a, "after offline time the first item is done exactly at its shortened time")
+	# an item already due is not pushed back by an upgrade
+	gs.time_offset += 100000.0
+	gs.facilities.enchanter.cap = 3
+	cost = gs.facility_upgrade_cost("enchanter"); for k2 in cost: gs.mats[k2] = int(cost[k2]) + 100
+	gs.upgrade_facility("enchanter")
+	check(gs.id_queue.is_empty() and gs.gear_by_uid(c).known, "items that finished offline are identified, not rescaled")
+	gs.time_offset = 0.0
 
 func test_crate_slot(gs) -> void:
 	print("[crate slot]")

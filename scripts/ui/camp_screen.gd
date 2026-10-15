@@ -948,9 +948,13 @@ func _identify_section(v: VBoxContainer) -> void:
 		var pb := ProgressBar.new(); pb.max_value = 1.0; pb.step = 0.0; pb.show_percentage = false
 		pb.value = clampf(1.0 - left / maxf(1.0, GameState.identify_seconds()), 0.0, 1.0); pb.custom_minimum_size.y = UIKit.font_size * 0.5
 		cv.add_child(pb)
-	var unk := GameState.gear.filter(func(g): return not g.known and not GameState.id_queue.any(func(q): return q.uid == g.uid))
-	if not unk.is_empty():
-		v.add_child(UIKit.header("Unknown items"))
+	var unk := GameState.identify_candidates()
+	var uh := UIKit.hbox(v)
+	var uhl := UIKit.header("Unknown items"); uhl.size_flags_horizontal = SIZE_EXPAND_FILL; uh.add_child(uhl)
+	var qa := UIKit.button("Queue all", func(): GameState.enqueue_identify_all(); _fill_window(), not unk.is_empty())
+	qa.name = "QueueAll"; qa.autowrap_mode = TextServer.AUTOWRAP_OFF; qa.custom_minimum_size.x = UIKit.font_size * 5.5; qa.size_flags_horizontal = 0; qa.size_flags_vertical = SIZE_SHRINK_CENTER; UIKit.secondary(qa); uh.add_child(qa)
+	if unk.is_empty(): v.add_child(UIKit.label("No unknown items to queue.", 0.8, Color("9a9488")))
+	else:
 		var ug := slot_grid(v)
 		for g in unk:
 			ug.add_child(item_slot(gear_icon(g), "", "?", func(): info(gear_icon(g), GameState.gear_name(g), gear_lines(g), [["Queue for identification", func(): GameState.enqueue_identify(g.uid), ""]], "NONE"), Color.WHITE, "", g))

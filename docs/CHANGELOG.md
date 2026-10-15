@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Enchanter: "Queue all" queues every unknown item for identification (disabled when there is nothing to queue). Upgrading the Enchanter now also speeds up identifications already in progress, rescaling what is left by the new/old time; this holds across save/load and offline time (+tests).
 
 ## 0.29.0
 - In-game Update on Android and Windows: Camp / Settings checks GitHub releases, downloads the APK or zip, and on Android opens the system Install screen. iOS stays on TestFlight; `tools/upload_testflight.sh` archives and uploads on a Mac. Android export uses Gradle so the updater can request install permission (+tests).

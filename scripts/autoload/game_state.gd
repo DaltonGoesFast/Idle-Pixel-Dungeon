@@ -577,7 +577,9 @@ func can_upgrade_facility(id: String) -> String:
 
 func upgrade_facility(id: String) -> bool:
 	if can_upgrade_facility(id) != "": return false
+	var id_old := identify_seconds()
 	pay(facility_upgrade_cost(id)); facilities[id].level += 1
+	if id == "enchanter": rescale_identify(id_old, identify_seconds())
 	say("%s upgraded to level %d." % [DB.facilities[id].name, facilities[id].level]); touch(); return true
 
 func apply_sou(id: String) -> bool:
@@ -865,6 +867,31 @@ func enqueue_identify(uid: int) -> bool:
 	if not id_queue.is_empty(): start = maxf(start, float(id_queue.back().ready_at))
 	id_queue.append({"uid": uid, "ready_at": start + identify_seconds()})
 	touch(); return true
+
+## Every unknown item not already queued, in stash order (Enchanter "Queue all", DECISIONS #145).
+func identify_candidates() -> Array:
+	return gear.filter(func(g): return not g.known and not id_queue.any(func(q): return int(q.uid) == int(g.uid)))
+
+## Queues every candidate. The queue has no size limit (items identify one after another), so this queues them all.
+## Returns how many were queued.
+func enqueue_identify_all() -> int:
+	var n := 0
+	for g in identify_candidates():
+		if enqueue_identify(int(g.uid)): n += 1
+	return n
+
+## Enchanter upgrade: identifications still running finish sooner. Each remaining time (to its absolute ready_at,
+## which already counts the items ahead of it) is scaled by new/old, so the chained queue keeps its order and an
+## item that was 50% done stays 50% done. Items already due are left for tick_identify. ready_at is absolute
+## (now() includes time_offset), so this holds across save/load and offline time.
+func rescale_identify(old_secs: float, new_secs: float) -> void:
+	if old_secs <= 0.0 or is_equal_approx(old_secs, new_secs): return
+	tick_identify()
+	var t := now(); var k := new_secs / old_secs
+	for q in id_queue:
+		var left := float(q.ready_at) - t
+		if left > 0.0: q.ready_at = t + left * k
+	touch()
 
 ## Finishes any identifications whose time has passed. Returns identified uids.
 func tick_identify() -> Array:
