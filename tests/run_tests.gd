@@ -1364,10 +1364,9 @@ func test_encounter_summary(gs) -> void:
 	scr._accept_summary()
 	gs.settings.full_auto = true
 	scr._open_summary("Victory", PackedStringArray(), PackedStringArray())
-	scr._process(0.2)
-	check(scr._summary_open(), "auto battle leaves the result window up briefly")
-	scr._process(1.0)
-	check(not scr._summary_open(), "auto battle presses OK")
+	scr._process(2.0)
+	check(scr._summary_open(), "auto battle does not click through the result window")
+	scr._accept_summary()
 	gs.settings.full_auto = false
 	gs.run.pack = {"gold": 6}
 	gs.run.hp = 12

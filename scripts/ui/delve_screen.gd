@@ -57,11 +57,6 @@ func _process(delta: float) -> void:
 		_save_t = 0.0; SaveSystem.save_game()
 	if main and main.tip_open(): _refresh(); return
 	if _summary_on:
-		# Auto Battle presses OK after the same beat an ambush waits. A defeat stays until you tap OK.
-		if not _summary_fatal and GameState.settings.get("full_auto", false):
-			_summary_t += delta
-			if _summary_t >= AUTO_DELAY:
-				_accept_summary(); return
 		_refresh(); return
 	var held := _is_encounter(_under)
 	if pending.is_empty() and not held and not run.get("overflow", []).is_empty():
