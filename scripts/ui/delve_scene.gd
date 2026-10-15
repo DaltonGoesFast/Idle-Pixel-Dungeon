@@ -8,6 +8,11 @@ extends Control
 
 const TILES_PER_FLOOR := 160.0
 const ROWS := 5                  # wall top, wall face, floor, floor, wall top
+## SPD DungeonTileSheet raised doors: closed, open, locked, crystal.
+const DOOR_CLOSED := 112; const DOOR_OPEN := 113; const DOOR_LOCKED := 114; const DOOR_CRYSTAL := 115
+const DOOR_STATES := [DOOR_CLOSED, DOOR_CLOSED, DOOR_OPEN, DOOR_LOCKED, DOOR_CRYSTAL]
+const PROPS := ["BONES", "BONES", "SOMETHING", "ORE", "SEED_SUNGRASS", "SEED_ROTBERRY", "SEED_FIREBLOOM", "CHEST", "SCROLL_HOLDER"]
+const SPRITE_K := 1.5            # characters drawn 1.5x the tile scale so they read on the inner screen
 var host                         # DelveScreen (for `pending`, `running`)
 var scroll := 0.0                # in tiles
 var target := 0.0
@@ -55,6 +60,18 @@ func _process(delta: float) -> void:
 	_redraw_t += delta
 	if _redraw_t >= 1.0 / 20.0: _redraw_t = 0.0; queue_redraw()   # 20 fps is plenty for pixel art
 
+## The wall face at the encounter: door cards show their two doors (locked if one needs a key), special rooms an
+## open doorway, a cleared floor the crystal exit.
+func _encounter_wall(ev: Dictionary, dx: int, idx: int) -> int:
+	match ev.kind:
+		"door":
+			var d: Dictionary = ev.get("door", {})
+			if dx == 0: return DOOR_LOCKED if d.get("a", {}).has("cost") else DOOR_CLOSED
+			if dx == 2: return DOOR_LOCKED if d.get("b", {}).has("cost") else DOOR_CLOSED
+		"special": if dx == 0: return DOOR_OPEN
+		"floor_done": if dx == 0: return DOOR_CRYSTAL
+	return idx
+
 func cell() -> float:
 	return floorf(size.y / ROWS)
 
@@ -100,35 +117,41 @@ func _draw() -> void:
 				0, 4: idx = 144
 				1: idx = 80 if _h(cx, 1) % 7 else 96
 				_: idx = 2 if _h(cx * 3 + row, 2) % 9 == 0 else (1 if _h(cx, row) % 5 == 0 else 0)
-			if row == 1 and _h(cx, 3) % 23 == 0: idx = 112      # a closed side door passes by
-			if not ev.is_empty() and cx == stop_col and row == 1 and ev.kind in ["door", "special"]: idx = 113
+			if row == 1 and _h(cx, 3) % 23 == 0: idx = DOOR_STATES[_h(cx, 8) % DOOR_STATES.size()]   # side doors pass by
+			if row == 2 and _h(cx, 9) % 31 == 0: idx = 3                                              # embers
+			if row == 1 and not ev.is_empty(): idx = _encounter_wall(ev, cx - stop_col, idx)
 			draw_texture_rect_region(tiles, rc, Rect2((idx % 16) * 16, (idx / 16) * 16, 16, 16))
-		# props on the far floor row
-		if cx > hero_col + 1 and ev.is_empty() and _h(cx, 5) % 19 == 0:
-			var ir := UIKit.item_rect(DB.icon_index("BONES" if DB.icons.has("BONES") else "ORE"))
+		# props on the far floor row (seeded per column)
+		if cx > hero_col + 1 and _h(cx, 5) % 13 == 0:
+			var pid: String = PROPS[_h(cx, 10) % PROPS.size()]
+			var ir := UIKit.item_rect(DB.icon_index(pid))
 			var isz := ir.size * k
-			draw_texture_rect_region(_t("res://assets/sprites/items.png"), Rect2((Vector2(x, y0 + 2 * cs) + (Vector2(cs, cs) - isz) / 2.0).floor(), isz), ir, Color(1, 1, 1, 0.8))
+			draw_texture_rect_region(_t("res://assets/sprites/items.png"), Rect2((Vector2(x, y0 + 2 * cs) + (Vector2(cs, cs) - isz) / 2.0).floor(), isz), ir, Color(1, 1, 1, 0.85))
 		# ambient biome mob idling by the wall
 		if cx > hero_col + 2 and _h(cx, 6) % 41 == 0:
 			var sets: Array = biome.get("encounter_sets", [])
 			if not sets.is_empty():
 				var mid: String = sets[_h(cx, 7) % sets.size()].mobs[0]
 				var m: Dictionary = DB.mobs[mid]
-				_sprite(m.sprite, int(m.fw), int(m.fh), _frame(mid, "idle"), 0, Vector2(x + cs / 2.0, y0 + 3 * cs - k * 2), k, true)
+				_sprite(m.sprite, int(m.fw), int(m.fh), _frame(mid, "idle"), 0, Vector2(x + cs / 2.0, y0 + 3 * cs - k * 2), k * SPRITE_K, true)
 	# encounter ahead
 	if not ev.is_empty() and ev.kind == "combat":
 		var ids: Array = ev.get("mobs", [])
 		for j in ids.size():
 			var m: Dictionary = DB.mobs[ids[j]]
-			var mk := k * (1.5 if ev.get("boss", false) else 1.0)
-			_sprite(m.sprite, int(m.fw), int(m.fh), _frame(ids[j], "idle"), 0, Vector2(floorf(hero_x + (2 + j * 0.8) * cs + cs / 2.0), y0 + (3.5 + (j % 2) * 0.5) * cs), mk, true)
+			var mk := k * SPRITE_K * (1.4 if ev.get("boss", false) else 1.0)
+			_sprite(m.sprite, int(m.fw), int(m.fh), _frame(ids[j], "idle"), 0, Vector2(floorf(hero_x + (2 + j * 1.1) * cs + cs / 2.0), y0 + (3.6 + (j % 2) * 0.35) * cs), mk, true)
+	if not ev.is_empty() and ev.kind == "special" and ev.get("special", {}).has("icon"):
+		var ir := UIKit.item_rect(DB.icon_index(ev.special.icon)); var isz := ir.size * k
+		var dc := Vector2(hero_x + 2.5 * cs, y0 + 1.5 * cs + sin(t * 3.0) * k)
+		draw_texture_rect_region(_t("res://assets/sprites/items.png"), Rect2((dc - isz / 2.0).floor(), isz), ir)
 	# hero
 	var hs: Dictionary = GameState.hero_stats(r.hero)
 	var hf := _frame(String(hs.sprite), "run") if moving else _frame(String(hs.sprite), "idle")
-	_sprite(hs.sprite, int(hs.fw), int(hs.fh), hf, int(hs.row), Vector2(hero_x + cs / 2.0, y0 + 3.6 * cs), k)
+	_sprite(hs.sprite, int(hs.fw), int(hs.fh), hf, int(hs.row), Vector2(hero_x + cs / 2.0, y0 + 3.8 * cs), k * SPRITE_K)
 	# torchlight: darkness falls off with distance from the hero (bigger pool with a lit torch)
 	var lit := float(r.get("torch", 0)) > 0 and not Delve.darkness(r)
-	var rad := cs * (4.5 if lit else (1.6 if Delve.darkness(r) else 3.0))
+	var rad := cs * (5.5 if lit else (2.0 if Delve.darkness(r) else 3.8))
 	var hc := Vector2(hero_x + cs / 2.0, y0 + 3 * cs)
 	var step := floorf(cs / 4.0)
 	var flick := 1.0 + 0.04 * sin(t * 9.0) + 0.03 * sin(t * 23.0)
@@ -137,7 +160,7 @@ func _draw() -> void:
 		var xx := 0.0
 		while xx < size.x:
 			var d := (Vector2(xx + step / 2.0, yy + step / 2.0) - hc).length() / (rad * flick)
-			var a := clampf((d - 0.45) * 0.9, 0.0, 0.88)
+			var a := clampf((d - 0.6) * 0.6, 0.0, 0.6)
 			if a > 0.01: draw_rect(Rect2(xx, yy, step, step), Color(0.02, 0.01, 0.03, a))
 			xx += step
 		yy += step

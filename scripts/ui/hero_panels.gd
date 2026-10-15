@@ -35,13 +35,11 @@ static func talents(parent: Control, c: String, refresh: Callable) -> void:
 			var cell := UIKit.vbox(); cell.size_flags_horizontal = Control.SIZE_EXPAND_FILL; row.add_child(cell)
 			var b := Button.new(); b.focus_mode = Control.FOCUS_NONE; b.flat = true
 			b.custom_minimum_size = Vector2(20, 20) * k; b.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-			var bgr := TextureRect.new(); var at := AtlasTexture.new(); at.atlas = bg_tex; at.region = Rect2(0, 0, 20, 20)
-			bgr.texture = at; bgr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST; bgr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-			bgr.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT); bgr.mouse_filter = Control.MOUSE_FILTER_IGNORE; b.add_child(bgr)
-			var ir := TextureRect.new(); var ai := AtlasTexture.new(); ai.atlas = ic_tex
+			var at := AtlasTexture.new(); at.atlas = bg_tex; at.region = Rect2(0, 0, 20, 20)
+			var bgr := UIKit.pixel(at, int(k)); bgr.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT); b.add_child(bgr)
+			var ai := AtlasTexture.new(); ai.atlas = ic_tex
 			var idx := int(t.get("icon", 0)); ai.region = Rect2((idx % 32) * 16, (idx / 32) * 16, 16, 16)
-			ir.texture = ai; ir.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST; ir.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-			ir.position = Vector2(2, 2) * k; ir.size = Vector2(16, 16) * k; ir.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			var ir := UIKit.pixel(ai, int(k)); ir.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 			ir.modulate = Color.WHITE if learned else (Color(1, 1, 1, 0.75) if why == "" else Color(1, 1, 1, 0.3))
 			b.add_child(ir)
 			if sel_talent == tid:

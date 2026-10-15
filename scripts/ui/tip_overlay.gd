@@ -22,6 +22,18 @@ func push(id: String) -> void:
 	queue.append({"id": id, "pages": t.get("pages", [t])})
 	if queue.size() == 1: page = 0; _render()
 
+var card: PanelContainer
+var _tween: Tween
+
+## Card width for an overlay of size `vs`: at most 26 em, always leaving a margin on both sides.
+static func card_width(vs: Vector2) -> float:
+	return floorf(minf(vs.x - 2.0 * margin(vs), UIKit.font_size * 26.0))
+
+static func margin(vs: Vector2) -> float:
+	return floorf(maxf(UIKit.font_size * 0.75, vs.x * 0.04))
+
+## The card is laid out by containers (MarginContainer -> CenterContainer), so it is always centred on the
+## overlay's real size after its wrapped text is measured; it fades in only once it has been sized (DECISIONS #95).
 func _render() -> void:
 	for c in get_children(): c.queue_free()
 	if queue.is_empty(): visible = false; return
@@ -29,20 +41,32 @@ func _render() -> void:
 	var dim := ColorRect.new(); dim.color = Color(0, 0, 0, 0.55); dim.set_anchors_and_offsets_preset(PRESET_FULL_RECT); add_child(dim)
 	var cur: Dictionary = queue[0]
 	var p: Dictionary = cur.pages[page]
-	var vs := get_viewport_rect().size
-	var card := UIKit.card(); add_child(card)
-	var w := minf(vs.x * 0.9, UIKit.font_size * 26.0)
+	var vs := size if size.x > 0 else get_viewport_rect().size
+	var m := margin(vs)
+	var mc := MarginContainer.new(); mc.set_anchors_and_offsets_preset(PRESET_FULL_RECT); mc.mouse_filter = MOUSE_FILTER_IGNORE
+	for side in ["left", "right", "top", "bottom"]: mc.add_theme_constant_override("margin_" + side, int(m))
+	add_child(mc)
+	var cc := CenterContainer.new(); cc.mouse_filter = MOUSE_FILTER_IGNORE; mc.add_child(cc)
+	card = UIKit.card(); cc.add_child(card)
+	var w := card_width(vs)
 	card.custom_minimum_size.x = w
 	box = UIKit.vbox(card)
-	box.add_child(UIKit.header(p.title))
-	var l := UIKit.label(p.text); l.custom_minimum_size.x = w - UIKit.font_size * 1.5; box.add_child(l)
+	var h := UIKit.header(p.title); h.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART; h.custom_minimum_size.x = 1; box.add_child(h)
+	var l := UIKit.label(p.text); l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART; l.custom_minimum_size.x = 1
+	l.size_flags_horizontal = SIZE_EXPAND_FILL; box.add_child(l)
 	if cur.pages.size() > 1: box.add_child(UIKit.label("%d / %d" % [page + 1, cur.pages.size()], 0.75, Color("9a8f7c")))
 	var row := UIKit.hbox(box)
 	var last: bool = page >= cur.pages.size() - 1
 	var ok := UIKit.button("Got it" if last else "Next", next); ok.size_flags_horizontal = SIZE_EXPAND_FILL; row.add_child(ok)
-	var skip := UIKit.button("Skip all tips", skip_all); skip.size_flags_horizontal = SIZE_EXPAND_FILL; row.add_child(skip)
+	var skip := UIKit.button("Skip tips", skip_all); skip.size_flags_horizontal = SIZE_EXPAND_FILL; row.add_child(skip)
+	for b in [ok, skip]: b.clip_text = true; b.custom_minimum_size.x = 1
+	card.modulate.a = 0.0
+	var me := card
 	await get_tree().process_frame
-	if is_instance_valid(card): card.position = ((vs - card.size) / 2.0).floor()
+	await get_tree().process_frame   # wrapped label heights settle on the second pass
+	if not is_instance_valid(me): return
+	if _tween: _tween.kill()
+	_tween = create_tween(); _tween.tween_property(me, "modulate:a", 1.0, 0.15)
 
 func next() -> void:
 	if queue.is_empty(): return

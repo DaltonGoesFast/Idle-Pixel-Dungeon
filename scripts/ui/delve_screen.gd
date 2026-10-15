@@ -260,7 +260,8 @@ func _card_special() -> void:
 
 func _special_option(o: Dictionary) -> void:
 	if o.has("fight"):
-		var ev := Delve.combat_event(GameState.run, Delve.rng_for(GameState.run, 55), o.fight)
+		# "biome": a regular encounter of this biome/floor (garden grass, sacrificial fire - DECISIONS #91)
+		var ev := Delve.combat_event(GameState.run, Delve.rng_for(GameState.run, 55), [] if typeof(o.fight) == TYPE_STRING else o.fight)
 		_fight(ev, o.get("reward", {})); return
 	if o.has("cost") and not Delve.pay(GameState, o.cost): return
 	if o.get("secret", false): GameState.add_stat("hidden_doors", 1)

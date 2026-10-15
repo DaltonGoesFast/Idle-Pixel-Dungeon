@@ -1,6 +1,14 @@
 # Changelog
 
 
+## 0.25.0
+- Tutorial tips laid out by containers: always on screen with margins, wrapped, fade in once sized (+test).
+- No stretched sprites: all UI sprites integer-scaled PixelIcons; every item id resolves to a visible SPD icon (+test).
+- Touch scrolling everywhere: drag from buttons/slots, momentum, wide scrollbars, no nested conflicts (+test).
+- Floor label can never exceed its biome (+test); screenshot state leak fixed.
+- Delve corridor: bigger sprites, lighter walls, door states (closed/open/locked/crystal), 9 prop types, embers, special-room icon in the doorway.
+- Garden and Sacrificial Fire rooms reworked; Yog/Halls retune (hallsrun 3/4).
+
 ## 0.24.0
 - Armor tier visible on hero sprites everywhere (combat, delve, camp, portraits, paperdoll) + test.
 - Animated delve corridor above the Delve Bar (biome tiles, run anim, torchlight, parallax, ambient doors/mobs, pickup pops, encounter stop).

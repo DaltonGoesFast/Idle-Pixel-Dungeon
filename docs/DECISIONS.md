@@ -255,3 +255,21 @@ All icons go through PixelIcon: trimmed via SPD assignItemRect sizes (data/item_
 ## 90. Armor tiers on hero sprites + animated delve corridor
 GameState.armor_tier(c) (item tier-1, rows 0..6 like SPD HeroSprite) feeds every hero draw: combat units ("row"), status pane portraits, camp fire hero, Heroes-window portraits, paperdoll. test_armor_tiers checks each of the 5 armors gives a distinct frame region.
 DelveScene: top-down SPD-tile corridor of the run's biome above the Delve Bar; scroll follows floor progress (160 tiles/floor), hero runs in its armor row, torch light pool with flicker (smaller in darkness), 2-layer parallax dust, seeded side doors/bones/idle biome mobs, gold/dew pops, stops at encounters with the door opening or the enemies appearing. Redraws at 20 fps only while visible.
+
+## 91. Garden and Sacrificial Fire
+Garden: forage, rest in the sungrass (+35% HP for 15 food; new "satiety" cost key), Huntress harvest, or beat the deep grass (biome fight, seeds + potion). Sacrificial Fire: blood offering, or lure foes into the flame (biome fight, unknown wand + gold). `"fight": "biome"` rolls a normal encounter for the current floor.
+
+## 92. Yog / Halls retune
+Full runs died at Yog arriving with 8-45 HP. Descending onto the final boss floor restores 60% HP (antechamber); Yog HT 120->100, melee 16->14, gaze 12->9; fists 10/8/6 -> 8/7(+1 poison)/6 zap. Hallsrun now 3/4; the test threshold is >= 2/4.
+
+## 93. Touch scrolling
+TouchScroll (child of Main) reads pointer input before the GUI: a press inside a scrollable ScrollContainer becomes a drag after a 10-16 px threshold, scrolls the innermost container that can move on that axis, cancels the press under the finger (pointer-out motion + button_mask 0 until release), and keeps momentum with e^-4t friction. Every ScrollContainer gets deadzone 12 and wide SPD scrollbars; buttons use MOUSE_FILTER_PASS. Own hit test so it is unit-testable headless (test_touch_scroll).
+
+## 94. Floor label / screenshot state
+Saves clamp run.floor into the run biome's range on load; test_floor_label walks every biome transition. Screenshot delve shots start from a fresh Warrior Sewers run (the "Floor 25 / 5" image was the Yog shot's state leaking).
+
+## 95. Tutorial tip layout
+Tips were positioned by hand one frame after creation using the viewport size, so on the inner screen the card was placed before its wrapped text was measured and ran off screen. Now: overlay -> MarginContainer (4% / 0.75 em margins) -> CenterContainer -> card of width min(26 em, screen - 2 margins); title, text and buttons wrap/clip; the card fades in only after two layout passes. test_tip_fit renders every tip page at cover, inner and half-size and checks card and text bounds.
+
+## 96. Sprite aspect + item icons
+No TextureRect remains in the UI: every sprite (items, NPC/facility portraits, talent buttons, tiles) is a PixelIcon at a uniform integer scale, centred, never stretched. test_all_icons checks every item/material id (known and unidentified: ring gems, potion colours, scroll runes) resolves to a non-fallback items.png cell with visible pixels.

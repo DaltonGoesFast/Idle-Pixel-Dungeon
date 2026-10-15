@@ -82,9 +82,9 @@ GDD target: 12-13 Str, tier 2-3 gear. Two Sewers Strength potions take a fresh h
 | Evil Eye | 60 | 12 | 4 | 1.0 | 13 | 14 | HT 100, dmg 20-30, DR 0-10; disintegration beam | HT 60, dmg 12; beam = 1-tick red tile, 20 ignoring DR, every 2 actions |
 | Scorpio | 72 | 16 | 6 | 1.0 | 14 | 14 | HT 110, dmg 30-40, DR 0-16; ranged spit, cripple | HT 72, dmg 16, DR 6; spits at range 2-4, bite poisons |
 | God's Larva | 18 | 9 | 2 | 1.0 | 0 | 0 | HT 25, dmg 22-30 | HT 18, dmg 9 |
-| Yog-Dzewa | 120 | 16 | 6 | 1.0 | 60 | 250 | HT 1000, immobile; fists, larva, beams, phases | HT 120, DR 6, immobile. Phases: a Burning Fist at the start, a Rotting Fist at 2/3 HP and a Bright Fist at 1/3; Yog takes no damage while a fist lives. Every 3 actions (2 below half HP) alternates larva and a row/column gaze (12). Fists and larva crumble when Yog dies. |
-| Burning Fist | 40 | 10 | 4 | 1.0 | 0 | 0 | HT 300, dmg 18-36, sets fires | HT 40, dmg 10. Shields Yog while it lives. |
-| Rotting Fist | 45 | 8 | 5 | 1.0 | 0 | 0 | HT 300, poisons, regenerates in water | HT 45, dmg 8 + 2 poison. Shields Yog while it lives. |
+| Yog-Dzewa | 100 | 14 | 6 | 1.0 | 60 | 250 | HT 1000, immobile; fists, larva, beams, phases | HT 100, DR 6, immobile. Phases: a Burning Fist at the start, a Rotting Fist at 2/3 HP and a Bright Fist at 1/3; Yog takes no damage while a fist lives. Every 3 actions (2 below half HP) alternates larva and a row/column gaze (9). Fists and larva crumble when Yog dies. |
+| Burning Fist | 40 | 8 | 4 | 1.0 | 0 | 0 | HT 300, dmg 18-36, sets fires | HT 40, dmg 10. Shields Yog while it lives. |
+| Rotting Fist | 45 | 7 | 5 | 1.0 | 0 | 0 | HT 300, poisons, regenerates in water | HT 45, dmg 8 + 2 poison. Shields Yog while it lives. |
 | Bright Fist | 35 | 6 | 3 | 1.0 | 0 | 0 | HT 300, ranged light zaps, blinds | HT 35, dmg 6, zaps 8 at range. Shields Yog while it lives. |
 
 ### Weapons & armor

@@ -46,10 +46,10 @@ Assets used (all from Shattered Pixel Dungeon, GPL-3.0): hero sprites (warrior, 
 | Id | Biomes | Title | Options |
 |---|---|---|---|
 | piranha | caves, prison, sewers, city, halls | Piranha Pool | Wade in (-5 HP) / Distract with a Ration / Leave |
-| sacrificial_fire | caves, prison, sewers, city, halls | Sacrificial Fire | Offer blood (-4 HP) / Leave |
+| sacrificial_fire | caves, prison, sewers, city, halls | Sacrificial Fire | Offer blood (-4 HP) / Lure foes into the flame / Leave |
 | statue | caves, prison, sewers, city, halls | Animated Statue | Challenge it (fight) / Leave |
 | barricade | caves, prison, sewers, city, halls | Barricade | Burn it (1 Torch) / Smash it (-3 HP) / Leave |
-| garden | caves, prison, sewers, city, halls | Overgrown Garden | Forage |
+| garden | caves, prison, sewers, city, halls | Overgrown Garden | Forage / Rest in the sungrass (+35% HP, -15 food) / Harvest with a ranger's eye / Beat the deep grass |
 | trapped_hall | caves, prison, sewers, city, halls | Trapped Corridor | Search for a safe path (-10 torch) / Disarm the plates (Rogue) / Run through (-5 HP) / Leave |
 | odd_wall | caves, prison, sewers, city, halls | Suspicious Wall | Search the wall (-8 torch) / Leave |
 | cell_block | caves, prison, city, halls | Locked Cell | Unlock (1 Iron Key) / Pry the bars (-6 HP) / Leave |

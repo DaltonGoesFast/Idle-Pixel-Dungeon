@@ -220,7 +220,7 @@
   {
    "id": "sacrificial_fire",
    "title": "Sacrificial Fire",
-   "text": "A pale flame hungers for life force.",
+   "text": "A pale altar flame. It rewards those who feed it life - yours, or your enemies'.",
    "options": [
     {
      "text": "Offer blood (-4 HP)",
@@ -233,6 +233,14 @@
      }
     },
     {
+     "text": "Lure foes into the flame",
+     "fight": "biome",
+     "reward": {
+      "item_unknown": "wand",
+      "gold": 30
+     }
+    },
+    {
      "text": "Leave"
     }
    ],
@@ -242,7 +250,8 @@
     "sewers",
     "city",
     "halls"
-   ]
+   ],
+   "icon": "TORCH"
   },
   {
    "id": "statue",
@@ -309,13 +318,38 @@
   {
    "id": "garden",
    "title": "Overgrown Garden",
-   "text": "Sungrass and dew gather on the stones.",
+   "text": "Tall grass, sungrass blooms and dew on the stones. Something rustles deeper in.",
    "options": [
     {
      "text": "Forage",
      "reward": {
       "seeds": 2,
       "dew": 3
+     }
+    },
+    {
+     "text": "Rest in the sungrass (+35% HP, -15 food)",
+     "cost": {
+      "satiety": 15
+     },
+     "reward": {
+      "heal_pct": 35
+     }
+    },
+    {
+     "text": "Harvest with a ranger's eye",
+     "requires_class": "huntress",
+     "reward": {
+      "seeds": 4,
+      "dew": 5
+     }
+    },
+    {
+     "text": "Beat the deep grass",
+     "fight": "biome",
+     "reward": {
+      "seeds": 3,
+      "item_unknown": "potion"
      }
     }
    ],
@@ -325,7 +359,8 @@
     "sewers",
     "city",
     "halls"
-   ]
+   ],
+   "icon": "SEED_SUNGRASS"
   },
   {
    "id": "trapped_hall",

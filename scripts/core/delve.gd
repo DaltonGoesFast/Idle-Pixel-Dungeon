@@ -11,6 +11,7 @@ const TORCH_RESTORE := 60.0
 const RATION_RESTORE := 70.0
 const FLOOR_REST_HEAL := 0.2  # fraction of HT healed when descending
 const SEARCH_TORCH := 10.0    # torch spent searching a cleared floor for hidden doors
+const FINAL_REST_HEAL := 0.6
 const CAMPFIRE_REST := 50.0  # torch and satiety restored when pressing on from a boss campfire
 const SEARCH_CHANCE := 50     # % to find a hidden door (Rogue: always)
 
@@ -151,6 +152,8 @@ static func pay_possible(gs, cost: Dictionary) -> bool:
 			if int(run.hp) <= n: return false
 		elif k == "torch_fuel":
 			if float(run.torch) < n: return false
+		elif k == "satiety":
+			if float(run.satiety) < n: return false
 		elif int(run.supplies.get(k, 0)) + int(run.pack.get(k, 0)) + (gs.mat(k) if k == "iron_key" else 0) < n:
 			return false
 	return true
@@ -163,6 +166,7 @@ static func pay(gs, cost: Dictionary) -> bool:
 		var n := int(cost[k])
 		if k == "hp": run.hp -= n; continue
 		if k == "torch_fuel": run.torch = float(run.torch) - n; continue
+		if k == "satiety": run.satiety = float(run.satiety) - n; continue
 		var from_sup := mini(n, int(run.supplies.get(k, 0)))
 		if from_sup > 0: run.supplies[k] -= from_sup; n -= from_sup
 		var from_pack := mini(n, int(run.pack.get(k, 0)))
@@ -263,7 +267,10 @@ static func descend(gs) -> void:
 	run.floor += 1
 	gs.note_floor(int(run.floor))
 	var ht: int = gs.hero_stats(run.hero).ht
-	run.hp = mini(ht, int(run.hp) + int(ceil(ht * FLOOR_REST_HEAL)))
+	var heal := FLOOR_REST_HEAL
+	# the last boss floor (Yog): a quiet antechamber restores more (DECISIONS #92)
+	if next_biome(run) == "" and int(run.floor) == int(biome(run).boss_floor): heal = FINAL_REST_HEAL
+	run.hp = mini(ht, int(run.hp) + int(ceil(ht * heal)))
 	if int(run.pending_loot) > 0:
 		gs.pack_add("gold", int(run.pending_loot)); gs.say("Recovered %d gold that fell from above." % run.pending_loot)
 		run.pending_loot = 0

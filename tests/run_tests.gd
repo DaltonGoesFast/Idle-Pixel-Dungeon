@@ -33,6 +33,8 @@ func _ready() -> void:
 	test_specials(gs)
 	test_icon_centering(gs)
 	test_armor_tiers(gs)
+	test_floor_label(gs)
+	test_all_icons(gs)
 	test_delve(gs)
 	test_camp(gs)
 	test_save(gs, ss)
@@ -40,6 +42,8 @@ func _ready() -> void:
 	test_subclass(gs, ss)
 	test_talents(gs)
 	test_backpack(gs)
+	await test_touch_scroll()
+	await test_tip_fit()
 	print("TESTS: %d passed, %d failed -> %s" % [passes, fails, "PASS" if fails == 0 else "FAIL"])
 	get_tree().quit(1 if fails else 0)
 
@@ -731,7 +735,7 @@ func test_halls(gs) -> void:
 		if rr.result == "extract" and rr.biome == "halls": hw += 1
 		else: ends.append("f%d L%d" % [rr.floor, rr.level])
 	print("  [hallsrun] warrior Lv16 tier-5 + subclass, floors 1-25 in one run: cleared Halls %d/4, ended at %s" % [hw, ends])
-	check(hw >= 1, "a tier-5 Warrior can clear floors 1-25 in one run (>= 1/4)")
+	check(hw >= 2, "a tier-5 Warrior can clear floors 1-25 in one run (>= 2/4)")
 
 
 func test_identify(gs) -> void:
@@ -836,6 +840,14 @@ func test_specials(gs) -> void:
 	check(gs.run.pack_gear.size() == n0 + 1 and DB.item(gs.run.pack_gear[-1].id).type == "artifact", "Shrine gives an artifact (%s)" % got)
 	gs.run.satiety = 10.0; Delve.reward(gs, {"satiety": 100})
 	check(float(gs.run.satiety) == 100.0, "Larder refills satiety")
+	var garden: Dictionary = DB.specials.filter(func(x): return x.id == "garden")[0]
+	var fire: Dictionary = DB.specials.filter(func(x): return x.id == "sacrificial_fire")[0]
+	check(garden.options.size() >= 4 and fire.options.size() >= 3, "garden and sacrificial fire have SPD-style choices")
+	var rest: Dictionary = garden.options[1]
+	gs.run.hp = 5; Delve.pay(gs, rest.cost); Delve.reward(gs, rest.reward)
+	check(float(gs.run.satiety) == 85.0 and int(gs.run.hp) > 5, "resting in the sungrass heals for food (sat %s hp %s)" % [gs.run.satiety, gs.run.hp])
+	var fe := Delve.combat_event(gs.run, Delve.rng_for(gs.run, 55), [])
+	check(fe.kind == "combat" and not fe.mobs.is_empty() and fire.options[1].fight == "biome", "sacrificial fire lures a biome encounter")
 	gs.end_run("abandon")
 
 
@@ -874,3 +886,123 @@ func test_armor_tiers(gs) -> void:
 	var whs: Dictionary = gs.hero_stats("warrior"); var c := Combat.new(); c.setup(DB.rooms[1], whs, int(whs.ht), ["gnoll"])
 	check(int(c.hero.get("row", -1)) == 4, "combat hero carries the armor row")
 	gs.heroes.warrior.armor = old
+
+## The Delve title "<Biome> - Floor f / last" always has f inside the biome's floor range, through every biome
+## transition, and a corrupted save is clamped on load.
+func test_floor_label(gs) -> void:
+	print("[floor label]")
+	var saved_run: Dictionary = gs.run.duplicate(true)
+	gs.run = {}
+	for k in ["ration", "torch"]: gs.add_mat(k, 1)
+	gs.start_run("warrior", {}, "sewers", 7)
+	var bad := []; var seen := {}
+	for step in 40:
+		var b: Dictionary = DB.biomes[gs.run.biome]; seen[gs.run.biome] = true
+		if int(gs.run.floor) < int(b.floors[0]) or int(gs.run.floor) > int(b.floors[1]): bad.append("%s %d" % [gs.run.biome, gs.run.floor])
+		if int(gs.run.floor) >= int(b.boss_floor):
+			if Delve.next_biome(gs.run) == "": break
+			gs.run.boss_dead = true; Delve.continue_deeper(gs)
+		else: Delve.descend(gs)
+	check(bad.is_empty() and seen.size() == DB.biomes.size(), "floor stays inside its biome across all %d biomes %s" % [seen.size(), bad])
+	gs.run.biome = "sewers"; gs.run.floor = 25
+	gs.from_dict(JSON.parse_string(JSON.stringify(gs.to_dict())))
+	check(int(gs.run.floor) == 5, "a save with Floor 25 in the Sewers loads clamped to the Sewers")
+	gs.run = saved_run
+
+
+## A touch drag that starts on a Button scrolls its ScrollContainer, carries on with momentum, and does not
+## fire the Button; a plain tap still does.
+func test_touch_scroll() -> void:
+	print("[touch scroll]")
+	var root := Control.new(); root.size = Vector2(400, 400); add_child(root)
+	var ts := TouchScroll.new(); root.add_child(ts)
+	var sc := ScrollContainer.new(); sc.position = Vector2.ZERO; sc.size = Vector2(400, 400); root.add_child(sc)
+	TouchScroll.style(sc)
+	var v := VBoxContainer.new(); sc.add_child(v)
+	var fired := [0]
+	for i in 30:
+		var b := Button.new(); b.text = "Slot %d" % i; b.custom_minimum_size = Vector2(380, 60); v.add_child(b)
+		b.pressed.connect(func(): fired[0] += 1)
+	for i in 3: await get_tree().process_frame
+	var vp := get_viewport(); get_window().notification(NOTIFICATION_WM_MOUSE_ENTER); vp.notification(NOTIFICATION_VP_MOUSE_ENTER)
+	var send := func(ev: InputEvent): ts._input(ev)   # headless has no GUI dispatch: feed the scroller directly
+	var mb := func(p: Vector2, down: bool) -> InputEventMouseButton:
+		var e := InputEventMouseButton.new(); e.button_index = MOUSE_BUTTON_LEFT; e.pressed = down; e.position = p; e.global_position = p
+		e.button_mask = MOUSE_BUTTON_MASK_LEFT if down else 0; return e
+	var mm := func(p: Vector2, rel: Vector2) -> InputEventMouseMotion:
+		var e := InputEventMouseMotion.new(); e.position = p; e.global_position = p; e.relative = rel; e.button_mask = MOUSE_BUTTON_MASK_LEFT; return e
+	# drag up 200 px starting on "Slot 2"
+	var p := Vector2(200, 150)
+	send.call(mm.call(p, Vector2.ZERO)); await get_tree().process_frame
+	send.call(mb.call(p, true))
+	for i in 10:
+		var q := p - Vector2(0, 20); send.call(mm.call(q, q - p)); p = q
+		await get_tree().process_frame
+	var after_drag := sc.scroll_vertical
+	var masked: BaseButton = ts._masked
+	check(masked != null and masked.button_mask == 0, "the button under the drag has its press cancelled")
+	send.call(mb.call(p, false))
+	for i in 10: await get_tree().process_frame
+	check(after_drag >= 150, "drag starting on a button scrolls the container (%d px)" % after_drag)
+	check(fired[0] == 0 and masked.button_mask == MOUSE_BUTTON_MASK_LEFT, "the button does not fire and is re-armed after release")
+	check(sc.scroll_vertical > after_drag, "kinetic scroll carries on after release (%d -> %d)" % [after_drag, sc.scroll_vertical])
+	check(sc.get_v_scroll_bar().custom_minimum_size.x >= 10 and sc.scroll_deadzone > 0, "wide scrollbar and deadzone")
+	# a tap still presses
+	ts.momentum = null
+	for i in 3: await get_tree().process_frame
+	var t := Vector2(200, 200)
+	send.call(mm.call(t, Vector2.ZERO)); await get_tree().process_frame
+	send.call(mb.call(t, true)); await get_tree().process_frame
+	var tapped: Control = ts._hov
+	send.call(mb.call(t, false)); await get_tree().process_frame
+	check(not ts.dragging and ts._masked == null and tapped is Button and tapped.button_mask == MOUSE_BUTTON_MASK_LEFT, "a tap without movement is left to the button (%s %s %s)" % [ts.dragging, ts._masked, tapped])
+	root.queue_free()
+
+## Every item and material id (known and unidentified) resolves to an items.png cell with visible pixels; rings,
+## potions and scrolls get their SPD appearance sprites (gems, colours, runes) and are not the fallback icon.
+func test_all_icons(gs) -> void:
+	print("[all icons]")
+	var img: Image = (load("res://assets/sprites/items.png") as Texture2D).get_image()
+	var bad := []
+	var ids: Array = DB.items.keys().filter(func(k): return not k.begins_with("_")) + DB.materials.keys().filter(func(k): return not k.begins_with("_"))
+	for id in ids:
+		var idx := DB.icon_index(id)
+		var r := UIKit.item_rect(idx)
+		var vis := 0
+		var sub := img.get_region(Rect2i(r))
+		for y in sub.get_height():
+			for x in sub.get_width():
+				if sub.get_pixel(x, y).a > 0.1: vis += 1
+		var t: String = DB.items.get(id, DB.materials.get(id, {})).get("type", "")
+		var appearance: bool = t in ["ring", "potion", "scroll"] or id.begins_with("potion_") or id.begins_with("scroll_") or id.begins_with("ring_")
+		if vis < 6 or (appearance and idx == int(DB.icons.get("SOMETHING", -1))) or idx <= 0: bad.append("%s=%d" % [id, idx])
+	check(bad.is_empty(), "%d item ids resolve to visible SPD icons %s" % [ids.size(), bad])
+
+
+## Every tutorial tip page fits inside its card, and the card inside the screen with margins, at the Fold cover
+## and inner sizes (real device px with the font sizes Main picks for them).
+func test_tip_fit() -> void:
+	print("[tip fit]")
+	var fs0 := UIKit.font_size
+	var bad := []
+	for sz in [[Vector2(968, 2376), 30], [Vector2(1856, 2160), 34], [Vector2(484, 1188), 16]]:
+		UIKit.make_theme(int(sz[1]))
+		var ov: Control = load("res://scripts/ui/tip_overlay.gd").new()
+		var holder := Control.new(); holder.theme = UIKit.make_theme(int(sz[1])); holder.size = sz[0]; add_child(holder)
+		holder.add_child(ov); ov.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT); ov.size = sz[0]
+		for id in DB.tips:
+			var pages: Array = DB.tips[id].get("pages", [DB.tips[id]])
+			for pi in pages.size():
+				ov.queue = [{"id": id, "pages": pages}]; ov.page = pi; ov._render()
+				for f in 3: await get_tree().process_frame
+				var cr: Rect2 = ov.card.get_global_rect(); var hr := Rect2(holder.global_position, sz[0])
+				var m: float = ov.margin(sz[0]) - 1.0
+				var inside := cr.position.x >= hr.position.x + m and cr.end.x <= hr.end.x - m and cr.position.y >= hr.position.y and cr.end.y <= hr.end.y
+				var text_ok := true
+				for c in ov.box.get_children():
+					if c is Label and (c.get_global_rect().end.x > cr.end.x + 0.5 or c.get_line_count() > c.get_visible_line_count() and c.max_lines_visible > 0): text_ok = false
+					if c is Label and c.get_global_rect().size.y < c.get_line_count() * c.get_line_height() - 1: text_ok = false
+				if not (inside and text_ok): bad.append("%s/%d@%s" % [id, pi, sz[0]])
+		ov.queue = []; holder.queue_free()
+	UIKit.make_theme(fs0)
+	check(bad.is_empty(), "every tip page fits its card and the screen at cover and inner sizes %s" % [bad.slice(0, 6)])

@@ -803,6 +803,8 @@ func _fix_types() -> void:
 	for q in id_queue: q.uid = int(q.uid)
 	if not run.is_empty():
 		for k in ["floor", "next_event", "gather", "starve", "seed", "hp", "pending_loot"]: run[k] = int(run.get(k, 0))
+		if DB.biomes.has(run.get("biome", "")):   # a save can never show "Floor 25 / 5": keep floor inside its biome
+			var fr: Array = DB.biomes[run.biome].floors; run.floor = clampi(int(run.floor), int(fr[0]), int(fr[1]))
 		for k in run.pack: run.pack[k] = int(run.pack[k])
 		for k in run.supplies: run.supplies[k] = int(run.supplies[k])
 		for g in run.pack_gear + run.get("overflow", []):

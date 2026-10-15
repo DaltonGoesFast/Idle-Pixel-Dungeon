@@ -3,7 +3,7 @@ config_version=5
 [application]
 
 config/name="SPD Tactics"
-config/version="0.24.0"
+config/version="0.25.0"
 run/main_scene="res://scenes/main.tscn"
 config/icon="res://icon.png"
 config/features=PackedStringArray("4.7", "GL Compatibility")

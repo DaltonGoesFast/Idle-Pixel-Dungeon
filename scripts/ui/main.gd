@@ -26,6 +26,10 @@ func _ready() -> void:
 	toast_box = VBoxContainer.new(); toast_box.set_anchors_preset(PRESET_CENTER_TOP)
 	toast_box.mouse_filter = Control.MOUSE_FILTER_IGNORE; add_child(toast_box)
 	tips = TipOverlay.new(); add_child(tips)
+	add_child(TouchScroll.new())
+	get_tree().node_added.connect(func(n):
+		if n is ScrollContainer: TouchScroll.style(n)
+		elif n is BaseButton and n.mouse_filter == Control.MOUSE_FILTER_STOP: n.mouse_filter = Control.MOUSE_FILTER_PASS)   # drags reach the scroller
 	GameState.toast.connect(_toast)
 	GameState.settings_changed.connect(_relayout)
 	get_viewport().size_changed.connect(_relayout)

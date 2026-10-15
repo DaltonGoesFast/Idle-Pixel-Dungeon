@@ -81,7 +81,7 @@ func _ready() -> void:
 		plan.append([sz, "tip_closed", func(): main.tips.skip_all(); GameState.settings.tutorial = false])
 		plan.append([sz, "settings", func(): main.show_camp(); main.screen.open_page("Settings")])
 		plan.append([sz, "delve", func():
-			if GameState.run.is_empty(): GameState.start_run("warrior", {"ration": 1, "torch": 1, "potion_healing": 1}, "sewers", 5)
+			_fresh_warrior_run()
 			main.show_delve(); main.delve.running = false
 			for i in 30: Delve.advance(GameState, 1.0)
 			main.delve.pending = {"kind": "door", "door": DB.doors[0]}; main.delve._show_card()])
@@ -92,8 +92,11 @@ func _ready() -> void:
 		plan.append([sz, "delve_enemy", func():
 			main.delve.running = false
 			main.delve.pending = Delve.combat_event(GameState.run, Delve.rng_for(GameState.run, 4), ["gnoll", "rat"]); main.delve._show_card()])
+		plan.append([sz, "delve_special", func():
+			main.delve.running = false
+			main.delve.pending = {"kind": "special", "special": DB.specials[0]}; main.delve._show_card()])
 		plan.append([sz, "backpack", func():
-			if GameState.run.is_empty(): GameState.start_run("warrior", {"ration": 1, "torch": 1, "potion_healing": 1}, "sewers", 5)
+			_fresh_warrior_run()
 			if GameState.run.pack_gear.is_empty():
 				Delve.reward(GameState, {"item": "mace"}); Delve.reward(GameState, {"item": "mail_armor"}); Delve.reward(GameState, {"item_unknown": "ring"})
 			main.show_delve(); main.delve._open_panel("backpack")])
@@ -148,7 +151,7 @@ func _ready() -> void:
 			for i in 6: main.screen._do_bot()])
 		plan.append([sz, "terrain", func():
 			# hero standing in a doorway, a rat in tall grass (with grass above it) and a trampled cell
-			GameState.run.biome = "sewers"
+			GameState.run.biome = "sewers"; GameState.run.floor = 1
 			main.start_combat({"kind": "combat", "room": DB.biome_rooms.prison[0], "mobs": ["rat", "crab"]}, func(_r): pass)
 			var cb = main.screen.combat; var T = cb.T
 			for y in range(1, cb.SIZE - 1):
@@ -163,7 +166,7 @@ func _ready() -> void:
 			cb.terrain[2][4] = T.FLOOR
 			main.screen.grid.queue_redraw()])
 		plan.append([sz, "boss", func():
-			GameState.run.biome = "sewers"
+			GameState.run.biome = "sewers"; GameState.run.floor = 1
 			main.start_combat({"kind": "combat", "boss": true, "room": DB.boss_rooms[0], "mobs": ["goo"]}, func(_r): pass)
 			for i in 3: main.screen._do_bot()])
 
@@ -183,3 +186,12 @@ func _process(_d: float) -> void:
 		get_viewport().get_texture().get_image().save_png("%s/%s_%s.png" % [out, step[0], step[1]])
 		if main.screen.get("grid") != null: print("GRID ", step[1], " ", main.screen.grid.size, " cs=", main.screen.grid.cell_size(), " win=", get_viewport().get_visible_rect().size)
 		if false: print("box ", main.screen.root_box.size, " title ", main.screen.root_box.get_child(0).size, " tabs ", main.screen.tabs.size, " anchors ", main.screen.root_box.anchor_right, " off ", main.screen.root_box.offset_right)
+
+
+## Delve shots always start from a clean Warrior run on Sewers 1 (no state leaking from boss/biome shots).
+func _fresh_warrior_run() -> void:
+	if not GameState.run.is_empty() and (GameState.run.hero != "warrior" or GameState.run.biome != "sewers" or int(GameState.run.floor) > 5):
+		GameState.run = {}
+	if GameState.run.is_empty():
+		for k in ["ration", "torch", "potion_healing"]: GameState.add_mat(k, 1)
+		GameState.start_run("warrior", {"ration": 1, "torch": 1, "potion_healing": 1}, "sewers", 5)
