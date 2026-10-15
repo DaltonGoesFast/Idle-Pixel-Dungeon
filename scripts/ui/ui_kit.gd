@@ -265,11 +265,12 @@ static func icon_row(id: String, text: String, scale := 1.0) -> HBoxContainer:
 	return h
 
 ## Compact resource chip for wrapping rows: icon vertically centred, number right after it (DECISIONS #76).
-static func res_chip(id: String, text: String, scale := 0.85) -> HBoxContainer:
+## `icon_px` overrides the default item-icon size (passed through to icon()).
+static func res_chip(id: String, text: String, scale := 0.85, icon_px := -1) -> HBoxContainer:
 	var h := HBoxContainer.new()
 	h.add_theme_constant_override("separation", maxi(2, px_scale))
 	h.alignment = BoxContainer.ALIGNMENT_BEGIN
-	var ic := icon(id); ic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	var ic := icon(id, icon_px); ic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	h.add_child(ic)
 	var l := label(text, scale)
 	l.autowrap_mode = TextServer.AUTOWRAP_OFF

@@ -300,13 +300,15 @@ func _refresh() -> void:
 	if float(run.satiety) <= 0.0: line += "STARVING"
 	if line != "": stats.add_child(UIKit.label(line, 0.95, Color("ff7070")))
 	# Brought comes back to the stash on every ending; Found is lost if the hero dies.
+	# Chips use a larger icon than the default 32px so torch and ration stay readable on the cover.
+	var chip_px := maxi(48, int(UIKit.font_size * 2.0))
 	var brought := _chip_row("Brought:", Color("9a8f7c"))
 	for k in run.supplies:
-		if int(run.supplies[k]) > 0: brought.add_child(UIKit.res_chip(k, str(run.supplies[k])))
+		if int(run.supplies[k]) > 0: brought.add_child(UIKit.res_chip(k, str(run.supplies[k]), 0.85, chip_px))
 	if brought.get_child_count() == 1: brought.add_child(_row_note("nothing left"))
 	var found := _chip_row("Found (lost on death):", Color("ff9944"))
 	for k in run.pack:
-		if int(run.pack[k]) > 0: found.add_child(UIKit.res_chip(k, str(run.pack[k])))
+		if int(run.pack[k]) > 0: found.add_child(UIKit.res_chip(k, str(run.pack[k]), 0.85, chip_px))
 	var new_gear := _found_gear(run).size()
 	if new_gear > 0: found.add_child(_row_note("+%d item%s" % [new_gear, "" if new_gear == 1 else "s"], Color.WHITE))
 	if found.get_child_count() == 1: found.add_child(_row_note("nothing yet"))

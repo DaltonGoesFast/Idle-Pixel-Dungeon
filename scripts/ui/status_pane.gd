@@ -4,7 +4,7 @@
 ##   avatar    hero frame centred at (15,16) in the portrait box; level number centred at (15,33) in the badge strip
 ##   buffs     row at (31,0..16): hero name, then BuffIndicator icons; depth + danger at the right end
 ##   hp        bar at (30,19), 9 tall: shield (grey) under hp (red) like SPD's shieldHP/hp scale.x; "HP/HT" centred
-##   exp       row at (30,30), 7 tall: delve shows Torch | Food as item icons with a percent
+##   exp       row at (30,28), 16 tall when torch/food icons are shown (else 7); pane grows to fit
 class_name StatusPane
 extends Control
 
@@ -41,8 +41,16 @@ func _k() -> float:
 
 func set_data(data: Dictionary) -> void:
 	d = data
-	custom_minimum_size = Vector2(0, 40 * _k())
+	custom_minimum_size = Vector2(0, (_mini_row_h() + 30) * _k())
 	queue_redraw()
+
+## Game-pixel height of the torch/food row: a full 16px item cell when icons are shown.
+func _mini_row_h() -> float:
+	for m in d.get("minis", []):
+		var ic: String = String(m.get("icon", ""))
+		if ic != "": return 16.0
+		if MINI_ICONS.has(String(m.get("text", "")).get_slice(" ", 0)): return 16.0
+	return 7.0
 
 ## Pixel-font size whose glyphs fit a bar of h pixels (pixel_font cap ~ 0.73 em).
 func _fit_fs(h: float) -> int:
@@ -70,8 +78,8 @@ func _draw() -> void:
 	var k := _k()
 	var w := size.x
 	var font := get_theme_default_font()
-	# background nine-patch (only stretched horizontally, like SPD)
-	var h := BG.size.y * k
+	# background nine-patch (horizontal stretch; vertical follows the pane so a tall mini row fits)
+	var h := size.y
 	draw_texture_rect_region(tex, Rect2(0, 0, BG_L * k, h), Rect2(BG.position, Vector2(BG_L, BG.size.y)))
 	var mid := w - (BG_L + BG_R) * k
 	if mid > 0: draw_texture_rect_region(tex, Rect2(BG_L * k, 0, mid, h), Rect2(BG.position + Vector2(BG_L, 0), Vector2(BG.size.x - BG_L - BG_R, BG.size.y)))
@@ -120,15 +128,16 @@ func _draw() -> void:
 	var hp_txt := "%d/%d" % [int(hp), int(ht)]
 	if sh > 0: hp_txt = "%d+%d/%d" % [int(hp), int(sh), int(ht)]
 	_centred(font, bar, hp_txt, _fit_fs(bar.size.y), Color.WHITE, k)
-	# EXP row (30,30) 7 tall: compact minis side by side
+	# EXP / supply row under HP
 	var minis: Array = d.get("minis", [])
 	if minis.size() > 0:
-		var row := Rect2(Vector2(30 * k, 30 * k), Vector2(bar.size.x, 7 * k))
+		var row := Rect2(Vector2(30 * k, 28 * k), Vector2(bar.size.x, _mini_row_h() * k))
 		var mw := floorf((row.size.x - k * (minis.size() - 1)) / minis.size())
 		var mx := row.position.x
 		for m in minis:
 			var r := Rect2(mx, row.position.y, mw, row.size.y)
-			var ic: String = m.get("icon", MINI_ICONS.get(String(m.text).get_slice(" ", 0), ""))
+			var ic: String = String(m.get("icon", ""))
+			if ic == "": ic = MINI_ICONS.get(String(m.get("text", "")).get_slice(" ", 0), "")
 			if ic != "": _mini_icon(font, r, ic, float(m.frac), k)
 			else:
 				draw_rect(r, Color(0, 0, 0, 0.6))
@@ -137,19 +146,24 @@ func _draw() -> void:
 			mx += mw + k
 
 ## Supply as a filled bar with an item icon on the left and a percent over the fill.
+## Draws the full 16px item cell at the pane's pixel scale so torch and food match HP text size.
 func _mini_icon(font: Font, r: Rect2, id: String, frac: float, k: float) -> void:
 	if items_tex == null: items_tex = load("res://assets/sprites/items.png")
 	draw_rect(r, Color(0, 0, 0, 0.6))
-	# solid fills: the SPD exp/shield strips look half-empty once shrunk into these mini cells
 	var fw := floorf(r.size.x * clampf(frac, 0.0, 1.0))
 	if fw > 0.0:
 		draw_rect(Rect2(r.position, Vector2(fw, r.size.y)), Color("e0a030") if id == "torch" else Color("9a8a68"))
-	var src := UIKit.item_rect(DB.icon_index(id))
-	var sc := maxf(1.0, floorf(r.size.y / maxf(src.size.x, src.size.y)))
-	var isz := src.size * sc
-	var ip := Vector2(floorf(r.position.x + k), floorf(r.position.y + (r.size.y - isz.y) / 2.0))
+	var idx := DB.icon_index(id)
+	var sc := maxi(2, int(k))   # never below 2x; matches toolbar/item chip scale on the cover
+	var cell := Rect2((idx % 16) * 16, int(idx / 16) * 16, 16, 16)
+	var isz := Vector2(16, 16) * float(sc)
+	# centre the trimmed pixels inside that cell, like PixelIcon
+	var vis := UIKit.item_rect(idx)
+	var vsz := vis.size * float(sc)
+	var origin := Vector2(floorf(r.position.x + k), floorf(r.position.y + (r.size.y - isz.y) / 2.0))
+	var ip := origin + ((isz - vsz) / 2.0).floor()
 	var tint: String = DB.materials.get(id, {}).get("tint", "")
-	draw_texture_rect_region(items_tex, Rect2(ip, isz), src, Color(tint) if tint != "" else Color.WHITE)
+	draw_texture_rect_region(items_tex, Rect2(ip, vsz), vis, Color(tint) if tint != "" else Color.WHITE)
 	var pct := roundi(clampf(frac, 0.0, 1.0) * 100.0)
 	var col := Color.WHITE if pct >= 30 else (Color("ff8800") if pct > 0 else Color("ff4444"))
-	_centred(font, Rect2(ip.x + isz.x, r.position.y, r.end.x - ip.x - isz.x, r.size.y), "%d%%" % pct, _fit_fs(r.size.y), col, k)
+	_centred(font, Rect2(origin.x + isz.x + k, r.position.y, r.end.x - origin.x - isz.x - k, r.size.y), "%d%%" % pct, _fit_fs(r.size.y), col, k)
