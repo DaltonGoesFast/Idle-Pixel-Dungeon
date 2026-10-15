@@ -21,4 +21,4 @@
 Sideload: copy the APK to the phone and open it (allow "install unknown apps"), or `adb install -r builds/spd-tactics-vX.apk`. Builds are signed with the same debug key, so updates install over each other. A release build needs a real keystore (Project > Export > Release keystore) and `--export-release`.
 
 ## iOS
-See [BUILD_IOS.md](BUILD_IOS.md). Export produces an Xcode project; signing and TestFlight happen on a Mac.
+See [BUILD_IOS.md](BUILD_IOS.md). A PC or a Mac exports the Xcode project; the Mac signs it and uploads to TestFlight.
