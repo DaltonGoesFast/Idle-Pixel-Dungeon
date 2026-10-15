@@ -1,22 +1,25 @@
 ---
-description: Commit and push finished changes so Grok Bot PRs stay on the latest code
+description: Commit and push finished work onto latest main without colliding with pull requests
 alwaysApply: true
 ---
 
 # Commit and push finished work
 
-When a requested change is done, commit it and push it without waiting to be asked. Grok Bot opens and updates pull requests from the remote, so unpushed local work leaves those PRs on stale code.
+When a requested change is done, commit it and push it to `main` without waiting to be asked. The user's own work stays in pull requests, never as direct commits on `main`. Agents push to `main`; those PRs get rebased onto it. Unpushed local work leaves both sides stale.
 
-## What to commit
+If this starts conflicting often, stop pushing to `main` and open a pull request instead, and say that you switched.
 
-- Stage only the files that belong to the change you just finished.
-- Leave unrelated dirty files alone. Godot `.import` churn, `.godot/`, `.vscode/`, and local editor metadata are not part of a feature unless that task changed them on purpose.
+## Stay in your lane
+
+- Touch only the files the task needs.
+- When several agents are working, keep to the area you were given (UI in `scripts/ui/`, balance in `data/`, and so on). Do not edit another area "while you're here."
+- Do not commit onto a pull-request branch, and do not push over a branch someone is testing.
+- Leave unrelated dirty files alone. Godot `.import` churn, `.godot/`, `.vscode/`, and editor metadata stay unstaged unless the task changed them on purpose.
 - Never commit secrets or signing material: `export_credentials.cfg`, `*.keystore`, `*.jks`, `builds/`, `*.apk`, `*.aab`.
 
 ## How to commit
 
-- Follow the repo style: one or two sentences on why the change exists.
-- On PowerShell, pass the message with a here-string:
+- One or two sentences on why the change exists. On PowerShell:
 
 ```powershell
 git commit -m @"
@@ -25,10 +28,19 @@ Keep camp windows open on the click that opened them.
 "@
 ```
 
-- If a hook rejects the commit, fix the problem and make a new commit. Do not amend unless the user asked for an amend and the commit is still local and yours.
+- If a hook rejects the commit, fix it and make a new commit. Do not amend unless the user asked and the commit is still local and yours.
 
 ## How to push
 
-- Push the current branch to `origin` (`git push -u origin HEAD` when it has no upstream).
+Right before every push, rebase onto the latest remote branch so you never overwrite someone else's commits:
+
+```powershell
+git pull --rebase
+git push
+```
+
+Use `git push -u origin HEAD` only when the branch has no upstream yet.
+
 - Do not force-push. Do not skip hooks.
-- If the push is rejected because the remote moved, pull/rebase only when it is safe, then push again. Stop and say so if that would rewrite commits you did not make.
+- If the rebase conflicts, resolve it only when the conflict is in files from your commit and the resolution is obvious. Otherwise run `git rebase --abort`, leave `main` as it was, and say which files collided.
+- Small pull requests should be merged soon; ones that sit for hours are the ones that conflict. After `main` moves, a messy PR is closed and redone from fresh `main` rather than patched in place.
