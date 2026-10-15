@@ -198,6 +198,16 @@
    "min_level": 1
   },
   {
+   "id": "buy_ration_crate",
+   "name": "Buy Ration Crate",
+   "out_mat": "ration",
+   "out_n": 3,
+   "cost": {
+    "gold": 25
+   },
+   "min_level": 2
+  },
+  {
    "id": "buy_torch",
    "name": "Buy Torch",
    "out_mat": "torch",

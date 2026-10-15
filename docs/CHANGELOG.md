@@ -1,5 +1,7 @@
 # Changelog
 
+## Unreleased
+- Food scaling: every boss kill adds 2 rations to the belt; Guild Lv2 sells a 3-ration crate for 25 gold (+test).
 
 ## 0.26.0
 - Identified rings, potions, and scrolls show SPD's small type glyph from item_icons.png in the top-right of the slot. The blue shield is Ring of Tenacity and Potion of Shielding.

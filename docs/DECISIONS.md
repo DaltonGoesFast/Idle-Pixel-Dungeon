@@ -309,3 +309,6 @@ SPD draws a second sprite from `item_icons.png` in the top-right of an inventory
 
 ## 104. No softlock after a total wipe
 Starting a run never required gear, but a wiped save felt (and played) locked: cracked weapons fell back to starter stats while still applying the cracked item's upgrade level math, cracked armor gave no DR, a broke Camp had no rations/torches and no gold to buy them, and repair ore came only from chests/patrols. Now: cracked/missing weapon or armor uses the class starter weapon + Cloth Armor (free, never cracks, like SPD starting items); the Forge shows a free "Patch up" (cheapest cracked weapon/armor first) whenever no repair is affordable; a broke Camp (0 rations, 0 torches, < 10 gold) gets 1 ration + 1 torch when a run starts; every floor descended yields 1 iron ore. These are runtime rules, so an existing wiped save is playable on load. test_total_wipe covers the reported state.
+
+## 108. Food scaling
+Playtest: a Lv24 Mage still ended every run at floor 9-10 because rations ran out (a 3-ration loadout covers about 2 biomes and nothing refilled it). Now every boss kill adds `Delve.BOSS_RATIONS` (2) rations to the belt (unused ones are banked like any supply), and Guild Lv2 sells a Ration Crate (3 rations for 25 gold instead of 30). test_food_sources covers both.

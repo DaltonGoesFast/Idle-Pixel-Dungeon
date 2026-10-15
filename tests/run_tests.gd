@@ -35,6 +35,7 @@ func _ready() -> void:
 	test_armor_tiers(gs)
 	test_floor_label(gs)
 	test_total_wipe(gs)
+	test_food_sources(gs)
 	test_owed_sou(gs)
 	await test_icon_sizes(gs)
 	test_full_auto(gs)
@@ -1524,3 +1525,17 @@ func test_total_wipe(gs) -> void:
 	# a full simulated run from the wipe: it either extracts with ore or, at worst, Patch up stays available
 	var r := RunSim.play(gs, "warrior", {}, 4242)
 	check(gs.mat("iron_ore") > 0 or gs.can_patch_up() == "" or gs.cracked_gear().is_empty(), "after a run from a wipe there is a path to repairs (%s, ore %d)" % [r.result, gs.mat("iron_ore")])
+
+## DECISIONS #108: food no longer caps depth.
+func test_food_sources(gs) -> void:
+	print("[food sources]")
+	gs.new_game()
+	gs.start_run("warrior", {}, "sewers", 5); gs.run.floor = 5
+	var r0 := int(gs.run.supplies.get("ration", 0))
+	Delve.apply_fight_result(gs, {"mobs": ["goo"]}, {"won": true, "hp": 5, "loot": 0, "fallen_loot": 0, "xp": 0, "boss_killed": true, "kills": 1}, {})
+	check(int(gs.run.supplies.ration) == r0 + Delve.BOSS_RATIONS, "a boss kill adds %d rations to the belt" % Delve.BOSS_RATIONS)
+	gs.end_run("abandon")
+	var cr: Dictionary = gs.recipe("guild", "buy_ration_crate")
+	check(int(cr.get("out_n", 0)) == 3 and int(cr.cost.gold) < 3 * int(gs.recipe("guild", "buy_ration").cost.gold), "Guild Lv2 ration crate: 3 rations, cheaper than 3 singles")
+	gs.mats.gold = 100; gs.facilities.guild.level = 1
+	check(gs.can_craft("guild", "buy_ration_crate") != "", "the crate needs Guild Lv2")
