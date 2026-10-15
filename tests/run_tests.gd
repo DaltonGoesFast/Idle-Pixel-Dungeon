@@ -36,14 +36,18 @@ func _ready() -> void:
 	test_floor_label(gs)
 	test_total_wipe(gs)
 	test_owed_sou(gs)
-	test_icon_sizes(gs)
+	await test_icon_sizes(gs)
 	test_full_auto(gs)
+	test_encounter_dismiss(gs)
+	test_encounter_summary(gs)
+	await test_menu_toast(gs)
 	test_log_and_sounds(gs)
 	test_ring_contexts(gs)
 	test_forge_bulk(gs)
 	test_all_icons(gs)
 	test_delve(gs)
 	test_camp(gs)
+	test_camp_npc_hits()
 	test_save(gs, ss)
 	test_meta(gs, ss)
 	test_subclass(gs, ss)
@@ -565,6 +569,27 @@ func test_camp(gs) -> void:
 	gs.note_floor(4); check(gs.heroes.rogue.unlocked, "reaching floor 4 unlocks Rogue")
 	gs.end_run("extract")
 
+## Tapping the sprite or the name plate under it opens that facility. The plate used to hang outside
+## the sprite's hit box, so Stash / Alchemy / Guild / Enchanter ignored clicks on their names.
+func test_camp_npc_hits() -> void:
+	print("[camp npc hits]")
+	var scene = load("res://scripts/ui/camp_scene.gd").new()
+	add_child(scene)
+	var cases := [[40, Vector2(924, 1605)], [60, Vector2(1114, 2008)], [60, Vector2(2368, 2008)]]
+	for c in cases:
+		scene.theme = UIKit.make_theme(c[0])
+		scene.size = c[1]
+		for s in scene.SPOTS:
+			var page: String = s[0]
+			check(scene.spot_at(scene.spot_rect(s).get_center()) == page, "%s sprite @ %s" % [page, c[1]])
+			var lr: Rect2 = scene.label_rect(s)
+			check(scene.spot_at(lr.get_center()) == page, "%s name centre @ %s" % [page, c[1]])
+			# glyphs sit on the baseline, near the bottom of the plate; the sides of a long name too
+			check(scene.spot_at(Vector2(lr.get_center().x, lr.end.y - 2)) == page, "%s name bottom @ %s" % [page, c[1]])
+			check(scene.spot_at(lr.position + Vector2(3, lr.size.y * 0.6)) == page, "%s name left @ %s" % [page, c[1]])
+		check(scene.spot_at(Vector2(8, 8)) == "", "sky is not an NPC @ %s" % c[1])
+	scene.queue_free()
+
 func test_save(gs, ss) -> void:
 	print("[save]")
 	gs.new_game(); gs.add_mat("gold", 77); gs.heroes.warrior.level = 4
@@ -885,13 +910,13 @@ func test_armor_tiers(gs) -> void:
 		gs.heroes.warrior.armor = uid
 		var hs: Dictionary = gs.hero_stats("warrior")
 		var at: AtlasTexture = Paperdoll.hero_tex("warrior")
-		check(int(hs.row) == int(DB.item(id).tier) - 1 and at.region.position.y == hs.row * 15, "%s -> sprite row %d" % [id, hs.row])
+		check(int(hs.row) == int(DB.item(id).tier) and at.region.position.y == hs.row * 15, "%s -> sprite row %d" % [id, hs.row])
 		regions.append(at.region.position.y); imgs.append(at.get_image().get_data())
 	var distinct := {}
 	for d in imgs: distinct[d] = true
-	check(distinct.size() == 5 and regions == [0.0, 15.0, 30.0, 45.0, 60.0], "5 tiers give 5 different sprite frames")
+	check(distinct.size() == 5 and regions == [15.0, 30.0, 45.0, 60.0, 75.0], "5 tiers give 5 different sprite frames (cloth is row 1, not naked)")
 	var whs: Dictionary = gs.hero_stats("warrior"); var c := Combat.new(); c.setup(DB.rooms[1], whs, int(whs.ht), ["gnoll"])
-	check(int(c.hero.get("row", -1)) == 4, "combat hero carries the armor row")
+	check(int(c.hero.get("row", -1)) == 5, "combat hero carries the armor row")
 	gs.heroes.warrior.armor = old
 
 ## The Delve title "<Biome> - Floor f / last" always has f inside the biome's floor range, through every biome
@@ -986,6 +1011,13 @@ func test_all_icons(gs) -> void:
 		var t: String = DB.items.get(id, DB.materials.get(id, {})).get("type", "")
 		var appearance: bool = t in ["ring", "potion", "scroll"] or id.begins_with("potion_") or id.begins_with("scroll_") or id.begins_with("ring_")
 		if vis < 6 or (appearance and idx == int(DB.icons.get("SOMETHING", -1))) or idx <= 0: bad.append("%s=%d" % [id, idx])
+	gs.new_game()
+	var holders := [int(DB.icons.POTION_HOLDER), int(DB.icons.SCROLL_HOLDER)]
+	for k in gs.unknown_mats():
+		var before := DB.icon_index(k)
+		gs.ided[k] = true
+		var after := DB.icon_index(k)
+		if after != before or after in holders or after <= 0: bad.append("ided %s %d->%d" % [k, before, after])
 	check(bad.is_empty(), "%d item ids resolve to visible SPD icons %s" % [ids.size(), bad])
 
 
@@ -1107,65 +1139,226 @@ func test_icon_sizes(gs) -> void:
 		UIKit.make_theme(fs)
 		gs.new_game(); gs.add_mat("ration", 1); gs.add_mat("torch", 1)
 		gs.start_run("warrior", {}, "sewers", 3)
-		gs.run.pack["potion_toxic"] = 1; gs.run.pack["scroll_upgrade"] = 1
+		gs.run.pack["potion_toxic"] = 1; gs.run.pack["scroll_mapping"] = 1
 		gs.run.pack_gear.append({"uid": 9100, "id": "ring_tenacity", "lvl": 0, "cracked": false, "known": false})
-		var bp := VBoxContainer.new(); HeroPanels.backpack(bp, func(): pass)
+		var bp := VBoxContainer.new(); add_child(bp); HeroPanels.backpack(bp, func(): pass)
+		await get_tree().process_frame
 		var icons := bp.find_children("*", "PixelIcon", true, false)
 		if icons.size() < 2: bad.append("fs%d: only %d icons" % [fs, icons.size()])
 		for ic in icons:
 			if ic.cell_px < 32 or ic.custom_minimum_size.x < 32 or ic.scale_k() < 2: bad.append("fs%d %s" % [fs, ic.cell_px])
+		var pots := 0
+		for b in bp.find_children("*", "Button", true, false):
+			if not (b.text.contains("Potion") or b.text.contains("Scroll")): continue
+			if b.text.begins_with("Use "): continue
+			pots += 1
+			if b.size.y > UIKit.btn_height() * 1.25 or b.size.x <= b.size.y:
+				bad.append("fs%d '%s' %s" % [fs, b.text, b.size])
+		if pots < 2: bad.append("fs%d: %d potion buttons" % [fs, pots])
 		bp.free(); gs.end_run("abandon")
 	UIKit.make_theme(fs0)
-	check(bad.is_empty(), "backpack item icons are >= 32 px (2x) at every font size %s" % [bad.slice(0, 5)])
+	check(bad.is_empty(), "backpack item icons are >= 32 px and potion buttons stay one line %s" % [bad.slice(0, 5)])
 
-## Full Auto: decisions follow the documented heuristic and the setting persists.
+## Auto Battle plays ambushes and leaves every other card for the player. The setting still persists.
 func test_full_auto(gs) -> void:
-	print("[full auto]")
+	print("[auto battle]")
 	gs.new_game(); gs.add_mat("ration", 2); gs.add_mat("torch", 2)
 	gs.start_run("warrior", {"ration": 2, "torch": 2}, "sewers", 5)
-	var ht: int = gs.hero_stats("warrior").ht
 	var fight := Delve.combat_event(gs.run, Delve.rng_for(gs.run, 1), ["rat"])
-	check(Delve.auto_decide(gs, fight).act == "fight", "ambush -> fight")
-	var door := {"kind": "door", "door": {"a": {"text": "A", "kind": "combat", "mobs": ["rat"]}, "b": {"text": "B", "kind": "chest", "cost": {"iron_key": 99}, "reward": {}}}}
-	gs.run.hp = ht
-	check(Delve.auto_decide(gs, door).act == "door" and Delve.auto_decide(gs, door).side == "a", "healthy: take the fight door")
-	gs.run.hp = int(ht * 0.4)
-	check(Delve.auto_decide(gs, door).act == "ignore", "hurt: skip optional fights")
 	var garden: Dictionary = DB.specials.filter(func(x): return x.id == "sacrificial_fire")[0]
-	var d := Delve.auto_decide(gs, {"kind": "special", "special": garden})
-	check(d.act == "special" and (d.index == -1 or not garden.options[d.index].get("cost", {}).has("hp")), "hurt: no blood offerings")
-	gs.run.hp = int(ht * 0.2)
-	check(Delve.auto_decide(gs, {"kind": "floor_done"}).act == "stop", "HP < 30% at a floor end -> stop safely")
-	gs.run.hp = ht
-	check(Delve.auto_decide(gs, {"kind": "floor_done"}).act in ["search", "descend"], "healthy floor end -> search/descend")
-	gs.run.hp = int(ht * 0.4)
-	check(Delve.auto_decide(gs, {"kind": "campfire"}).act == "extract", "hurt at a campfire -> extract")
-	gs.run.hp = ht; gs.run.supplies.ration = 0
-	check(Delve.auto_decide(gs, {"kind": "campfire"}).act == "extract", "out of rations at a campfire -> extract")
-	gs.run.hp = 1; gs.run.supplies.potion_healing = 0
-	check(Delve.auto_should_stop(gs) != "", "exploring at 1 HP with no potions stops Full Auto")
+	var ds = load("res://scripts/ui/delve_screen.gd").new()
+	ds.running = true
+	var cards := [
+		{"kind": "door", "door": {"a": {"text": "A", "kind": "combat", "mobs": ["rat"]}, "b": {"text": "B", "kind": "chest", "cost": {}, "reward": {}}}},
+		{"kind": "special", "special": garden},
+		{"kind": "floor_done"},
+		{"kind": "campfire"},
+		{"kind": "backpack"},
+		{"kind": "talents"},
+	]
+	for card in cards:
+		ds.pending = card
+		ds._auto_tick(5.0)
+		check(ds.pending == card, "auto battle does not choose %s" % card.kind)
+	ds.pending = fight
+	ds._auto_tick(0.2)
+	check(ds.pending == fight, "an ambush stays up briefly before the fight starts")
+	ds.running = false
+	ds._auto_tick(5.0)
+	check(ds.pending == fight, "pause holds an ambush instead of starting the fight")
+	ds.free()
 	gs.settings.full_auto = true
 	gs.from_dict(JSON.parse_string(JSON.stringify(gs.to_dict())))
-	check(gs.settings.get("full_auto", false) == true, "Full Auto setting persists in the save")
+	check(gs.settings.get("full_auto", false) == true, "Auto Battle setting persists in the save")
+	var cs = load("res://scripts/ui/combat_screen.gd").new()
+	cs.setup(fight, func(_r): pass)
+	check(cs.auto, "Auto Battle starts the fight with auto battle on")
 	gs.settings.full_auto = false
-	# a whole auto run never needs a human: RunSim-style loop over auto_decide
+	var cs2 = load("res://scripts/ui/combat_screen.gd").new()
+	cs2.setup(fight, func(_r): pass)
+	check(not cs2.auto, "auto battle stays off when the toggle is off")
+	cs.free(); cs2.free()
 	gs.end_run("abandon")
+
+## Closing an encounter card sets it aside so the bag and settings work; the bar cannot skip it.
+func test_encounter_dismiss(gs) -> void:
+	print("[encounter dismiss]")
+	gs.new_game(); gs.add_mat("ration", 1); gs.add_mat("torch", 1)
+	gs.start_run("warrior", {"ration": 1, "torch": 1}, "sewers", 5)
+	gs.run.talent_prompted = true
+	var fight := Delve.combat_event(gs.run, Delve.rng_for(gs.run, 1), ["rat"])
+	var d = load("res://scripts/ui/delve_screen.gd").new()
+	d.pending = fight; d.running = true
+	add_child(d)
+	d._show_card()
+	check(_find_btn(d.card_host, "Close") != null and _find_btn(d.card_host, "Fight") != null, "ambush card has Close and Fight")
+	var prog := float(gs.run.progress)
+	d._dismiss_encounter()
+	check(d.pending.is_empty() and d._under.get("kind", "") == "combat", "Close sets the fight aside")
+	check(gs.run.get("pending_card", {}).get("kind", "") == "combat", "a closed fight stays in the save")
+	d._process(1.0)
+	check(is_equal_approx(float(gs.run.progress), prog) and d.pending.is_empty(), "the bar does not walk past a closed encounter")
+	d._open_panel("backpack")
+	check(d.pending.get("kind", "") == "backpack" and d._under.get("kind", "") == "combat", "the bag opens while a fight is waiting")
+	d._open_panel("settings")
+	check(d.pending.get("kind", "") == "settings" and d._under.get("kind", "") == "combat", "settings opens without dropping the fight")
+	d._close_panel()
+	check(d.pending.get("kind", "") == "combat" and d._under.is_empty(), "closing settings brings the fight back")
+	d._dismiss_encounter()
+	d._confirm_abandon()
+	check(d.pending.get("kind", "") == "confirm_abandon" and d._under.get("kind", "") == "combat", "abandon confirm keeps the fight")
+	d._cancel_abandon()
+	check(d.pending.get("kind", "") == "combat", "Keep delving returns to the fight")
+	d.queue_free()
+	gs.end_run("abandon")
+
+## After a fight, chest, or room, a window lists gains and losses and holds the bar until OK.
+func test_encounter_summary(gs) -> void:
+	print("[encounter summary]")
+	gs.new_game(); gs.add_mat("ration", 1); gs.add_mat("torch", 1)
+	gs.start_run("warrior", {"ration": 1, "torch": 1}, "sewers", 5)
+	gs.run.talent_prompted = true
+	var before := Delve.ledger(gs)
+	gs.run.hp -= 3
+	gs.pack_add("gold", 8)
+	var dlt: Dictionary = Delve.ledger_delta(before, Delve.ledger(gs))
+	check(dlt.got.has("+8 Gold") and dlt.lost.has("-3 HP"), "a ledger names gold gained and HP lost")
+	gs.run.pack = {"gold": 10}
+	gs.run.hp = int(before.hp)
+	var scr = load("res://scripts/ui/delve_screen.gd").new()
+	add_child(scr)
+	scr.running = true
+	scr._choose_door({"kind": "chest", "text": "Locked chest", "cost": {"gold": 3}, "reward": {"gold": 7, "item": "shortsword"}})
+	var txt := _node_text(scr.get_node("EncounterSummary"))
+	check(scr._summary_open() and _find_btn(scr, "OK") != null and txt.contains("Locked chest") and txt.contains("Got") and txt.contains("Lost") and txt.contains("-3 Gold") and txt.contains("+7 Gold") and txt.contains("Shortsword"), "chest window lists the cost and the find, with OK")
+	var prog := float(gs.run.progress)
+	scr._process(1.0)
+	check(is_equal_approx(float(gs.run.progress), prog), "the bar waits while the result window is open")
+	scr._accept_summary()
+	check(not scr._summary_open(), "OK closes the result window")
+	gs.run.hp = 20
+	gs.run.fights_won = 0
+	scr._after_fight({"kind": "combat", "mobs": ["rat"]}, {"won": true, "hp": 14, "loot": 5, "fallen_loot": 2, "xp": 1, "boss_killed": false, "kills": 1, "traps_found": 0, "trap_ids": [], "potions_used": 1}, {})
+	txt = _node_text(scr.get_node("EncounterSummary"))
+	check(txt.contains("Victory") and txt.contains("+5 Gold") and txt.contains("-6 HP") and txt.contains("-1 Potion of Healing") and txt.contains("+2 Gold on the next floor") and txt.contains("+1 XP"), "fight window lists loot, damage, a potion drunk, and fallen gold")
+	scr._accept_summary()
+	gs.settings.full_auto = true
+	scr._open_summary("Victory", PackedStringArray(), PackedStringArray())
+	scr._process(0.2)
+	check(scr._summary_open(), "auto battle leaves the result window up briefly")
+	scr._process(1.0)
+	check(not scr._summary_open(), "auto battle presses OK")
+	gs.settings.full_auto = false
+	gs.run.pack = {"gold": 6}
+	gs.run.hp = 12
+	scr._after_fight({"kind": "combat", "mobs": ["rat"]}, {"won": false, "hp": 0, "loot": 9, "fallen_loot": 0, "xp": 3, "boss_killed": false, "kills": 0, "traps_found": 0, "trap_ids": [], "potions_used": 0}, {})
+	txt = _node_text(scr.get_node("EncounterSummary"))
+	check(scr._summary_open() and not gs.run.is_empty() and txt.contains("Defeat") and txt.contains("-12 HP") and txt.contains("-6 Gold") and txt.contains("Shortsword") and not txt.contains("9 Gold"), "defeat window lists HP and the pack, and does not grant the fight's loot")
+	check(txt.contains("return to the stash"), "defeat window says supplies go home")
+	scr._process(2.0)
+	check(scr._summary_open(), "a defeat stays up until OK, even with auto battle off")
+	scr._accept_summary()
+	check(gs.run.is_empty() and gs.last_result == "death", "OK after a defeat ends the expedition")
+	scr.queue_free()
+
+## A reward toast emitted before the floor menu opens must sit in the card, above the buttons.
+func test_menu_toast(gs) -> void:
+	print("[menu toast]")
+	gs.new_game(); gs.add_mat("ration", 1); gs.add_mat("torch", 1)
+	gs.start_run("warrior", {"ration": 1, "torch": 1}, "sewers", 5)
+	gs.run.talent_prompted = true
+	var host := ToastHost.new()
+	var box := VBoxContainer.new(); host.toast_box = box; host.add_child(box)
+	var holder := Control.new(); holder.size = Vector2(484, 1188); add_child(holder)
+	holder.add_child(host)
+	var d = load("res://scripts/ui/delve_screen.gd").new(); d.main = host
+	holder.add_child(d); d.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT); d.size = holder.size
+	await get_tree().process_frame
+	check(not d.window_toast("exploring"), "toast stays floating when no menu is open")
+	var floater := UIKit.card(); floater.add_child(UIKit.label("Reward: Ash Wand")); box.add_child(floater)
+	d.pending = {"kind": "floor_done"}; d.apply_layout(true, holder.size)
+	for i in 3: await get_tree().process_frame
+	check(box.get_child_count() == 0, "opening the floor menu clears the floating toast")
+	var toast: Node = d.card_host.get_node_or_null("CardToast")
+	var descend = _find_btn(d.card_host, "Descend to floor %d" % (int(gs.run.floor) + 1))
+	var close = _find_btn(d.card_host, "Close")
+	check(toast != null and _node_text(toast).contains("Reward: Ash Wand"), "reward is shown inside the floor menu")
+	check(descend != null and close != null, "floor menu buttons stay")
+	if toast != null and descend != null and close != null:
+		var tr: Rect2 = toast.get_global_rect(); var dr: Rect2 = descend.get_global_rect(); var cr: Rect2 = close.get_global_rect()
+		check(tr.size.y > 2 and dr.size.y > 2 and cr.size.y > 2, "floor menu laid out (toast %s descend %s close %s)" % [tr, dr, cr])
+		check(not tr.intersects(dr) and not tr.intersects(cr) and tr.end.y <= cr.position.y + 1.0, "toast sits above the menu buttons, not over them")
+	d._show_card()
+	check(box.get_child_count() == 0 and _node_text(d.card_host.get_node_or_null("CardToast")).contains("Reward: Ash Wand"), "rebuilding the menu keeps the toast in the card")
+	check(d.window_toast("A hidden door! Secret cache: Ash Wand"), "a toast while the menu is open is taken")
+	d._show_card()
+	check(box.get_child_count() == 0 and _node_text(d.card_host.get_node("CardToast")).contains("A hidden door! Secret cache: Ash Wand"), "search result stays in the card after rebuild")
+	holder.queue_free()
+	gs.end_run("abandon")
+
+func _node_text(n: Node) -> String:
+	if n == null: return ""
+	var s := ""
+	if n is Label: s = n.text
+	for c in n.get_children(): s += " " + _node_text(c)
+	return s
+
+class ToastHost:
+	extends Control
+	var toast_box: Node
+	func tip(_id: String) -> void:
+		pass
+	func tip_open() -> bool:
+		return false
+
+func _find_btn(n: Node, text: String):
+	if n is Button and n.text == text: return n
+	for ch in n.get_children():
+		var r = _find_btn(ch, text)
+		if r: return r
+	return null
 
 ## Log lines carry SPD colours; key moments are logged; the alarm sound is never played.
 func test_log_and_sounds(gs) -> void:
 	print("[log + sounds]")
 	gs.new_game(); gs.add_mat("ration", 1); gs.add_mat("torch", 1)
 	gs.start_run("warrior", {}, "sewers", 5)
-	var n0: int = gs.log_serial
 	for i in 30: Delve.advance(gs, 1.0)
 	var joined := " ".join(gs.messages)
-	check(gs.log_serial > n0 and joined.contains("Picked up"), "gathering is logged")
+	check(int(gs.run.haul.get("gold", 0)) == 7 and int(gs.run.haul.get("dew", 0)) == 2, "gathering counts on the delve haul")
+	check(gs.haul_line().begins_with("Collected this delve:") and gs.haul_line().contains("7 Gold") and gs.haul_line().contains("2 Dew Drop"), "haul line names gold and materials")
+	check(not joined.contains("Picked up"), "small pickups stay out of the log")
 	Delve.descend(gs)
+	check(int(gs.run.haul.get("iron_ore", 0)) == 1 and not " ".join(gs.messages).contains("iron ore"), "floor ore joins the haul instead of a log line")
+	var g_floor: int = int(gs.run.haul.gold)
+	for i in 8: Delve.advance(gs, 1.0)
+	check(int(gs.run.haul.gold) == g_floor + 2, "haul keeps counting across floors")
 	check(gs.messages[-1].begins_with("You descend") or " ".join(gs.messages).contains("You descend to floor 2"), "floor change is logged")
 	var res := {"won": true, "hp": int(gs.run.hp) - 3, "loot": 5, "fallen_loot": 0, "xp": 2, "boss_killed": false, "kills": 2, "traps_found": 1, "trap_ids": []}
 	Delve.apply_fight_result(gs, {"kind": "combat", "mobs": ["rat", "rat"]}, res, {})
 	var all := " ".join(gs.messages)
 	check(all.contains("Victory: 2 kills, took 3 damage") and all.contains("Spotted 1 trap"), "fight damage/kills/traps logged")
+	check(int(gs.run.haul.gold) == 14 and Delve.pay(gs, {"gold": 3}) and int(gs.run.pack.gold) == 11 and int(gs.run.haul.gold) == 14, "fight gold counts, and spending it does not shrink the haul")
 	gs.run.torch = 10.0; gs.run.supplies.torch = 0
 	Delve.advance(gs, 0.5)
 	check(" ".join(gs.messages).contains("torch is burning low"), "torch warning logged")
@@ -1178,6 +1371,13 @@ func test_log_and_sounds(gs) -> void:
 	for f in ["res://scripts/ui/delve_screen.gd", "res://scripts/ui/grid_view.gd", "res://scripts/ui/combat_screen.gd", "res://scripts/core/delve.gd"]:
 		if FileAccess.get_file_as_string(f).contains('Sfx.play("alert")'): used.append(f)
 	check(used.is_empty(), "no code plays the alarm %s" % [used])
+	var snap: int = int(gs.run.haul.gold)
+	gs.from_dict(JSON.parse_string(JSON.stringify(gs.to_dict())))
+	check(int(gs.run.haul.gold) == snap and gs.haul_line().contains("%d Gold" % snap), "haul survives save/load")
+	var old: Dictionary = JSON.parse_string(JSON.stringify(gs.to_dict()))
+	old.run.erase("haul"); old.run.pack = {"gold": 9, "dew": 1}
+	gs.from_dict(old)
+	check(int(gs.run.haul.gold) == 9 and int(gs.run.haul.dew) == 1, "an old save seeds the haul from the pack")
 	gs.end_run("abandon")
 
 ## Scrolls of Upgrade in the pack at death are owed (stacking) and return on the next boss kill by any hero.

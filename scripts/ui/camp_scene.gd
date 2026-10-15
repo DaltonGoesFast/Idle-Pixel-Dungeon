@@ -58,6 +58,38 @@ func spot_rect(s: Array) -> Rect2:
 	var feet := Vector2(size.x * float(s[4]), size.y * float(s[5]) - UIKit.font_size * 1.1)
 	return Rect2((feet - Vector2(sz.x / 2.0, sz.y)).floor(), sz)
 
+func _spot_label(s: Array) -> String:
+	var lbl: String = s[6]
+	if FAC.has(s[0]): lbl += " Lv%d" % GameState.facility_level(FAC[s[0]])
+	return lbl
+
+## Dark name plate drawn under the sprite. It has to be part of the click target: the plate hangs
+## below the sprite padding, and long names (Enchanter, Alchemy) are wider than the sprite.
+func label_rect(s: Array) -> Rect2:
+	var sr := spot_rect(s)
+	var fs := UIKit.font_px(UIKit.font_size * 0.85)
+	var kk := k()
+	var font := get_theme_default_font()
+	var ts := font.get_string_size(_spot_label(s), HORIZONTAL_ALIGNMENT_LEFT, -1, fs) if font else Vector2(fs * 8.0, fs)
+	var lp := Vector2(sr.get_center().x - ts.x / 2.0, sr.end.y + fs * 0.2).floor()
+	return Rect2(lp - Vector2(kk * 2, 0), Vector2(ts.x + kk * 4, fs * 1.15))
+
+## Which facility a point hits. The sprite and its name plate both count; a little padding is for fingers.
+## When two pads overlap, the point on a sprite or plate wins over padding, then the nearer one.
+func spot_at(p: Vector2) -> String:
+	var best := ""
+	var best_d := INF
+	var pad := UIKit.font_size * 0.35
+	for s in SPOTS:
+		var visual := spot_rect(s).merge(label_rect(s))
+		if not visual.grow(pad).has_point(p): continue
+		var d := visual.get_center().distance_squared_to(p)
+		if not visual.has_point(p): d += 1.0e8
+		if d < best_d:
+			best_d = d
+			best = s[0]
+	return best
+
 func _draw() -> void:
 	var kk := k(); var cs := 16.0 * kk
 	var sky_h := floorf(size.y * 0.28)
@@ -125,12 +157,10 @@ func _draw() -> void:
 				var frame: int = fl[int((t + s[4] * 3.0) * float(an[0])) % fl.size()]
 				draw_texture_rect_region(_sprite(s[1]), sr, Rect2(frame * fw, 0, fw, s[3]))
 		# name plate: SPD-ish yellow text with a dark backing; facility level as "Lv2"
-		var lbl: String = s[6]
-		if FAC.has(s[0]): lbl += " Lv%d" % GameState.facility_level(FAC[s[0]])
-		var ts := font.get_string_size(lbl, HORIZONTAL_ALIGNMENT_LEFT, -1, fs)
-		var lp := Vector2(sr.get_center().x - ts.x / 2.0, sr.end.y + fs * 0.2).floor()
-		draw_rect(Rect2(lp - Vector2(kk * 2, 0), Vector2(ts.x + kk * 4, fs * 1.15)), Color(0, 0, 0, 0.55))
-		draw_string(font, lp + Vector2(0, fs * 0.9), lbl, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color("ffff44") if _has_news(s[0]) else Color.WHITE)
+		var lbl := _spot_label(s)
+		var lr := label_rect(s)
+		draw_rect(lr, Color(0, 0, 0, 0.55))
+		draw_string(font, lr.position + Vector2(kk * 2, fs * 0.9), lbl, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color("ffff44") if _has_news(s[0]) else Color.WHITE)
 		if _has_news(s[0]):   # "!" badge: something ready (identified item, affordable upgrade)
 			var bp := Vector2(sr.end.x - kk * 2, sr.position.y - kk * 2)
 			draw_circle(bp, kk * 3.5, Color("ff5a2a")); draw_string(font, bp + Vector2(-fs * 0.18, fs * 0.33), "!", HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color.WHITE)
@@ -144,6 +174,6 @@ func _has_news(page: String) -> bool:
 func _gui_input(e: InputEvent) -> void:
 	var press: bool = (e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT) or (e is InputEventScreenTouch and e.pressed)
 	if not press: return
-	for s in SPOTS:
-		if spot_rect(s).grow(UIKit.font_size * 0.8).has_point(e.position):
-			hot = s[0]; Sfx.play("click"); picked.emit(s[0]); accept_event(); return
+	var page := spot_at(e.position)
+	if page == "": return
+	hot = page; Sfx.play("click"); picked.emit(page); accept_event()

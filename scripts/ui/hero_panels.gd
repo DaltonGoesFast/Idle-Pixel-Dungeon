@@ -98,11 +98,24 @@ static func backpack(parent: Control, refresh: Callable, in_combat := false, on_
 		var cons: Array = GameState.unknown_mats().filter(func(k): return int(run.pack.get(k, 0)) > 0)
 		if not cons.is_empty():
 			v.add_child(UIKit.label("Potions & scrolls", 0.9, Color("c9a96e")))
-			var cf := HFlowContainer.new(); v.add_child(cf)
+			var cf := HFlowContainer.new()
+			cf.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+			cf.add_theme_constant_override("h_separation", int(UIKit.font_size * 0.5))
+			cf.add_theme_constant_override("v_separation", int(UIKit.font_size * 0.3))
+			v.add_child(cf)
 			for k in cons:
+				# A wrapping button with no width of its own reports a few pixels wide and hundreds tall
+				# (the red columns in the backpack). Keep the label on one line beside the icon.
 				var pr := UIKit.hbox(); cf.add_child(pr)
-				pr.add_child(UIKit.icon(k))   # integer-scaled PixelIcon, not a 1x Button icon (DECISIONS #98)
+				pr.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+				pr.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+				var ic := UIKit.icon(k)   # integer-scaled PixelIcon, not a 1x Button icon (DECISIONS #98)
+				ic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+				pr.add_child(ic)
 				var cb := UIKit.button("%s x%d" % [DB.mat_name(k), int(run.pack[k])], func(): GameState.delve_use_pack(k); refresh.call())
+				cb.autowrap_mode = TextServer.AUTOWRAP_OFF
+				cb.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+				cb.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 				cb.tooltip_text = DB.materials[k].desc if GameState.is_mat_known(k) else "Unidentified - use it to find out."
 				pr.add_child(cb)
 	# carried

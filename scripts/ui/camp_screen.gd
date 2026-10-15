@@ -168,7 +168,24 @@ func close_page() -> void:
 func _make_window(title: String, icon_name: String, close_cb: Callable, w_frac := 0.96, h_frac := 0.92) -> Array:
 	var layer := Control.new(); layer.set_anchors_and_offsets_preset(PRESET_FULL_RECT); add_child(layer)
 	var dim := ColorRect.new(); dim.color = Color(0, 0, 0, 0.6); dim.set_anchors_and_offsets_preset(PRESET_FULL_RECT); layer.add_child(dim)
-	dim.gui_input.connect(func(e): if e is InputEventMouseButton and e.pressed: close_cb.call())
+	# The click that opened the window can land on this dimmer (Forge and Alchemy sit left of the
+	# centred panel on a wide screen) and would close it in the same gesture. Ignore input until
+	# that button is up; the next press outside the panel dismisses.
+	var block := [true]
+	var unblock: Callable
+	unblock = func():
+		if not is_instance_valid(dim): return
+		if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
+			unblock.call_deferred()
+			return
+		block[0] = false
+	unblock.call_deferred()
+	dim.gui_input.connect(func(e: InputEvent):
+		var click: bool = (e is InputEventMouseButton and e.button_index == MOUSE_BUTTON_LEFT and e.pressed) or (e is InputEventScreenTouch and e.pressed)
+		if not click: return
+		dim.accept_event()
+		if block[0]: return
+		close_cb.call())
 	var pc := PanelContainer.new(); layer.add_child(pc)
 	var vs := get_viewport_rect().size
 	var w := minf(vs.x * w_frac, UIKit.font_size * 36.0); var h := vs.y * h_frac
@@ -235,9 +252,14 @@ func info(id: String, title: String, lines: Array, actions: Array = []) -> void:
 	var top := UIKit.hbox(body); var ic := UIKit.icon(id, UIKit.font_size * 3); top.add_child(ic)
 	var tv := UIKit.vbox(top); tv.size_flags_horizontal = SIZE_EXPAND_FILL
 	for l in lines:
-		if l is Control and l.has_meta("wide"): body.add_child(l)   # quantity pickers span the window
-		elif l is Control: tv.add_child(l)
-		else: tv.add_child(UIKit.label(String(l), 0.9))
+		if typeof(l) == TYPE_OBJECT:
+			# a line may be a node the last popup freed (recipe slots used to keep the cost row)
+			if not is_instance_valid(l) or (l as Node).get_parent() != null: continue
+			if l is Control and (l as Control).has_meta("wide"): body.add_child(l)   # quantity pickers span the window
+			elif l is Control: tv.add_child(l)
+			else: tv.add_child(UIKit.label(str(l), 0.9))
+		else:
+			tv.add_child(UIKit.label(String(l), 0.9))
 	for a in actions:   # [text, callable, reason]
 		body.add_child(UIKit.action(a[0], func(): a[1].call(); _close_info(), a[2]))
 	# fit the popup to its content
@@ -564,14 +586,20 @@ func _recipe_slots(v: VBoxContainer, id: String, title: String) -> void:
 	for r in rs:
 		var out: String = r.get("out", r.get("out_mat", ""))
 		var why: String = GameState.can_craft(id, r.id)
-		var lines: Array = [cost_row(r.cost)]
-		var od: Dictionary = DB.item(out) if r.has("out") else DB.materials.get(out, {})
-		if od.has("desc"): lines.append(od.desc)
-		if r.has("out") and od.has("dmg"): lines.append("Dmg %d  Str %d" % [od.dmg, od.get("str", 10)])
-		if r.has("out") and od.has("dr"): lines.append("DR %d  Str %d" % [od.dr, od.get("str", 10)])
 		var have := "" if r.has("out") else str(GameState.mat(out))
-		g.add_child(item_slot(out, have, "", func(): _recipe_info(id, r, out, lines, why),
+		# build the cost row on click: the popup frees it when you click away, so a stored node is dead next time
+		g.add_child(item_slot(out, have, "", func(): _recipe_info(id, r, out, _recipe_lines(r), GameState.can_craft(id, r.id)),
 			Color.WHITE if why == "" else Color(1, 1, 1, 0.45), "6bff6b" if why == "" else ""))
+
+## Fresh cost row + stat lines. Never keep the Control: closing the popup frees it.
+func _recipe_lines(r: Dictionary) -> Array:
+	var out: String = r.get("out", r.get("out_mat", ""))
+	var lines: Array = [cost_row(r.cost)]
+	var od: Dictionary = DB.item(out) if r.has("out") else DB.materials.get(out, {})
+	if od.has("desc"): lines.append(od.desc)
+	if r.has("out") and od.has("dmg"): lines.append("Dmg %d  Str %d" % [od.dmg, od.get("str", 10)])
+	if r.has("out") and od.has("dr"): lines.append("DR %d  Str %d" % [od.dr, od.get("str", 10)])
+	return lines
 
 ## Recipe / supply info with a quantity picker (Forge "Make", Guild "Buy").
 func _recipe_info(id: String, r: Dictionary, out: String, lines: Array, why: String) -> void:
@@ -580,6 +608,18 @@ func _recipe_info(id: String, r: Dictionary, out: String, lines: Array, why: Str
 	var rid: String = r.id
 	info(out, r.name, lines + [qty_picker(GameState.craft_max(id, rid), func(n): return GameState.cost_mul(cost, n), verb,
 		func(n): GameState.craft_n(id, rid, n), why)])
+
+## Fresh lines each open. The cost row is a Control the popup frees on close.
+func _open_gear_forge(uid: int) -> void:
+	var g := GameState.gear_by_uid(uid)
+	if g.is_empty(): return
+	var cracked: bool = g.get("cracked", false)
+	var cost: Dictionary = GameState.repair_cost(uid) if cracked else GameState.item_upgrade_cost(uid)
+	var why: String = ("" if GameState.can_afford(cost) else "need " + GameState.cost_text(cost)) if cracked else GameState.can_upgrade_item(uid)
+	var lines := gear_lines(g)
+	if not cracked and g.known: lines.push_front("+%d  ->  +%d" % [g.lvl, g.lvl + 1])
+	lines.push_front(cost_row(cost))
+	_gear_forge_info(g, lines, why)
 
 ## Forge gear info: repair (single) or upgrade N levels with a quantity picker.
 func _gear_forge_info(g: Dictionary, lines: Array, why: String) -> void:
@@ -655,10 +695,8 @@ func _page_facility(page: String, id: String) -> void:
 			if not (t in ["weapon", "armor"]) and not (cracked and t in ["ring", "artifact"]): continue
 			var cost: Dictionary = GameState.repair_cost(g.uid) if cracked else GameState.item_upgrade_cost(g.uid)
 			var why: String = ("" if GameState.can_afford(cost) else "need " + GameState.cost_text(cost)) if cracked else GameState.can_upgrade_item(g.uid)
-			var lines := gear_lines(g)
-			if not cracked and g.known: lines.push_front("+%d  ->  +%d" % [g.lvl, g.lvl + 1])
-			lines.push_front(cost_row(cost))
-			g2.add_child(item_slot(gear_icon(g), "", "+%d" % g.lvl if g.lvl > 0 and g.known else "", func(): _gear_forge_info(g, lines, why),
+			var uid: int = int(g.uid)
+			g2.add_child(item_slot(gear_icon(g), "", "+%d" % g.lvl if g.lvl > 0 and g.known else "", func(): _open_gear_forge(uid),
 				Color(1, 0.55, 0.5) if cracked else Color.WHITE, "6bff6b" if why == "" else "", g))
 	if id == "enchanter":
 		v.add_child(UIKit.header("Identifying (%d min each)" % int(GameState.identify_seconds() / 60)))

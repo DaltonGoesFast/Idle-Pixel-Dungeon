@@ -1,5 +1,7 @@
 # Godot
 .godot/
+# Local Shattered Pixel Dungeon checkout (reference only; see reference/.gdignore)
+/reference/shattered-pixel-dungeon/
 /android/
 export_credentials.cfg
 # Builds / signing (never commit keys)

@@ -41,6 +41,8 @@ func setup(ev: Dictionary, done: Callable, saved := {}) -> void:
 		combat._log("(fight resumed)")
 	potions = int(run.supplies.get("potion_healing", 0))
 	heal = GameState.potion_heal(run.hero)
+	# Auto Battle plays the fight itself: the combat Auto toggle starts on (the player can still turn it off).
+	if bool(GameState.settings.get("full_auto", false)): auto = true
 
 func _ready() -> void:
 	split = BoxContainer.new(); add_child(split); split.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
@@ -90,7 +92,7 @@ func _process(d: float) -> void:
 	if main and main.tip_open(): return
 	if finished and GameState.settings.get("full_auto", false):
 		_fin_t += d
-		if _fin_t > 1.2: _fin_t = -999.0; _finish()   # Full Auto presses Continue
+		if _fin_t > 1.2: _fin_t = -999.0; _finish()   # Auto Battle presses Continue
 		return
 	if auto and not finished:
 		_auto_t += d

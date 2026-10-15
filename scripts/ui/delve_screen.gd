@@ -39,6 +39,7 @@ func apply_layout(p: bool, s: Vector2) -> void:
 	# corridor height: a multiple of 5 tile rows; shorter when the inner screen is wide
 	scene.custom_minimum_size.y = floorf(minf(s.y * (0.24 if p else 0.26), UIKit.font_size * (10.0 if p else 9.0)) / 5.0) * 5.0
 	_refresh_controls(); _show_card()
+	if _summary_on: _build_summary()
 
 func on_shown() -> void:
 	if pending.is_empty() and GameState.run.has("pending_card"): pending = GameState.run.pending_card
@@ -50,16 +51,26 @@ var _save_t := 0.0
 func _process(delta: float) -> void:
 	var run: Dictionary = GameState.run
 	if run.is_empty(): return
+	_expire_card_toasts()
 	_save_t += delta
 	if _save_t > 3.0:
 		_save_t = 0.0; SaveSystem.save_game()
 	if main and main.tip_open(): _refresh(); return
-	if pending.is_empty() and not run.get("overflow", []).is_empty():
+	if _summary_on:
+		# Auto Battle presses OK after the same beat an ambush waits. A defeat stays until you tap OK.
+		if not _summary_fatal and GameState.settings.get("full_auto", false):
+			_summary_t += delta
+			if _summary_t >= AUTO_DELAY:
+				_accept_summary(); return
+		_refresh(); return
+	var held := _is_encounter(_under)
+	if pending.is_empty() and not held and not run.get("overflow", []).is_empty():
 		_open_panel("backpack")   # full-pack loot needs a decision before exploring on
-	elif pending.is_empty() and running and GameState.talent_points_total_free(run.hero) > 0 and not run.get("talent_prompted", false):
+	elif pending.is_empty() and not held and running and GameState.talent_points_total_free(run.hero) > 0 and not run.get("talent_prompted", false):
 		run.talent_prompted = true; _open_panel("talents")   # level-up: offer the new talent once
 	if GameState.settings.get("full_auto", false): _auto_tick(delta)
-	if running and pending.is_empty():
+	# A closed encounter is still unresolved: the bar must not walk past it.
+	if running and pending.is_empty() and not _is_encounter(_under):
 		if Delve.floor_done(run):
 			_floor_cleared()
 		else:
@@ -68,50 +79,27 @@ func _process(delta: float) -> void:
 				pending = ev; _encounter_cue(ev); _show_card(); SaveSystem.save_game()
 	_refresh()
 
-# ---------------------------------------------------------------- Full Auto (DECISIONS #102)
+# ---------------------------------------------------------------- Auto Battle (DECISIONS #105)
 var _auto_t := 0.0
-const AUTO_DELAY := 0.8     # seconds a card stays visible before Full Auto acts (so you can watch)
+const AUTO_DELAY := 0.8     # seconds an ambush stays visible before Auto Battle starts the fight
 
 func set_full_auto(on: bool) -> void:
 	GameState.settings.full_auto = on
-	GameState.log_line("Auto: Full Auto %s." % ("on" if on else "off"), "auto")
+	GameState.log_line("Auto battle %s." % ("on" if on else "off"), "auto")
 	if on: running = true
 	SaveSystem.save_game(); _refresh_controls(); _show_card()
 
+## Plays ambushes only. Doors, rooms, floor ends, campfires, backpack, and talents wait for the player.
 func _auto_tick(delta: float) -> void:
-	var run: Dictionary = GameState.run
-	if pending.is_empty():
-		var why := Delve.auto_should_stop(GameState)
-		if why != "": set_full_auto(false); running = false; GameState.say("Auto: stopped - %s." % why, "warning"); _refresh_controls(); return
-		running = true
+	if pending.get("kind", "") != "combat":
+		_auto_t = 0.0
 		return
+	if not running: return
 	_auto_t += delta
 	if _auto_t < AUTO_DELAY: return
 	_auto_t = 0.0
-	match pending.kind:
-		"backpack":
-			while not run.get("overflow", []).is_empty(): GameState.resolve_overflow(-1)
-			GameState.log_line("Auto: dropped the least valuable item.", "auto"); _close_panel()
-		"talents":
-			GameState.auto_pick_talents(run.hero); GameState.log_line("Auto: picked talents.", "auto"); _close_panel()
-		"settings", "confirm_abandon": pass
-		_: auto_act(Delve.auto_decide(GameState, pending))
-
-## Carry out one Full Auto decision on the open card (also used by tests).
-func auto_act(d: Dictionary) -> void:
-	GameState.log_line("Auto: " + String(d.why), "auto")
-	match d.act:
-		"fight": _fight(pending, {})
-		"door": _choose_door(pending.door[d.side])
-		"special":
-			if int(d.index) >= 0: _special_option(pending.special.options[int(d.index)])
-			else: pending = {}; _show_card()
-		"ignore": pending = {}; _show_card()
-		"search": GameState.log_line(Delve.search_floor(GameState)); _show_card()
-		"descend": Sfx.play("descend"); Delve.descend(GameState); pending = {}; main.play_floor_music(); _show_card()
-		"deeper": Sfx.play("descend"); Delve.continue_deeper(GameState); pending = {}; main.play_floor_music(); _show_card()
-		"extract": GameState.end_run("extract"); main.show_camp()
-		"stop": set_full_auto(false); running = false; GameState.say("Auto: stopped - %s." % d.why, "warning")
+	GameState.log_line("Auto: fight %s." % _mob_names(pending.get("mobs", [])), "auto")
+	_fight(pending, {})
 
 ## A soft cue when a card opens (the SPD alarm is never used, DECISIONS #100).
 func _encounter_cue(ev: Dictionary) -> void:
@@ -125,9 +113,13 @@ func speed_mult() -> float:
 
 var _log_box: VBoxContainer
 var _log_serial := -1
+var _haul_label: Label
+var _haul_text := ""
 const LOG_LINES := 8
 ## SPD-coloured log under the bar; rebuilt only when a line is added.
+## The haul line stays pinned above it and updates in place as gold and materials come in.
 func _fill_log() -> void:
+	_sync_haul()
 	if not is_instance_valid(_log_box) or _log_serial == GameState.log_serial: return
 	_log_serial = GameState.log_serial
 	UIKit.clear(_log_box)
@@ -135,6 +127,14 @@ func _fill_log() -> void:
 	for i in range(maxi(0, msgs.size() - LOG_LINES), msgs.size()):
 		var k: String = kinds[i] if i < kinds.size() else "info"
 		_log_box.add_child(UIKit.label(msgs[i], 0.8, GameState.LOG_COLORS.get(k, Color("bdb3a0"))))
+
+func _sync_haul() -> void:
+	if not is_instance_valid(_haul_label): return
+	var t := GameState.haul_line()
+	if t == _haul_text: return
+	_haul_text = t
+	_haul_label.text = t
+	_haul_label.visible = t != ""
 
 var _stats_cache := {}
 var _stats_key := ""
@@ -194,11 +194,15 @@ func _refresh_controls() -> void:
 	if controls == null: return
 	UIKit.clear(controls)
 	var w := UIKit.font_size * 7.0
-	var b1 := UIKit.button("Pause" if running else "Resume", func(): running = not running; _refresh_controls()); b1.custom_minimum_size.x = w
+	var b1 := UIKit.button("Pause" if running else "Resume", func():
+		if not running and pending.is_empty() and _is_encounter(_under):
+			running = true; _restore_encounter(); return   # Resume reopens the waiting encounter, it does not skip it
+		running = not running; _refresh_controls()); b1.custom_minimum_size.x = w
 	var b2 := UIKit.button("Speed x3" if not fast else "Speed x1", func(): fast = not fast; _refresh_controls()); b2.custom_minimum_size.x = w
 	UIKit.as_toolbar(b1, "sleep" if running else "arrow"); UIKit.as_toolbar(b2, "busy")
 	var fa: bool = GameState.settings.get("full_auto", false)
-	var b0 := UIKit.button("Full Auto: ON" if fa else "Full Auto", func(): set_full_auto(not GameState.settings.get("full_auto", false))); b0.custom_minimum_size.x = w
+	var b0 := UIKit.button("Auto Battle: ON" if fa else "Auto Battle", func(): set_full_auto(not GameState.settings.get("full_auto", false)), true, "Plays fights for you. Doors, rooms, and campfires still wait.")
+	b0.custom_minimum_size.x = w * 1.6
 	UIKit.as_toolbar(b0, "busy"); b0.name = "FullAuto"
 	controls.add_child(b1); controls.add_child(b2); controls.add_child(b0)
 	if int(GameState.run.get("supplies", {}).get("scroll_passage", 0)) > 0:
@@ -215,22 +219,53 @@ func _refresh_controls() -> void:
 	var b4 := UIKit.button("Abandon run", _confirm_abandon); b4.custom_minimum_size.x = w
 	UIKit.as_toolbar(b4, "exit"); controls.add_child(b4)
 
-## Backpack / Talents cards pause the bar; closing resumes it.
-## Opening over an encounter card (door, campfire...) remembers it and brings it back on close.
+## Backpack / Talents / Settings pause the bar; closing brings back whatever encounter was open.
+## Closing an encounter card only sets it aside (`_under`) so the bag and settings stay reachable.
 var _under := {}
+
+func _is_encounter(p: Dictionary) -> bool:
+	return p.get("kind", "") in ["combat", "door", "special", "floor_done", "campfire"]
+
 func _open_panel(kind: String) -> void:
-	if not pending.is_empty() and pending.kind == "combat": return
-	if not pending.is_empty() and not (pending.kind in ["backpack", "talents", "settings"]): _under = pending
+	if _is_encounter(pending): _under = pending
 	running = false; pending = {"kind": kind}; _refresh_controls(); _show_card()
-	if main:
-		for t in main.toast_box.get_children(): t.queue_free()
 
 func _close_panel() -> void:
 	pending = _under; _under = {}
 	running = pending.is_empty(); _refresh_controls(); _show_card()
 
+## Hide the encounter card without resolving it. The bar stays put until it is dealt with.
+func _dismiss_encounter() -> void:
+	if not _is_encounter(pending): return
+	_under = pending; pending = {}
+	_refresh_controls(); _show_card()
+
+func _restore_encounter() -> void:
+	if not _is_encounter(_under): return
+	pending = _under; _under = {}
+	_refresh_controls(); _show_card()
+
+func _encounter_name(p: Dictionary) -> String:
+	match p.get("kind", ""):
+		"combat":
+			if p.get("boss", false) and not p.get("mobs", []).is_empty(): return DB.mobs[p.mobs[0]].name
+			return "Ambush"
+		"door": return "The doors"
+		"special": return String(p.get("special", {}).get("title", "The room"))
+		"floor_done": return "The stairs"
+		"campfire": return "The campfire"
+		_: return "The encounter"
+
+func _add_close(v: VBoxContainer) -> void:
+	v.add_child(UIKit.secondary(UIKit.button("Close", _dismiss_encounter)))
+
 func _confirm_abandon() -> void:
-	pending = {"kind": "confirm_abandon"}; _show_card()
+	if _is_encounter(pending): _under = pending
+	running = false; pending = {"kind": "confirm_abandon"}; _show_card()
+
+func _cancel_abandon() -> void:
+	pending = _under; _under = {}
+	running = pending.is_empty(); _refresh_controls(); _show_card()
 
 # ------------------------------------------------------------ cards
 func _card(title_text: String, body: String) -> VBoxContainer:
@@ -244,13 +279,21 @@ func _card(title_text: String, body: String) -> VBoxContainer:
 func _show_card() -> void:
 	if card_host == null: return
 	UIKit.clear(card_host)
-	# remember the open card in the save (an app kill must not skip an encounter)
+	# remember the open card in the save (an app kill must not skip an encounter, even one set aside)
 	if not GameState.run.is_empty():
-		if pending.is_empty() or pending.kind in ["confirm_abandon", "settings", "backpack", "talents"]: GameState.run.erase("pending_card")
-		else: GameState.run.pending_card = pending
+		var remembered := pending if _is_encounter(pending) else (_under if _is_encounter(_under) else {})
+		if remembered.is_empty(): GameState.run.erase("pending_card")
+		else: GameState.run.pending_card = remembered
 	if pending.is_empty():
-		var hint := "Exploring... encounters every ~20-25%." if running else "Paused."
+		_card_toasts.clear()
+		if _is_encounter(_under):
+			card_host.add_child(UIKit.label("%s is waiting." % _encounter_name(_under), 0.95, Color("ffd27a")))
+			card_host.add_child(UIKit.button("Return to encounter", _restore_encounter))
+		var hint := "The bar holds until you deal with the encounter." if _is_encounter(_under) else ("Exploring... encounters every ~20-25%." if running else "Paused.")
 		card_host.add_child(UIKit.label(hint, 0.9, Color("9a8f7c")))
+		_haul_label = UIKit.label("", 0.8, GameState.LOG_COLORS.positive)
+		_haul_text = "\t"
+		card_host.add_child(_haul_label)
 		_log_box = UIKit.vbox(card_host); _log_serial = -1; _fill_log()
 		return
 	if main and pending.kind in ["door", "special", "floor_done", "campfire"]: main.tip(pending.kind)
@@ -273,7 +316,9 @@ func _show_card() -> void:
 		"confirm_abandon":
 			var v := _card("Abandon the expedition?", "Everything in your pack is lost. Unused supplies return to the stash.")
 			v.add_child(UIKit.button("Abandon", func(): GameState.end_run("abandon"); main.show_camp()))
-			v.add_child(UIKit.button("Keep delving", func(): pending = {}; _show_card()))
+			v.add_child(UIKit.button("Keep delving", _cancel_abandon))
+	_take_floating_toast()
+	_mount_card_toast()
 
 func _mob_names(ids: Array) -> String:
 	return ", ".join(ids.map(func(m): return DB.mobs[m].name))
@@ -281,9 +326,11 @@ func _mob_names(ids: Array) -> String:
 func _card_combat() -> void:
 	var boss: bool = pending.get("boss", false)
 	var v := _card("BOSS: " + DB.mobs[pending.mobs[0]].name if boss else "Ambush!", "You face: " + _mob_names(pending.mobs))
+	_add_close(v)
 	v.add_child(UIKit.button("Fight", func(): _fight(pending, {})))
 
 func _fight(ev: Dictionary, reward: Dictionary, saved := {}) -> void:
+	_under = {}
 	GameState.run.erase("pending_card")
 	GameState.run.active_fight = {"event": ev, "reward": reward, "combat": saved}
 	main.start_combat(ev, func(res: Dictionary): _after_fight(ev, res, reward), saved)
@@ -296,17 +343,28 @@ func resume_fight() -> void:
 
 func _after_fight(ev: Dictionary, res: Dictionary, reward: Dictionary) -> void:
 	pending = {}
+	var before := Delve.ledger(GameState)
 	var lvl: int = GameState.heroes[GameState.run.hero].level
 	if not Delve.apply_fight_result(GameState, ev, res, reward):
 		Sfx.play("death")
-		GameState.end_run("death"); main.show_camp(); return
+		if main: main.end_combat()
+		var loss: Dictionary = Delve.defeat_changes(GameState, before, res)
+		_open_summary("Defeat", loss.got, loss.lost, _defeat_ok, true, loss.note)
+		return
 	if GameState.heroes[GameState.run.hero].level > lvl:
 		Sfx.play("levelup"); GameState.run.talent_prompted = false
-	main.end_combat()
+	var gain := Delve.fight_changes(before, Delve.ledger(GameState), res)
+	if main: main.end_combat()
+	_open_summary("Victory", gain.got, gain.lost)
+
+func _defeat_ok() -> void:
+	GameState.end_run("death")
+	if main: main.show_camp()
 
 func _card_door() -> void:
 	var d: Dictionary = pending.door
 	var v := _card("Two doors...", "Choose your path.")
+	_add_close(v)
 	for side in ["a", "b"]:
 		var o: Dictionary = d[side]
 		var cost: Dictionary = o.get("cost", {})
@@ -324,16 +382,23 @@ func _choose_door(o: Dictionary) -> void:
 			var ev := Delve.combat_event(GameState.run, Delve.rng_for(GameState.run, 77), o.mobs)
 			_fight(ev, o.get("reward", {}))
 		"chest":
+			var before := Delve.ledger(GameState)
 			if Delve.pay(GameState, o.get("cost", {})):
+				var mid := Delve.ledger(GameState)
 				Sfx.play("unlock")
 				GameState.say("Chest: " + Delve.reward(GameState, o.reward))
-			pending = {}; _show_card(); GameState.touch()
+				var after := Delve.ledger(GameState)
+				pending = {}; _show_card(); GameState.touch()
+				_show_trade(String(o.get("text", "Chest")), before, mid, after)
+			else:
+				pending = {}; _show_card(); GameState.touch()
 		"special":
 			pending = Delve.build_event(GameState.run, {"kind": "special", "salt": 99}); _show_card()
 
 func _card_special() -> void:
 	var sp: Dictionary = pending.special
 	var v := _card(sp.title, "")
+	_add_close(v)
 	var top := UIKit.hbox(v)   # special-room art + text (DECISIONS #86)
 	if sp.has("icon"): top.add_child(UIKit.icon(sp.icon, int(UIKit.font_size * 3)))
 	var tl := UIKit.label(sp.text); tl.size_flags_horizontal = SIZE_EXPAND_FILL; top.add_child(tl)
@@ -350,11 +415,15 @@ func _special_option(o: Dictionary) -> void:
 		# "biome": a regular encounter of this biome/floor (garden grass, sacrificial fire - DECISIONS #91)
 		var ev := Delve.combat_event(GameState.run, Delve.rng_for(GameState.run, 55), [] if typeof(o.fight) == TYPE_STRING else o.fight)
 		_fight(ev, o.get("reward", {})); return
+	var before := Delve.ledger(GameState)
 	if o.has("cost") and not Delve.pay(GameState, o.cost): return
+	var mid := Delve.ledger(GameState)
 	if o.get("secret", false): GameState.add_stat("hidden_doors", 1)
 	if o.has("reward"):
 		Sfx.play("secret" if o.get("secret", false) else "item"); GameState.say(Delve.reward(GameState, o.reward))
+	var after := Delve.ledger(GameState)
 	pending = {}; _show_card(); GameState.touch()
+	_show_trade(String(o.get("text", "The room")), before, mid, after)
 
 func _floor_cleared() -> void:
 	var run: Dictionary = GameState.run
@@ -365,6 +434,7 @@ func _floor_cleared() -> void:
 func _card_floor() -> void:
 	var run: Dictionary = GameState.run
 	var v := _card("Floor %d cleared" % run.floor, "Descending heals %d%% of max HP. Extraction is only possible at a boss campfire or with a Scroll of Passage." % int(Delve.FLOOR_REST_HEAL * 100))
+	_add_close(v)
 	if int(run.get("searched_floor", 0)) != int(run.floor):
 		var hint := " (Rogue: always finds it)" if run.hero == "rogue" else " (%d%% chance)" % Delve.SEARCH_CHANCE
 		v.add_child(UIKit.action("Search for hidden doors (-%d torch)%s" % [int(Delve.SEARCH_TORCH), hint], func():
@@ -382,15 +452,188 @@ func _card_campfire() -> void:
 	if nb != "": txt += ", or press on into the %s (floors %d-%d, %d Str recommended) - nothing is banked until you extract." % [DB.biomes[nb].name, DB.biomes[nb].floors[0], DB.biomes[nb].floors[1], DB.biomes[nb].str_gate]
 	else: txt += ". This is the deepest biome in this build."
 	var v := _card("Campfire", txt)
+	_add_close(v)
 	v.add_child(UIKit.button("Extract to Camp", func(): Sfx.play("mastery"); GameState.end_run("extract"); main.show_camp()))
 	if nb != "":
 		v.add_child(UIKit.button("Descend into the %s" % DB.biomes[nb].name, func():
 			Sfx.play("descend"); Delve.continue_deeper(GameState); pending = {}; main.play_floor_music(); _show_card()))
 
-## main._toast: while a Backpack/Talents/Settings panel is open the message goes into the panel, not over it (DECISIONS #85).
+## Result window: what the encounter gave and took. The bar waits until OK.
+var _summary_on := false
+var _summary_fatal := false
+var _summary_t := 0.0
+var _summary_title := ""
+var _summary_note := ""
+var _summary_got: PackedStringArray = []
+var _summary_lost: PackedStringArray = []
+var _summary_ok: Callable = Callable()
+var _summary_layer: Control
+
+func _summary_open() -> bool:
+	return _summary_on
+
+func _show_trade(title: String, before: Dictionary, mid: Dictionary, after: Dictionary) -> void:
+	var paid := Delve.ledger_delta(before, mid)
+	var gained := Delve.ledger_delta(mid, after)
+	var got: PackedStringArray = []
+	var lost: PackedStringArray = []
+	for s in gained.got: got.append(s)
+	for s in paid.got: got.append(s)
+	for s in paid.lost: lost.append(s)
+	for s in gained.lost: lost.append(s)
+	_open_summary(title if title != "" else "Encounter", got, lost)
+
+func _open_summary(title: String, got: PackedStringArray, lost: PackedStringArray, on_ok: Callable = Callable(), fatal := false, note := "") -> void:
+	if is_instance_valid(_summary_layer):
+		_summary_layer.free()
+		_summary_layer = null
+	_summary_on = true
+	_summary_fatal = fatal
+	_summary_t = 0.0
+	_summary_title = title if title != "" else "Encounter"
+	_summary_note = note
+	_summary_got = got
+	_summary_lost = lost
+	_summary_ok = on_ok
+	_build_summary()
+
+func _build_summary() -> void:
+	if not _summary_on: return
+	if is_instance_valid(_summary_layer): _summary_layer.free()
+	var layer := Control.new()
+	layer.name = "EncounterSummary"
+	layer.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
+	layer.mouse_filter = MOUSE_FILTER_STOP
+	layer.z_index = 30
+	add_child(layer)
+	_summary_layer = layer
+	var dim := ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.55)
+	dim.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
+	dim.mouse_filter = MOUSE_FILTER_STOP
+	layer.add_child(dim)
+	var vs := size if size.x > 0.0 else get_viewport_rect().size
+	var m := int(floorf(maxf(UIKit.font_size * 0.75, vs.x * 0.04)))
+	var mc := MarginContainer.new()
+	mc.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
+	mc.mouse_filter = MOUSE_FILTER_IGNORE
+	for side in ["left", "right", "top", "bottom"]: mc.add_theme_constant_override("margin_" + side, m)
+	layer.add_child(mc)
+	var cc := CenterContainer.new()
+	cc.mouse_filter = MOUSE_FILTER_IGNORE
+	mc.add_child(cc)
+	var card := UIKit.card()
+	var w := floorf(minf(vs.x - 2.0 * m, UIKit.font_size * 22.0))
+	card.custom_minimum_size.x = w
+	cc.add_child(card)
+	var box := UIKit.vbox(card)
+	var h := UIKit.header(_summary_title)
+	h.custom_minimum_size.x = 1
+	h.size_flags_horizontal = SIZE_EXPAND_FILL
+	box.add_child(h)
+	if _summary_note != "":
+		var note := UIKit.label(_summary_note, 0.85, Color("c9a96e"))
+		note.custom_minimum_size.x = 1
+		box.add_child(note)
+	var sc := ScrollContainer.new()
+	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	sc.size_flags_horizontal = SIZE_EXPAND_FILL
+	var lines := _summary_got.size() + _summary_lost.size() + 2
+	# Leave room for the title, the note, and OK, so the button stays on screen.
+	var chrome := UIKit.btn_height() + UIKit.font_size * (4.2 if _summary_note != "" else 2.8)
+	var room := maxf(UIKit.font_size * 3.0, vs.y - 2.0 * float(m) - chrome)
+	var want := float(maxi(lines, 2)) * UIKit.font_size * 1.2
+	sc.custom_minimum_size = Vector2(w, minf(want, room))
+	box.add_child(sc)
+	var inner := UIKit.vbox(sc)
+	inner.custom_minimum_size.x = w
+	_summary_section(inner, "Got", _summary_got, GameState.LOG_COLORS.positive)
+	_summary_section(inner, "Lost", _summary_lost, GameState.LOG_COLORS.negative)
+	var ok := UIKit.button("OK", _accept_summary)
+	ok.name = "SummaryOK"
+	ok.custom_minimum_size.x = 1
+	box.add_child(ok)
+	card.modulate.a = 0.0
+	var tw := card.create_tween()
+	tw.tween_property(card, "modulate:a", 1.0, 0.15)
+
+func _summary_section(parent: Node, heading: String, lines: PackedStringArray, color: Color) -> void:
+	var h := UIKit.label(heading, 1.0, color)
+	h.custom_minimum_size.x = 1
+	parent.add_child(h)
+	if lines.is_empty():
+		var none := UIKit.label("Nothing", 0.9, Color("9a8f7c"))
+		none.custom_minimum_size.x = 1
+		parent.add_child(none)
+		return
+	for s in lines:
+		var l := UIKit.label(s, 0.9, color)
+		l.custom_minimum_size.x = 1
+		l.size_flags_horizontal = SIZE_EXPAND_FILL
+		parent.add_child(l)
+
+func _accept_summary() -> void:
+	var cb := _summary_ok
+	_summary_on = false
+	_summary_fatal = false
+	_summary_t = 0.0
+	_summary_ok = Callable()
+	if is_instance_valid(_summary_layer):
+		var layer := _summary_layer
+		_summary_layer = null
+		if layer.get_parent() == self: remove_child(layer)
+		layer.queue_free()
+	if cb.is_valid(): cb.call()
+
+## Messages shown inside the open card so a floating toast never covers its buttons (DECISIONS #106).
+var _card_toasts: Array = []
+
+## main._toast: any open delve card (floor menu, doors, backpack, …) takes the message in-flow, above the buttons.
 func window_toast(text: String) -> bool:
-	if pending.is_empty() or not (pending.kind in ["backpack", "talents", "settings"]) or card_host == null: return false
-	var l := UIKit.label(text, 0.85, Color("ffff88")); l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	card_host.add_child(l); card_host.move_child(l, 0)
-	var tw := l.create_tween(); tw.tween_interval(3.5); tw.tween_property(l, "modulate:a", 0.0, 0.6); tw.tween_callback(l.queue_free)
+	if pending.is_empty() or card_host == null: return false
+	_take_floating_toast()
+	_push_card_toast(text)
+	_mount_card_toast()
 	return true
+
+func _push_card_toast(text: String) -> void:
+	_card_toasts.append({"text": text, "at": Time.get_ticks_msec()})
+	while _card_toasts.size() > 3: _card_toasts.pop_front()
+
+## A reward toast is often emitted before the menu opens (fight Continue). Pull it into the card.
+func _take_floating_toast() -> void:
+	if main == null or not is_instance_valid(main) or pending.is_empty(): return
+	var box: Node = main.get("toast_box")
+	if box == null: return
+	for t in box.get_children():
+		var found := _first_label(t)
+		if found != "": _push_card_toast(found)
+		box.remove_child(t); t.queue_free()
+
+func _first_label(n: Node) -> String:
+	if n is Label and n.text != "": return n.text
+	for c in n.get_children():
+		var s := _first_label(c)
+		if s != "": return s
+	return ""
+
+func _mount_card_toast() -> void:
+	if card_host == null: return
+	var old := card_host.get_node_or_null("CardToast")
+	if old: card_host.remove_child(old); old.free()
+	if _card_toasts.is_empty() or pending.is_empty(): return
+	var box := VBoxContainer.new(); box.name = "CardToast"; box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	for t in _card_toasts:
+		var l := UIKit.label(t.text, 0.85, Color("ffff88"))
+		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		box.add_child(l)
+	card_host.add_child(box); card_host.move_child(box, 0)
+
+func _expire_card_toasts() -> void:
+	if _card_toasts.is_empty(): return
+	var now := Time.get_ticks_msec()
+	var live: Array = _card_toasts.filter(func(t): return now - int(t.at) < 3500)
+	if live.size() == _card_toasts.size(): return
+	_card_toasts = live
+	if not pending.is_empty(): _mount_card_toast()

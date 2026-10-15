@@ -59,12 +59,12 @@ static func advance(gs, pct: float) -> Dictionary:
 	if run.satiety < 20.0 and int(run.supplies.get("ration", 0)) > 0:
 		run.supplies.ration -= 1; run.satiety = minf(100.0, run.satiety + RATION_RESTORE); gs.say("Ate a ration.")
 	# passive gathering: +1 gold every 4%, +1 dew every 12%
+	# counted on the pinned haul line; individual drips are not logged
 	var step := int(run.progress / 4.0)
 	while run.gather < step:
 		run.gather += 1
 		gs.pack_add("gold", 1)
-		if run.gather % 3 == 0:
-			gs.pack_add("dew", 1); gs.log_line("Picked up 3 gold and a dewdrop.", "positive")
+		if run.gather % 3 == 0: gs.pack_add("dew", 1)
 	# torch / food warnings, once per threshold per floor (DECISIONS #101)
 	var warns: Array = run.get("warned", [])
 	var wk := func(k: String, cond: bool, text: String, kind: String):
@@ -230,6 +230,115 @@ static func reward(gs, rw: Dictionary) -> String:
 				parts.append("%d %s" % [rw[k], DB.mat_name(k)])
 	return ", ".join(parts)
 
+## A snapshot of everything an encounter can give or take, so the result window can list the difference.
+static func ledger(gs) -> Dictionary:
+	var run: Dictionary = gs.run
+	var h: Dictionary = gs.heroes[run.hero]
+	var gear: Array = []
+	for g in run.pack_gear:
+		gear.append({"uid": int(g.uid), "name": gs.gear_name(g), "known": bool(g.known)})
+	var over: Array = []
+	for g in run.get("overflow", []):
+		over.append({"uid": int(g.uid), "name": gs.gear_name(g), "known": bool(g.known), "overflow": true})
+	return {"hp": int(run.hp), "torch": int(round(float(run.torch))), "satiety": int(round(float(run.satiety))),
+		"pack": run.pack.duplicate(), "supplies": run.supplies.duplicate(), "iron_key": gs.mat("iron_key"),
+		"gear": gear, "overflow": over, "xp": int(h.xp), "level": int(h.level),
+		"pending_loot": int(run.get("pending_loot", 0))}
+
+## Increases between two ledgers are gained; decreases are lost. Gear is matched by uid.
+static func ledger_delta(before: Dictionary, after: Dictionary) -> Dictionary:
+	var got: PackedStringArray = []
+	var lost: PackedStringArray = []
+	_delta_num(got, lost, int(after.hp) - int(before.hp), "HP")
+	_delta_num(got, lost, int(after.torch) - int(before.torch), "Torch")
+	_delta_num(got, lost, int(after.satiety) - int(before.satiety), "Food")
+	_delta_num(got, lost, int(after.pending_loot) - int(before.pending_loot), "Gold on the next floor")
+	_bag_delta(got, lost, before.pack, after.pack)
+	_bag_delta(got, lost, before.supplies, after.supplies)
+	_delta_num(got, lost, int(after.iron_key) - int(before.iron_key), DB.display_name("iron_key"))
+	if int(after.level) > int(before.level): got.append("Level %d" % int(after.level))
+	else: _delta_num(got, lost, int(after.xp) - int(before.xp), "XP")
+	var bg := _gear_map(before)
+	var ag := _gear_map(after)
+	for uid in ag:
+		if not bg.has(uid):
+			var nm: String = ag[uid].name
+			if ag[uid].get("overflow", false): nm += " (backpack full)"
+			got.append(nm)
+		elif not bg[uid].known and ag[uid].known:
+			got.append("Identified " + ag[uid].name)
+	for uid in bg:
+		if not ag.has(uid): lost.append(bg[uid].name)
+	return {"got": got, "lost": lost}
+
+static func _gear_map(led: Dictionary) -> Dictionary:
+	var m := {}
+	for g in led.gear: m[int(g.uid)] = g
+	for g in led.overflow: m[int(g.uid)] = g
+	return m
+
+static func _bag_delta(got: PackedStringArray, lost: PackedStringArray, before: Dictionary, after: Dictionary) -> void:
+	var keys := {}
+	for k in before: keys[String(k)] = true
+	for k in after: keys[String(k)] = true
+	var names: Array = keys.keys()
+	names.sort()
+	for k in names:
+		_delta_num(got, lost, int(after.get(k, 0)) - int(before.get(k, 0)), DB.display_name(k))
+
+static func _delta_num(got: PackedStringArray, lost: PackedStringArray, d: int, label: String) -> void:
+	if d > 0: got.append("+%d %s" % [d, label])
+	elif d < 0: lost.append("-%d %s" % [-d, label])
+
+## Fight loot versus damage. In-fight healing is netted into one HP line; heals after the fight stay separate.
+static func fight_changes(before: Dictionary, after: Dictionary, res: Dictionary) -> Dictionary:
+	var shifted: Dictionary = before.duplicate(true)
+	shifted.hp = int(res.hp)
+	var d := ledger_delta(shifted, after)
+	var got: PackedStringArray = []
+	var lost: PackedStringArray = []
+	var dmg := maxi(0, int(before.hp) - int(res.hp))
+	var healed := maxi(0, int(res.hp) - int(before.hp))
+	if dmg > 0: lost.append("-%d HP" % dmg)
+	if healed > 0: got.append("+%d HP" % healed)
+	for line in d.got: got.append(line)
+	for line in d.lost: lost.append(line)
+	var pots := int(res.get("potions_used", 0))
+	if pots > 0: lost.append("-%d %s" % [pots, DB.display_name("potion_healing")])
+	d.got = got
+	d.lost = lost
+	return d
+
+## What a death takes. Supplies are not listed: they go back to the stash.
+static func defeat_changes(gs, before: Dictionary, res: Dictionary) -> Dictionary:
+	var lost: PackedStringArray = []
+	var dmg := maxi(0, int(before.hp) - int(res.get("hp", before.hp)))
+	if dmg > 0: lost.append("-%d HP" % dmg)
+	var run: Dictionary = gs.run
+	var keys: Array = run.pack.keys()
+	keys.sort()
+	for k in keys:
+		var n := int(run.pack[k])
+		if n > 0: lost.append("-%d %s" % [n, DB.display_name(String(k))])
+	for g in run.pack_gear:
+		if g.get("owned", false): lost.append("%s cracks" % gs.gear_name(g))
+		else: lost.append(gs.gear_name(g))
+	var h: Dictionary = gs.heroes[run.hero]
+	for slot in ["weapon", "armor", "ring", "artifact"]:
+		var g: Dictionary = gs.gear_by_uid(int(h.get(slot, 0)))
+		if g.is_empty() or DB.item(g.id).get("heirloom", false): continue
+		lost.append("%s cracks" % gs.gear_name(g))
+	if int(h.level) > 1: lost.append("Level reset to 1")
+	if int(h.str) != 10: lost.append("Strength reset to 10")
+	var pots := int(res.get("potions_used", 0))
+	if pots > 0: lost.append("-%d %s" % [pots, DB.display_name("potion_healing")])
+	var note := ""
+	for k in run.supplies:
+		if int(run.supplies[k]) > 0: note = "Unused supplies return to the stash."; break
+	if int(run.pack.get("scroll_upgrade", 0)) > 0:
+		note = (note + " " if note != "" else "") + "Scrolls of Upgrade return on the next boss kill."
+	return {"got": PackedStringArray(), "lost": lost, "note": note}
+
 ## Backpack full (GameState.BACKPACK_SLOTS): the item waits in run.overflow for a drop/leave decision.
 static func _stow(gs, g: Dictionary) -> void:
 	if gs.backpack_full():
@@ -280,7 +389,7 @@ static func descend(gs) -> void:
 	var ht: int = gs.hero_stats(run.hero).ht
 	gs.log_line("You descend to floor %d." % int(run.floor), "highlight")
 	# a guaranteed scrap of iron per floor: repair ore always trickles in, even on Sewers 1-5 (DECISIONS #104)
-	gs.pack_add("iron_ore", 1); gs.log_line("Found a scrap of iron ore.", "positive")
+	gs.pack_add("iron_ore", 1)
 	var heal := FLOOR_REST_HEAL
 	# the last boss floor (Yog): a quiet antechamber restores more (DECISIONS #92)
 	if next_biome(run) == "" and int(run.floor) == int(biome(run).boss_floor): heal = FINAL_REST_HEAL
@@ -323,68 +432,3 @@ static func apply_fight_result(gs, ev: Dictionary, res: Dictionary, reward: Dict
 		if gs.record_boss_kill(run.hero, run.biome): gs.say("First %s kill for this class: Scroll of Upgrade!" % DB.mobs[ev.mobs[0]].name)
 	gs.touch()
 	return true
-
-# ---------------------------------------------------------------- Full Auto (DECISIONS #102)
-const AUTO_STOP_HP := 0.3       # below this HP fraction Full Auto stops (and never starts a fight)
-const AUTO_RISK_HP := 0.5       # below this it avoids optional fights and blood costs
-
-## What Full Auto does with an open card. Returns {"act": ..., "why": text, + act args}:
-##   fight | door (side) | special (index) | ignore | search | descend | extract | deeper | stop
-## Heuristic: stop safely when HP < 30% (or out of food and starving) unless the card is a forced fight;
-## take free/affordable loot; fight optional doors only when HP >= 50%; extract at a campfire when
-## HP < 50%, out of rations, or the next biome's Strength gate is above the hero's Strength.
-static func auto_decide(gs, ev: Dictionary) -> Dictionary:
-	var run: Dictionary = gs.run
-	var ht: int = gs.hero_stats(run.hero).ht
-	var hpf := float(run.hp) / float(maxi(1, ht))
-	var no_food := int(run.supplies.get("ration", 0)) == 0 and float(run.satiety) <= 0.0
-	match ev.get("kind", ""):
-		"combat":
-			# an ambush or boss can't be skipped: fight it (the bot drinks potions as needed)
-			return {"act": "fight", "why": "fight %s" % ", ".join(ev.mobs.map(func(m): return DB.mobs[m].name))}
-		"door":
-			var d: Dictionary = ev.door
-			for side in ["a", "b"]:
-				var o: Dictionary = d[side]
-				if o.kind == "chest" and pay_possible(gs, o.get("cost", {})): return {"act": "door", "side": side, "why": "open the chest (%s)" % o.text}
-			for side in ["a", "b"]:
-				var o: Dictionary = d[side]
-				if o.kind == "special": return {"act": "door", "side": side, "why": "explore (%s)" % o.text}
-			if hpf >= AUTO_RISK_HP:
-				for side in ["a", "b"]:
-					if d[side].kind == "combat": return {"act": "door", "side": side, "why": "HP %d%%, take the fight for loot" % int(hpf * 100)}
-			return {"act": "ignore", "why": "HP %d%%, skip both doors" % int(hpf * 100)}
-		"special":
-			var opts: Array = ev.special.options
-			for i in opts.size():
-				var o: Dictionary = opts[i]
-				if not o.has("reward") or o.has("fight"): continue
-				if o.has("requires_class") and o.requires_class != run.hero: continue
-				var cost: Dictionary = o.get("cost", {})
-				if cost.has("hp") and (hpf < AUTO_RISK_HP or int(run.hp) - int(cost.hp) < ht * AUTO_STOP_HP): continue
-				if not cost.is_empty() and not pay_possible(gs, cost): continue
-				return {"act": "special", "index": i, "why": o.text}
-			if hpf >= AUTO_RISK_HP:
-				for i in opts.size():
-					if opts[i].has("fight"): return {"act": "special", "index": i, "why": opts[i].text}
-			return {"act": "special", "index": -1, "why": "leave"}
-		"floor_done":
-			if hpf < AUTO_STOP_HP or no_food: return {"act": "stop", "why": "HP %d%% / food - stopping before the next floor" % int(hpf * 100)}
-			if int(run.get("searched_floor", 0)) != int(run.floor) and can_search_floor(run) and float(run.torch) > 40.0:
-				return {"act": "search", "why": "search for hidden doors"}
-			return {"act": "descend", "why": "descend"}
-		"campfire":
-			var nb := next_biome(run)
-			if nb == "": return {"act": "extract", "why": "deepest biome cleared"}
-			if hpf < AUTO_RISK_HP: return {"act": "extract", "why": "HP %d%% - extract safely" % int(hpf * 100)}
-			if int(run.supplies.get("ration", 0)) == 0: return {"act": "extract", "why": "out of rations - extract"}
-			if int(gs.heroes[run.hero].str) < int(DB.biomes[nb].str_gate): return {"act": "extract", "why": "Str below the %s gate" % DB.biomes[nb].name}
-			return {"act": "deeper", "why": "healthy and supplied - press on into the %s" % DB.biomes[nb].name}
-	return {"act": "stop", "why": "unknown card"}
-
-## While exploring: should Full Auto pause the bar? (HP below the stop line.)
-static func auto_should_stop(gs) -> String:
-	var run: Dictionary = gs.run
-	var ht: int = gs.hero_stats(run.hero).ht
-	if float(run.hp) < ht * AUTO_STOP_HP and int(run.supplies.get("potion_healing", 0)) == 0: return "HP low and no potions"
-	return ""

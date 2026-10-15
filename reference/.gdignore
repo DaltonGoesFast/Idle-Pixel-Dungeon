@@ -1,0 +1,2 @@
+# Godot must not import this tree. The SPD checkout is Java reference
+# source plus a second copy of the art already in assets/.

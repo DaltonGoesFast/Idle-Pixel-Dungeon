@@ -58,7 +58,7 @@ func say(t: String, kind := "") -> void:
 	log_line(t, kind)
 	toast.emit(t)
 
-## Log only (chatty lines: gathering, damage, auto decisions).
+## Log only (chatty lines: warnings, auto decisions). Small pickups update the haul line instead.
 func log_line(t: String, kind := "") -> void:
 	messages.append(t); message_kinds.append(kind if kind != "" else classify(t)); log_serial += 1
 	if messages.size() > 80: messages.remove_at(0); message_kinds.remove_at(0)
@@ -392,8 +392,23 @@ func mat_label(k: String) -> String:
 	return "%s %s" % [looks[k][0], "Potion" if DB.materials[k].kind == "potion" else "Scroll"]
 
 func mat_icon_key(k: String) -> String:
-	if is_mat_known(k) or not looks.has(k): return ""
-	return looks[k][1]
+	# The rolled colour or rune is the sprite for the whole save. Identifying changes the name
+	# only; falling back to POTION_HOLDER / SCROLL_HOLDER draws the empty black outline.
+	if not looks.has(k) and DB.materials.get(k, {}).get("unknown", false): _ensure_look(k)
+	if looks.has(k): return String(looks[k][1])
+	return ""
+
+## One stable appearance for an unknown potion/scroll that a save never rolled (added in a later version).
+func _ensure_look(k: String) -> void:
+	var md: Dictionary = DB.materials.get(k, {})
+	if looks.has(k) or not md.get("unknown", false): return
+	var pool: Array = POTION_LOOKS if md.get("kind", "") == "potion" else SCROLL_LOOKS
+	var used := {}
+	for id in looks: used[String(looks[id][1])] = true
+	var choices: Array = pool.filter(func(p): return not used.has(String(p[1])))
+	if choices.is_empty(): choices = pool
+	var r := RandomNumberGenerator.new(); r.seed = hash(k) + looks.size()
+	looks[k] = choices[r.randi() % choices.size()]
 
 func identify_mat(k: String) -> void:
 	if not ided.has(k): ided[k] = true; say("It was a %s!" % DB.materials[k].name)
@@ -786,13 +801,36 @@ func start_run(c: String, loadout: Dictionary, biome := "sewers", seed := -1) ->
 	var f0 := int(DB.biomes[biome].floors[0])
 	run = {"hero": c, "biome": biome, "floor": f0, "progress": 0.0, "torch": 100.0, "satiety": 100.0,
 		"hp": s.ht, "pack": {}, "pack_gear": [], "supplies": sup, "seed": seed if seed >= 0 else int(now()) % 100000,
-		"events": [], "next_event": 0, "gather": 0, "starve": 0, "milestones_done": [], "pending_loot": 0, "boss_dead": false}
+		"events": [], "next_event": 0, "gather": 0, "starve": 0, "milestones_done": [], "pending_loot": 0, "boss_dead": false,
+		"haul": {}}
 	stats.runs += 1; note_floor(f0)
 	say("%s descends into the %s." % [s.name, DB.biomes[biome].name]); touch(); return true
 
 func pack_add(id: String, n: int) -> void:
 	if run.is_empty(): add_mat(id, n); return  # no expedition: straight to the stash
 	run.pack[id] = int(run.pack.get(id, 0)) + n
+	if n > 0:   # cumulative for the delve; spending later does not reduce it
+		if not run.has("haul"): run.haul = {}
+		run.haul[id] = int(run.haul.get(id, 0)) + n
+
+## Pinned log line: everything picked up this expedition, gold first. Empty until the first pickup.
+func haul_line() -> String:
+	if run.is_empty(): return ""
+	var haul: Dictionary = run.get("haul", {})
+	var parts: PackedStringArray = []
+	var used := {}
+	for k in PACK_MATS:
+		var n := int(haul.get(k, 0))
+		if n <= 0: continue
+		used[k] = true
+		parts.append("%d %s" % [n, DB.mat_name(k)])
+	var extra: Array = []
+	for k in haul:
+		if not used.has(k) and int(haul[k]) > 0: extra.append(String(k))
+	extra.sort()
+	for k in extra: parts.append("%d %s" % [int(haul[k]), DB.mat_name(k)])
+	if parts.is_empty(): return ""
+	return "Collected this delve: " + ", ".join(parts)
 
 ## result: "extract" keeps everything; "death" loses pack, cracks gear, resets hero; "abandon" loses pack.
 func end_run(result: String) -> void:
@@ -906,6 +944,9 @@ func from_dict(d: Dictionary) -> void:
 	new_game()
 	looks = d.get("looks", {}); ided = d.get("ided", {})
 	if looks.is_empty(): _roll_appearances()
+	else:
+		for k in DB.materials:
+			if DB.materials[k].get("unknown", false): _ensure_look(k)
 	mats = d.get("mats", mats); gear = d.get("gear", gear); next_uid = int(d.get("next_uid", next_uid))
 	for c in d.get("heroes", {}):
 		if heroes.has(c): heroes[c].merge(d.heroes[c], true)
@@ -947,6 +988,13 @@ func _fix_types() -> void:
 		if DB.biomes.has(run.get("biome", "")):   # a save can never show "Floor 25 / 5": keep floor inside its biome
 			var fr: Array = DB.biomes[run.biome].floors; run.floor = clampi(int(run.floor), int(fr[0]), int(fr[1]))
 		for k in run.pack: run.pack[k] = int(run.pack[k])
+		# older saves have no haul: start from whatever is still in the pack
+		if not run.has("haul"):
+			run.haul = {}
+			for k in run.pack:
+				if int(run.pack[k]) > 0: run.haul[k] = int(run.pack[k])
+		else:
+			for k in run.haul: run.haul[k] = int(run.haul[k])
 		for k in run.supplies: run.supplies[k] = int(run.supplies[k])
 		for g in run.pack_gear + run.get("overflow", []):
 			_fix_gear(g)
@@ -958,8 +1006,10 @@ func _fix_types() -> void:
 			ev.room = Array(ev.room); ev.mobs = Array(ev.mobs)
 
 
-## SPD HeroSprite armor row: 0 = cloth/none, item tier-1 otherwise (rows 0..6 of the hero sheet).
+## SPD Hero.tier() / HeroSprite row: 0 = nothing worn, otherwise the armor's tier
+## (cloth = 1 … plate = 5, class armor = 6). Row 0 is the naked sheet.
 func armor_tier(c: String) -> int:
 	if not heroes.has(c): return 0
 	var a := gear_by_uid(int(heroes[c].get("armor", -1)))
-	return 0 if a.is_empty() else clampi(int(DB.item(a.id).get("tier", 1)) - 1, 0, 6)
+	if a.is_empty(): return 0
+	return clampi(int(DB.item(a.id).get("tier", 1)), 0, 6)

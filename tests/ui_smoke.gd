@@ -90,6 +90,9 @@ func _drive() -> void:
 				get_window().size = Vector2i(968, 2376); main._relayout()
 			s._finish()
 	elif s == main.delve:
+		if s._summary_open():
+			s._accept_summary()
+			return
 		var p: Dictionary = s.pending
 		if p.is_empty(): GameState.run.progress = minf(100, GameState.run.progress + 0.0); return
 		match p.kind:
