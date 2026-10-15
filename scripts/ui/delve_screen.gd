@@ -48,6 +48,10 @@ func _process(delta: float) -> void:
 	if _save_t > 3.0:
 		_save_t = 0.0; SaveSystem.save_game()
 	if main and main.tip_open(): _refresh(); return
+	if pending.is_empty() and not run.get("overflow", []).is_empty():
+		_open_panel("backpack")   # full-pack loot needs a decision before exploring on
+	elif pending.is_empty() and running and GameState.talent_points_total_free(run.hero) > 0 and not run.get("talent_prompted", false):
+		run.talent_prompted = true; _open_panel("talents")   # level-up: offer the new talent once
 	if running and pending.is_empty():
 		if Delve.floor_done(run):
 			_floor_cleared()
@@ -93,10 +97,27 @@ func _refresh_controls() -> void:
 		var b3 := UIKit.button("Read Scroll of Passage (extract)", func():
 			GameState.run.supplies.scroll_passage -= 1; Sfx.play("read"); GameState.end_run("extract"); main.show_camp()); b3.custom_minimum_size.x = w * 2
 		controls.add_child(b3)
-	var b5 := UIKit.button("Settings", func(): running = false; pending = {"kind": "settings"}; _refresh_controls(); _show_card()); b5.custom_minimum_size.x = w
+	var nfree := GameState.talent_points_total_free(GameState.run.hero) if not GameState.run.is_empty() else 0
+	var bb := UIKit.button("Backpack %d/%d" % [GameState.backpack_used(), GameState.BACKPACK_SLOTS], func(): _open_panel("backpack")); bb.custom_minimum_size.x = w
+	controls.add_child(bb)
+	var bt := UIKit.button("Talents" + (" (%d!)" % nfree if nfree > 0 else ""), func(): _open_panel("talents")); bt.custom_minimum_size.x = w
+	controls.add_child(bt)
+	var b5 := UIKit.button("Settings", func(): _open_panel("settings")); b5.custom_minimum_size.x = w
 	controls.add_child(b5)
 	var b4 := UIKit.button("Abandon run", _confirm_abandon); b4.custom_minimum_size.x = w
 	controls.add_child(b4)
+
+## Backpack / Talents cards pause the bar; closing resumes it.
+## Opening over an encounter card (door, campfire...) remembers it and brings it back on close.
+var _under := {}
+func _open_panel(kind: String) -> void:
+	if not pending.is_empty() and pending.kind == "combat": return
+	if not pending.is_empty() and not (pending.kind in ["backpack", "talents", "settings"]): _under = pending
+	running = false; pending = {"kind": kind}; _refresh_controls(); _show_card()
+
+func _close_panel() -> void:
+	pending = _under; _under = {}
+	running = pending.is_empty(); _refresh_controls(); _show_card()
 
 func _confirm_abandon() -> void:
 	pending = {"kind": "confirm_abandon"}; _show_card()
@@ -115,7 +136,7 @@ func _show_card() -> void:
 	UIKit.clear(card_host)
 	# remember the open card in the save (an app kill must not skip an encounter)
 	if not GameState.run.is_empty():
-		if pending.is_empty() or pending.kind in ["confirm_abandon", "settings"]: GameState.run.erase("pending_card")
+		if pending.is_empty() or pending.kind in ["confirm_abandon", "settings", "backpack", "talents"]: GameState.run.erase("pending_card")
 		else: GameState.run.pending_card = pending
 	if pending.is_empty():
 		var hint := "Exploring... encounters every ~20-25%." if running else "Paused."
@@ -131,10 +152,16 @@ func _show_card() -> void:
 		"special": _card_special()
 		"floor_done": _card_floor()
 		"campfire": _card_campfire()
+		"backpack":
+			HeroPanels.backpack(card_host, func(): _refresh(); _refresh_controls(); _show_card())
+			if GameState.run.get("overflow", []).is_empty(): card_host.add_child(UIKit.button("Close", _close_panel))
+		"talents":
+			HeroPanels.talents(card_host, GameState.run.hero, func(): _refresh(); _refresh_controls(); _show_card())
+			card_host.add_child(UIKit.button("Close", _close_panel))
 		"settings":
 			var v := _card("Settings", "")
 			SettingsPanel.build(v, false)
-			v.add_child(UIKit.button("Close", func(): pending = {}; running = true; _refresh_controls(); _show_card()))
+			v.add_child(UIKit.button("Close", _close_panel))
 		"confirm_abandon":
 			var v := _card("Abandon the expedition?", "Everything in your pack is lost. Unused supplies return to the stash.")
 			v.add_child(UIKit.button("Abandon", func(): GameState.end_run("abandon"); main.show_camp()))
@@ -165,7 +192,8 @@ func _after_fight(ev: Dictionary, res: Dictionary, reward: Dictionary) -> void:
 	if not Delve.apply_fight_result(GameState, ev, res, reward):
 		Sfx.play("death")
 		GameState.end_run("death"); main.show_camp(); return
-	if GameState.heroes[GameState.run.hero].level > lvl: Sfx.play("levelup")
+	if GameState.heroes[GameState.run.hero].level > lvl:
+		Sfx.play("levelup"); GameState.run.talent_prompted = false
 	main.end_combat()
 
 func _card_door() -> void:

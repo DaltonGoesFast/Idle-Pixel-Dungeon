@@ -8,6 +8,7 @@ signal toast(text: String)
 signal settings_changed
 
 const PACK_MATS := ["gold","dew","iron_ore","dark_gold","seeds","arcane_resin","iron_key","potion_strength","scroll_upgrade"]
+const BACKPACK_SLOTS := 8          # found gear + unequipped owned gear carried on a delve (DECISIONS #67)
 const SUPPLY_KEYS := ["ration","torch","potion_healing","scroll_passage","elixir_starter"]
 
 var mats: Dictionary = {}          # stash materials & consumables
@@ -58,7 +59,7 @@ func new_game() -> void:
 		var h: Dictionary = DB.heroes[c]
 		heroes[c] = {"class": c, "unlocked": h.unlocked_by_default, "level": 1, "xp": 0, "str": 10,
 			"weapon": add_gear(h.start_weapon), "armor": add_gear(h.start_armor), "ring": 0,
-			"wand": "wand_magic_missile" if c == "mage" else "", "cleared": [], "patrol": {}, "mask": false, "subclass": ""}
+			"wand": "wand_magic_missile" if c == "mage" else "", "cleared": [], "patrol": {}, "mask": false, "subclass": "", "talents": []}
 
 func add_gear(id: String, known := true, lvl := 0) -> int:
 	var g := {"uid": next_uid, "id": id, "lvl": lvl, "cracked": false, "known": known}
@@ -147,6 +148,16 @@ func hero_stats(c: String) -> Dictionary:
 			"name": "the Spirit Bow", "magic": false}
 	if "cloak" in def.abilities:
 		s.cloak = {"charges": int(def.cloak_charges), "ticks": float(def.cloak_ticks)}
+	# Talents (DECISIONS #66): flat modifiers, picked by level
+	for tid in h.get("talents", []):
+		var td := talent_def(c, tid)
+		s.ht += int(td.get("ht_add", 0)); s.dmg += int(td.get("dmg_add", 0)); s.dr += int(td.get("dr_add", 0))
+		s.barrier_max += int(td.get("barrier_add", 0)); s.search_radius += int(td.get("search_add", 0))
+		s.surprise_mult += float(td.get("surprise_add", 0.0)); s.potion_add = float(s.get("potion_add", 0.0)) + float(td.get("potion_add", 0.0))
+		if s.has("cloak"): s.cloak.charges += int(td.get("cloak_add", 0))
+		if s.has("bolt"):
+			s.bolt.dmg += int(td.get("bolt_add", 0))
+			if not s.bolt.get("infinite", false): s.bolt.charges += int(td.get("charges_add", 0))
 	# Subclass (Tengu's Mask, DECISIONS #61): flat modifiers here, "perk" hooks in Combat.
 	var sub: Dictionary = def.get("subclasses", {}).get(String(h.get("subclass", "")), {})
 	if not sub.is_empty():
@@ -158,6 +169,183 @@ func hero_stats(c: String) -> Dictionary:
 			s.bolt.dmg += int(sub.get("bolt_add", 0))
 			if sub.get("bolt_pierce", false): s.bolt.pierce = true
 	return s
+
+# ---------------------------------------------------------------- talents (SPD-style tiers, DECISIONS #66)
+func talent_def(c: String, tid: String) -> Dictionary:
+	for tier in ["1", "2"]:
+		var t: Dictionary = DB.talents.get(c, {}).get(tier, {})
+		if t.has(tid): return t[tid]
+	return {}
+
+func talent_tier(c: String, tid: String) -> String:
+	for tier in ["1", "2"]:
+		if DB.talents.get(c, {}).get(tier, {}).has(tid): return tier
+	return ""
+
+## Points earned in a tier at the hero's current level.
+func talent_points(c: String, tier: String) -> int:
+	var lv := int(heroes[c].level)
+	return DB.talents._tiers[tier].points_at.filter(func(l): return lv >= int(l)).size()
+
+func talent_points_free(c: String, tier: String) -> int:
+	var used: int = heroes[c].get("talents", []).filter(func(t): return talent_tier(c, t) == tier).size()
+	return talent_points(c, tier) - used
+
+func talent_points_total_free(c: String) -> int:
+	return talent_points_free(c, "1") + talent_points_free(c, "2")
+
+## Bot / sims: spend free points on the first talents in data order.
+func auto_pick_talents(c: String) -> void:
+	for tier in ["1", "2"]:
+		for tid in DB.talents.get(c, {}).get(tier, {}):
+			if can_pick_talent(c, tid) == "": pick_talent(c, tid)
+
+func can_pick_talent(c: String, tid: String) -> String:
+	var tier := talent_tier(c, tid)
+	if tier == "": return "unknown talent"
+	if tid in heroes[c].get("talents", []): return "already learned"
+	if talent_points_free(c, tier) <= 0:
+		return "reach Lv%d" % int(DB.talents._tiers[tier].from_level) if talent_points(c, tier) == 0 else "no free tier %s points" % tier
+	return ""
+
+## Works in Camp and mid-delve (stats refresh immediately; max HP gains are added to current run HP).
+func pick_talent(c: String, tid: String) -> bool:
+	if can_pick_talent(c, tid) != "": return false
+	var before := int(hero_stats(c).ht)
+	if not heroes[c].has("talents"): heroes[c].talents = []
+	heroes[c].talents.append(tid)
+	if not run.is_empty() and run.hero == c: run.hp = int(run.hp) + int(hero_stats(c).ht) - before
+	say("Talent learned: %s" % talent_def(c, tid).name); touch()
+	return true
+
+# ---------------------------------------------------------------- backpack (in-delve inventory, DECISIONS #67)
+func backpack_used() -> int:
+	return 0 if run.is_empty() else run.pack_gear.size()
+
+func backpack_full() -> bool:
+	return backpack_used() >= BACKPACK_SLOTS
+
+func pack_item(uid: int) -> Dictionary:
+	if run.is_empty(): return {}
+	for g in run.pack_gear:
+		if int(g.uid) == uid: return g
+	return {}
+
+func _slot_for(t: String) -> String:
+	return t if t in ["weapon", "armor", "ring"] else ""
+
+## Why a backpack item can't be equipped right now ("" = ok).
+func can_delve_equip(uid: int) -> String:
+	var g := pack_item(uid)
+	if g.is_empty(): return "not in backpack"
+	var d := DB.item(g.id); var c: String = run.hero
+	if d.type == "wand":
+		if c != "mage": return "only the Mage can imbue wands"
+		if not g.known: return "unidentified"
+		return ""
+	if _slot_for(d.type) == "": return "can't be equipped"
+	if g.cracked: return "cracked"
+	if not g.known and d.type == "ring": return "unidentified"
+	if d.get("heirloom", false) and DB.heroes[c].heirloom != g.id: return "heirloom of another class"
+	return ""
+
+## Equip from the backpack mid-delve: the item moves into the hero's slot (and the Camp's gear),
+## the old item takes its place in the backpack (flagged owned: comes home even on death, cracked).
+func delve_equip(uid: int) -> bool:
+	if can_delve_equip(uid) != "": return false
+	var g := pack_item(uid); var d := DB.item(g.id); var c: String = run.hero; var h: Dictionary = heroes[c]
+	var before := int(hero_stats(c).ht)
+	run.pack_gear.erase(g)
+	if d.type == "wand":
+		var old: String = h.wand
+		h.wand = g.id
+		if old != "": run.pack_gear.append({"uid": _take_uid(), "id": old, "lvl": 0, "cracked": false, "known": true, "owned": true})
+		say("Imbued %s into the staff." % d.name)
+	else:
+		var slot := _slot_for(d.type)
+		var old := gear_by_uid(int(h[slot]))
+		if not old.is_empty():
+			gear.erase(old); old.owned = true; run.pack_gear.append(old)
+		g.erase("owned"); gear.append(g); h[slot] = int(g.uid)
+		say("Equipped %s." % gear_name(g))
+	run.hp = clampi(int(run.hp) + int(hero_stats(c).ht) - before, 1, int(hero_stats(c).ht))
+	touch(); return true
+
+func _take_uid() -> int:
+	next_uid += 1
+	return next_uid - 1
+
+## Unequip a slot into the backpack (needs a free slot; heirlooms stay put).
+func delve_unequip(slot: String) -> bool:
+	if run.is_empty() or backpack_full(): return false
+	var h: Dictionary = heroes[run.hero]
+	var g := gear_by_uid(int(h[slot]))
+	if g.is_empty() or DB.item(g.id).get("heirloom", false): return false
+	gear.erase(g); g.owned = true; run.pack_gear.append(g); h[slot] = 0
+	run.hp = mini(int(run.hp), int(hero_stats(run.hero).ht))
+	say("Unequipped %s." % gear_name(g)); touch(); return true
+
+## Drop a backpack item for good (owned items you brought from Camp can't be dropped; they're yours).
+func delve_drop(uid: int) -> bool:
+	var g := pack_item(uid)
+	if g.is_empty() or g.get("owned", false): return false
+	run.pack_gear.erase(g)
+	say("Dropped %s." % gear_name(g)); touch(); return true
+
+## Stat preview for equipping a backpack item: {"dmg": [now, new], "dr": [...], "barrier": [...], "ht": [...]}
+func compare_equip(uid: int) -> Dictionary:
+	var g := pack_item(uid)
+	if g.is_empty(): return {}
+	var c: String = run.hero; var h: Dictionary = heroes[c]; var d := DB.item(g.id)
+	var a := hero_stats(c)
+	var b: Dictionary
+	if d.type == "wand":
+		var ow: String = h.wand; h.wand = g.id; b = hero_stats(c); h.wand = ow
+	else:
+		var slot := _slot_for(d.type)
+		if slot == "": return {}
+		var old: int = int(h[slot]); gear.append(g); h[slot] = int(g.uid)
+		b = hero_stats(c)
+		h[slot] = old; gear.erase(g)
+	var out := {"dmg": [a.dmg, b.dmg], "dr": [a.dr, b.dr], "barrier": [a.barrier_max, b.barrier_max], "ht": [a.ht, b.ht]}
+	if a.has("bolt") or b.has("bolt"): out.bolt = [a.get("bolt", {}).get("dmg", 0), b.get("bolt", {}).get("dmg", 0)]
+	return out
+
+static func compare_text(cmp: Dictionary) -> String:
+	var parts := []
+	for k in ["dmg", "dr", "barrier", "ht", "bolt"]:
+		if not cmp.has(k): continue
+		var v: Array = cmp[k]
+		var tag := "" if v[0] == v[1] else (" (+%d)" % (v[1] - v[0]) if v[1] > v[0] else " (%d)" % (v[1] - v[0]))
+		parts.append("%s %d->%d%s" % [{"dmg": "Dmg", "dr": "DR", "barrier": "Barrier", "ht": "HP", "bolt": "Bolt"}[k], v[0], v[1], tag])
+	return "  ".join(parts)
+
+## Use a belt supply outside combat.
+func delve_use(k: String) -> bool:
+	if run.is_empty() or int(run.supplies.get(k, 0)) <= 0: return false
+	match k:
+		"potion_healing":
+			var ht := int(hero_stats(run.hero).ht)
+			if int(run.hp) >= ht: return false
+			run.hp = mini(ht, int(run.hp) + potion_heal(run.hero)); say("Drank a Potion of Healing.")
+		"ration":
+			if float(run.satiety) >= 90.0: return false
+			run.satiety = minf(100.0, float(run.satiety) + 60.0); say("Ate a ration.")
+		"torch":
+			if float(run.torch) >= 90.0: return false
+			run.torch = minf(100.0, float(run.torch) + 60.0); say("Lit a fresh torch.")
+		_: return false
+	run.supplies[k] = int(run.supplies[k]) - 1
+	touch(); return true
+
+## Full-pack loot waiting for a decision (run.overflow). take = drop `drop_uid` and keep the new item.
+func resolve_overflow(drop_uid: int) -> bool:
+	if run.is_empty() or run.get("overflow", []).is_empty(): return false
+	var newg: Dictionary = run.overflow.pop_front()
+	if drop_uid < 0:
+		say("Left %s behind." % gear_name(newg)); touch(); return true
+	if not delve_drop(drop_uid): run.overflow.push_front(newg); return false
+	run.pack_gear.append(newg); say("Took %s." % gear_name(newg)); touch(); return true
 
 ## Tengu's Mask: earned by beating Tengu with this class; lets the hero pick one of two subclasses (permanent).
 func can_choose_subclass(c: String) -> bool:
@@ -173,7 +361,8 @@ func choose_subclass(c: String, sub: String) -> bool:
 ## Potion of Healing: flat 10 early, 30% of max HP later so potions stay relevant in deep biomes.
 func potion_heal(c: String) -> int:
 	var p: Dictionary = DB.materials.potion_healing
-	return maxi(int(p.heal), int(float(hero_stats(c).ht) * float(p.get("heal_pct", 0.0))))
+	var hs := hero_stats(c)
+	return maxi(int(p.heal), int(float(hs.ht) * (float(p.get("heal_pct", 0.0)) + float(hs.get("potion_add", 0.0)))))
 
 func power_rating(c: String) -> int:
 	var s := hero_stats(c)
@@ -410,7 +599,8 @@ func end_run(result: String) -> void:
 	match result:
 		"extract":
 			for k in run.pack: add_mat(k, int(run.pack[k]))
-			for g in run.pack_gear: gear.append(g)
+			for g in run.pack_gear:
+				g.erase("owned"); gear.append(g)
 			stats.extractions += 1
 			say("Extracted! The pack is banked at Camp.")
 		"death":
@@ -419,9 +609,16 @@ func end_run(result: String) -> void:
 				var g := gear_by_uid(int(h[slot]))
 				# heirlooms (Mage's Staff...) are permanent and never crack
 				if not g.is_empty() and not DB.item(g.id).get("heirloom", false): g.cracked = true
-			h.level = 1; h.xp = 0; h.str = 10
+			for g in run.pack_gear:
+				if g.get("owned", false):
+					g.erase("owned")
+					if not DB.item(g.id).get("heirloom", false) and DB.item(g.id).type != "wand": g.cracked = true
+					gear.append(g)
+			h.level = 1; h.xp = 0; h.str = 10; h.talents = []
 			say("%s fell. Pack lost, gear cracked, back to Lv1 / 10 Str." % DB.heroes[c].name)
 		"abandon":
+			for g in run.pack_gear:
+				if g.get("owned", false): g.erase("owned"); gear.append(g)
 			say("Expedition abandoned. Unbanked loot lost.")
 	run = {}
 	touch()
@@ -527,7 +724,7 @@ func _fix_types() -> void:
 		for k in ["floor", "next_event", "gather", "starve", "seed", "hp", "pending_loot"]: run[k] = int(run.get(k, 0))
 		for k in run.pack: run.pack[k] = int(run.pack[k])
 		for k in run.supplies: run.supplies[k] = int(run.supplies[k])
-		for g in run.pack_gear:
+		for g in run.pack_gear + run.get("overflow", []):
 			g.uid = int(g.uid); g.lvl = int(g.lvl)
 		if run.has("pending_card") and run.pending_card.has("room"):
 			run.pending_card.room = Array(run.pending_card.room); run.pending_card.mobs = Array(run.pending_card.mobs)

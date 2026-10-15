@@ -66,11 +66,11 @@ GDD target: 12-13 Str, tier 2-3 gear. Two Sewers Strength potions take a fresh h
 | DM-100 | 16 | 3 | 2 | 1.0 | 6 | 5 | HT 20, dmg 2-8, DR 0-4; ranged lightning 3-10 | zap is a 1-tick red tile at range 2-4 (5 dmg, DR applies); cooldown 3 actions |
 | Prison Guard | 28 | 5 | 3 | 1.0 | 7 | 6 | HT 40, dmg 4-12, DR 0-7; chains and pulls the hero | HT 40->28, dmg 8->5, DR 3: once per fight pulls the hero adjacent from range 2-3 |
 | Tengu | 90 | 6 | 2 | 1.0 | 20 | 60 | HT 200, dmg 6-12, DR 0-5; phase 1 teleports & throws shurikens, phase 2 bombs/fire/shockers | HT 200->90. Blinks away every 15 HP lost; shuriken = 1-tick red tile (6). Below half HP lobs a 3x3 bomb every 3 actions (2-tick fuse, 8 dmg, also hurts mobs) |
-| Vampire Bat | 24 | 5 | 2 | 0.5 | 7 | 5 | HT 30, dmg 5-18, DR 0-4, speed 2x, heals on hit | HT 24, dmg 11->5 (it attacks twice per tick), heals 2 on a hit that gets through |
-| Gnoll Brute | 34 | 7 | 4 | 1.0 | 8 | 7 | HT 40, dmg 5-25 (15-40 enraged), DR 0-8 | HT 34, dmg 7, enraged (below half HP) 10 |
-| Gnoll Shaman | 26 | 5 | 3 | 1.0 | 8 | 7 | HT 35, dmg 5-10, DR 0-6; magic bolt 6-15 | magic zap = 1-tick red tile, 6 dmg ignoring DR, range 2-4, every 2 actions |
-| Cave Spinner | 32 | 6 | 3 | 1.0 | 9 | 8 | HT 50, dmg 10-20, DR 0-6; poison bite, webs | HT 32, dmg 6, bite adds 3 poison (no webs) |
-| DM-300 | 140 | 8 | 4 | 1.0 | 30 | 100 | HT 300, dmg 15-25, DR 0-10; rockfall, toxic vents, supercharge with pylons | HT 140, dmg 8, DR 4 (+2 supercharged below half HP). Every 3 actions (2 supercharged) alternates rockfall (+ shape on you, 2-tick fuse, 10) and a toxic gas line (1 tick, 3 + 4 poison). No pylons. |
+| Vampire Bat | 24 | 6 | 2 | 0.5 | 7 | 5 | HT 30, dmg 5-18, DR 0-4, speed 2x, heals on hit | HT 24, dmg 11->5 (it attacks twice per tick), heals 2 on a hit that gets through |
+| Gnoll Brute | 34 | 8 | 4 | 1.0 | 8 | 7 | HT 40, dmg 5-25 (15-40 enraged), DR 0-8 | HT 34, dmg 7, enraged (below half HP) 10 |
+| Gnoll Shaman | 26 | 6 | 3 | 1.0 | 8 | 7 | HT 35, dmg 5-10, DR 0-6; magic bolt 6-15 | magic zap = 1-tick red tile, 6 dmg ignoring DR, range 2-4, every 2 actions |
+| Cave Spinner | 32 | 7 | 3 | 1.0 | 9 | 8 | HT 50, dmg 10-20, DR 0-6; poison bite, webs | HT 32, dmg 6, bite adds 3 poison (no webs) |
+| DM-300 | 160 | 8 | 4 | 1.0 | 30 | 100 | HT 300, dmg 15-25, DR 0-10; rockfall, toxic vents, supercharge with pylons | HT 140, dmg 8, DR 4 (+2 supercharged below half HP). Every 3 actions (2 supercharged) alternates rockfall (+ shape on you, 2-tick fuse, 10) and a toxic gas line (1 tick, 3 + 4 poison). No pylons. |
 
 ### Weapons & armor
 
@@ -169,3 +169,12 @@ Traps: worn_dart, gripping, teleport, poison_dart. Strength potions at [[12, 50]
 | Huntress | 5 | Sniper 8 | Warden 8 |
 | Mage | 6 | Battlemage 8 | Warlock 8 |
 | Rogue | 0 | Assassin 7 | Freerunner 8 |
+
+## v0.13.0 with talents (bots auto-pick in data order), Caves mobs +1 dmg, DM-300 HT 160
+| Class | Base | Subclass A | Subclass B |
+|---|---|---|---|
+| Warrior | 8 | Berserker 10 | Gladiator 10 |
+| Huntress | 8 | Sniper 10 | Warden 10 |
+| Mage | 7 | Battlemage 9 | Warlock 8 |
+| Rogue | 1 | Assassin 9 | Freerunner 9 |
+Subclass + talents on a returning Lv8+ hero is meant to feel strong; the Caves bosses are the place to tune next.

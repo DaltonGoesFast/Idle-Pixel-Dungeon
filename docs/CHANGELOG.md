@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.13.0 — 2026-10-15
+- **SPD look**: the UI now uses Shattered Pixel Dungeon's own `chrome.png` 9-patches (window frames, red/grey buttons, tabs, toast frames) and SPD's pixel font, scaled by whole pixels for the Fold cover/inner screens.
+- **Talents** (data/talents.json): 2 tiers x 4 SPD-named talents per class. Tier 1 points at Lv3 and Lv5, tier 2 at Lv9 and Lv12 (pick 2 of 4 per tier). Learn them on the Camp Heroes page or mid-delve; a level-up during a delve opens the Talents card. Talents reset with the level on death.
+- **Backpack (in-delve inventory)**: 8 gear slots. Equip / unequip / imbue (Mage wands) / drop mid-delve with a stat comparison (Dmg/DR/Barrier/HP/Bolt before -> after); use potions, rations and torches outside fights. In a fight, the new **Bag** button swaps gear for 1 tick. A full backpack holds new loot until you drop something or leave it. Gear you brought from Camp is marked "(yours)": it can't be dropped and comes home even on death (cracked, like equipped gear).
+- Backpack and Talents open over door/campfire cards without losing them (the Settings card no longer drops the current card either).
+- Caves mobs +1 damage and DM-300 HT 160 to compensate for talents.
+- Build: tools/build.sh now fails on any GDScript runtime error in the tests.
+- Tests: 152 checks; the UI smoke test learns a talent through the mid-delve card and opens the combat Bag.
+
 ## v0.12.0 — 2026-10-15
 - **Mage in the Caves**: the Mage's Staff (heirloom) gains +1 melee damage every 6 hero levels. Caves sim 4/10 -> 6/10.
 - **Warlock rework**: staff bolts heal a third of the damage dealt; kills heal 20% of the foe's max HP. Caves 4/10 -> 8/10.

@@ -35,7 +35,16 @@ func _ready() -> void:
 			main.show_delve(); main.delve.running = false
 			for i in 30: Delve.advance(GameState, 1.0)
 			main.delve.pending = {"kind": "door", "door": DB.doors[0]}; main.delve._show_card()])
+		plan.append([sz, "backpack", func():
+			if GameState.run.is_empty(): GameState.start_run("warrior", {"ration": 1, "torch": 1, "potion_healing": 1}, "sewers", 5)
+			if GameState.run.pack_gear.is_empty():
+				Delve.reward(GameState, {"item": "mace"}); Delve.reward(GameState, {"item": "mail_armor"}); Delve.reward(GameState, {"item_unknown": "ring"})
+			main.show_delve(); main.delve._open_panel("backpack")])
+		plan.append([sz, "talents", func():
+			GameState.heroes.warrior.level = 9; GameState.heroes.warrior.talents = ["hearty_meal"]
+			main.show_delve(); main.delve._open_panel("talents")])
 		plan.append([sz, "guided", func():
+			main.delve._close_panel(); GameState.heroes.warrior.level = 1; GameState.heroes.warrior.talents = []
 			GameState.settings.tutorial = true; GameState.tutorial_done = ["first_fight", "welcome", "delve_bar"]
 			main.start_combat(Delve.combat_event(GameState.run, Delve.rng_for(GameState.run, 3), ["rat"]), func(_r): pass)
 			GameState.settings.tutorial = false])

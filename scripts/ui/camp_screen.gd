@@ -108,6 +108,7 @@ func _page_heroes() -> void:
 	for c in GameState.heroes:
 		v.add_child(_stats_card(c))
 		if not GameState.heroes[c].unlocked: continue
+		HeroPanels.talents(v, c, rebuild)
 		if GameState.can_choose_subclass(c):
 			var subs: Dictionary = DB.heroes[c].subclasses
 			for sid in subs:

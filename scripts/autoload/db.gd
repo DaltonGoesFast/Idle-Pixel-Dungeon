@@ -17,6 +17,7 @@ var specials: Array
 var traps: Dictionary
 var milestones: Array
 var tips: Dictionary
+var talents: Dictionary
 var biome_rooms: Dictionary
 
 func _init() -> void:
@@ -36,6 +37,7 @@ func reload() -> void:
 	traps = _strip(_load("traps"))
 	milestones = _load("milestones").get("milestones", [])
 	tips = _load("tutorial").get("tips", {})
+	talents = _load("talents")
 	biomes = _load("biomes")
 	var ev := _load("events")
 	doors = ev.doors; specials = ev.specials

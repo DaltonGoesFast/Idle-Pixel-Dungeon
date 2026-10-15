@@ -1,0 +1,202 @@
+{
+ "_tiers": {
+  "1": {
+   "from_level": 3,
+   "points_at": [
+    3,
+    5
+   ]
+  },
+  "2": {
+   "from_level": 9,
+   "points_at": [
+    9,
+    12
+   ]
+  }
+ },
+ "warrior": {
+  "1": {
+   "hearty_meal": {
+    "name": "Hearty Meal",
+    "desc": "+3 max HP.",
+    "ht_add": 3
+   },
+   "veterans_intuition": {
+    "name": "Veteran's Intuition",
+    "desc": "+1 search radius.",
+    "search_add": 1
+   },
+   "provoked_anger": {
+    "name": "Potion Lore",
+    "desc": "Potions heal +5% max HP more.",
+    "potion_add": 0.05
+   },
+   "iron_will": {
+    "name": "Iron Will",
+    "desc": "+1 Barrier.",
+    "barrier_add": 1
+   }
+  },
+  "2": {
+   "iron_stomach": {
+    "name": "Iron Stomach",
+    "desc": "+1 DR.",
+    "dr_add": 1
+   },
+   "liquid_willpower": {
+    "name": "Liquid Willpower",
+    "desc": "Potions heal +10% max HP more.",
+    "potion_add": 0.1
+   },
+   "runic_transference": {
+    "name": "Runic Transference",
+    "desc": "+1 melee damage.",
+    "dmg_add": 1
+   },
+   "lethal_momentum": {
+    "name": "Lethal Momentum",
+    "desc": "Surprise attacks +0.5x.",
+    "surprise_add": 0.5
+   }
+  }
+ },
+ "mage": {
+  "1": {
+   "empowering_meal": {
+    "name": "Potion Lore",
+    "desc": "Potions heal +5% max HP more.",
+    "potion_add": 0.05
+   },
+   "scholars_intuition": {
+    "name": "Scholar's Intuition",
+    "desc": "+1 search radius.",
+    "search_add": 1
+   },
+   "tested_hypothesis": {
+    "name": "Tested Hypothesis",
+    "desc": "+3 max HP.",
+    "ht_add": 3
+   },
+   "backup_barrier": {
+    "name": "Backup Barrier",
+    "desc": "+1 Barrier.",
+    "barrier_add": 1
+   }
+  },
+  "2": {
+   "energizing_upgrade": {
+    "name": "Energizing Upgrade",
+    "desc": "+1 staff charge.",
+    "charges_add": 1
+   },
+   "wand_preservation": {
+    "name": "Wand Preservation",
+    "desc": "+1 staff bolt damage.",
+    "bolt_add": 1
+   },
+   "shield_battery": {
+    "name": "Shield Battery",
+    "desc": "+1 Barrier.",
+    "barrier_add": 1
+   },
+   "inscribed_power": {
+    "name": "Inscribed Power",
+    "desc": "+1 melee damage.",
+    "dmg_add": 1
+   }
+  }
+ },
+ "rogue": {
+  "1": {
+   "cached_rations": {
+    "name": "Cached Rations",
+    "desc": "+3 max HP.",
+    "ht_add": 3
+   },
+   "thiefs_intuition": {
+    "name": "Thief's Intuition",
+    "desc": "+1 search radius.",
+    "search_add": 1
+   },
+   "sucker_punch": {
+    "name": "Potion Lore",
+    "desc": "Potions heal +5% max HP more.",
+    "potion_add": 0.05
+   },
+   "protective_shadows": {
+    "name": "Protective Shadows",
+    "desc": "+1 Barrier.",
+    "barrier_add": 1
+   }
+  },
+  "2": {
+   "mystical_upgrade": {
+    "name": "Mystical Upgrade",
+    "desc": "+1 Cloak charge.",
+    "cloak_add": 1
+   },
+   "light_cloak": {
+    "name": "Light Cloak",
+    "desc": "Surprise attacks +0.5x.",
+    "surprise_add": 0.5
+   },
+   "enhanced_rings": {
+    "name": "Enhanced Rings",
+    "desc": "+1 DR.",
+    "dr_add": 1
+   },
+   "rogues_foresight": {
+    "name": "Rogue's Foresight",
+    "desc": "+1 search radius.",
+    "search_add": 1
+   }
+  }
+ },
+ "huntress": {
+  "1": {
+   "natures_bounty": {
+    "name": "Nature's Bounty",
+    "desc": "+3 max HP.",
+    "ht_add": 3
+   },
+   "survivalists_intuition": {
+    "name": "Survivalist's Intuition",
+    "desc": "+1 search radius.",
+    "search_add": 1
+   },
+   "followup_strike": {
+    "name": "Potion Lore",
+    "desc": "Potions heal +5% max HP more.",
+    "potion_add": 0.05
+   },
+   "natures_aid": {
+    "name": "Nature's Aid",
+    "desc": "+1 Barrier.",
+    "barrier_add": 1
+   }
+  },
+  "2": {
+   "invigorating_meal": {
+    "name": "Invigorating Meal",
+    "desc": "Potions heal +10% max HP more.",
+    "potion_add": 0.1
+   },
+   "restored_nature": {
+    "name": "Restored Nature",
+    "desc": "+1 DR.",
+    "dr_add": 1
+   },
+   "rejuvenating_steps": {
+    "name": "Rejuvenating Steps",
+    "desc": "+1 Barrier.",
+    "barrier_add": 1
+   },
+   "durable_projectiles": {
+    "name": "Durable Projectiles",
+    "desc": "+1 Spirit Bow damage.",
+    "bolt_add": 1
+   }
+  }
+ }
+}

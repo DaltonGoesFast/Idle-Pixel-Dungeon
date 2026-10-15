@@ -20,6 +20,8 @@ static func play(gs, hero: String, loadout: Dictionary, seed: int, deep := false
 				var out := _summary(gs, "extract", fights); gs.end_run("extract"); return out
 			if Delve.can_search_floor(run) and float(run.torch) > 40.0: Delve.search_floor(gs)
 			Delve.descend(gs); continue
+		while not run.get("overflow", []).is_empty(): gs.resolve_overflow(-1)
+		gs.auto_pick_talents(hero)
 		var ev := Delve.advance(gs, 1.0)
 		if ev.is_empty(): continue
 		var reward := {}

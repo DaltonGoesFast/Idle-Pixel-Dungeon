@@ -127,3 +127,10 @@ The plain Mage died to Vampire Bats with full potions: a 3-damage staff vs DR 2 
 
 ## 65. Subclass targets ~8/10 in the Caves sim
 Berserker +20% below half HP (9/10), Battlemage every 5th hit (8/10). Values in BALANCE.md.
+
+## 66. SPD chrome + pixel font as the Godot theme; talents as data modifiers
+UIKit.make_theme builds StyleBoxTextures from SPD's chrome.png using the regions in SPD Chrome.java (WINDOW, RED_BUTTON, GREY_BUTTON, TAB_*, TOAST). The atlas is upscaled at runtime by a whole factor (font size / 9, 2-6x) with nearest filtering, so borders stay crisp pixel art on both Fold screens. SPD's pixel_font.ttf is the default font, with the engine font as a glyph fallback.
+Talents follow SPD's tier idea, simplified: 4 talents per tier, 2 points per tier (Lv3/5 and Lv9/12), each a flat modifier (`ht_add`, `dmg_add`, `dr_add`, `barrier_add`, `search_add`, `surprise_add`, `cloak_add`, `bolt_add`, `charges_add`, `potion_add`). First tries (3 points per tier, +4 HP / +2 Barrier / +1 dmg in tier 1) made every Caves sim 10/10, so tier 1 is utility (+3 HP, +1 Barrier, search, potions) and tier 2 holds the combat stats. Talents reset on death with the level, like SPD. Talent icons from talent_icons.png are not mapped yet (text buttons).
+
+## 67. Backpack: 8 gear slots, Camp gear is "owned", equipping found loot banks it
+Materials keep stacking in the pack (like SPD's bags); only gear uses slots. Equipping a found item moves it into the hero's slot, so it is kept like equipped gear (cracked on death, not lost); the item it replaces goes into the backpack flagged owned and comes home whatever happens. This keeps the "equipped gear cracks, the pack is lost" rule simple and never destroys Camp gear. Swapping in a fight costs 1 tick (same as Wait). A full pack parks new loot in run.overflow and the Delve screen opens the Backpack until the player drops something or leaves it; the sim always leaves it.

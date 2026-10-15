@@ -52,6 +52,8 @@ func _process(_d: float) -> void:
 		if main.screen.get("combat") != null: print("  last log: ", main.screen.combat.log_lines.slice(-6))
 		get_tree().quit(1)
 var guided_checked := false
+var talents_ui := false
+var backpack_ui := false
 
 func _drive() -> void:
 	var s = main.screen
@@ -62,6 +64,9 @@ func _drive() -> void:
 			guided_checked = true
 			_check(s.guide >= 1 and s.guide_label.text.begins_with("Step"), "first fight is guided")
 			_check(s.guide != 1 or s.grid.hint_cell.x >= 0, "guided step 1 highlights a tile")
+			s.bag_open = true; s._refresh()
+			_check(s.bag_host.get_child_count() > 0, "combat Bag opens the backpack")
+			s.bag_open = false; s._refresh()
 		if stage > 0 and s.guide > 0 and not s.finished and "guided_fight" in GameState.tutorial_done:
 			_check(false, "guided fight only once")
 		if not s.finished:
@@ -87,6 +92,20 @@ func _drive() -> void:
 		var p: Dictionary = s.pending
 		if p.is_empty(): GameState.run.progress = minf(100, GameState.run.progress + 0.0); return
 		match p.kind:
+			"talents":
+				talents_ui = true
+				var picked := false
+				for t in DB.talents[GameState.run.hero]["1"]:
+					if GameState.can_pick_talent(GameState.run.hero, t) == "":
+						var tb = _find_button(s.card_host, DB.talents[GameState.run.hero]["1"][t].name)
+						if tb: tb.pressed.emit(); picked = true
+						break
+				GameState.auto_pick_talents(GameState.run.hero)
+				s._close_panel()
+			"backpack":
+				backpack_ui = true
+				while not GameState.run.get("overflow", []).is_empty(): GameState.resolve_overflow(-1)
+				s._close_panel()
 			"combat": s._fight(p, {})
 			"door": s._choose_door(p.door.a)
 			"special": s._special_option(p.special.options.back())
@@ -134,6 +153,8 @@ func _drive() -> void:
 				GameState.add_mat("potion_healing", 3); s.loadout.potion_healing = 3; GameState.facilities.alchemy.level = 3
 			s.chosen_hero = classes[ci]; s._start(); main.delve.fast = true
 			return
+		_check(talents_ui, "level-up opened the Talents card mid-delve")
+		_check(GameState.heroes.values().any(func(h): return not h.get("talents", []).is_empty()), "a talent was learned through the UI")
 		_check("guided_fight" in GameState.tutorial_done, "guided first fight completed and remembered")
 		for t in ["welcome", "delve_bar", "first_fight", "floor_done"]:
 			_check(tips_seen.has(t), "tutorial tip shown: " + t)

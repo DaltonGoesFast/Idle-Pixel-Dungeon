@@ -184,7 +184,7 @@
  "bat": {
   "name": "Vampire Bat",
   "ht": 24,
-  "dmg": 5,
+  "dmg": 6,
   "dr": 2,
   "delay": 0.5,
   "exp": 7,
@@ -199,7 +199,7 @@
  "brute": {
   "name": "Gnoll Brute",
   "ht": 34,
-  "dmg": 7,
+  "dmg": 8,
   "dr": 4,
   "delay": 1.0,
   "exp": 8,
@@ -214,7 +214,7 @@
  "shaman": {
   "name": "Gnoll Shaman",
   "ht": 26,
-  "dmg": 5,
+  "dmg": 6,
   "dr": 3,
   "delay": 1.0,
   "exp": 8,
@@ -232,7 +232,7 @@
  "spinner": {
   "name": "Cave Spinner",
   "ht": 32,
-  "dmg": 6,
+  "dmg": 7,
   "dr": 3,
   "delay": 1.0,
   "exp": 9,
@@ -246,7 +246,7 @@
  },
  "dm300": {
   "name": "DM-300",
-  "ht": 140,
+  "ht": 160,
   "dmg": 8,
   "dr": 4,
   "delay": 1.0,

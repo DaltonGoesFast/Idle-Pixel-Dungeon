@@ -164,10 +164,10 @@ static func reward(gs, rw: Dictionary) -> String:
 			"item_unknown":
 				var pool: Array = ["ring_might", "ring_tenacity"] if rw[k] == "ring" else ["wand_magic_missile", "wand_firebolt", "wand_lightning"]
 				var id: String = pool[(int(run.seed) + int(run.floor) + run.pack_gear.size()) % pool.size()]
-				run.pack_gear.append(_new_gear(gs, id, false))
+				_stow(gs, _new_gear(gs, id, false))
 				parts.append(DB.item(id).unknown_name)
 			"item":
-				run.pack_gear.append(_new_gear(gs, rw[k], true))
+				_stow(gs, _new_gear(gs, rw[k], true))
 				parts.append(DB.item(rw[k]).name)
 			_:
 				if k in ["torch", "ration"]:
@@ -175,6 +175,13 @@ static func reward(gs, rw: Dictionary) -> String:
 				else: gs.pack_add(k, int(rw[k]))
 				parts.append("%d %s" % [rw[k], DB.mat_name(k)])
 	return ", ".join(parts)
+
+## Backpack full (GameState.BACKPACK_SLOTS): the item waits in run.overflow for a drop/leave decision.
+static func _stow(gs, g: Dictionary) -> void:
+	if gs.backpack_full():
+		if not gs.run.has("overflow"): gs.run.overflow = []
+		gs.run.overflow.append(g); gs.say("Backpack full! Drop something or leave %s." % gs.gear_name(g))
+	else: gs.run.pack_gear.append(g)
 
 static func _new_gear(gs, id: String, known: bool) -> Dictionary:
 	var g := {"uid": gs.next_uid, "id": id, "lvl": 0, "cracked": false, "known": known}

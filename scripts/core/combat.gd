@@ -512,6 +512,16 @@ func hero_search() -> bool:
 func hidden_trap_count() -> int:
 	return traps.values().filter(func(t): return t.hidden).size()
 
+## Mid-fight gear swap (backpack): refresh the hero's derived stats, keep HP/Barrier/charges sensible.
+func apply_stats(hs: Dictionary) -> void:
+	hero.ht = int(hs.ht); hero.hp = mini(int(hero.hp), int(hero.ht))
+	hero.dmg = int(hs.dmg); hero.dr = int(hs.dr); hero.delay = float(hs.delay)
+	hero.barrier_max = int(hs.barrier_max); hero.barrier = mini(int(hero.barrier), int(hero.barrier_max))
+	hero.surprise_mult = float(hs.get("surprise_mult", 1.5)); hero.search_radius = int(hs.get("search_radius", 1))
+	var nb: Dictionary = hs.get("bolt", {})
+	if not nb.is_empty():
+		hero.bolt = nb; hero.charges = mini(int(hero.charges), int(nb.get("charges", 0)))
+
 func hero_wait() -> void:
 	if over: return
 	_log("%s waits." % hero.name)

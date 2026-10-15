@@ -23,6 +23,8 @@ var auto := false
 var _auto_t := 0.0
 var finished := false
 ## Guided first fight (v0.11.0, DECISIONS #63): 0 = off, 1 move, 2 attack, 3 finish, 4 done
+var bag_open := false
+var bag_host: VBoxContainer
 var guide := 0
 var guide_label: Label
 
@@ -57,7 +59,7 @@ func _ready() -> void:
 	log_scroll = ScrollContainer.new(); log_scroll.size_flags_vertical = SIZE_EXPAND_FILL
 	log_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	log_scroll.custom_minimum_size.y = UIKit.font_size * 4
-	var bg := StyleBoxFlat.new(); bg.bg_color = Color("2a241c"); bg.set_content_margin_all(8)
+	var bg := UIKit.chrome("toast", Color(0.75, 0.75, 0.75))
 	log_scroll.add_theme_stylebox_override("panel", bg)
 	side.add_child(log_scroll)
 	log_label = RichTextLabel.new(); log_label.fit_content = true; log_label.scroll_active = false
@@ -118,9 +120,25 @@ func _refresh() -> void:
 		_btn("Bolt (%d)" % h.charges, func(): mode = "" if mode == "bolt" else "bolt"; grid.mode = mode; _refresh(), h.charges > 0)
 	_btn("Search" if not h.get("searched", false) else "Search again", func(): _act(func(): combat.hero_search()))
 	_btn("Potion (%d)" % (potions - potions_used), _drink, potions - potions_used > 0 and h.hp < h.ht)
+	_btn("Bag", func(): bag_open = not bag_open; _refresh())
 	_btn("Hint", _hint)
 	_btn("Auto: ON" if auto else "Auto", func(): auto = not auto; _refresh())
 	_refresh_log()
+	_refresh_bag()
+
+## In-combat Bag: swap weapon/armor/ring/wand from the backpack; costs the hero's turn (1 tick).
+func _refresh_bag() -> void:
+	if bag_host == null:
+		bag_host = UIKit.vbox(); side.add_child(bag_host); side.move_child(bag_host, buttons.get_index() + 1)
+	UIKit.clear(bag_host)
+	if not bag_open or finished or GameState.run.is_empty(): return
+	HeroPanels.backpack(bag_host, _refresh, true, _equip_in_combat)
+
+func _equip_in_combat() -> void:
+	bag_open = false
+	var hs := GameState.hero_stats(GameState.run.hero)
+	_act(func(): combat.apply_stats(hs); combat._log("%s swaps gear." % combat.hero.name); combat.hero_wait())
+	heal = GameState.potion_heal(GameState.run.hero)
 
 ## Guided first fight: a step banner + a glowing tile showing exactly what to tap. Never blocks input.
 func _guide_update() -> void:

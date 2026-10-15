@@ -17,3 +17,5 @@ Tips:
 `tests/run_tests.gd [subclass]` covers Tengu's Mask, permanent choice, save/load and each perk hook; `[cavesrun]` prints Caves clears per class and subclass (best Rogue subclass must reach 4/10).
 
 Screenshots: `SHOTS=caves,dm300` (comma list of step names) renders only those steps; long full runs on software GL can drop textures in later shots (DECISIONS #60).
+
+`[talents]` and `[backpack]` cover tier points, picks, mid-delve HP, death reset, equip/unequip/drop, owned items, overflow, potions outside fights and the in-combat swap. tools/build.sh fails on any "SCRIPT ERROR" in either suite.

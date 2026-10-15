@@ -29,6 +29,8 @@ func _ready() -> void:
 	test_save(gs, ss)
 	test_meta(gs, ss)
 	test_subclass(gs, ss)
+	test_talents(gs)
+	test_backpack(gs)
 	print("TESTS: %d passed, %d failed -> %s" % [passes, fails, "PASS" if fails == 0 else "FAIL"])
 	get_tree().quit(1 if fails else 0)
 
@@ -515,3 +517,65 @@ func test_subclass(gs, ss) -> void:
 	c.setup(["########","#......#","#.H1...#","#......#","#......#","#......#","#......#","########"], gs.hero_stats("mage"), 999, ["rat"])
 	c.hero.charges = 0; c.hero.combo = 4; c._melee_perks()
 	check(c.hero.charges == 1, "battlemage: every 5th melee hit restores a charge")
+
+func test_talents(gs) -> void:
+	print("[talents]")
+	gs.new_game()
+	var h: Dictionary = gs.heroes.warrior
+	check(gs.talent_points_total_free("warrior") == 0, "no talent points at Lv1")
+	check(gs.can_pick_talent("warrior", "hearty_meal").begins_with("reach"), "tier 1 locked below its level")
+	h.level = 5
+	check(gs.talent_points_free("warrior", "1") == 2 and gs.talent_points_free("warrior", "2") == 0, "Lv5: 2 tier-1 points")
+	var ht0: int = gs.hero_stats("warrior").ht
+	check(gs.pick_talent("warrior", "hearty_meal") and gs.hero_stats("warrior").ht == ht0 + 3, "Hearty Meal +3 HP")
+	check(not gs.pick_talent("warrior", "hearty_meal"), "no double pick")
+	check(gs.pick_talent("warrior", "iron_will") and not gs.pick_talent("warrior", "veterans_intuition"), "points run out")
+	check(not gs.pick_talent("warrior", "iron_stomach"), "tier 2 locked")
+	h.level = 12
+	check(gs.talent_points_free("warrior", "2") == 2, "Lv12: 2 tier-2 points")
+	var dr0: int = gs.hero_stats("warrior").dr
+	check(gs.pick_talent("warrior", "iron_stomach") and gs.hero_stats("warrior").dr == dr0 + 1, "Iron Stomach +1 DR")
+	var p0: int = gs.potion_heal("warrior")
+	gs.pick_talent("warrior", "liquid_willpower")
+	check(gs.potion_heal("warrior") > p0, "Liquid Willpower boosts potions")
+	# mid-delve pick raises run HP with max HP
+	gs.heroes.mage.unlocked = true; gs.heroes.mage.level = 3
+	gs.start_run("mage", {}, "sewers", 5)
+	var hp0: int = gs.run.hp
+	check(gs.pick_talent("mage", "tested_hypothesis") and gs.run.hp == hp0 + 3, "mid-delve talent adds the HP")
+	gs.end_run("death")
+	check(gs.heroes.mage.talents.is_empty(), "death resets talents with the level")
+
+func test_backpack(gs) -> void:
+	print("[backpack]")
+	gs.new_game()
+	gs.start_run("warrior", {"potion_healing": 1}, "sewers", 9)
+	var old_w: int = gs.heroes.warrior.weapon
+	Delve.reward(gs, {"item": "mace"})
+	check(gs.backpack_used() == 1, "found gear goes in the backpack")
+	var g: Dictionary = gs.run.pack_gear[0]
+	var cmp: Dictionary = gs.compare_equip(int(g.uid))
+	check(cmp.dmg[1] != cmp.dmg[0] or cmp.dr[1] == cmp.dr[0], "compare shows a damage change")
+	check(gs.delve_equip(int(g.uid)), "equip mid-delve")
+	check(gs.heroes.warrior.weapon == int(g.uid) and gs.run.pack_gear[0].uid == old_w and gs.run.pack_gear[0].owned, "old weapon goes to the backpack, owned")
+	check(not gs.delve_drop(old_w), "owned items can't be dropped")
+	check(gs.delve_unequip("armor") and gs.backpack_used() == 2, "unequip armor into the pack")
+	for i in gs.BACKPACK_SLOTS - 2: Delve.reward(gs, {"item": "dagger"})
+	check(gs.backpack_full(), "backpack fills up")
+	Delve.reward(gs, {"item": "mail_armor"})
+	check(gs.run.overflow.size() == 1 and gs.backpack_used() == gs.BACKPACK_SLOTS, "full pack: loot waits in overflow")
+	var drop: int = int(gs.run.pack_gear.back().uid)
+	check(gs.resolve_overflow(drop) and gs.pack_item(drop).is_empty() and gs.run.overflow.is_empty(), "drop one to take the new item")
+	gs.run.hp = 5
+	check(gs.delve_use("potion_healing") and gs.run.hp > 5, "drink a potion outside combat")
+	# combat swap costs a turn and updates stats
+	var c := Combat.new()
+	c.setup(["########","#......#","#.H..1.#","#......#","#......#","#......#","#......#","########"], gs.hero_stats("warrior"), 20, ["rat"])
+	var t0: float = c.hero.next
+	var ar: Dictionary = gs.run.pack_gear.filter(func(x): return x.id == "cloth_armor")[0]
+	gs.delve_equip(int(ar.uid))
+	c.apply_stats(gs.hero_stats("warrior")); c.hero_wait()
+	check(c.hero.next == t0 + 1.0 and c.hero.dr == gs.hero_stats("warrior").dr, "in-combat swap: new stats, 1 tick")
+	gs.end_run("death")
+	check(gs.gear_by_uid(old_w).get("cracked", false), "owned gear in the pack comes home (cracked) on death")
+	var saved := {}

@@ -60,3 +60,8 @@ Compatibility renderer (OpenGL ES 3) on all platforms; `canvas_items` stretch wi
 - `heroes.json` `subclasses`: flat stat modifiers applied in `GameState.hero_stats()`; an optional `perk` is copied onto the combat hero and handled in `Combat._melee_dmg/_melee_perks/_kill/_end_hero_turn`.
 - `GameState.heroes[c].mask/subclass` (defaults merged into old saves by `from_dict`), `can_choose_subclass/choose_subclass`; Tengu's Mask is granted in `record_boss_kill`.
 - `CombatScreen.guide` drives the guided first fight from fight state (`_guide_update`), using `GridView.hint_cell` for the glowing tile.
+
+## Theme, talents, backpack (v0.13)
+- `UIKit.chrome(name)` returns an SPD 9-patch StyleBoxTexture; `make_theme` applies it to Button/PanelContainer/TabBar and sets SPD's pixel font.
+- `scripts/ui/hero_panels.gd` (HeroPanels) builds the Talents and Backpack panels used by Camp, DelveScreen (`_open_panel`) and CombatScreen (Bag).
+- GameState: `talent_*`, `pick_talent`, `auto_pick_talents`; `delve_equip/unequip/drop/use`, `compare_equip`, `resolve_overflow`; `BACKPACK_SLOTS`. Delve `_stow` handles full packs. `Combat.apply_stats` refreshes the hero after a mid-fight swap.
