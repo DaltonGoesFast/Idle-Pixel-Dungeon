@@ -5,6 +5,7 @@
    1,
    5
   ],
+  "rec_level": 4,
   "str_gate": 10,
   "tile": "tiles_sewers",
   "music": "sewers_1",
@@ -118,6 +119,7 @@
    6,
    10
   ],
+  "rec_level": 6,
   "str_gate": 12,
   "tile": "tiles_prison",
   "music": "prison_1",
@@ -235,6 +237,7 @@
    11,
    15
   ],
+  "rec_level": 9,
   "str_gate": 14,
   "tile": "tiles_caves",
   "music": "caves_1",
@@ -352,6 +355,7 @@
    16,
    20
   ],
+  "rec_level": 16,
   "str_gate": 15,
   "tile": "tiles_city",
   "music": "city_1",
@@ -469,6 +473,7 @@
    21,
    25
   ],
+  "rec_level": 22,
   "str_gate": 17,
   "tile": "tiles_halls",
   "music": "halls_1",

@@ -651,10 +651,11 @@ func _campfire_stakes(v: VBoxContainer, run: Dictionary, nb: String) -> void:
 	if nb == "": return
 	var b: Dictionary = DB.biomes[nb]
 	var hero_str := int(GameState.heroes[run.hero].str)
+	var hero_lv := int(GameState.heroes[run.hero].level)
 	v.add_child(UIKit.label("Pressing on:", 0.95, Color("ff9944")))
-	var gate := "%d Str recommended (you have %d)" % [int(b.str_gate), hero_str]
+	var gate := "Lv %d / %d Str recommended (you have Lv %d / %d)" % [int(b.get("rec_level", 1)), int(b.str_gate), hero_lv, hero_str]
 	v.add_child(UIKit.label("%s, floors %d-%d, %s. Nothing is banked until you extract; a death loses all of it." % [b.name, int(b.floors[0]), int(b.floors[1]), gate],
-		0.85, Color("ff7070") if hero_str < int(b.str_gate) else Color("bdb3a0")))
+		0.85, Color("ff7070") if hero_str < int(b.str_gate) or hero_lv < int(b.get("rec_level", 1)) else Color("bdb3a0")))
 
 ## Result window: what the encounter gave and took. The bar waits until OK.
 var _summary_on := false

@@ -381,7 +381,7 @@ func _page_delve() -> void:
 	hd.add_child(tr)
 	var hv := UIKit.vbox(hd); hv.size_flags_horizontal = SIZE_EXPAND_FILL
 	hv.add_child(UIKit.label("%s  ->  %s" % [DB.heroes[chosen_hero].name, b.name], 1.0, Color("ffd27a")))
-	hv.add_child(UIKit.label("Floors %d-%d, boss: %s. Strength %d recommended." % [b.floors[0], b.floors[1], DB.mobs.get(b.get("boss", ""), {}).get("name", "?"), b.str_gate], 0.8, Color("bdb3a0")))
+	hv.add_child(UIKit.label("Floors %d-%d, boss: %s. Recommended: Lv %d, Strength %d." % [b.floors[0], b.floors[1], DB.mobs.get(b.get("boss", ""), {}).get("name", "?"), int(b.get("rec_level", 1)), b.str_gate], 0.8, Color("bdb3a0")))
 	hv.add_child(UIKit.label("Extract at a boss campfire or with a Scroll of Passage. Dying loses the pack.", 0.75, Color("9a9488")))
 	v.add_child(UIKit.header("Supplies"))
 	for k in ["ration", "torch", "potion_healing", "scroll_passage", "elixir_starter"]:

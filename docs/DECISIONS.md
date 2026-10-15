@@ -365,3 +365,6 @@ The percent bar stays the exploration (GDD: UI-driven delving, no hallway walkin
 - Torch and food are item icons with a percent on the status pane (fights too), orange under 30% and red at 0.
 - Red edges at or below 30% HP (the Auto Battle stop line), and a short pulse when an ambush opens.
 - The campfire lists what extracting banks next to the next biome's floors and Strength gate (red when the hero is under it).
+
+## 126. Recommended levels for a smooth difficulty curve (no boss easing)
+Only a Strength gate was shown, and the implied levels made the late bosses coin flips. Boss probe on main with typical gear (all 8 class/subclass builds, 3 potions, 10 seeds): DM-300 at Lv9 92%, King at Lv14 71% (Warden 0/10), Yog at Lv18 55%. Per user feedback the bosses are not made easier. Biomes get `rec_level` instead, chosen so the win rate at the recommended level falls smoothly: sewers 4, prison 6, caves 9 (DM-300 92%), city 16 (King 86%), halls 22 (Yog 65%). The Camp expedition text and the "Pressing on" text show it, in red when the hero is under it. Yog stays the hardest fight. Melee builds trail there (Warrior about 4/10), which points at bot/melee positioning, not stats.

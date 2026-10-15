@@ -36,6 +36,7 @@ func _ready() -> void:
 	test_floor_label(gs)
 	test_total_wipe(gs)
 	test_rogue_cloak(gs)
+	test_rec_levels(gs)
 	test_level_cap(gs)
 	test_dew_sink(gs)
 	test_old_run_load(gs)
@@ -1773,3 +1774,13 @@ func test_rogue_cloak(gs) -> void:
 	check(int(c.hero.cloak_charges) == 3, "a fight starts with 3 cloak charges")
 	gs.end_run("abandon")
 
+
+func test_rec_levels(_gs) -> void:
+	print("[recommended levels]")
+	var prev := 0
+	for b in ["sewers", "prison", "caves", "city", "halls"]:
+		var l := int(DB.biomes[b].get("rec_level", 0))
+		check(l > prev, "%s has a rising recommended level (%d)" % [b, l])
+		prev = l
+	check(int(DB.biomes.halls.rec_level) == 22, "halls recommends Lv 22")
+	check(int(DB.mobs.dking.ht) == 140 and int(DB.mobs.yog.dmg) == 14, "late bosses are not eased")
