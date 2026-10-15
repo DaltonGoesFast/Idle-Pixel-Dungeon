@@ -41,7 +41,7 @@ SPD's crab (dmg 1-7 -> 4, DR 0-4 -> 2, speed x2) dealt ~6 damage per tick to a 2
 ## Prison readiness
 GDD target: 12-13 Str, tier 2-3 gear. Two Sewers Strength potions take a fresh hero from 10 to 12 Str by floor 4, so a hero who forged a Shortsword/Leather Armor before the run arrives at the Prison able to use them.
 
-## Barrier pass (v0.28, DECISIONS #134)
+## Barrier pass (DECISIONS #134)
 Deep campaign sim (`DEEP=1 RUNS=40 SEEDS=2`, 4 classes), share of post-DR damage absorbed by Barrier:
 
 | | before | after |
