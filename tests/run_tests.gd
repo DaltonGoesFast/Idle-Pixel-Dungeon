@@ -39,7 +39,7 @@ func _ready() -> void:
 	await test_icon_sizes(gs)
 	test_full_auto(gs)
 	test_encounter_dismiss(gs)
-	test_encounter_summary(gs)
+	await test_encounter_summary(gs)
 	await test_menu_toast(gs)
 	test_log_and_sounds(gs)
 	test_ring_contexts(gs)
@@ -1247,6 +1247,7 @@ func test_encounter_summary(gs) -> void:
 	gs.run.hp = int(before.hp)
 	var scr = load("res://scripts/ui/delve_screen.gd").new()
 	add_child(scr)
+	scr.size = Vector2(968, 900)
 	scr.running = true
 	scr._choose_door({"kind": "chest", "text": "Locked chest", "cost": {"gold": 3}, "reward": {"gold": 7, "item": "shortsword"}})
 	var txt := _node_text(scr.get_node("EncounterSummary"))
@@ -1261,6 +1262,13 @@ func test_encounter_summary(gs) -> void:
 	scr._after_fight({"kind": "combat", "mobs": ["rat"]}, {"won": true, "hp": 14, "loot": 5, "fallen_loot": 2, "xp": 1, "boss_killed": false, "kills": 1, "traps_found": 0, "trap_ids": [], "potions_used": 1}, {})
 	txt = _node_text(scr.get_node("EncounterSummary"))
 	check(txt.contains("Victory") and txt.contains("+5 Gold") and txt.contains("-6 HP") and txt.contains("-1 Potion of Healing") and txt.contains("+2 Gold on the next floor") and txt.contains("+1 XP"), "fight window lists loot, damage, a potion drunk, and fallen gold")
+	scr._accept_summary()
+	scr._open_summary("Victory", PackedStringArray(["+14 Gold", "+13 XP"]), PackedStringArray())
+	var list: ScrollContainer = scr.get_node("EncounterSummary").find_child("SummaryList", true, false)
+	check(list.custom_minimum_size.y >= 5.0 * UIKit.font_size * 1.5, "a short victory gives each line room")
+	await get_tree().process_frame
+	var bar := list.get_v_scroll_bar()
+	check(bar.max_value <= bar.page + 1.0, "a short victory fits without a scrollbar")
 	scr._accept_summary()
 	gs.settings.full_auto = true
 	scr._open_summary("Victory", PackedStringArray(), PackedStringArray())

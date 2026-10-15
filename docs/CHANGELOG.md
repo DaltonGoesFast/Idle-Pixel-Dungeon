@@ -2,6 +2,7 @@
 
 
 ## 0.26.0
+- Encounter result window gives each line room, so a short victory no longer clips or shows a scrollbar.
 - Floor-clear and other delve menus keep toasts inside the card, above the buttons, instead of floating over them.
 - Softlock fix: starter weapon + cloth armor when gear is cracked, free Patch up at the Forge when broke, relief ration/torch, 1 iron ore per floor (+test).
 - Scrolls of Upgrade lost on death are owed and return on the next boss kill (any hero); shown in Camp.

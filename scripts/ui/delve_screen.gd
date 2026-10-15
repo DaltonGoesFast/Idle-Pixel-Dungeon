@@ -522,11 +522,14 @@ func _build_summary() -> void:
 	var cc := CenterContainer.new()
 	cc.mouse_filter = MOUSE_FILTER_IGNORE
 	mc.add_child(cc)
+	var pad := UIKit.font_size * 0.95
 	var card := UIKit.card()
+	card.add_theme_stylebox_override("panel", UIKit.chrome("window", Color.WHITE, pad))
 	var w := floorf(minf(vs.x - 2.0 * m, UIKit.font_size * 22.0))
 	card.custom_minimum_size.x = w
 	cc.add_child(card)
-	var box := UIKit.vbox(card)
+	var gap := int(round(UIKit.font_size * 0.65))
+	var box := UIKit.vbox(card, gap)
 	var h := UIKit.header(_summary_title)
 	h.custom_minimum_size.x = 1
 	h.size_flags_horizontal = SIZE_EXPAND_FILL
@@ -536,19 +539,26 @@ func _build_summary() -> void:
 		note.custom_minimum_size.x = 1
 		box.add_child(note)
 	var sc := ScrollContainer.new()
+	sc.name = "SummaryList"
 	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	sc.size_flags_horizontal = SIZE_EXPAND_FILL
-	var lines := _summary_got.size() + _summary_lost.size() + 2
-	# Leave room for the title, the note, and OK, so the button stays on screen.
-	var chrome := UIKit.btn_height() + UIKit.font_size * (4.2 if _summary_note != "" else 2.8)
-	var room := maxf(UIKit.font_size * 3.0, vs.y - 2.0 * float(m) - chrome)
-	var want := float(maxi(lines, 2)) * UIKit.font_size * 1.2
-	sc.custom_minimum_size = Vector2(w, minf(want, room))
+	# Each line has its own slot, plus the gap between them. The old budget (font*1.2 per
+	# counted line) ignored those gaps and the "Nothing" row, so a short victory clipped
+	# and grew a scrollbar.
+	var line_h := UIKit.font_size * 1.55
+	var rows := _summary_row_count()
+	var want := float(rows) * line_h + float(maxi(rows - 1, 0)) * float(gap) + UIKit.font_size * 0.45
+	var reserved := UIKit.btn_height() + pad * 2.0 + float(gap) * 2.0 + UIKit.font_size * (3.2 if _summary_note != "" else 1.8)
+	var room := maxf(line_h * 4.0, vs.y - 2.0 * float(m) - reserved)
+	sc.custom_minimum_size = Vector2(0, minf(want, room))
 	box.add_child(sc)
-	var inner := UIKit.vbox(sc)
-	inner.custom_minimum_size.x = w
-	_summary_section(inner, "Got", _summary_got, GameState.LOG_COLORS.positive)
-	_summary_section(inner, "Lost", _summary_lost, GameState.LOG_COLORS.negative)
+	var inner := UIKit.vbox(sc, gap)
+	inner.size_flags_horizontal = SIZE_EXPAND_FILL
+	_summary_section(inner, "Got", _summary_got, GameState.LOG_COLORS.positive, line_h)
+	_summary_section(inner, "Lost", _summary_lost, GameState.LOG_COLORS.negative, line_h)
+	var measured := inner.get_combined_minimum_size().y
+	if measured > sc.custom_minimum_size.y and measured < want * 2.2:
+		sc.custom_minimum_size.y = minf(measured + UIKit.font_size * 0.25, room)
 	var ok := UIKit.button("OK", _accept_summary)
 	ok.name = "SummaryOK"
 	ok.custom_minimum_size.x = 1
@@ -557,20 +567,23 @@ func _build_summary() -> void:
 	var tw := card.create_tween()
 	tw.tween_property(card, "modulate:a", 1.0, 0.15)
 
-func _summary_section(parent: Node, heading: String, lines: PackedStringArray, color: Color) -> void:
-	var h := UIKit.label(heading, 1.0, color)
-	h.custom_minimum_size.x = 1
-	parent.add_child(h)
+func _summary_row_count() -> int:
+	return 2 + maxi(_summary_got.size(), 1) + maxi(_summary_lost.size(), 1)
+
+func _summary_line(text: String, scale: float, color: Color, line_h: float) -> Label:
+	var l := UIKit.label(text, scale, color)
+	l.custom_minimum_size = Vector2(1, line_h)
+	l.size_flags_horizontal = SIZE_EXPAND_FILL
+	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	return l
+
+func _summary_section(parent: Node, heading: String, lines: PackedStringArray, color: Color, line_h: float) -> void:
+	parent.add_child(_summary_line(heading, 1.0, color, line_h))
 	if lines.is_empty():
-		var none := UIKit.label("Nothing", 0.9, Color("9a8f7c"))
-		none.custom_minimum_size.x = 1
-		parent.add_child(none)
+		parent.add_child(_summary_line("Nothing", 0.9, Color("9a8f7c"), line_h))
 		return
 	for s in lines:
-		var l := UIKit.label(s, 0.9, color)
-		l.custom_minimum_size.x = 1
-		l.size_flags_horizontal = SIZE_EXPAND_FILL
-		parent.add_child(l)
+		parent.add_child(_summary_line(s, 0.9, color, line_h))
 
 func _accept_summary() -> void:
 	var cb := _summary_ok
