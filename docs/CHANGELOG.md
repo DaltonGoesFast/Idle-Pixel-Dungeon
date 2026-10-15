@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- In-game Update on Android and Windows: Camp / Settings checks GitHub releases, downloads the APK or zip, and on Android opens the system Install screen. iOS stays on TestFlight; `tools/upload_testflight.sh` archives and uploads on a Mac. Android export uses Gradle so the updater can request install permission (+tests).
 - Combat rooms: mixed 8/10/12 layouts, multi-chamber maps for later biomes, larger boss arenas. Grass sway and door open/close fixed. Surprise matches SPD (lost sight after a closing door or circling tall grass); snakes slip every other hit. Wands and the Spirit Bow need line of sight; the bow cannot fire point-blank. Auto battle uses the same surprise setups. (Bot expedition / Yog win-rate thresholds still need a follow-up pass.)
 - iOS export preset. A PC or a Mac can write the Xcode project; a Mac with the Apple Team ID signs it and uploads to TestFlight. See `docs/BUILD_IOS.md`.
 

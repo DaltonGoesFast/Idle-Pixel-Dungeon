@@ -6,7 +6,9 @@ The preset is `iOS` in `export_presets.cfg`. It matches the Android package id, 
 
 `application/short_version` must stay equal to `version/name` and `project.godot`'s `config/version`. `application/version` must stay equal to Android `version/code` and must go up for every TestFlight upload. `tools/build.sh` fails if those drift.
 
-Godot refuses to export while `application/app_store_team_id` is empty. Paste the 10-character Team ID from [developer.apple.com](https://developer.apple.com) (the code next to the account name, not the display name). Set it locally and leave it out of git.
+Godot refuses to export while `application/app_store_team_id` is empty. Paste the 10-character Team ID from [developer.apple.com](https://developer.apple.com) (the code next to the account name, not the display name). Set it locally and leave it out of git. You can also pass `APPLE_TEAM_ID` to the upload script without writing the preset.
+
+There is no in-app update check on iOS. Testers get new builds from the TestFlight app after App Store Connect finishes processing.
 
 ## PC (Windows)
 
@@ -28,7 +30,7 @@ Windows writes `builds/ios/spd-tactics.xcodeproj` and the `builds/ios/spd-tactic
 
 1. Install Godot **4.7.2 stable** and the iOS export templates the same way. They land in `~/Library/Application Support/Godot/export_templates/4.7.2.stable/ios.zip`. Xcode needs the developer account signed in.
 2. In [App Store Connect](https://appstoreconnect.apple.com), create an app with bundle ID `com.daltongoesfast.spdtactics` (same id as the Android package) if it does not exist yet. Xcode automatic signing can register that App ID when the account is allowed to.
-3. Paste the Team ID into `application/app_store_team_id` if this clone does not already have it.
+3. Paste the Team ID into `application/app_store_team_id` if this clone does not already have it, or export `APPLE_TEAM_ID`.
 4. Export when this Mac is starting from the repo rather than from a `builds/ios` folder the PC already sent:
 
 ```bash
@@ -38,10 +40,17 @@ godot --headless --path . --export-release "iOS" "builds/ios/spd-tactics.xcodepr
 
 On a Mac, Godot also codesigns the shipped dylibs with **Apple Distribution**. A missing Apple Distribution certificate stops the export at that step. A project exported on Windows arrives with those libraries unsigned; Xcode signs them during Archive. If Archive rejects them, run the export command above on the Mac.
 
-5. Open `builds/ios/spd-tactics.xcodeproj`, or point the existing pipeline at it. Scheme name is `spd-tactics`. Configuration for a store build is Release.
-   - Signing & Capabilities: the Team from the developer account, Automatically manage signing.
-   - Product > Archive, then Distribute App > App Store Connect > Upload.
-   - The build shows up in TestFlight after processing.
+5. Upload to TestFlight with the script (scheme `spd-tactics`, Release, App Store Connect):
+
+```bash
+tools/upload_testflight.sh
+```
+
+It archives `builds/ios/spd-tactics.xcodeproj` (exports first if the project is missing), then uploads. Auth is the Apple ID already signed into Xcode, or an App Store Connect API key via `APP_STORE_CONNECT_API_KEY_ID`, `APP_STORE_CONNECT_ISSUER_ID`, and `APP_STORE_CONNECT_API_KEY_PATH` (`.p8` outside the repo). Apple rejects a repeat of `application/version`; bump it with the Android `version/code` before each upload.
+
+Manual path if you need it: open the `.xcodeproj`, Signing & Capabilities → Team + Automatically manage signing, Product → Archive → Distribute App → App Store Connect → Upload.
+
+After processing, internal TestFlight testers see the build. The first external group is still a one-time click in App Store Connect.
 
 ## What to check on a phone
 

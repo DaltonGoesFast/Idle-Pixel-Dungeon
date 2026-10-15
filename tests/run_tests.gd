@@ -71,6 +71,7 @@ func _ready() -> void:
 	test_subclass(gs, ss)
 	test_talents(gs)
 	test_backpack(gs)
+	test_updater()
 	await test_touch_scroll()
 	await test_tip_fit()
 	print("TESTS: %d passed, %d failed -> %s" % [passes, fails, "PASS" if fails == 0 else "FAIL"])
@@ -1684,6 +1685,24 @@ func _find_btn(n: Node, text: String):
 		var r = _find_btn(ch, text)
 		if r: return r
 	return null
+
+## Version compare and release asset pick (no network).
+func test_updater() -> void:
+	print("[updater]")
+	check(Updater.normalize_version("v0.28.1") == "0.28.1", "normalize strips leading v")
+	check(Updater.compare_versions("0.9.0", "0.10.0") < 0, "0.10.0 ranks above 0.9.0")
+	check(Updater.compare_versions("0.28.1", "0.28.1") == 0, "equal versions compare equal")
+	check(Updater.compare_versions("0.29.0", "0.28.1") > 0, "newer local does not look older")
+	var assets := [
+		{"name": "spd-tactics-v0.29.0.apk", "browser_download_url": "https://example/a.apk"},
+		{"name": "spd-tactics-v0.29.0-windows.zip", "browser_download_url": "https://example/w.zip"},
+	]
+	var apk := Updater.pick_asset(assets, "0.29.0", ".apk")
+	check(apk.get("name") == "spd-tactics-v0.29.0.apk" and String(apk.get("url", "")).ends_with("a.apk"), "picks Android APK asset")
+	var zip := Updater.pick_asset(assets, "v0.29.0", "-windows.zip")
+	check(zip.get("name") == "spd-tactics-v0.29.0-windows.zip", "picks Windows zip asset")
+	check(Updater.pick_asset(assets, "0.29.0", "").is_empty(), "unsupported platform picks nothing")
+	check(Updater.local_version() != "", "local version comes from project settings")
 
 ## Log lines carry SPD colours; key moments are logged; the alarm sound is never played.
 func test_log_and_sounds(gs) -> void:

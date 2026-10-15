@@ -8,6 +8,7 @@ const DELVE_SPEEDS := [["Slow", 0.5], ["Normal", 1.0], ["Fast", 1.5], ["Faster",
 
 static func build(v: VBoxContainer, show_dev := true) -> void:
 	v.add_child(UIKit.label("SPD Tactics " + UIKit.version(), 0.8, Color("c9a96e")))
+	_build_update(v)
 	v.add_child(UIKit.header("Audio"))
 	for k in [["sfx", "Sound effects"], ["music", "Music"]]:
 		var row := UIKit.hbox(v)
@@ -64,3 +65,53 @@ static func build(v: VBoxContainer, show_dev := true) -> void:
 		v.add_child(UIKit.button("Fast-forward 1 hour (timers)", func(): GameState.time_offset += 3600; GameState.tick_identify(); GameState.touch()))
 		v.add_child(UIKit.button("Wipe save (new game)", func(): SaveSystem.wipe()))
 	v.add_child(UIKit.label("Art, sounds and music: Shattered Pixel Dungeon by Evan Debenham (GPL-3.0). This game is GPL-3.0. See CREDITS.md.", 0.75, Color("9a8f7c")))
+
+## Update section (Android / Windows).
+static func _build_update(v: VBoxContainer) -> void:
+	if not Updater.supports_platform():
+		return
+	v.add_child(UpdateBlock.new())
+
+## Live status + button; connects to Updater while in the tree.
+class UpdateBlock extends VBoxContainer:
+	var _status: Label
+	var _btn: Button
+
+	func _ready() -> void:
+		add_theme_constant_override("separation", int(UIKit.font_size * 0.35))
+		add_child(UIKit.header("Update"))
+		_status = UIKit.label("…", 0.8, Color("9a9488"))
+		add_child(_status)
+		_btn = UIKit.button("Check for update", func(): Updater.start_update())
+		add_child(_btn)
+		if OS.get_name() == "Windows":
+			add_child(UIKit.label("Downloads the release zip. Unzip it and run spd-tactics.exe (keep the .pck beside it).", 0.75, Color("9a8f7c")))
+		else:
+			add_child(UIKit.label("Downloads the APK and opens Android's Install screen. Same signing key as previous sideloads keeps your save.", 0.75, Color("9a8f7c")))
+		Updater.changed.connect(_refresh)
+		_refresh()
+		if Updater.state == Updater.State.IDLE and Updater.status_text == "":
+			Updater.check_now()
+
+	func _exit_tree() -> void:
+		if Updater.changed.is_connected(_refresh):
+			Updater.changed.disconnect(_refresh)
+
+	func _refresh() -> void:
+		if _status == null or _btn == null:
+			return
+		_status.text = Updater.status_text if Updater.status_text != "" else "…"
+		match Updater.state:
+			Updater.State.CHECKING:
+				_btn.text = "Checking…"; _btn.disabled = true
+			Updater.State.READY:
+				_btn.text = "Update to v%s" % Updater.remote_version; _btn.disabled = false
+			Updater.State.DOWNLOADING:
+				_btn.text = "Downloading %d%%" % int(Updater.progress * 100.0); _btn.disabled = true
+			Updater.State.DONE:
+				_btn.text = ("Update to v%s" % Updater.remote_version) if Updater.remote_version != "" else "Done"
+				_btn.disabled = false
+			Updater.State.ERROR:
+				_btn.text = "Try again"; _btn.disabled = false
+			_:
+				_btn.text = "Check for update"; _btn.disabled = false

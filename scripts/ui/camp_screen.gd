@@ -20,6 +20,7 @@ var portrait := true
 var open_name := ""          # page shown in the window ("" = hub)
 var win_layer: Control       # page window
 var info_layer: Control      # item info popup (on top of the window)
+var _update_btn: Button      # Camp header Update control (Android / Windows)
 const MAX_SUPPLY := 10
 const PAGE_ORDER := ["Delve", "Heroes", "Stash", "Forge", "Alchemy", "Enchanter", "Guild", "Journal", "Settings"]
 const TAB_ORDER := PAGE_ORDER   # kept for older tests/tools
@@ -32,7 +33,29 @@ const HERO_FRAME := Vector2i(12, 15)
 func _ready() -> void:
 	_build_shell()
 	GameState.changed.connect(rebuild)
+	Updater.changed.connect(_on_updater)
+	if Updater.supports_platform() and Updater.state == Updater.State.IDLE:
+		Updater.check_now()
 	rebuild()
+
+func _on_updater() -> void:
+	if not is_inside_tree() or root_box == null:
+		return
+	# Full rebuild when the header Update button appears/disappears; otherwise just retitle it.
+	var want := Updater.supports_platform() and Updater.has_update()
+	if want == (_update_btn != null and is_instance_valid(_update_btn)):
+		if _update_btn != null and is_instance_valid(_update_btn):
+			_update_btn.text = _camp_update_label()
+			_update_btn.disabled = Updater.state == Updater.State.DOWNLOADING or Updater.state == Updater.State.CHECKING
+		return
+	rebuild()
+
+func _camp_update_label() -> String:
+	if Updater.state == Updater.State.DOWNLOADING:
+		return "Updating %d%%" % int(Updater.progress * 100.0)
+	if Updater.remote_version != "":
+		return "Update v%s" % Updater.remote_version
+	return "Update"
 
 func apply_layout(p: bool, _size: Vector2) -> void:
 	if p == portrait and root_box != null: rebuild(); return
@@ -42,11 +65,18 @@ func apply_layout(p: bool, _size: Vector2) -> void:
 func _build_shell() -> void:
 	for c in get_children(): c.queue_free()
 	var outer := UIKit.vbox(self); outer.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
-	# top bar: title, version, Journal + Settings
+	# top bar: title, version, Update (when available), Journal + Settings
 	var top := UIKit.hbox(outer)
 	var title := UIKit.header("Surface Camp"); title.size_flags_horizontal = SIZE_EXPAND_FILL; top.add_child(title)
 	var ver := UIKit.label(UIKit.version(), 0.75, Color("9a9488")); ver.size_flags_vertical = SIZE_SHRINK_CENTER
 	ver.autowrap_mode = TextServer.AUTOWRAP_OFF; top.add_child(ver)
+	_update_btn = null
+	if Updater.supports_platform() and Updater.has_update():
+		_update_btn = UIKit.button(_camp_update_label(), func(): Updater.start_update())
+		_update_btn.disabled = Updater.state == Updater.State.DOWNLOADING or Updater.state == Updater.State.CHECKING
+		_update_btn.size_flags_horizontal = SIZE_SHRINK_END; _update_btn.size_flags_vertical = SIZE_SHRINK_CENTER
+		_update_btn.custom_minimum_size.x = UIKit.font_size * 6
+		top.add_child(_update_btn)
 	for p in ["Journal", "Settings"]:
 		var b := UIKit.as_toolbar(UIKit.button("", func(): open_page(p)), PAGE_ICONS[p])
 		b.tooltip_text = p; b.custom_minimum_size = Vector2.ONE * UIKit.btn_height()

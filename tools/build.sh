@@ -3,6 +3,29 @@
 # Usage: tools/build.sh [version-name]   (version code is read from export_presets.cfg)
 set -euo pipefail
 cd "$(dirname "$0")/.."
+
+# Gradle Android export needs res://android/build from the 4.7.2 export templates (gitignored).
+ensure_android_template() {
+  if [ -d android/build ]; then return; fi
+  local zip="${GODOT_ANDROID_SOURCE:-}"
+  if [ -z "$zip" ]; then
+    local d
+    for d in \
+      "${HOME}/.local/share/godot/export_templates/4.7.2.stable" \
+      "${HOME}/Library/Application Support/Godot/export_templates/4.7.2.stable" \
+      "${APPDATA:-}/Godot/export_templates/4.7.2.stable"; do
+      if [ -f "$d/android_source.zip" ]; then zip="$d/android_source.zip"; break; fi
+    done
+  fi
+  if [ -z "${zip}" ] || [ ! -f "$zip" ]; then
+    echo "Missing android_source.zip (Godot 4.7.2 export templates / Install Android Build Template) -> FAIL"
+    exit 1
+  fi
+  mkdir -p android/build
+  unzip -q "$zip" -d android/build
+  echo "Installed Android build template into android/build from $zip"
+}
+
 godot --headless --path . --import >/dev/null 2>&1 || true
 # fail the build on any GDScript runtime error, even if the suite itself reported PASS
 godot --headless --path . res://tests/run_tests.tscn > /tmp/spd_tests.log 2>&1; grep "TESTS:.*-> PASS" /tmp/spd_tests.log
@@ -17,6 +40,7 @@ IOS_VER="$(grep -m1 '^application/short_version=' export_presets.cfg | cut -d'"'
 IOS_CODE="$(grep -m1 '^application/version=' export_presets.cfg | cut -d'"' -f2)"
 CODE="$(grep -m1 '^version/code=' export_presets.cfg | cut -d'=' -f2)"
 if [ "$IOS_VER" != "$VER" ] || [ "$IOS_CODE" != "$CODE" ]; then echo "VERSION MISMATCH ios=$IOS_VER ($IOS_CODE) android=$VER ($CODE) -> FAIL"; exit 1; fi
+ensure_android_template
 godot --headless --path . --export-debug "Android" "builds/spd-tactics-v$VER.apk"
 godot --headless --path . --export-debug "Linux" "builds/linux/spd-tactics.x86_64"
 godot --headless --path . --export-debug "Windows Desktop" "builds/windows/spd-tactics.exe"

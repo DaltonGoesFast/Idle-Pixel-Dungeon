@@ -5,7 +5,7 @@ Calls made while building the base game overnight (2026-10-14/15) where the GDD 
 | # | Decision | Why | Where |
 |---|---|---|---|
 | 1 | **Compatibility renderer** everywhere (not Mobile/Vulkan) | v0.1.0 showed torn scanlines on the Fold 6's Adreno with the Mobile renderer; 2D pixel art gains nothing from Vulkan | project.godot |
-| 2 | **Official export templates only** | The size-stripped custom template dropped WebP + text-server modules -> no textures/text (v0.1.1). Size isn't a concern since builds are hosted on GitHub | export_presets.cfg |
+| 2 | **Official export templates only** | The size-stripped custom template dropped WebP + text-server modules -> no textures/text (v0.1.1). Size isn't a concern since builds are hosted on GitHub. Gradle is on for the updater permission plugin; `custom_template/*` stays empty | export_presets.cfg |
 | 3 | **Ranges collapse to floor(avg)** | Deterministic combat; matches GDD "fixed damage" | BALANCE.md |
 | 4 | **Crab nerf: dmg 4->2, DR 2->1** (still 0.5 tick) | Unbeatable without RNG misses; keeps its GDD role of stripping Barrier | data/mobs.json |
 | 5 | **Goo HT 100->55**, pump-up every 3rd action hits all 8 neighbours for 3x after 1 tick | Every hit lands, so SPD HP made a 40-turn fight; the telegraph is the skill check | data/mobs.json |
@@ -392,3 +392,6 @@ Combat arenas are no longer a fixed 8x8: rooms are 8, 10, or 12 on a side, with 
 
 ## 133. Status pane: one bar height, SPD proportions
 a6b9d18/09b3032 drew the torch/food row as a full 16-game-px item cell (HP is 9), so the row was about 1.8x the HP bar and pushed the pane past SPD's 39px background. The bars bled over the right frame and squeezed the level badge. Now the pane is a fixed 39px nine-patch tall, as in SPD's StatusPane. HP sits at (30,19) and the supply row at (30,29), both BAR_H = 9. The supply bars split the HP width equally with a 1px gap and share HP's left and right edges. Icons are fitted to the bar height with an integer scale (`StatusPane.icon_size`). `StatusPane.layout(w, k, n)` is the single source of these rects and is asserted by `test_status_pane_layout` for 968 and 1856 wide panes at k = 2-5. Native crops: /workspace/builds/statusbars/{before,after}/{cover,inner}_pane_crop.png.
+
+## 135. In-game updater (Android / Windows) + TestFlight script (iOS)
+Sideloaded Android players were opening GitHub in a browser for every APK. `Updater` checks `releases/latest`, downloads the platform asset, and on Android opens the system installer via `JavaClassWrapper` + Godot's FileProvider. That needs `REQUEST_INSTALL_PACKAGES`, which the stock permission list does not expose, so Gradle is on and `addons/apk_install` injects the permission (still official templates — #2). Windows gets the zip opened in Explorer. iOS has no in-app check: `tools/upload_testflight.sh` archives and uploads; TestFlight delivers the update.
