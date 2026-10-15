@@ -50,6 +50,7 @@ func _ready() -> void:
 	test_food_sources(gs)
 	test_facility_cap(gs)
 	test_crate_slot(gs)
+	test_no_collapsing_labels(gs)
 	await test_delve_chips(gs)
 	test_owed_sou(gs)
 	await test_icon_sizes(gs)
@@ -1862,6 +1863,44 @@ func _slot_texts(slot: Control) -> Array:
 	var t := []
 	for l in slot.find_children("*", "Label", true, false): t.append(String(l.text))
 	return t
+
+## DECISIONS #146: no wrapping Label sits where it gets no width (one letter per line, stretching its window):
+## the Guild patrol card with curios, the camp side dock, and every Camp page; the patrol card stays a sane height.
+func test_no_collapsing_labels(gs) -> void:
+	print("[collapsing labels]")
+	gs.new_game()
+	for c in gs.heroes: gs.heroes[c].unlocked = true
+	gs.mats.gold = 2000; gs.facilities.guild.level = 3
+	for c in gs.heroes: gs.heroes[c].cleared.append("sewers")
+	for c in ["huntress", "mage"]:
+		if gs.can_patrol(c, "sewers") == "": gs.start_patrol(c, "sewers")
+	gs.time_offset += 5.0 * 3600.0
+	check(int(gs.patrol_preview("huntress").get("_curios", 0)) >= 1, "the patrol has curios to show")
+	for vs in [Vector2(968, 2376), Vector2(1856, 2160)]:
+		var cs = load("res://scripts/ui/camp_screen.gd").new(); add_child(cs); cs.size = vs
+		var bad := []
+		for pg in cs.PAGE_ORDER:
+			cs.open_page(pg)
+			if pg == "Guild": cs._patrol_list(cs.pages["Guild"])
+			for l in UIKit.collapsing_labels(cs.win_layer): bad.append("%s: '%s'" % [pg, l.text])
+			cs.close_page()
+		for l in UIKit.collapsing_labels(cs): bad.append("camp: '%s'" % l.text)
+		check(bad.is_empty(), "%s: no wrapping label without width %s" % [vs, bad])
+		var v := VBoxContainer.new(); v.size = Vector2(vs.x * 0.4, 0); add_child(v)
+		cs._patrol_list(v)
+		var cur = null
+		for l in v.find_children("*", "Label", true, false): if String(l.text).contains("curio"): cur = l
+		check(cur != null and cur.get_minimum_size().y < UIKit.font_size * 2.0 and cur.get_minimum_size().x > UIKit.font_size * 2.0, "%s: the curios label is one line (min %s)" % [vs, cur.get_minimum_size() if cur else null])
+		v.queue_free(); cs.queue_free()
+	# combat screen (status, buttons, victory results card) and the delve screen's extract summary
+	gs.time_offset = 0.0
+	if gs.can_start_run("warrior") == "" and gs.start_run("warrior", {"ration": 2, "torch": 2}, "sewers", 4):
+		var ev := Delve.combat_event(gs.run, Delve.rng_for(gs.run, 1), ["rat"])
+		var cb = load("res://scripts/ui/combat_screen.gd").new(); cb.setup(ev, func(_r): pass); add_child(cb)
+		cb.combat.loot = 5; cb.combat.xp = 1; cb.combat.kills = 1; cb.combat.over = true; cb.combat.won = true; cb._act(func(): pass)
+		var bad2 := UIKit.collapsing_labels(cb).map(func(l): return l.text)
+		check(bad2.is_empty(), "combat screen + victory card: no wrapping label without width %s" % [bad2])
+		cb.queue_free(); gs.end_run("abandon")
 
 func test_crate_slot(gs) -> void:
 	print("[crate slot]")

@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Patrol cards: "+1 curios" no longer wraps after every letter and stretches the card (and the Camp dock) tall; it is a one-line chip ("+1 curio"). A new audit test fails on any wrapping label placed where it gets no width, across every Camp page, the patrol list and the combat screen (+tests).
 
 ## 0.29.0
 - In-game Update on Android and Windows: Camp / Settings checks GitHub releases, downloads the APK or zip, and on Android opens the system Install screen. iOS stays on TestFlight; `tools/upload_testflight.sh` archives and uploads on a Mac. Android export uses Gradle so the updater can request install permission (+tests).

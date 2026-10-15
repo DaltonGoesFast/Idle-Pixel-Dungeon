@@ -992,10 +992,10 @@ func _patrol_list(v: Control) -> void:
 			cv.add_child(UIKit.label("%s - patrolling %.1fh / %dh" % [DB.heroes[c].name, y._hours, int(GameState.patrol_max_hours())], 0.9))
 			var pr := ProgressBar.new(); pr.max_value = GameState.patrol_max_hours(); pr.step = 0.0; pr.value = float(y._hours); pr.show_percentage = false
 			pr.custom_minimum_size.y = UIKit.font_size * 0.5; cv.add_child(pr)
-			var yf := HFlowContainer.new(); cv.add_child(yf)
+			var yf := HFlowContainer.new(); yf.add_theme_constant_override("h_separation", int(UIKit.font_size * 0.6)); cv.add_child(yf)
 			for k in y:
 				if not String(k).begins_with("_") and int(y[k]) > 0: yf.add_child(UIKit.res_chip(k, str(y[k]), 0.8))
-			if y._curios > 0: yf.add_child(UIKit.label("+%d curios" % y._curios, 0.8))
+			if y._curios > 0: yf.add_child(UIKit.chip_label("+%d curio%s" % [y._curios, "" if y._curios == 1 else "s"], 0.8))
 			cv.add_child(UIKit.button("Recall & collect", func(): GameState.collect_patrol(c)))
 
 # ------------------------------------------------------------ Journal (meta-progression + codex)
