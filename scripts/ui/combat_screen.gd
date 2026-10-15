@@ -131,8 +131,8 @@ func _refresh() -> void:
 	if not run.is_empty(): lvl = int(GameState.heroes[run.hero].level)
 	var minis := []
 	if not run.is_empty():
-		minis = [{"kind": "exp", "frac": float(run.torch) / 100.0, "text": "Torch %d%%" % run.torch},
-			{"kind": "shield", "frac": float(run.satiety) / 100.0, "text": "Food %d%%" % run.satiety}]
+		minis = [{"kind": "exp", "icon": "torch", "frac": float(run.torch) / 100.0, "text": "Torch %d%%" % run.torch},
+			{"kind": "shield", "icon": "ration", "frac": float(run.satiety) / 100.0, "text": "Food %d%%" % run.satiety}]
 	pane.set_data({"name": h.name, "level": lvl, "hp": h.hp, "ht": h.ht, "shield": h.barrier, "buffs": bl,
 		"depth": ("F%d" % int(run.get("floor", 1))) if not run.is_empty() else "",
 		"danger": combat.enemies().filter(func(e): return e.hp > 0).size(), "minis": minis})

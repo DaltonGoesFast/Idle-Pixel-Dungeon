@@ -1499,17 +1499,15 @@ func test_menu_toast(gs) -> void:
 	for i in 3: await get_tree().process_frame
 	check(box.get_child_count() == 0, "opening the floor menu clears the floating toast")
 	var toast: Node = d.card_host.get_node_or_null("CardToast")
-	var log_node: Control = d.card_host.get_node_or_null("DelveLog")
 	var descend = _find_btn(d.card_host, "Descend to floor %d" % (int(gs.run.floor) + 1))
 	var close = _find_btn(d.card_host, "Close")
 	check(toast != null and _node_text(toast).contains("Reward: Ash Wand"), "reward is shown inside the floor menu")
 	check(descend != null and close != null, "floor menu buttons stay")
-	check(log_node != null and log_node.get_child_count() == d.CARD_LOG_LINES and _node_text(log_node).contains("Log line 5") and not _node_text(log_node).contains("Log line 1"), "last few log lines stay visible under the encounter popup")
-	if toast != null and descend != null and close != null and log_node != null:
-		var tr: Rect2 = toast.get_global_rect(); var dr: Rect2 = descend.get_global_rect(); var cr: Rect2 = close.get_global_rect(); var lr: Rect2 = log_node.get_global_rect()
+	check(d.card_host.get_node_or_null("DelveLog") == null, "encounter windows do not embed the delve log")
+	if toast != null and descend != null and close != null:
+		var tr: Rect2 = toast.get_global_rect(); var dr: Rect2 = descend.get_global_rect(); var cr: Rect2 = close.get_global_rect()
 		check(tr.size.y > 2 and dr.size.y > 2 and cr.size.y > 2, "floor menu laid out (toast %s descend %s close %s)" % [tr, dr, cr])
 		check(not tr.intersects(dr) and not tr.intersects(cr) and tr.end.y <= cr.position.y + 1.0, "toast sits above the menu buttons, not over them")
-		check(not lr.intersects(dr) and lr.position.y >= dr.end.y - 1.0, "log sits below the encounter popup, not covered by it")
 	d._show_card()
 	check(box.get_child_count() == 0 and _node_text(d.card_host.get_node_or_null("CardToast")).contains("Reward: Ash Wand"), "rebuilding the menu keeps the toast in the card")
 	check(d.window_toast("A hidden door! Secret cache: Ash Wand"), "a toast while the menu is open is taken")

@@ -136,17 +136,20 @@ func _draw() -> void:
 				_centred(font, r, m.text, _fit_fs(r.size.y), Color.WHITE, k)
 			mx += mw + k
 
-## Supply as an item icon and a percent, coloured by how close it is to running out.
+## Supply as a filled bar with an item icon on the left and a percent over the fill.
 func _mini_icon(font: Font, r: Rect2, id: String, frac: float, k: float) -> void:
 	if items_tex == null: items_tex = load("res://assets/sprites/items.png")
+	draw_rect(r, Color(0, 0, 0, 0.6))
+	# solid fills: the SPD exp/shield strips look half-empty once shrunk into these mini cells
+	var fw := floorf(r.size.x * clampf(frac, 0.0, 1.0))
+	if fw > 0.0:
+		draw_rect(Rect2(r.position, Vector2(fw, r.size.y)), Color("e0a030") if id == "torch" else Color("9a8a68"))
 	var src := UIKit.item_rect(DB.icon_index(id))
-	var sc := maxf(1.0, floorf(9.0 * k / maxf(src.size.x, src.size.y)))
+	var sc := maxf(1.0, floorf(r.size.y / maxf(src.size.x, src.size.y)))
 	var isz := src.size * sc
-	var ip := Vector2(r.position.x, floorf(r.position.y + (r.size.y - isz.y) / 2.0))
+	var ip := Vector2(floorf(r.position.x + k), floorf(r.position.y + (r.size.y - isz.y) / 2.0))
 	var tint: String = DB.materials.get(id, {}).get("tint", "")
 	draw_texture_rect_region(items_tex, Rect2(ip, isz), src, Color(tint) if tint != "" else Color.WHITE)
 	var pct := roundi(clampf(frac, 0.0, 1.0) * 100.0)
 	var col := Color.WHITE if pct >= 30 else (Color("ff8800") if pct > 0 else Color("ff4444"))
-	var fs := _fit_fs(9.0 * k)
-	var asc := font.get_ascent(fs)
-	_text(font, Vector2(floorf(ip.x + isz.x + 2 * k), floorf(r.position.y + (r.size.y + asc * 0.72) / 2.0)), "%d%%" % pct, fs, col, k)
+	_centred(font, Rect2(ip.x + isz.x, r.position.y, r.end.x - ip.x - isz.x, r.size.y), "%d%%" % pct, _fit_fs(r.size.y), col, k)

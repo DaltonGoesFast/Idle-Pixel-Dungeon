@@ -225,7 +225,6 @@ var _log_limit := LOG_LINES
 var _haul_label: Label
 var _haul_text := ""
 const LOG_LINES := 8
-const CARD_LOG_LINES := 4
 ## SPD-coloured log under the bar; rebuilt only when a line is added.
 ## The haul line stays pinned above it and updates in place as gold and materials come in.
 func _mount_log(parent: Control, limit: int = LOG_LINES, show_haul := true) -> void:
@@ -491,8 +490,6 @@ func _show_card() -> void:
 		"menu": _card_menu()
 	_take_floating_toast()
 	_mount_card_toast()
-	if _is_encounter(pending):
-		_mount_log(card_host, CARD_LOG_LINES, false)
 	_place_window()
 
 func _mob_names(ids: Array) -> String:
