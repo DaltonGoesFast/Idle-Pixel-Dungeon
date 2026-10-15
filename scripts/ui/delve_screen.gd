@@ -281,6 +281,7 @@ func _show_card() -> void:
 		else: GameState.run.pending_card = remembered
 	if pending.is_empty():
 		_card_toasts.clear()
+		_clear_floating_toasts()
 		if _is_encounter(_under):
 			card_host.add_child(UIKit.label("%s is waiting." % _encounter_name(_under), 0.95, Color("ffd27a")))
 			card_host.add_child(UIKit.button("Return to encounter", _restore_encounter))
@@ -596,13 +597,25 @@ func _accept_summary() -> void:
 ## Messages shown inside the open card so a floating toast never covers its buttons (DECISIONS #106).
 var _card_toasts: Array = []
 
-## main._toast: any open delve card (floor menu, doors, backpack, …) takes the message in-flow, above the buttons.
+## main._toast: when a delve card (floor menu, doors, backpack, …) hides the log, show the message in-flow
+## above the card's buttons; when no card is open, the delve log is already on screen so a floating toast is redundant.
 func window_toast(text: String) -> bool:
-	if pending.is_empty() or card_host == null: return false
+	if card_host == null: return false
+	if pending.is_empty():
+		_clear_floating_toasts()
+		_fill_log()
+		return true
 	_take_floating_toast()
 	_push_card_toast(text)
 	_mount_card_toast()
 	return true
+
+func _clear_floating_toasts() -> void:
+	if main == null or not is_instance_valid(main): return
+	var box: Node = main.get("toast_box")
+	if box == null: return
+	for t in box.get_children():
+		box.remove_child(t); t.queue_free()
 
 func _push_card_toast(text: String) -> void:
 	_card_toasts.append({"text": text, "at": Time.get_ticks_msec()})

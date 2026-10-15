@@ -5,7 +5,7 @@
 - Identified rings, potions, and scrolls show SPD's small type glyph from item_icons.png in the top-right of the slot. The blue shield is Ring of Tenacity and Potion of Shielding.
 - Spare rings break down at the Forge into 5 Gold and 1 Arcane Resin. Extras keeps every worn ring and one spare of each (+test).
 - Encounter result window gives each line room, so a short victory no longer clips or shows a scrollbar.
-- Floor-clear and other delve menus keep toasts inside the card, above the buttons, instead of floating over them.
+- Floor-clear and other delve menus keep toasts inside the card, above the buttons; when no menu is open, toasts do not float beside the delve log.
 - Softlock fix: starter weapon + cloth armor when gear is cracked, free Patch up at the Forge when broke, relief ration/torch, 1 iron ore per floor (+test).
 - Scrolls of Upgrade lost on death are owed and return on the next boss kill (any hero); shown in Camp.
 - Smooth delve: no per-frame UI rebuilds, 60 fps corridor with a single-quad light, smooth Speed x3 scrolling.

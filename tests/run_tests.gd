@@ -1393,7 +1393,7 @@ func test_menu_toast(gs) -> void:
 	var d = load("res://scripts/ui/delve_screen.gd").new(); d.main = host
 	holder.add_child(d); d.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT); d.size = holder.size
 	await get_tree().process_frame
-	check(not d.window_toast("exploring"), "toast stays floating when no menu is open")
+	check(d.window_toast("Level up! Warrior is now Lv2.") and box.get_child_count() == 0 and d.card_host.get_node_or_null("CardToast") == null, "no floating toast when the delve log is visible")
 	var floater := UIKit.card(); floater.add_child(UIKit.label("Reward: Ash Wand")); box.add_child(floater)
 	d.pending = {"kind": "floor_done"}; d.apply_layout(true, holder.size)
 	for i in 3: await get_tree().process_frame
@@ -1412,6 +1412,8 @@ func test_menu_toast(gs) -> void:
 	check(d.window_toast("A hidden door! Secret cache: Ash Wand"), "a toast while the menu is open is taken")
 	d._show_card()
 	check(box.get_child_count() == 0 and _node_text(d.card_host.get_node("CardToast")).contains("A hidden door! Secret cache: Ash Wand"), "search result stays in the card after rebuild")
+	d.pending = {}; d._show_card()
+	check(box.get_child_count() == 0 and d.card_host.get_node_or_null("CardToast") == null, "returning to the delve log clears card toasts without floating")
 	holder.queue_free()
 	gs.end_run("abandon")
 
