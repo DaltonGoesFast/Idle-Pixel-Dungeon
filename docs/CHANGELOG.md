@@ -2,6 +2,7 @@
 
 
 ## 0.26.0
+- Guild Hall sells Potions of Healing for 25 gold so Camp can restock after Goo without waiting on seeds (+test).
 - Identified rings, potions, and scrolls show SPD's small type glyph from item_icons.png in the top-right of the slot. The blue shield is Ring of Tenacity and Potion of Shielding.
 - Spare rings break down at the Forge into 5 Gold and 1 Arcane Resin. Extras keeps every worn ring and one spare of each (+test).
 - Encounter result window gives each line room, so a short victory no longer clips or shows a scrollbar.

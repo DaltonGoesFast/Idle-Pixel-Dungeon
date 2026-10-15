@@ -1077,6 +1077,12 @@ func test_forge_bulk(gs) -> void:
 	gs.add_mat("iron_ore", int(rc.iron_ore)); check(gs.can_repair_all() == "" and gs.repair_all(), "Repair all clears every cracked item")
 	check(gs.cracked_gear().is_empty(), "no cracked gear left")
 	check(gs.can_repair_all() == "nothing to repair", "Repair all is disabled when nothing is cracked")
+	# Guild healing potion: Camp buy path so Goo deaths do not soft-starve the stash (playtest abaa72d).
+	var heal: Dictionary = gs.recipe("guild", "buy_healing")
+	check(not heal.is_empty() and int(heal.cost.get("gold", 0)) == 25, "guild sells a Potion of Healing for 25 gold")
+	var pots0: int = gs.mat("potion_healing"); var g1: int = gs.mat("gold")
+	check(gs.craft("guild", "buy_healing") and gs.mat("potion_healing") == pots0 + 1 and gs.mat("gold") == g1 - 25, "buying a healing potion spends 25 gold")
+	check(" ".join(gs.messages).contains("Bought") and " ".join(gs.messages).contains("Potion of Healing"), "guild purchase says Bought")
 
 ## Spare rings melt into a little gold and resin. Extras keeps every worn ring and one spare of each.
 func test_break_rings(gs) -> void:

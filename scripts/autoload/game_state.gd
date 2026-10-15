@@ -567,7 +567,10 @@ func craft(fac: String, rid: String) -> bool:
 		if DB.materials.get(k, {}).get("unknown", false) and not is_mat_known(k): identify_mat(k)
 	var n := int(r.get("out_n", 1))
 	if r.has("out"): add_gear(r.out); say("Forged " + DB.display_name(r.out) + ".")
-	else: add_mat(r.out_mat, n); say("Made %s%s." % [DB.mat_name(r.out_mat), " x%d" % n if n > 1 else ""])
+	else:
+		add_mat(r.out_mat, n)
+		var verb := "Bought" if fac == "guild" else "Made"
+		say("%s %s%s." % [verb, DB.mat_name(r.out_mat), " x%d" % n if n > 1 else ""])
 	if fac == "alchemy": stats.potions_brewed += 1
 	check_unlocks()
 	touch(); return true

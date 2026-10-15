@@ -205,6 +205,15 @@
     "gold": 8
    },
    "min_level": 1
+  },
+  {
+   "id": "buy_healing",
+   "name": "Buy Potion of Healing",
+   "out_mat": "potion_healing",
+   "cost": {
+    "gold": 25
+   },
+   "min_level": 1
   }
  ]
 }

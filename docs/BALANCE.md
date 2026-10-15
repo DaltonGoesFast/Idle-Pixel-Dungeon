@@ -215,6 +215,8 @@ Traps: worn_dart, poison_dart, teleport, gripping. Strength potions at [[22, 50]
 | Enchanter's Desk | 3 arcane_resin, 40 gold | 3 |
 <!-- /GENERATED -->
 
+Guild shop (Lv1+): Buy Ration 10 gold, Buy Torch 8 gold, Buy Potion of Healing 25 gold (DECISIONS #109). Alchemy still brews healing from 2 seeds.
+
 ## Caves + subclasses (v0.12.0, tests [cavesrun], Lv8 / Str 14, tier-3 gear, 10 seeds)
 | Class | Base | Subclass A | Subclass B |
 |---|---|---|---|

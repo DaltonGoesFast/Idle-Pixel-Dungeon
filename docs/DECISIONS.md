@@ -309,3 +309,7 @@ SPD draws a second sprite from `item_icons.png` in the top-right of an inventory
 
 ## 104. No softlock after a total wipe
 Starting a run never required gear, but a wiped save felt (and played) locked: cracked weapons fell back to starter stats while still applying the cracked item's upgrade level math, cracked armor gave no DR, a broke Camp had no rations/torches and no gold to buy them, and repair ore came only from chests/patrols. Now: cracked/missing weapon or armor uses the class starter weapon + Cloth Armor (free, never cracks, like SPD starting items); the Forge shows a free "Patch up" (cheapest cracked weapon/armor first) whenever no repair is affordable; a broke Camp (0 rations, 0 torches, < 10 gold) gets 1 ration + 1 torch when a run starts; every floor descended yields 1 iron ore. These are runtime rules, so an existing wiped save is playable on load. test_total_wipe covers the reported state.
+
+## 109. Guild sells Potions of Healing
+Playtests (abaa72d and earlier) showed a death spiral: Goo spends the belt, alchemy needs seeds the Guild does not sell, and Gold sits unused while every later Goo fight is a wipe (especially Rogue). The Guild now sells a Potion of Healing for 25 gold (ration 10, torch 8). Belt size still caps how many you take into a delve; the stash can hold more. Guild crafts say "Bought …" instead of "Made …".
+
