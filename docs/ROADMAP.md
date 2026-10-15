@@ -4,8 +4,8 @@
 - [ ] Real-device playtest on the Fold 6 (cover + inner): text sizes, tip card sizing at Huge text, haptic strength, Prison difficulty for a human player (the sim bot is better than a new player).
 - [x] Mage vs Tengu (v0.8.0: 6/10).
 - [x] Caves biome, floors 11-15, DM-300 (v0.9.0).
-- [ ] Rogue in the Caves (cavesrun 0/10): needs a Caves-specific tool (subclass work).
-- [ ] Tengu's Mask + 2 subclasses per class.
+- [x] Tengu's Mask + 2 subclasses per class (v0.10.0); Rogue Caves 0 -> 7-8/10.
+- [ ] Warlock shows no sim gain; Mage base Caves 4/10.
 - [ ] Guided first-fight tutorial.
 - [ ] Playtest pass on the Fold 6: tap targets, text sizes, delve speed (`DelveScreen.SPEED`), fight length.
 - [x] Save/restore in-progress fights (v0.4.0).

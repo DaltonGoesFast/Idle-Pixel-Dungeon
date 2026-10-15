@@ -58,7 +58,7 @@ func new_game() -> void:
 		var h: Dictionary = DB.heroes[c]
 		heroes[c] = {"class": c, "unlocked": h.unlocked_by_default, "level": 1, "xp": 0, "str": 10,
 			"weapon": add_gear(h.start_weapon), "armor": add_gear(h.start_armor), "ring": 0,
-			"wand": "wand_magic_missile" if c == "mage" else "", "cleared": [], "patrol": {}}
+			"wand": "wand_magic_missile" if c == "mage" else "", "cleared": [], "patrol": {}, "mask": false, "subclass": ""}
 
 func add_gear(id: String, known := true, lvl := 0) -> int:
 	var g := {"uid": next_uid, "id": id, "lvl": lvl, "cracked": false, "known": known}
@@ -146,7 +146,28 @@ func hero_stats(c: String) -> Dictionary:
 			"name": "the Spirit Bow", "magic": false}
 	if "cloak" in def.abilities:
 		s.cloak = {"charges": int(def.cloak_charges), "ticks": float(def.cloak_ticks)}
+	# Subclass (Tengu's Mask, DECISIONS #61): flat modifiers here, "perk" hooks in Combat.
+	var sub: Dictionary = def.get("subclasses", {}).get(String(h.get("subclass", "")), {})
+	if not sub.is_empty():
+		s.sub = String(h.subclass); s.perk = sub.get("perk", ""); s.sub_name = sub.name
+		s.dr += int(sub.get("dr_add", 0)); s.barrier_max += int(sub.get("barrier_add", 0))
+		s.surprise_mult += float(sub.get("surprise_add", 0.0)); s.delay *= float(sub.get("delay_mult", 1.0))
+		if s.has("cloak"): s.cloak.charges += int(sub.get("cloak_add", 0))
+		if s.has("bolt"):
+			s.bolt.dmg += int(sub.get("bolt_add", 0))
+			if sub.get("bolt_pierce", false): s.bolt.pierce = true
 	return s
+
+## Tengu's Mask: earned by beating Tengu with this class; lets the hero pick one of two subclasses (permanent).
+func can_choose_subclass(c: String) -> bool:
+	return bool(heroes[c].get("mask", false)) and String(heroes[c].get("subclass", "")) == ""
+
+func choose_subclass(c: String, sub: String) -> bool:
+	if not can_choose_subclass(c) or not DB.heroes[c].get("subclasses", {}).has(sub): return false
+	heroes[c].subclass = sub
+	say("The %s becomes a %s!" % [DB.heroes[c].name, DB.heroes[c].subclasses[sub].name])
+	touch()
+	return true
 
 ## Potion of Healing: flat 10 early, 30% of max HP later so potions stay relevant in deep biomes.
 func potion_heal(c: String) -> int:
@@ -411,6 +432,9 @@ func record_boss_kill(c: String, biome: String) -> bool:
 		kills.append(biome); boss_kills[c] = kills
 		pack_add("scroll_upgrade", 1)
 	if not (biome in heroes[c].cleared): heroes[c].cleared.append(biome)
+	if DB.biomes[biome].boss == "tengu" and not heroes[c].get("mask", false):
+		heroes[c].mask = true
+		say("Tengu's Mask! Choose a subclass for the %s in Camp -> Heroes." % DB.heroes[c].name)
 	var key: String = DB.biomes[biome].boss + "_kills"
 	if stats.has(key): stats[key] += 1
 	check_unlocks()

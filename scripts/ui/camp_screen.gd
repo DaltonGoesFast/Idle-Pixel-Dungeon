@@ -93,6 +93,8 @@ func _stats_card(c: String) -> Control:
 	var line := "HP %d   Barrier %d   DR %d   Dmg %d" % [s.ht, s.barrier_max, s.dr, s.dmg]
 	if s.delay != 1.0: line += "   (swing %.1f ticks)" % s.delay
 	v.add_child(UIKit.label(line))
+	if s.has("sub_name"): v.add_child(UIKit.label("Subclass: %s - %s" % [s.sub_name, DB.heroes[c].subclasses[s.sub].desc], 0.9, Color("9fd3ff")))
+	elif h.get("mask", false): v.add_child(UIKit.label("Tengu's Mask: choose a subclass below.", 0.9, Color("9fd3ff")))
 	if s.has("bolt"): v.add_child(UIKit.label("Staff bolt: %s, %d dmg (ignores DR), %d charges" % [s.bolt.name, s.bolt.dmg, s.bolt.charges], 0.9))
 	v.add_child(UIKit.label("Weapon: %s\nArmor: %s\nRing: %s" % [GameState.gear_name(GameState.gear_by_uid(h.weapon)),
 		GameState.gear_name(GameState.gear_by_uid(h.armor)), GameState.gear_name(GameState.gear_by_uid(h.ring))], 0.9))
@@ -106,6 +108,10 @@ func _page_heroes() -> void:
 	for c in GameState.heroes:
 		v.add_child(_stats_card(c))
 		if not GameState.heroes[c].unlocked: continue
+		if GameState.can_choose_subclass(c):
+			var subs: Dictionary = DB.heroes[c].subclasses
+			for sid in subs:
+				v.add_child(UIKit.button("Become %s: %s" % [subs[sid].name, subs[sid].desc], func(): GameState.choose_subclass(c, sid)))
 		var flow := HFlowContainer.new(); v.add_child(flow)
 		for g in GameState.gear:
 			var t: String = DB.item(g.id).type

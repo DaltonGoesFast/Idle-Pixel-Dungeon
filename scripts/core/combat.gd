@@ -50,7 +50,7 @@ func setup(room_rows: Array, hs: Dictionary, hp: int, mob_ids: Array, darkness :
 		"abilities": hs.get("abilities", []), "bolt": hs.get("bolt", {}), "charges": 0, "recharge_t": 0.0, "hero": true,
 		"cloak": hs.get("cloak", {}), "cloak_charges": int(hs.get("cloak", {}).get("charges", 0)), "hidden_until": -1.0,
 		"slams": 1 if "slam" in hs.get("abilities", []) else 0, "search_radius": int(hs.get("search_radius", 1)),
-		"poison": 0, "keen_eyes": hs.get("keen_eyes", false)}
+		"poison": 0, "keen_eyes": hs.get("keen_eyes", false), "perk": hs.get("perk", ""), "combo": 0}
 	if not hero.bolt.is_empty(): hero.charges = hero.bolt.charges
 	units.append(hero)
 	var slots := {}
@@ -100,7 +100,7 @@ func from_dict(d: Dictionary) -> void:
 	for u in d.units:
 		var x: Dictionary = u.duplicate(true)
 		x.pos = Vector2i(int(u.pos[0]), int(u.pos[1]))
-		for k in ["uid", "hp", "ht", "dmg", "dr", "barrier", "barrier_max", "charges", "cloak_charges", "cooldown", "acts", "exp", "loot", "pump_count", "poison", "search_radius", "stolen", "slams", "bombs", "blinks", "steal_gold", "abil", "abil_n"]:
+		for k in ["uid", "hp", "ht", "dmg", "dr", "barrier", "barrier_max", "charges", "cloak_charges", "cooldown", "acts", "exp", "loot", "pump_count", "poison", "search_radius", "stolen", "slams", "bombs", "blinks", "steal_gold", "abil", "abil_n", "combo"]:
 			if x.has(k): x[k] = int(x[k])
 		units.append(x)
 		if x.has("hero"): hero = x
@@ -354,6 +354,11 @@ func _kill(m: Dictionary, chasm: bool) -> void:
 		_ev({"t": "die", "uid": m.uid, "pos": m.pos})
 	danger = danger.filter(func(d): return d.uid != m.uid)
 	if m.get("boss", false): boss_killed = true
+	if hero.get("perk", "") == "soul_heal" and hero.hp > 0:
+		var hl := mini(int(hero.ht) - int(hero.hp), maxi(3, int(int(m.ht) * 0.35)))
+		if hl > 0:
+			hero.hp += hl; _log("Soul siphon: +%d HP." % hl)
+			_ev({"t": "heal", "uid": hero.uid, "amount": hl, "pos": hero.pos})
 	# Skeleton: bones burst a moment after death (telegraphed 3x3)
 	if m.get("ability", "") == "bone_burst" and not chasm:
 		for d in [Vector2i.ZERO] + DIRS:
@@ -416,7 +421,8 @@ func hero_tap(p: Vector2i, mode := "") -> bool:
 		_ev({"t": "attack", "uid": hero.uid, "to": p})
 		var sur := surprise_ready()
 		_break_cloak()
-		hit_mob(u, int(hero.dmg), sur)
+		hit_mob(u, _melee_dmg(), sur)
+		_melee_perks()
 		_end_hero_turn(float(hero.delay))
 		return true
 	if passable(p) and u == null:
@@ -424,6 +430,23 @@ func hero_tap(p: Vector2i, mode := "") -> bool:
 		_end_hero_turn(1.0)
 		return true
 	return false
+
+## Subclass perks (DECISIONS #61)
+func _melee_dmg() -> int:
+	var d := int(hero.dmg)
+	match hero.get("perk", ""):
+		"rage":
+			if int(hero.hp) * 2 < int(hero.ht): d = int(d * 1.3)
+		"combo": d += mini(int(hero.combo), 3)
+	return d
+
+func _melee_perks() -> void:
+	match hero.get("perk", ""):
+		"combo": hero.combo = int(hero.combo) + 1
+		"battle_recharge":
+			hero.combo = int(hero.combo) + 1
+			if hero.combo % 2 == 0 and not hero.bolt.is_empty() and int(hero.charges) < int(hero.bolt.charges):
+				hero.charges += 1; _log("The staff hums: +1 charge.")
 
 func hero_bolt(p: Vector2i) -> bool:
 	if not can_bolt(p): return false
@@ -434,7 +457,7 @@ func hero_bolt(p: Vector2i) -> bool:
 	_ev({"t": "bolt", "from": hero.pos, "to": p, "magic": magic})
 	var sur := surprise_ready() and not magic
 	_break_cloak()
-	hit_mob(u, int(hero.bolt.dmg), sur, magic)
+	hit_mob(u, int(hero.bolt.dmg), sur, magic or hero.bolt.get("pierce", false))
 	if hero.bolt.get("chains_water", false) and tile(p) == T.WATER:
 		_shock(p, int(hero.bolt.dmg))
 	if hero.bolt.get("burns_grass", false):
@@ -499,6 +522,7 @@ func hero_heal(amount: int) -> void:
 
 func _end_hero_turn(cost: float) -> void:
 	hero.next += cost
+	if hero.get("perk", "") == "grass_heal" and tile(hero.pos) == T.GRASS and hero.hp < hero.ht: hero.hp += 1
 	_tick_poison(hero)
 	if not over: run_until_hero()
 

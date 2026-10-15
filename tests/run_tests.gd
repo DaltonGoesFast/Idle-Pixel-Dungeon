@@ -28,6 +28,7 @@ func _ready() -> void:
 	test_camp(gs)
 	test_save(gs, ss)
 	test_meta(gs, ss)
+	test_subclass(gs, ss)
 	print("TESTS: %d passed, %d failed -> %s" % [passes, fails, "PASS" if fails == 0 else "FAIL"])
 	get_tree().quit(1 if fails else 0)
 
@@ -356,22 +357,31 @@ func test_meta(gs, ss) -> void:
 
 func test_cavesrun(gs) -> void:
 	print("[cavesrun] returning Lv8 / Str 14 hero (levels persist between runs) with tier-3 gear, all 15 floors in one expedition, 10 seeds")
+	var runs := []
 	for cls in ["warrior", "huntress", "mage", "rogue"]:
+		runs.append([cls, ""])
+		for sid in DB.heroes[cls].subclasses: runs.append([cls, sid])
+	var res := {}
+	for cs in runs:
+		var cls: String = cs[0]
 		var wins := 0; var ends := []
 		for seed in 10:
 			gs.new_game()
 			for c in gs.heroes: gs.heroes[c].unlocked = true
 			gs.add_mat("potion_healing", 3); gs.add_mat("ration", 8); gs.add_mat("torch", 9); gs.facilities.alchemy.level = 4
 			var h: Dictionary = gs.heroes[cls]
-			h.level = 8; h.str = 14
+			h.level = 8; h.str = 14; h.subclass = cs[1]; h.mask = cs[1] != ""
 			h.armor = gs.add_gear("mail_armor", true, 1)
 			if cls in ["warrior", "huntress"]: h.weapon = gs.add_gear("mace", true, 1)
 			elif cls == "rogue": h.weapon = gs.add_gear("dagger", true, 3)
 			var r := RunSim.play(gs, cls, {"ration": 8, "torch": 9, "potion_healing": 5}, 3000 + seed, true)
 			if r.result == "extract" and r.biome == "caves": wins += 1
 			else: ends.append("f%d L%d" % [r.floor, r.level])
-		print("  %s: cleared Caves %d/10, ended at %s" % [cls, wins, ends])
-		if cls == "warrior": check(wins >= 2, "a geared Warrior can clear all 15 floors in one run sometimes")
+		print("  %s %s: cleared Caves %d/10, ended at %s" % [cls, cs[1], wins, ends])
+		res[cls + ":" + cs[1]] = wins
+		if cls == "warrior" and cs[1] == "": check(wins >= 2, "a geared Warrior can clear all 15 floors in one run sometimes")
+	var best_rogue := maxi(res["rogue:assassin"], res["rogue:freerunner"])
+	check(best_rogue >= 4, "a Rogue subclass makes the Caves winnable (best %d/10)" % best_rogue)
 
 func test_delve(gs) -> void:
 	print("[delve]")
@@ -478,3 +488,30 @@ func test_save(gs, ss) -> void:
 	check(gs.mat("gold") == 107 and gs.heroes.warrior.level == 4 and not gs.run.is_empty(), "state restored")
 	check(typeof(gs.heroes.warrior.weapon) == TYPE_INT, "ints restored as ints")
 	ss.wipe()
+
+func test_subclass(gs, ss) -> void:
+	print("[subclass]")
+	gs.new_game()
+	check(not gs.can_choose_subclass("rogue"), "no subclass without Tengu's Mask")
+	check(not gs.choose_subclass("rogue", "assassin"), "choose refused without mask")
+	gs.record_boss_kill("rogue", "prison")
+	check(gs.heroes.rogue.mask and gs.can_choose_subclass("rogue"), "Tengu kill grants the mask")
+	var base: Dictionary = gs.hero_stats("rogue")
+	check(gs.choose_subclass("rogue", "assassin"), "choose assassin")
+	check(not gs.choose_subclass("rogue", "freerunner"), "subclass is permanent")
+	var a: Dictionary = gs.hero_stats("rogue")
+	check(a.surprise_mult == base.surprise_mult + 1.0 and a.cloak.charges == base.cloak.charges + 1, "assassin: +1x surprise, +1 cloak")
+	var d: Dictionary = gs.to_dict(); gs.new_game(); gs.from_dict(d)
+	check(gs.heroes.rogue.subclass == "assassin", "subclass survives save/load")
+	gs.heroes.huntress.mask = true; gs.choose_subclass("huntress", "sniper")
+	check(gs.hero_stats("huntress").bolt.get("pierce", false), "sniper bow ignores DR")
+	gs.heroes.warrior.mask = true; gs.choose_subclass("warrior", "gladiator")
+	var c := Combat.new()
+	c.setup(["########","#......#","#.H1...#","#......#","#......#","#......#","#......#","########"], gs.hero_stats("warrior"), 999, ["rat"])
+	var hits := []
+	c.hero.combo = 2
+	check(c._melee_dmg() == int(c.hero.dmg) + 2, "gladiator combo adds damage")
+	gs.heroes.mage.mask = true; gs.choose_subclass("mage", "battlemage")
+	c.setup(["########","#......#","#.H1...#","#......#","#......#","#......#","#......#","########"], gs.hero_stats("mage"), 999, ["rat"])
+	c.hero.charges = 0; c.hero.combo = 1; c._melee_perks()
+	check(c.hero.charges == 1, "battlemage: every 2nd melee hit restores a charge")

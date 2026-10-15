@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.10.0 — 2026-10-14
+- **Tengu's Mask**: beating Tengu with a class grants its mask; choose one of two permanent SPD subclasses in Camp -> Heroes.
+- Subclasses (simple versions): Warrior Berserker (rage +30% below half HP) / Gladiator (combo +1 per hit, max +3); Mage Battlemage (every 2nd melee hit restores a staff charge) / Warlock (kills heal 35% of the foe's max HP); Rogue Assassin (surprise +1x, +1 Cloak) / Freerunner (attacks 20% faster, +1 DR, +1 Cloak); Huntress Sniper (bow +1, ignores DR) / Warden (+2 Barrier, +1 DR, tall grass heals).
+- Caves sim (Lv8/Str14, tier-3 gear): Rogue 0/10 -> Assassin 7, Freerunner 8.
+- Tests: 128 checks; the UI smoke test earns the mask from Tengu and picks a subclass through the Heroes page.
+
 ## v0.9.0 — 2026-10-14
 - **Caves biome (floors 11-15)**: continue from the Tengu campfire. SPD Caves tiles and music, 4 new rooms, crystal vein special room and den door.
 - New mobs: Vampire Bat (drains HP), Gnoll Brute (enrages), Gnoll Shaman (piercing zap), Cave Spinner (poison).

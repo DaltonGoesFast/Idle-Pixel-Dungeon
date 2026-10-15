@@ -17,7 +17,19 @@
   ],
   "unlocked_by_default": true,
   "desc": "Tank & displacement. Broken Seal grants extra Barrier; Shove pushes a foe 1 tile; Slam (1/fight) hits all adjacent foes and knocks them back - into chasms if you line it up.",
-  "search_radius": 1
+  "search_radius": 1,
+  "subclasses": {
+   "berserker": {
+    "name": "Berserker",
+    "desc": "Rage: below half HP, melee hits deal +30% damage.",
+    "perk": "rage"
+   },
+   "gladiator": {
+    "name": "Gladiator",
+    "desc": "Combo: each melee hit in this fight adds +1 damage (max +3).",
+    "perk": "combo"
+   }
+  }
  },
  "mage": {
   "name": "Mage",
@@ -42,7 +54,19 @@
    "stat": "boss:goo",
    "goal": 1
   },
-  "charge_per_levels": 7
+  "charge_per_levels": 7,
+  "subclasses": {
+   "battlemage": {
+    "name": "Battlemage",
+    "desc": "Every 2nd melee hit with the staff restores 1 staff charge.",
+    "perk": "battle_recharge"
+   },
+   "warlock": {
+    "name": "Warlock",
+    "desc": "Soul siphon: killing a foe heals you for 35% of its max HP (min 3).",
+    "perk": "soul_heal"
+   }
+  }
  },
  "rogue": {
   "name": "Rogue",
@@ -69,6 +93,21 @@
   "unlock_rule": {
    "stat": "deepest_floor",
    "goal": 4
+  },
+  "subclasses": {
+   "assassin": {
+    "name": "Assassin",
+    "desc": "Surprise attacks deal +1x more (dagger x3); +1 Cloak charge.",
+    "surprise_add": 1.0,
+    "cloak_add": 1
+   },
+   "freerunner": {
+    "name": "Freerunner",
+    "desc": "Fast and slippery: attacks take 20% less time, +1 DR, +1 Cloak charge.",
+    "delay_mult": 0.8,
+    "dr_add": 1,
+    "cloak_add": 1
+   }
   }
  },
  "huntress": {
@@ -93,6 +132,21 @@
   "unlock_rule": {
    "stat": "potions_brewed",
    "goal": 5
+  },
+  "subclasses": {
+   "sniper": {
+    "name": "Sniper",
+    "desc": "Spirit Bow shots +1 damage and ignore DR.",
+    "bolt_add": 1,
+    "bolt_pierce": true
+   },
+   "warden": {
+    "name": "Warden",
+    "desc": "Nature's aid: +2 Barrier, +1 DR, and ending a turn in tall grass heals 1 HP.",
+    "barrier_add": 2,
+    "perk": "grass_heal",
+    "dr_add": 1
+   }
   }
  }
 }

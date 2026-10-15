@@ -86,6 +86,7 @@ func _drive() -> void:
 			"campfire":
 				if GameState.run.biome == "prison":
 					print("  Tengu defeated through the UI, continuing into the Caves")
+					_check(GameState.heroes[GameState.run.hero].mask, "Tengu kill grants Tengu's Mask")
 					s._show_card()
 					_check(Delve.next_biome(GameState.run) == "caves", "Tengu campfire offers the Caves")
 					Delve.continue_deeper(GameState); s.pending = {}; main.play_floor_music()
@@ -94,7 +95,13 @@ func _drive() -> void:
 				else:
 					_check(GameState.run.biome == "caves", "campfire reached after DM-300")
 					print("  DM-300 defeated through the UI, extracting")
+					var hc: String = GameState.run.hero
 					GameState.end_run("extract"); main.show_camp()
+					main.screen.rebuild()
+					var btn = _find_button(main.screen.pages["Heroes"], "Become ")
+					_check(btn != null, "Heroes page offers subclass choices")
+					if btn: btn.pressed.emit()
+					_check(GameState.heroes[hc].subclass != "", "subclass chosen through the Camp UI")
 			"floor_done":
 				if Delve.can_search_floor(GameState.run):
 					s._show_card()
@@ -131,6 +138,13 @@ func _drive() -> void:
 		print("UI SMOKE: PASS (fights=%d, stash gold=%d)" % [stage, GameState.mat("gold")])
 		SaveSystem.wipe()
 		get_tree().quit(0)
+
+func _find_button(n: Node, prefix: String):
+	if n is Button and n.text.begins_with(prefix): return n
+	for ch in n.get_children():
+		var r = _find_button(ch, prefix)
+		if r: return r
+	return null
 
 func _check(c: bool, n: String) -> void:
 	if not c:
