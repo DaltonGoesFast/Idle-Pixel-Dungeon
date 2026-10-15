@@ -721,8 +721,10 @@ func _mob_act(m: Dictionary) -> void:
 		var hp_before: int = hero.hp + hero.barrier
 		hit_hero(int(m.dmg), m.name)
 		var dealt: int = hp_before - (hero.hp + hero.barrier)
-		if m.has("drain") and dealt > 0 and m.hp < m.ht:
-			var h := mini(int(m.drain), int(m.ht) - int(m.hp)); m.hp += h
+		# SPD Bat.attackProc: heals (damage dealt - 4); our bat hits at half damage twice as often, so -2 (DECISIONS #136)
+		var heal := dealt - int(m.drain_over) if m.has("drain_over") else (int(m.get("drain", 0)) if dealt > 0 else 0)
+		if heal > 0 and m.hp < m.ht:
+			var h := mini(heal, int(m.ht) - int(m.hp)); m.hp += h
 			_ev({"t": "heal", "uid": m.uid, "amount": h, "pos": m.pos}); _log("%s drinks your blood (+%d)." % [m.name, h])
 		if m.has("bite_poison") and dealt > 0 and not over:
 			hero.poison = int(hero.get("poison", 0)) + int(m.bite_poison); _log("The bite is venomous!"); _ev({"t": "sfx", "name": "debuff"})

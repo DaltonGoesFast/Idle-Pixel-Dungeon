@@ -18,6 +18,7 @@ static func ability_text(m: Dictionary) -> String:
 	var extra := []
 	if m.get("revive", false): extra.append("Rises again once with half HP, 2 ticks after dying - unless it was the last enemy standing.")
 	if m.has("drain"): extra.append("Heals %d when its bite gets through." % int(m.drain))
+	if m.has("drain_over"): extra.append("Heals by the damage its bite deals beyond %d." % int(m.drain_over))
 	if m.has("bite_poison"): extra.append("Venomous bite: +%d poison." % int(m.bite_poison))
 	if m.has("enraged_dmg") and m.get("ability", "") == "": extra.append("Enrages below half HP: %d dmg." % int(m.enraged_dmg))
 	return " ".join(extra)

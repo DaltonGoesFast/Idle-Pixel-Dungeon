@@ -193,9 +193,9 @@
   "sprite": "bat",
   "fw": 15,
   "fh": 15,
-  "drain": 2,
+  "drain_over": 2,
   "spd": "HT 30, dmg 5-18, DR 0-4, speed 2x, heals on hit",
-  "tuned": "HT 24, dmg 11->5 (it attacks twice per tick), heals 2 on a hit that gets through"
+  "tuned": "HT 24, dmg 11->5 (it attacks twice per tick), heals (damage dealt - 2) like SPD's (dealt - 4) at half damage"
  },
  "brute": {
   "name": "Gnoll Brute",
@@ -228,7 +228,7 @@
   "zap_cooldown": 2,
   "zap_magic": true,
   "spd": "HT 35, dmg 5-10, DR 0-6; magic bolt 6-15",
-  "tuned": "magic zap = 1-tick red tile, 6 dmg ignoring DR, range 2-4, every 2 actions"
+  "tuned": "magic zap = 1-tick red tile, 7 dmg ignoring DR, range 2-4, every 2 actions"
  },
  "spinner": {
   "name": "Cave Spinner",
