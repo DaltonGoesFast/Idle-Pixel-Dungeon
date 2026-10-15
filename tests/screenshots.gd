@@ -132,6 +132,19 @@ func _ready() -> void:
 			GameState.log_line("Auto: fight Marsupial Rat", "auto"); GameState.log_line("Victory: 2 kills, took 3 damage, +5 gold, +2 xp.", "positive")
 			GameState.log_line("Warning: your torch is burning low.", "warning"); GameState.log_line("You descend to floor 2.", "highlight")
 			main.delve._refresh_controls(); main.delve._show_card(); GameState.settings.full_auto = false])
+		plan.append([sz, "delve_menu", func():
+			_fresh_warrior_run(); main.show_delve(); _clear_pops()
+			GameState.run.supplies["scroll_passage"] = 1
+			main.delve.pending = {}; main.delve._open_panel("menu")])
+		plan.append([sz, "delve_low_hp", func():
+			_fresh_warrior_run(); main.show_delve(); _clear_pops()
+			main.delve.pending = {}; main.delve.running = false
+			GameState.run.hp = 4; main.delve._refresh_controls(); main.delve._show_card()])
+		plan.append([sz, "delve_campfire", func():
+			_fresh_warrior_run(); main.show_delve(); _clear_pops()
+			GameState.run.hp = 20; GameState.run.boss_dead = true; GameState.run.floor = 5
+			GameState.run.pack["iron_ore"] = 3; Delve.reward(GameState, {"item": "mace"})
+			main.delve.pending = {"kind": "campfire"}; main.delve._show_card()])
 		plan.append([sz, "backpack", func():
 			_fresh_warrior_run()
 			if GameState.run.pack_gear.is_empty():

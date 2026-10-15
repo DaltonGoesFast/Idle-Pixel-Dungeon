@@ -4,7 +4,7 @@
 ##   avatar    hero frame centred at (15,16) in the portrait box; level number centred at (15,33) in the badge strip
 ##   buffs     row at (31,0..16): hero name, then BuffIndicator icons; depth + danger at the right end
 ##   hp        bar at (30,19), 9 tall: shield (grey) under hp (red) like SPD's shieldHP/hp scale.x; "HP/HT" centred
-##   exp       bar at (30,30), 7 tall: delve shows Torch (yellow) | Satiety (grey) halves with centred text
+##   exp       row at (30,30), 7 tall: delve shows Torch | Food as item icons with a percent
 class_name StatusPane
 extends Control
 
@@ -15,8 +15,12 @@ const HP := Rect2(0, 103, 128, 9)
 const SHIELD := Rect2(0, 112, 128, 9)
 const EXP := Rect2(0, 121, 128, 7)
 
+## Minis drawn as an item icon + percent instead of a bar, keyed by the first word of their text.
+const MINI_ICONS := {"Torch": "torch", "Food": "ration"}
+
 var tex: Texture2D
 var buffs_tex: Texture2D
+var items_tex: Texture2D
 var hero_sprite: Texture2D
 var hero_fw := 12
 var hero_fh := 15
@@ -124,7 +128,25 @@ func _draw() -> void:
 		var mx := row.position.x
 		for m in minis:
 			var r := Rect2(mx, row.position.y, mw, row.size.y)
-			draw_rect(r, Color(0, 0, 0, 0.6))
-			_strip(EXP if m.kind == "exp" else SHIELD, r, float(m.frac))
-			_centred(font, r, m.text, _fit_fs(r.size.y), Color.WHITE, k)
+			var ic: String = m.get("icon", MINI_ICONS.get(String(m.text).get_slice(" ", 0), ""))
+			if ic != "": _mini_icon(font, r, ic, float(m.frac), k)
+			else:
+				draw_rect(r, Color(0, 0, 0, 0.6))
+				_strip(EXP if m.kind == "exp" else SHIELD, r, float(m.frac))
+				_centred(font, r, m.text, _fit_fs(r.size.y), Color.WHITE, k)
 			mx += mw + k
+
+## Supply as an item icon and a percent, coloured by how close it is to running out.
+func _mini_icon(font: Font, r: Rect2, id: String, frac: float, k: float) -> void:
+	if items_tex == null: items_tex = load("res://assets/sprites/items.png")
+	var src := UIKit.item_rect(DB.icon_index(id))
+	var sc := maxf(1.0, floorf(9.0 * k / maxf(src.size.x, src.size.y)))
+	var isz := src.size * sc
+	var ip := Vector2(r.position.x, floorf(r.position.y + (r.size.y - isz.y) / 2.0))
+	var tint: String = DB.materials.get(id, {}).get("tint", "")
+	draw_texture_rect_region(items_tex, Rect2(ip, isz), src, Color(tint) if tint != "" else Color.WHITE)
+	var pct := roundi(clampf(frac, 0.0, 1.0) * 100.0)
+	var col := Color.WHITE if pct >= 30 else (Color("ff8800") if pct > 0 else Color("ff4444"))
+	var fs := _fit_fs(9.0 * k)
+	var asc := font.get_ascent(fs)
+	_text(font, Vector2(floorf(ip.x + isz.x + 2 * k), floorf(r.position.y + (r.size.y + asc * 0.72) / 2.0)), "%d%%" % pct, fs, col, k)

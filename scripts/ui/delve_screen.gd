@@ -10,8 +10,14 @@ var title: Label
 var bar: ProgressBar
 var stats: VBoxContainer
 var pane: StatusPane
-var card_host: VBoxContainer
-var controls: HFlowContainer
+var card_host: VBoxContainer   # body of the window over the corridor (encounters, bag, talents, menu)
+var log_host: VBoxContainer    # the log on the bare screen
+var controls: HBoxContainer
+var pips: Control
+var win_layer: Control
+var win_dim: ColorRect
+var win_panel: PanelContainer
+var danger: Control
 var running := true
 var fast := false
 var pending: Dictionary = {}   # current event card (pauses the bar)
@@ -21,23 +27,64 @@ var scene: DelveScene
 func _ready() -> void:
 	box = UIKit.vbox(self); box.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
 	pane = StatusPane.new(); box.add_child(pane)
-	title = UIKit.header(""); box.add_child(title)
-	bar = ProgressBar.new(); bar.custom_minimum_size.y = UIKit.font_size * 1.6; bar.show_percentage = true; box.add_child(bar)
+	var bar_row := UIKit.hbox(box)
+	title = UIKit.label("", 1.0, Color("ffd27a")); title.autowrap_mode = TextServer.AUTOWRAP_OFF
+	title.size_flags_vertical = SIZE_SHRINK_CENTER; bar_row.add_child(title)
+	bar = ProgressBar.new(); bar.custom_minimum_size.y = UIKit.font_size * 1.6; bar.show_percentage = true
+	bar.size_flags_horizontal = SIZE_EXPAND_FILL; bar.size_flags_vertical = SIZE_SHRINK_CENTER; bar_row.add_child(bar)
+	pips = Control.new(); pips.mouse_filter = MOUSE_FILTER_IGNORE; pips.draw.connect(_draw_pips); bar_row.add_child(pips)
 	scene = DelveScene.new(); scene.host = self; scene.custom_minimum_size.y = UIKit.font_size * 7; box.add_child(scene)
 	stats = UIKit.vbox(box)
 	var sc := ScrollContainer.new(); sc.size_flags_vertical = SIZE_EXPAND_FILL
 	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED; box.add_child(sc)
-	card_host = UIKit.vbox(sc); card_host.size_flags_horizontal = SIZE_EXPAND_FILL
-	controls = HFlowContainer.new(); box.add_child(controls)
+	log_host = UIKit.vbox(sc); log_host.size_flags_horizontal = SIZE_EXPAND_FILL
+	controls = HBoxContainer.new(); box.add_child(controls)
+	_build_window()
+	danger = Control.new(); danger.name = "DangerEdges"; danger.mouse_filter = MOUSE_FILTER_IGNORE; danger.z_index = 25
+	danger.set_anchors_and_offsets_preset(PRESET_FULL_RECT); danger.draw.connect(_draw_danger); add_child(danger)
 	GameState.settings_changed.connect(func(): if pending.get("kind", "") == "settings": _show_card())
-	if Delve.floor_done(GameState.run) or GameState.run.events.is_empty(): pass
 	_refresh_controls()
+
+## SPD-style window over the corridor. The dim stops above the toolbar, so the bag and menu stay in reach.
+func _build_window() -> void:
+	win_layer = Control.new(); win_layer.name = "DelveWindow"; win_layer.z_index = 20
+	win_layer.set_anchors_and_offsets_preset(PRESET_FULL_RECT); win_layer.mouse_filter = MOUSE_FILTER_IGNORE
+	win_layer.visible = false; add_child(win_layer)
+	win_dim = ColorRect.new(); win_dim.color = Color(0, 0, 0, 0.35); win_dim.mouse_filter = MOUSE_FILTER_STOP; win_layer.add_child(win_dim)
+	win_panel = PanelContainer.new(); win_layer.add_child(win_panel)
+	var sc := ScrollContainer.new(); sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED; win_panel.add_child(sc)
+	card_host = UIKit.vbox(sc); card_host.size_flags_horizontal = SIZE_EXPAND_FILL
+
+## Fits the window to its contents, in the lower middle between the corridor and the toolbar. A tall window
+## (bag, talents) grows up over the corridor, never over the status pane or the toolbar.
+func _place_window() -> void:
+	if win_layer == null or not win_layer.visible or size.y <= 0.0: return
+	var m := floorf(UIKit.font_size * 0.4)
+	var bottom := controls.position.y - m
+	var top := scene.position.y
+	var low := scene.position.y + scene.size.y * 0.55
+	var sb := win_panel.get_theme_stylebox("panel")
+	var inner := card_host.get_combined_minimum_size()
+	var w := floorf(clampf(maxf(UIKit.font_size * 24.0, inner.x + sb.get_minimum_size().x), 0.0, minf(size.x - 2.0 * m, UIKit.font_size * 32.0)))
+	var h := minf(inner.y + sb.get_minimum_size().y, bottom - top)
+	var y := low + floorf(maxf(0.0, bottom - low - h) / 2.0) if h <= bottom - low else bottom - h
+	var r := Rect2(floorf((size.x - w) / 2.0), floorf(y), w, h)
+	if win_panel.position != r.position or win_panel.size != r.size:
+		win_panel.position = r.position; win_panel.size = r.size
+	var dr := Rect2(0, 0, size.x, maxf(0.0, controls.position.y))
+	if win_dim.position != dr.position or win_dim.size != dr.size:
+		win_dim.position = dr.position; win_dim.size = dr.size
 
 func apply_layout(p: bool, s: Vector2) -> void:
 	portrait = p
 	bar.custom_minimum_size.y = UIKit.font_size * 1.6
-	# corridor height: a multiple of 5 tile rows; shorter when the inner screen is wide
-	scene.custom_minimum_size.y = floorf(minf(s.y * (0.24 if p else 0.26), UIKit.font_size * (10.0 if p else 9.0)) / 5.0) * 5.0
+	win_panel.add_theme_stylebox_override("panel", UIKit.chrome("window", Color.WHITE, UIKit.font_size * 0.6))
+	# corridor height: a multiple of 5 tile rows, as tall as the rows under it allow (tiles and sprites scale with it)
+	var fs := float(UIKit.font_size)
+	var reserved := 40.0 * float(maxi(2, UIKit.px_scale)) + fs * 1.6 + fs * 3.6 + fs * 5.5 + UIKit.btn_height() * 1.2 + fs * 3.0
+	var hmin := minf(s.y * 0.2, fs * 7.0)
+	scene.custom_minimum_size.y = floorf(clampf(s.y - reserved, hmin, s.y * (0.36 if p else 0.3)) / 5.0) * 5.0
+	pips.custom_minimum_size = Vector2(fs * 4.6, fs * 1.6)
 	_refresh_controls(); _show_card()
 	if _summary_on: _build_summary()
 
@@ -52,6 +99,8 @@ func _process(delta: float) -> void:
 	var run: Dictionary = GameState.run
 	if run.is_empty(): return
 	_expire_card_toasts()
+	_place_window()
+	_tick_danger(delta)
 	_save_t += delta
 	if _save_t > 3.0:
 		_save_t = 0.0; SaveSystem.save_game()
@@ -112,7 +161,59 @@ func _auto_tick(delta: float) -> void:
 func _encounter_cue(ev: Dictionary) -> void:
 	match ev.get("kind", ""):
 		"door", "special": Sfx.play("door_open")
-		"combat": Sfx.buzz(25)
+		"combat": Sfx.buzz(25); _pulse = 1.0
+
+# ---------------------------------------------------------------- danger edges
+var _pulse := 0.0         # ambush pulse, 1 -> 0
+var _low_hp := false      # at or below Delve.AUTO_STOP_HP of max HP
+var _danger_t := 0.0
+var _danger_a := 0.0
+const PULSE_TIME := 1.4
+
+func _tick_danger(delta: float) -> void:
+	_danger_t += delta
+	_pulse = maxf(0.0, _pulse - delta / PULSE_TIME)
+	var a := 0.0
+	if _low_hp: a = 0.55 + 0.12 * sin(_danger_t * 3.0)
+	if _pulse > 0.0: a = maxf(a, _pulse * (0.55 + 0.45 * absf(sin(_danger_t * 9.0))))
+	if is_equal_approx(a, _danger_a): return
+	_danger_a = a
+	danger.queue_redraw()
+
+## Four strips that fade from red at the screen edge to clear, so the middle of the screen stays readable.
+func _draw_danger() -> void:
+	if _danger_a <= 0.01: return
+	var s := danger.size
+	var d := floorf(minf(s.x, s.y) * 0.12)
+	var edge := Color(0.85, 0.05, 0.05, 0.6 * minf(1.0, _danger_a))
+	var clear := Color(edge, 0.0)
+	var o := [Vector2.ZERO, Vector2(s.x, 0), s, Vector2(0, s.y)]
+	var i := [Vector2(d, d), Vector2(s.x - d, d), s - Vector2(d, d), Vector2(d, s.y - d)]
+	for n in 4:
+		var m := (n + 1) % 4
+		danger.draw_polygon(PackedVector2Array([o[n], o[m], i[m], i[n]]), PackedColorArray([edge, edge, clear, clear]))
+
+# ---------------------------------------------------------------- depth pips
+var _pip_key := ""
+
+## One pip per encounter point on the floor, filled once the bar has passed it. A boss floor's last pip is a skull.
+func _draw_pips() -> void:
+	var run: Dictionary = GameState.run
+	if run.is_empty(): return
+	var evs: Array = run.get("events", [])
+	var n := maxi(evs.size(), Delve.EVENT_POINTS.size())
+	var k := float(maxi(2, UIKit.px_scale))
+	var s := floorf(minf(pips.size.y * 0.55, (pips.size.x - k * 2.0 * n) / n))
+	var gap := floorf((pips.size.x - s * n) / n)
+	var y := floorf((pips.size.y - s) / 2.0)
+	for i in n:
+		var done := i < int(run.get("next_event", 0))
+		var r := Rect2(floorf(gap / 2.0 + i * (s + gap)), y, s, s)
+		if i < evs.size() and String(evs[i].get("kind", "")) == "boss":
+			pips.draw_texture_rect(UIKit.spd_icon("skull"), r, false, Color.WHITE if not done else Color(0.6, 0.6, 0.6))
+			continue
+		pips.draw_rect(r, Color(0, 0, 0, 0.7))
+		pips.draw_rect(r.grow(-k), Color("ffd27a") if done else Color("3a3328"))
 
 ## Delve Bar speed = Settings "Delve speed" x the in-run x3 toggle.
 func speed_mult() -> float:
@@ -127,15 +228,15 @@ const LOG_LINES := 8
 const CARD_LOG_LINES := 4
 ## SPD-coloured log under the bar; rebuilt only when a line is added.
 ## The haul line stays pinned above it and updates in place as gold and materials come in.
-func _mount_log(limit: int = LOG_LINES, show_haul := true) -> void:
+func _mount_log(parent: Control, limit: int = LOG_LINES, show_haul := true) -> void:
 	if show_haul:
 		_haul_label = UIKit.label("", 0.8, GameState.LOG_COLORS.positive)
 		_haul_text = "\t"
-		card_host.add_child(_haul_label)
+		parent.add_child(_haul_label)
 	else:
 		_haul_label = null
 	_log_limit = limit
-	_log_box = UIKit.vbox(card_host)
+	_log_box = UIKit.vbox(parent)
 	_log_box.name = "DelveLog"
 	_log_serial = -1
 	_fill_log()
@@ -172,8 +273,11 @@ func _refresh() -> void:
 	if sk != _stats_key: _stats_key = sk; _stats_cache = GameState.hero_stats(run.hero)
 	var s: Dictionary = _stats_cache
 	_fill_log()
-	title.text = "%s - Floor %d / %d" % [DB.biomes[run.biome].name, run.floor, DB.biomes[run.biome].floors[1]]
+	title.text = "%s %d" % [DB.biomes[run.biome].name, run.floor]
 	bar.value = run.progress
+	_low_hp = int(run.hp) <= int(ceil(float(s.ht) * Delve.AUTO_STOP_HP))
+	var ek := "%d|%d|%d" % [int(run.floor), int(run.get("next_event", 0)), run.get("events", []).size()]
+	if ek != _pip_key: _pip_key = ek; pips.queue_redraw()
 	if pane.hero_sprite == null or pane.hero_row != int(s.row): pane.set_hero(s.sprite, int(s.fw), int(s.fh), int(s.row))
 	var bl := []
 	if Delve.darkness(run): bl.append(16)                      # BLINDNESS
@@ -186,8 +290,8 @@ func _refresh() -> void:
 		_pane_key = pk
 		pane.set_data({"name": s.name, "level": GameState.heroes[run.hero].level, "hp": run.hp, "ht": s.ht, "buffs": bl,
 			"depth": "F%d" % int(run.get("floor", 1)),
-			"minis": [{"kind": "exp", "frac": float(run.torch) / 100.0, "text": "Torch %d%%" % run.torch},
-				{"kind": "shield", "frac": float(run.satiety) / 100.0, "text": "Food %d%%" % run.satiety}]})
+			"minis": [{"kind": "exp", "icon": "torch", "frac": float(run.torch) / 100.0, "text": "Torch %d%%" % run.torch},
+				{"kind": "shield", "icon": "ration", "frac": float(run.satiety) / 100.0, "text": "Food %d%%" % run.satiety}]})
 	var rk := _supplies_key(run)
 	if rk == _row_key: return
 	_row_key = rk
@@ -196,51 +300,94 @@ func _refresh() -> void:
 	if Delve.darkness(run): line += "DARK: no Barrier in fights!   "
 	if float(run.satiety) <= 0.0: line += "STARVING"
 	if line != "": stats.add_child(UIKit.label(line, 0.95, Color("ff7070")))
+	# Brought comes back to the stash on every ending; Found is lost if the hero dies.
+	var brought := _chip_row("Brought:", Color("9a8f7c"))
+	for k in run.supplies:
+		if int(run.supplies[k]) > 0: brought.add_child(UIKit.res_chip(k, str(run.supplies[k])))
+	if brought.get_child_count() == 1: brought.add_child(_row_note("nothing left"))
+	var found := _chip_row("Found (lost on death):", Color("ff9944"))
+	for k in run.pack:
+		if int(run.pack[k]) > 0: found.add_child(UIKit.res_chip(k, str(run.pack[k])))
+	var new_gear := _found_gear(run).size()
+	if new_gear > 0: found.add_child(_row_note("+%d item%s" % [new_gear, "" if new_gear == 1 else "s"], Color.WHITE))
+	if found.get_child_count() == 1: found.add_child(_row_note("nothing yet"))
+
+func _chip_row(heading: String, color: Color) -> HFlowContainer:
 	var flow := HFlowContainer.new(); stats.add_child(flow)
 	flow.add_theme_constant_override("h_separation", int(UIKit.font_size * 0.9))
 	flow.add_theme_constant_override("v_separation", int(UIKit.font_size * 0.25))
-	for k in run.supplies:
-		if int(run.supplies[k]) > 0: flow.add_child(UIKit.res_chip(k, str(run.supplies[k])))
-	var pl := UIKit.label("Pack:", 0.85, Color("c9a96e")); pl.autowrap_mode = TextServer.AUTOWRAP_OFF
-	pl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	flow.add_child(pl)
-	for k in run.pack:
-		if int(run.pack[k]) > 0: flow.add_child(UIKit.res_chip(k, str(run.pack[k])))
-	if not run.pack_gear.is_empty():
-		var il := UIKit.label("+%d items" % run.pack_gear.size(), 0.85); il.autowrap_mode = TextServer.AUTOWRAP_OFF; flow.add_child(il)
+	flow.add_child(_row_note(heading, color))
+	return flow
+
+func _row_note(text: String, color := Color("9a8f7c")) -> Label:
+	var l := UIKit.label(text, 0.85, color); l.autowrap_mode = TextServer.AUTOWRAP_OFF
+	l.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	return l
+
+## Gear picked up this run. Gear the hero brought and bagged (`owned`) goes back to Camp on every ending.
+func _found_gear(run: Dictionary) -> Array:
+	return run.get("pack_gear", []).filter(func(g): return not g.get("owned", false))
 
 func _supplies_key(run: Dictionary) -> String:
-	return "%s|%s|%d|%s|%s" % [run.supplies, run.pack, run.pack_gear.size(), Delve.darkness(run), float(run.satiety) <= 0.0]
+	return "%s|%s|%d|%s|%s" % [run.supplies, run.pack, _found_gear(run).size(), Delve.darkness(run), float(run.satiety) <= 0.0]
 
 func _refresh_controls() -> void:
 	if controls == null: return
 	UIKit.clear(controls)
-	var w := UIKit.font_size * 7.0
-	var b1 := UIKit.button("Pause" if running else "Resume", func():
+	_slot("Pause" if running else "Resume", "sleep" if running else "arrow", "", func():
 		if not running and pending.is_empty() and _is_encounter(_under):
 			running = true; _restore_encounter(); return   # Resume reopens the waiting encounter, it does not skip it
-		running = not running; _refresh_controls()); b1.custom_minimum_size.x = w
-	var b2 := UIKit.button("Speed x3" if not fast else "Speed x1", func(): fast = not fast; _refresh_controls()); b2.custom_minimum_size.x = w
-	UIKit.as_toolbar(b1, "sleep" if running else "arrow"); UIKit.as_toolbar(b2, "busy")
+		running = not running; _refresh_controls())
+	_slot("Speed", "busy", "x3" if fast else "x1", func(): fast = not fast; _refresh_controls())
 	var fa: bool = GameState.settings.get("full_auto", false)
-	var b0 := UIKit.button("Auto Battle: ON" if fa else "Auto Battle", func(): set_full_auto(not GameState.settings.get("full_auto", false)), true, "Plays fights for you. Doors, rooms, and campfires still wait.")
-	b0.custom_minimum_size.x = w * 1.6
-	UIKit.as_toolbar(b0, "busy"); b0.name = "FullAuto"
-	controls.add_child(b1); controls.add_child(b2); controls.add_child(b0)
-	if Delve.scroll_passage_count(GameState) > 0:
-		var b3 := UIKit.button("Read Scroll of Passage (extract)", func():
-			if Delve.use_scroll_passage(GameState) and main: main.show_camp()); b3.custom_minimum_size.x = w * 2
-		UIKit.as_toolbar(b3, "scroll")
-		controls.add_child(b3)
+	var b0 := _slot("Auto Battle: ON - plays fights for you; doors, rooms, and campfires still wait" if fa else "Auto Battle: plays fights for you; doors, rooms, and campfires still wait",
+		"alert", "ON" if fa else "", func(): set_full_auto(not GameState.settings.get("full_auto", false)))
+	b0.name = "FullAuto"
+	if fa: b0.self_modulate = Color(1.0, 0.85, 0.35)
 	var nfree := GameState.talent_points_total_free(GameState.run.hero) if not GameState.run.is_empty() else 0
-	var bb := UIKit.button("Backpack %d/%d" % [GameState.backpack_used(), GameState.BACKPACK_SLOTS], func(): _open_panel("backpack")); bb.custom_minimum_size.x = w
-	UIKit.as_toolbar(bb, "backpack"); controls.add_child(bb)
-	var bt := UIKit.button("Talents" + (" (%d!)" % nfree if nfree > 0 else ""), func(): _open_panel("talents")); bt.custom_minimum_size.x = w
-	UIKit.as_toolbar(bt, "talent"); controls.add_child(bt)
-	var b5 := UIKit.button("Settings", func(): _open_panel("settings")); b5.custom_minimum_size.x = w
-	UIKit.as_toolbar(b5, "prefs"); controls.add_child(b5)
-	var b4 := UIKit.button("Abandon run", _confirm_abandon); b4.custom_minimum_size.x = w
-	UIKit.as_toolbar(b4, "exit"); controls.add_child(b4)
+	_slot("Backpack", "backpack", "%d/%d" % [GameState.backpack_used(), GameState.BACKPACK_SLOTS], func(): _open_panel("backpack"))
+	_slot("Talents", "talent", "+%d" % nfree if nfree > 0 else "", func(): _open_panel("talents"))
+	var bm := _slot("Menu: settings, Scroll of Passage, abandon", "catalog", "", func(): _open_panel("menu"))
+	bm.name = "Menu"
+	if Delve.scroll_passage_count(GameState) > 0:
+		var mark := UIKit.pixel(UIKit.spd_icon("scroll"), 1); mark.name = "PassageMark"
+		mark.mouse_filter = MOUSE_FILTER_IGNORE; mark.set_anchors_and_offsets_preset(PRESET_TOP_RIGHT)
+		mark.grow_horizontal = GROW_DIRECTION_BEGIN; bm.add_child(mark)
+
+## One square SPD toolbar slot: icon, an optional short count, and the full name as its tooltip.
+func _slot(tip: String, icon_name: String, text: String, cb: Callable) -> Button:
+	var b := UIKit.button(text, cb, true, tip)
+	UIKit.as_toolbar(b, icon_name)
+	b.icon = _slot_icon(icon_name)
+	b.autowrap_mode = TextServer.AUTOWRAP_OFF
+	b.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	b.vertical_icon_alignment = VERTICAL_ALIGNMENT_TOP if text != "" else VERTICAL_ALIGNMENT_CENTER
+	b.add_theme_font_size_override("font_size", UIKit.font_px(UIKit.font_size * 0.75))
+	b.custom_minimum_size = Vector2(0, UIKit.btn_height() * 1.2)
+	b.size_flags_horizontal = SIZE_EXPAND_FILL
+	controls.add_child(b)
+	return b
+
+static var _slot_icons := {}
+## The 8-px status icons (busy, alert, sleep) drawn at double scale so they match the 14-16 px toolbar icons.
+static func _slot_icon(icon_name: String) -> Texture2D:
+	var tex := UIKit.toolbar_icon(icon_name)
+	if tex.get_height() >= 12 * UIKit.px_scale: return tex
+	var key := "%s@%d" % [icon_name, UIKit.px_scale]
+	if not _slot_icons.has(key):
+		var img := tex.get_image()
+		img.resize(img.get_width() * 2, img.get_height() * 2, Image.INTERPOLATE_NEAREST)
+		_slot_icons[key] = ImageTexture.create_from_image(img)
+	return _slot_icons[key]
+
+func _card_menu() -> void:
+	var v := _card("Menu", "")
+	if Delve.scroll_passage_count(GameState) > 0:
+		v.add_child(UIKit.with_icon(UIKit.button("Read Scroll of Passage (extract)", func():
+			if Delve.use_scroll_passage(GameState) and main: main.show_camp()), "scroll"))
+	v.add_child(UIKit.with_icon(UIKit.button("Settings", func(): _open_panel("settings")), "prefs"))
+	v.add_child(UIKit.with_icon(UIKit.button("Abandon run", _confirm_abandon), "exit"))
+	v.add_child(UIKit.secondary(UIKit.button("Close", _close_panel)))
 
 ## Backpack / Talents / Settings pause the bar; closing brings back whatever encounter was open.
 ## Closing an encounter card only sets it aside (`_under`) so the bag and settings stay reachable.
@@ -293,8 +440,7 @@ func _cancel_abandon() -> void:
 # ------------------------------------------------------------ cards
 func _card(title_text: String, body: String) -> VBoxContainer:
 	UIKit.clear(card_host)
-	var c := UIKit.card(); card_host.add_child(c)
-	var v := UIKit.vbox(c)
+	var v := UIKit.vbox(card_host)
 	v.add_child(UIKit.header(title_text))
 	if body != "": v.add_child(UIKit.label(body))
 	return v
@@ -302,8 +448,10 @@ func _card(title_text: String, body: String) -> VBoxContainer:
 func _show_card() -> void:
 	if card_host == null: return
 	UIKit.clear(card_host)
+	UIKit.clear(log_host)
 	_log_box = null
 	_haul_label = null
+	win_layer.visible = not pending.is_empty()
 	# remember the open card in the save (an app kill must not skip an encounter, even one set aside)
 	if not GameState.run.is_empty():
 		var remembered := pending if _is_encounter(pending) else (_under if _is_encounter(_under) else {})
@@ -313,11 +461,11 @@ func _show_card() -> void:
 		_card_toasts.clear()
 		_clear_floating_toasts()
 		if _is_encounter(_under):
-			card_host.add_child(UIKit.label("%s is waiting." % _encounter_name(_under), 0.95, Color("ffd27a")))
-			card_host.add_child(UIKit.button("Return to encounter", _restore_encounter))
+			log_host.add_child(UIKit.label("%s is waiting." % _encounter_name(_under), 0.95, Color("ffd27a")))
+			log_host.add_child(UIKit.button("Return to encounter", _restore_encounter))
 		var hint := "The bar holds until you deal with the encounter." if _is_encounter(_under) else ("Exploring... encounters every ~20-25%." if running else "Paused.")
-		card_host.add_child(UIKit.label(hint, 0.9, Color("9a8f7c")))
-		_mount_log(LOG_LINES, true)
+		log_host.add_child(UIKit.label(hint, 0.9, Color("9a8f7c")))
+		_mount_log(log_host, LOG_LINES, true)
 		return
 	if main and pending.kind in ["door", "special", "floor_done", "campfire"]: main.tip(pending.kind)
 	match pending.kind:
@@ -340,10 +488,12 @@ func _show_card() -> void:
 			var v := _card("Abandon the expedition?", "Everything in your pack is lost. Unused supplies return to the stash.")
 			v.add_child(UIKit.button("Abandon", func(): GameState.end_run("abandon"); main.show_camp()))
 			v.add_child(UIKit.button("Keep delving", _cancel_abandon))
+		"menu": _card_menu()
 	_take_floating_toast()
 	_mount_card_toast()
 	if _is_encounter(pending):
-		_mount_log(CARD_LOG_LINES, false)
+		_mount_log(card_host, CARD_LOG_LINES, false)
+	_place_window()
 
 func _mob_names(ids: Array) -> String:
 	return ", ".join(ids.map(func(m): return DB.mobs[m].name))
@@ -478,15 +628,34 @@ func _card_campfire() -> void:
 	var run: Dictionary = GameState.run
 	var boss: String = DB.mobs[DB.biomes[run.biome].boss].name
 	var nb := Delve.next_biome(run)
-	var txt := "%s is defeated. Rest here and extract with 100%% of your pack" % boss
-	if nb != "": txt += ", or press on into the %s (floors %d-%d, %d Str recommended) - nothing is banked until you extract." % [DB.biomes[nb].name, DB.biomes[nb].floors[0], DB.biomes[nb].floors[1], DB.biomes[nb].str_gate]
-	else: txt += ". This is the deepest biome in this build."
+	var txt := "%s is defeated. Rest here and extract with 100%% of your pack." % boss
+	if nb == "": txt += " This is the deepest biome in this build."
 	var v := _card("Campfire", txt)
 	_add_close(v)
 	v.add_child(UIKit.button("Extract to Camp", func(): Sfx.play("mastery"); GameState.end_run("extract"); main.show_camp()))
 	if nb != "":
 		v.add_child(UIKit.button("Descend into the %s" % DB.biomes[nb].name, func():
 			Sfx.play("descend"); Delve.continue_deeper(GameState); pending = {}; main.play_floor_music(); _show_card()))
+	_campfire_stakes(v, run, nb)
+
+## What extracting banks, beside what pressing on asks of the hero.
+func _campfire_stakes(v: VBoxContainer, run: Dictionary, nb: String) -> void:
+	v.add_child(UIKit.label("You would bank:", 0.95, GameState.LOG_COLORS.positive))
+	var flow := HFlowContainer.new(); v.add_child(flow)
+	flow.add_theme_constant_override("h_separation", int(UIKit.font_size * 0.9))
+	flow.add_theme_constant_override("v_separation", int(UIKit.font_size * 0.25))
+	for k in run.pack:
+		if int(run.pack[k]) > 0: flow.add_child(UIKit.res_chip(k, str(run.pack[k])))
+	var gear: Array = _found_gear(run).map(func(g): return GameState.gear_name(g))
+	if flow.get_child_count() == 0 and gear.is_empty(): flow.add_child(_row_note("Nothing yet."))
+	if not gear.is_empty(): v.add_child(UIKit.label(", ".join(gear), 0.85))
+	if nb == "": return
+	var b: Dictionary = DB.biomes[nb]
+	var hero_str := int(GameState.heroes[run.hero].str)
+	v.add_child(UIKit.label("Pressing on:", 0.95, Color("ff9944")))
+	var gate := "%d Str recommended (you have %d)" % [int(b.str_gate), hero_str]
+	v.add_child(UIKit.label("%s, floors %d-%d, %s. Nothing is banked until you extract; a death loses all of it." % [b.name, int(b.floors[0]), int(b.floors[1]), gate],
+		0.85, Color("ff7070") if hero_str < int(b.str_gate) else Color("bdb3a0")))
 
 ## Result window: what the encounter gave and took. The bar waits until OK.
 var _summary_on := false

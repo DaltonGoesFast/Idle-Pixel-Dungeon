@@ -354,3 +354,14 @@ The hub stacked a wrapping resource bar, a short scene, portraits that repeated 
 - Stash (Materials / Potions & scrolls / Gear), Forge (Craft / Upgrade & repair / Rings) and Guild (Supplies / Patrols) split into sections with Journal-style buttons; the choice is remembered while the app runs and a switch scrolls to the top.
 - Recipe slots (Forge, Guild, Enchanter, Alchemy) are wider and captioned with the recipe name minus its verb ("Ration Crate", "Leather"), so slots are told apart without opening them.
 - Journal lists open milestones as cards and folds finished ones into one "Completed (N)" line. A locked class on the Heroes page shows its unlock progress card instead of a stats card.
+
+## 125. Delve screen: corridor first, cards as windows over it
+The percent bar stays the exploration (GDD: UI-driven delving, no hallway walking). The screen around it follows SPD.
+- One row holds a depth badge ("Sewers 3"), the bar, and one pip per encounter point, filled once passed. A boss floor's last pip is a skull.
+- The corridor is as tall as the rows under it allow, up to 36% of the screen (30% on the wide inner screen). Tiles and sprites scale with it.
+- Encounters, the bag, talents, settings, the abandon confirm, and the new Menu open as an SPD window over a light dim. The window fits its contents in the lower middle and only grows up over the corridor when it has to. The dim stops above the toolbar, so the bag and menu stay reachable while a fight waits. Close still only sets an encounter aside.
+- The toolbar is square icon slots: Pause, Speed, Auto Battle, Backpack, Talents, Menu. Settings, Scroll of Passage, and Abandon live in Menu, so extracting or abandoning takes a deliberate second tap. A scroll mark on Menu shows a Scroll of Passage is carried.
+- Supplies are split into Brought (returns to the stash on every ending) and Found (lost on death). Gear the hero brought and bagged is not counted as found.
+- Torch and food are item icons with a percent on the status pane (fights too), orange under 30% and red at 0.
+- Red edges at or below 30% HP (the Auto Battle stop line), and a short pulse when an ambush opens.
+- The campfire lists what extracting banks next to the next biome's floors and Strength gate (red when the hero is under it).
