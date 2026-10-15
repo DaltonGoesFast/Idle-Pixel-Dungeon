@@ -122,7 +122,7 @@ static func backpack(parent: Control, refresh: Callable, in_combat := false, on_
 	v.add_child(UIKit.label("Carried" if not run.pack_gear.is_empty() else "Carried: nothing yet", 0.9, Color("c9a96e")))
 	for g in run.pack_gear:
 		var row := UIKit.hbox(v)
-		row.add_child(UIKit.icon(g.id))
+		row.add_child(UIKit.icon(g.id, -1, UIKit.gear_badge(g)))
 		var info := UIKit.vbox(row); info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		info.add_child(UIKit.label(GameState.gear_name(g) + ("  (yours)" if g.get("owned", false) else ""), 0.9))
 		var why := GameState.can_delve_equip(int(g.uid))

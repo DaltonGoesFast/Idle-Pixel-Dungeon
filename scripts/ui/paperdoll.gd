@@ -69,7 +69,7 @@ static func _slot(c: String, s: String, mode: String, refresh: Callable) -> Butt
 	for st in ["normal", "hover", "pressed"]: b.add_theme_stylebox_override(st, bg)
 	b.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 	var icon_id: String = EMPTY_ICON[s] if it.is_empty() else (it.icon if it.has("pseudo") else it.id)
-	var ic := UIKit.icon(icon_id, int(sz * 0.7)); ic.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT); ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var ic := UIKit.icon(icon_id, int(sz * 0.7), UIKit.gear_badge(it)); ic.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT); ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	if it.is_empty(): ic.modulate = Color(1, 1, 1, 0.3)
 	elif it.get("cracked", false):   # red frame, true colours (DECISIONS #98)
 		bg.border_color = Color("ff5040"); bg.set_border_width_all(maxi(2, int(UIKit.font_size * 0.12)))
@@ -155,7 +155,7 @@ static func _detail(c: String, s: String, mode: String, refresh: Callable, on_eq
 	for cd in cands:
 		var g: Dictionary = cd[0]
 		var r := UIKit.hbox(v)
-		r.add_child(UIKit.icon(g.id))
+		r.add_child(UIKit.icon(g.id, -1, UIKit.gear_badge(g)))
 		var cv := UIKit.vbox(r); cv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		cv.add_child(UIKit.label(GameState.gear_name(g), 0.85))
 		var col := Color("9a8f7c") if cd[2] != "" else (Color("6bff6b") if int(cd[1][1]) > 0 else (Color("ff6a5a") if int(cd[1][1]) < 0 else Color("9fd3ff")))

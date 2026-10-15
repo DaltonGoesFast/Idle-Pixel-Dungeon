@@ -244,12 +244,12 @@ func _p(name: String) -> VBoxContainer:
 	return v
 
 ## Small info window for one item/recipe: icon + name, text lines, then the given action buttons.
-func info(id: String, title: String, lines: Array, actions: Array = []) -> void:
+func info(id: String, title: String, lines: Array, actions: Array = [], badge := "") -> void:
 	_close_info()
 	var w := _make_window(title, "", _close_info, 0.86, 0.5)
 	info_layer = w[0]
 	var body: VBoxContainer = w[1]
-	var top := UIKit.hbox(body); var ic := UIKit.icon(id, UIKit.font_size * 3); top.add_child(ic)
+	var top := UIKit.hbox(body); var ic := UIKit.icon(id, UIKit.font_size * 3, badge); top.add_child(ic)
 	var tv := UIKit.vbox(top); tv.size_flags_horizontal = SIZE_EXPAND_FILL
 	for l in lines:
 		if typeof(l) == TYPE_OBJECT:
@@ -396,7 +396,7 @@ func _stats_card(c: String) -> Control:
 
 # ------------------------------------------------------------ item slots
 ## SPD inventory slot: dark translucent square, item sprite, count bottom-right, "+N" top-left.
-func item_slot(id: String, br: String, tl: String, cb: Callable, tint := Color.WHITE, frame := "", gear := {}) -> Button:
+func item_slot(id: String, br: String, tl: String, cb: Callable, tint := Color.WHITE, frame := "", gear := {}, badge := "") -> Button:
 	var b := Button.new(); b.focus_mode = FOCUS_NONE
 	var sz := UIKit.font_size * 3.0
 	b.custom_minimum_size = Vector2(sz, sz)
@@ -405,7 +405,8 @@ func item_slot(id: String, br: String, tl: String, cb: Callable, tint := Color.W
 	var hv := bg.duplicate(); hv.bg_color = Color(0.45, 0.46, 0.40, 0.75)
 	b.add_theme_stylebox_override("normal", bg); b.add_theme_stylebox_override("hover", hv); b.add_theme_stylebox_override("pressed", hv)
 	b.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
-	var ic := UIKit.icon(id, int(sz * 0.7)); ic.set_anchors_and_offsets_preset(PRESET_FULL_RECT); ic.mouse_filter = MOUSE_FILTER_IGNORE
+	if badge == "" and not gear.is_empty(): badge = UIKit.gear_badge(gear)
+	var ic := UIKit.icon(id, int(sz * 0.7), badge); ic.set_anchors_and_offsets_preset(PRESET_FULL_RECT); ic.mouse_filter = MOUSE_FILTER_IGNORE
 	# cracked gear keeps its true colours (a tint hid small ring/potion sprites on device) and gets a red
 	# frame + "!" badge instead (DECISIONS #98)
 	var cracked: bool = gear.get("cracked", false)
@@ -478,7 +479,7 @@ func compare(g: Dictionary) -> void:
 	var acts := []
 	if SLOT_OF.has(t) and GameState.equipped_by(g.uid) == "":
 		acts.append(["Equip on " + DB.heroes[chosen_hero].name, func(): GameState.equip(chosen_hero, g.uid), GameState.can_equip(chosen_hero, g.uid)])
-	info(gear_icon(g), "Compare: " + GameState.gear_name(g), lines, acts)
+	info(gear_icon(g), "Compare: " + GameState.gear_name(g), lines, acts, UIKit.gear_badge(g))
 
 func gear_icon(g: Dictionary) -> String:
 	return g.id   # rings show their gem, as in SPD (the gem is the appearance, not the identity)
@@ -538,7 +539,7 @@ func _page_stash() -> void:
 	for g in GameState.gear:
 		var who := GameState.equipped_by(g.uid)
 		gg.add_child(item_slot(gear_icon(g), DB.heroes[who].name.substr(0, 1) if who != "" else "", "+%d" % g.lvl if g.lvl > 0 and g.known else "",
-			func(): info(gear_icon(g), GameState.gear_name(g), gear_lines(g)), Color(1, 0.55, 0.5) if g.get("cracked", false) else Color.WHITE, "c9a96e" if who != "" else "", g))
+			func(): info(gear_icon(g), GameState.gear_name(g), gear_lines(g), [], UIKit.gear_badge(g)), Color(1, 0.55, 0.5) if g.get("cracked", false) else Color.WHITE, "c9a96e" if who != "" else "", g))
 
 # ------------------------------------------------------------ Facilities
 const NEXT_TEXT := {"blacksmith": "Gear upgrade cap +%d", "alchemy": "Potion belt %d slots", "enchanter": "Faster identification (Lv%d)", "guild": "Patrols up to %dh"}
@@ -624,10 +625,11 @@ func _open_gear_forge(uid: int) -> void:
 ## Forge gear info: repair (single) or upgrade N levels with a quantity picker.
 func _gear_forge_info(g: Dictionary, lines: Array, why: String) -> void:
 	var uid: int = g.uid
+	var bdg := UIKit.gear_badge(g)
 	if g.get("cracked", false):
-		info(gear_icon(g), GameState.gear_name(g), lines, [["Repair", func(): GameState.repair(uid), why]]); return
+		info(gear_icon(g), GameState.gear_name(g), lines, [["Repair", func(): GameState.repair(uid), why]], bdg); return
 	info(gear_icon(g), GameState.gear_name(g), lines + [qty_picker(GameState.upgrade_max(uid), func(n): return GameState.upgrade_cost_n(uid, n), "Upgrade",
-		func(n): GameState.upgrade_item_n(uid, n), why)])
+		func(n): GameState.upgrade_item_n(uid, n), why)], [], bdg)
 
 ## Every copy of one ring: melt one, melt the spares, or repair a cracked copy.
 func _open_ring_stack(id: String) -> void:
@@ -681,7 +683,7 @@ func _open_ring_stack(id: String) -> void:
 	if extra_n > 0:
 		acts.append(["Break down extras (%d)" % extra_n, func():
 			if GameState.break_rings(GameState.ring_extras_of(rid)): Sfx.play("shatter"), ""])
-	info(id, title, lines, acts)
+	info(id, title, lines, acts, UIKit.gear_badge(sample) if all_known else "")
 
 func _ring_forge_section(v: VBoxContainer) -> void:
 	v.add_child(UIKit.header("Break down rings"))
@@ -709,7 +711,10 @@ func _ring_forge_section(v: VBoxContainer) -> void:
 		var list: Array = GameState.rings_of(rid)
 		var one: Dictionary = list[0] if list.size() == 1 else {}
 		var frame := "6bff6b" if GameState.ring_extras_of(rid).size() > 0 else ""
-		g2.add_child(item_slot(rid, str(list.size()) if list.size() > 1 else "", "", func(): _open_ring_stack(rid), Color.WHITE, frame, one))
+		var bdg := ""
+		for g in list:
+			if g.known: bdg = UIKit.gear_badge(g); break
+		g2.add_child(item_slot(rid, str(list.size()) if list.size() > 1 else "", "", func(): _open_ring_stack(rid), Color.WHITE, frame, one, bdg))
 
 var alch_sel := ""
 ## Recipe names would give away an unidentified ingredient, so those read "Brew the <appearance>" until it is known.

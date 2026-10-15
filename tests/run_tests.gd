@@ -1183,6 +1183,45 @@ func test_ring_contexts(gs) -> void:
 	check(gs.repair_all() and gs.cracked_gear().is_empty(), "Repair all repairs a cracked ring")
 	cs.free()
 
+## SPD's second icon (item_icons.png): a known ring/potion/scroll keeps its appearance sprite and gains the
+## type glyph in the top-right. Ring of Tenacity and Potion of Shielding are the blue shield; Ring of Force's
+## own glyph is the red mark at film index 5 (we have no Ring of Force).
+func test_item_badges(gs) -> void:
+	print("[item badges]")
+	gs.new_game()
+	var sheet: Image = (load("res://assets/sprites/item_icons.png") as Texture2D).get_image()
+	check(sheet.get_width() == 128 and sheet.get_height() == 64, "item_icons.png is the SPD 128x64 sheet")
+	check(UIKit.badge_rect("RING_FORCE") == Rect2(40, 0, 5, 6), "ring of force glyph is film index 5, 5x6")
+	var force := _glyph_rgb(sheet, "RING_FORCE")
+	var shield := _glyph_rgb(sheet, "RING_TENACITY")
+	var pot := _glyph_rgb(sheet, "POTION_SHIELDING")
+	check(force.x > force.z and shield.z > shield.x and pot.z > pot.x, "force glyph is the red mark; tenacity and shielding are the blue shield")
+	var lay := PixelIcon.badge_layout(Vector2(72, 72), Vector2(5, 6), 3)
+	check(lay.position == lay.position.floor() and lay.position.x >= 72 - 24 and lay.end.x <= 72 and lay.position.y >= 0 and lay.end.y <= 24, "glyph sits in the top-right 8px cell")
+	var hidden: PixelIcon = UIKit.icon("potion_toxic")
+	check(hidden.badge == null, "an unidentified potion is only its colour")
+	gs.identify_mat("potion_toxic"); gs.identify_mat("potion_shielding"); gs.identify_mat("scroll_mapping")
+	var shown: PixelIcon = UIKit.icon("potion_toxic")
+	var shield_ic: PixelIcon = UIKit.icon("potion_shielding")
+	var heal: PixelIcon = UIKit.icon("potion_healing")
+	var scroll: PixelIcon = UIKit.icon("scroll_mapping")
+	check(shown.badge is AtlasTexture and (shown.badge as AtlasTexture).region == UIKit.badge_rect("POTION_TOXICGAS"), "identifying toxic gas adds its glyph")
+	check(shield_ic.badge is AtlasTexture and (shield_ic.badge as AtlasTexture).region == UIKit.badge_rect("POTION_SHIELDING"), "potion of shielding shows the blue shield")
+	check(heal.badge is AtlasTexture and (heal.badge as AtlasTexture).region == UIKit.badge_rect("POTION_HEALING"), "a known potion shows its glyph")
+	check(scroll.badge is AtlasTexture and (scroll.badge as AtlasTexture).region == UIKit.badge_rect("SCROLL_MAGICMAP"), "an identified scroll keeps its rune and gains the glyph")
+	var plain: PixelIcon = UIKit.icon("GOLD")
+	check(plain.badge == null, "materials without a type glyph stay a single sprite")
+
+func _glyph_rgb(sheet: Image, name: String) -> Vector3:
+	var sub := sheet.get_region(Rect2i(UIKit.badge_rect(name)))
+	var acc := Vector3.ZERO
+	var n := 0
+	for y in sub.get_height():
+		for x in sub.get_width():
+			var p := sub.get_pixel(x, y)
+			if p.a > 0.2: acc += Vector3(p.r, p.g, p.b); n += 1
+	return acc / maxf(1.0, float(n))
+
 ## Item icons in the delve backpack (potion/scroll buttons, carried rings) render at >= 32 px on cover and inner.
 func test_icon_sizes(gs) -> void:
 	print("[icon sizes]")

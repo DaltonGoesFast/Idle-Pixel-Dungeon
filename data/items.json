@@ -83,14 +83,16 @@
   "type": "ring",
   "unknown_name": "Garnet Ring",
   "dmg_bonus": 1,
-  "icon": "RING_GARNET"
+  "icon": "RING_GARNET",
+  "badge": "RING_MIGHT"
  },
  "ring_tenacity": {
   "name": "Ring of Tenacity",
   "type": "ring",
   "unknown_name": "Ruby Ring",
   "barrier_bonus": 2,
-  "icon": "RING_RUBY"
+  "icon": "RING_RUBY",
+  "badge": "RING_TENACITY"
  },
  "wand_magic_missile": {
   "name": "Wand of Magic Missile",
@@ -155,19 +157,23 @@
    "icon": "POTION_CRIMSON",
    "heal": 10,
    "heal_pct": 0.3,
-   "desc": "Heals max(10, 30% of max HP)."
+   "desc": "Heals max(10, 30% of max HP).",
+   "badge": "POTION_HEALING"
   },
   "potion_strength": {
    "name": "Potion of Strength",
-   "icon": "POTION_AMBER"
+   "icon": "POTION_AMBER",
+   "badge": "POTION_STRENGTH"
   },
   "scroll_passage": {
    "name": "Scroll of Passage",
-   "icon": "SCROLL_KAUNAN"
+   "icon": "SCROLL_KAUNAN",
+   "badge": "SCROLL_PASSAGE"
   },
   "scroll_upgrade": {
    "name": "Scroll of Upgrade",
-   "icon": "SCROLL_ISAZ"
+   "icon": "SCROLL_ISAZ",
+   "badge": "SCROLL_UPGRADE"
   },
   "elixir_starter": {
    "name": "Starter Elixir",
@@ -178,42 +184,48 @@
    "icon": "POTION_HOLDER",
    "unknown": true,
    "kind": "potion",
-   "desc": "Grants a level's worth of XP."
+   "desc": "Grants a level's worth of XP.",
+   "badge": "POTION_EXP"
   },
   "potion_toxic": {
    "name": "Potion of Toxic Gas",
    "icon": "POTION_HOLDER",
    "unknown": true,
    "kind": "potion",
-   "desc": "Choking gas: lose 25% of max HP."
+   "desc": "Choking gas: lose 25% of max HP.",
+   "badge": "POTION_TOXICGAS"
   },
   "potion_shielding": {
    "name": "Potion of Shielding",
    "icon": "POTION_HOLDER",
    "unknown": true,
    "kind": "potion",
-   "desc": "Your next fight starts with +10 Barrier."
+   "desc": "Your next fight starts with +10 Barrier.",
+   "badge": "POTION_SHIELDING"
   },
   "scroll_identify": {
    "name": "Scroll of Identify",
    "icon": "SCROLL_HOLDER",
    "unknown": true,
    "kind": "scroll",
-   "desc": "Identifies every unknown ring and wand in your backpack."
+   "desc": "Identifies every unknown ring and wand in your backpack.",
+   "badge": "SCROLL_IDENTIFY"
   },
   "scroll_mapping": {
    "name": "Scroll of Magic Mapping",
    "icon": "SCROLL_HOLDER",
    "unknown": true,
    "kind": "scroll",
-   "desc": "Maps the floor: +40% floor progress."
+   "desc": "Maps the floor: +40% floor progress.",
+   "badge": "SCROLL_MAGICMAP"
   },
   "scroll_teleport": {
    "name": "Scroll of Teleportation",
    "icon": "SCROLL_HOLDER",
    "unknown": true,
    "kind": "scroll",
-   "desc": "Whisks you past the current encounter."
+   "desc": "Whisks you past the current encounter.",
+   "badge": "SCROLL_TELEPORT"
   }
  },
  "studded_gloves": {
@@ -294,14 +306,16 @@
   "type": "ring",
   "unknown_name": "Topaz Ring",
   "dr_bonus": 1,
-  "icon": "RING_TOPAZ"
+  "icon": "RING_TOPAZ",
+  "badge": "RING_EVASION"
  },
  "ring_wealth": {
   "name": "Ring of Wealth",
   "type": "ring",
   "unknown_name": "Emerald Ring",
   "gold_mult": 1.3,
-  "icon": "RING_EMERALD"
+  "icon": "RING_EMERALD",
+  "badge": "RING_WEALTH"
  },
  "ring_energy": {
   "name": "Ring of Energy",
@@ -309,7 +323,8 @@
   "unknown_name": "Onyx Ring",
   "charges_bonus": 1,
   "ht_bonus": 4,
-  "icon": "RING_ONYX"
+  "icon": "RING_ONYX",
+  "badge": "RING_ENERGY"
  },
  "chalice_blood": {
   "name": "Chalice of Blood",

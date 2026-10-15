@@ -2,6 +2,7 @@
 
 
 ## 0.26.0
+- Identified rings, potions, and scrolls show SPD's small type glyph from item_icons.png in the top-right of the slot. The blue shield is Ring of Tenacity and Potion of Shielding.
 - Spare rings break down at the Forge into 5 Gold and 1 Arcane Resin. Extras keeps every worn ring and one spare of each (+test).
 - Encounter result window gives each line room, so a short victory no longer clips or shows a scrollbar.
 - Floor-clear and other delve menus keep toasts inside the card, above the buttons, instead of floating over them.

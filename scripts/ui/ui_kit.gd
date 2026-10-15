@@ -4,6 +4,8 @@ extends RefCounted
 
 static var font_size := 24
 static var _items_tex: Texture2D
+static var _badge_tex: Texture2D
+static var _badge_rects := {}
 
 ## SPD's pixel_font.ttf draws one font pixel per 100 units (2048 per em), so sizes that are
 ## multiples of 20.48 give whole-pixel glyphs. Every text size is snapped to that grid (DECISIONS #71).
@@ -170,9 +172,23 @@ static func item_rect(idx: int) -> Rect2:
 	var wh: Array = _rects.get(str(idx), [16, 16])
 	return Rect2((idx % 16) * 16, (idx / 16) * 16, int(wh[0]), int(wh[1]))
 
+## Trimmed rect of one glyph on item_icons.png (SPD assignIconRect). Empty if `name` is unknown.
+static func badge_rect(name: String) -> Rect2:
+	if _badge_rects.is_empty(): _badge_rects = JSON.parse_string(FileAccess.get_file_as_string("res://data/item_icon_rects.json"))
+	var e: Array = _badge_rects.get(name, [])
+	if e.size() < 3: return Rect2()
+	var idx := int(e[0])
+	return Rect2((idx % 16) * 8, int(idx / 16) * 8, int(e[1]), int(e[2]))
+
+## The type glyph for one gear piece. Unidentified rings stay a plain gem (SPD hides itemIcon until the ring is known).
+static func gear_badge(g: Dictionary) -> String:
+	if g.is_empty() or g.get("pseudo", false) or not g.get("known", false): return ""
+	return String(DB.item(String(g.get("id", ""))).get("badge", ""))
+
 ## SPD item icon at an integer scale of the 16-px cell (`px` rounds down to a multiple of 16), centred on its
-## visible pixels (DECISIONS #89).
-static func icon(id: String, px := -1) -> PixelIcon:
+## visible pixels (DECISIONS #89). `badge` is an ItemSpriteSheet.Icons name drawn in the top-right; an empty
+## badge follows a material's identification (potions and scrolls keep their colour/rune and gain the glyph).
+static func icon(id: String, px := -1, badge := "") -> PixelIcon:
 	if _items_tex == null: _items_tex = load("res://assets/sprites/items.png")
 	var at := AtlasTexture.new()
 	at.atlas = _items_tex
@@ -186,6 +202,16 @@ static func icon(id: String, px := -1) -> PixelIcon:
 	t.custom_minimum_size = Vector2(s, s)
 	var tint: String = DB.materials.get(id, {}).get("tint", "")
 	if tint != "": t.modulate = Color(tint)
+	if badge == "" and DB.materials.has(id) and GameState.is_mat_known(id):
+		badge = String(DB.materials[id].get("badge", ""))
+	if badge != "":
+		var br := badge_rect(badge)
+		if br.size != Vector2.ZERO:
+			if _badge_tex == null: _badge_tex = load("res://assets/sprites/item_icons.png")
+			var bat := AtlasTexture.new()
+			bat.atlas = _badge_tex
+			bat.region = br
+			t.badge = bat
 	return t
 
 ## Any texture (sprite frame, tile, UI icon) as an integer-scaled, pixel-centred PixelIcon (DECISIONS #89).
@@ -197,7 +223,8 @@ static func pixel(tex: Texture2D, k: int, box := Vector2.ZERO) -> PixelIcon:
 ## Row: [icon] text
 static func icon_row(id: String, text: String, scale := 1.0) -> HBoxContainer:
 	var h := HBoxContainer.new()
-	h.add_child(icon(id))
+	var badge := String(DB.item(id).get("badge", "")) if DB.items.has(id) else ""
+	h.add_child(icon(id, -1, badge))
 	var l := label(text, scale)
 	if text.length() < 12: l.autowrap_mode = TextServer.AUTOWRAP_OFF
 	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
