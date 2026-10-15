@@ -327,3 +327,6 @@ The "+3" gold pop in delve_enemy / delve_special / delve_auto shots was not a ga
 
 ## 114. Facility header: level / max, cap never below level
 The Guild header read "Lv 2 / 1" beside a "capped" Upgrade button: the header printed the Scroll-of-Upgrade `cap` (not the facility max), and nothing kept `cap >= level` (the screenshot harness, debug edits or an old save can set a level without the cap). `GameState.facility_cap(id)` = clamp(max(cap, level), 1, max) is used by can_upgrade_facility, apply_sou and on load; the header shows "Lv level / max" and adds "(cap N)" only while the cap is what blocks the next level. test_facility_cap covers the reported state.
+
+## 115. Supply slots show their pack size
+Playtest at 42b0c29: with the Guild at Lv2 the Supplies grid showed two identical Ration slots (the single Ration and the new 3-ration crate from #110), both with the same stash count, so you could only tell them apart by opening each. Now `CampScreen.recipe_slot` puts the pack size ("x3") in the slot's top-left corner for any material recipe with `out_n > 1` (the same tag the Alchemy brew card already used for its output), the stash count stays bottom-right, and the buy popup adds "Gives 3 Rations.". No new art: SPD has no crate sprite, and its shops show stack sizes on the item sprite the same way. Test: `test_crate_slot`.

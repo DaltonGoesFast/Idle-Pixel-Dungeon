@@ -38,6 +38,7 @@ func _ready() -> void:
 	test_goo_spiral(gs)
 	test_food_sources(gs)
 	test_facility_cap(gs)
+	test_crate_slot(gs)
 	test_owed_sou(gs)
 	await test_icon_sizes(gs)
 	test_full_auto(gs)
@@ -1602,6 +1603,31 @@ func test_food_sources(gs) -> void:
 	check(int(cr.get("out_n", 0)) == 3 and int(cr.cost.gold) < 3 * int(gs.recipe("guild", "buy_ration").cost.gold), "Guild Lv2 ration crate: 3 rations, cheaper than 3 singles")
 	gs.mats.gold = 100; gs.facilities.guild.level = 1
 	check(gs.can_craft("guild", "buy_ration_crate") != "", "the crate needs Guild Lv2")
+
+## DECISIONS #115: the Guild ration crate slot is told apart from the single Ration slot by its pack size.
+func _slot_texts(slot: Control) -> Array:
+	var t := []
+	for l in slot.find_children("*", "Label", true, false): t.append(String(l.text))
+	return t
+
+func test_crate_slot(gs) -> void:
+	print("[crate slot]")
+	gs.new_game()
+	gs.facilities.guild.level = 2; gs.mats.gold = 100; gs.mats.ration = 4
+	var cs = load("res://scripts/ui/camp_screen.gd").new()
+	var crate: Dictionary = gs.recipe("guild", "buy_ration_crate")
+	var single: Dictionary = gs.recipe("guild", "buy_ration")
+	check(cs.recipe_qty(crate) == "x3" and cs.recipe_qty(single) == "", "pack size tag only on multi-output supplies")
+	var a: Button = cs.recipe_slot("guild", crate); var b: Button = cs.recipe_slot("guild", single)
+	var ta := _slot_texts(a); var tb := _slot_texts(b)
+	check("x3" in ta and "4" in ta, "crate slot shows x3 and the stash count (%s)" % [ta])
+	check(not ("x3" in tb) and "4" in tb, "single Ration slot has no pack tag (%s)" % [tb])
+	check(ta != tb, "crate and single Ration slots differ")
+	var lines: Array = cs._recipe_lines(crate)
+	check(lines.any(func(x): return x is String and x.begins_with("Gives 3 Ration")), "crate info says it gives 3 Rations")
+	for n in lines: if n is Node: n.free()
+	for n in cs._recipe_lines(single): if n is Node: n.free()
+	a.free(); b.free(); cs.free()
 
 ## DECISIONS #114: facility header shows level / max, the cap never sits below the level.
 func test_facility_cap(gs) -> void:
