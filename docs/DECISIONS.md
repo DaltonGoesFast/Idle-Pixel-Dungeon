@@ -327,3 +327,6 @@ The "+3" gold pop in delve_enemy / delve_special / delve_auto shots was not a ga
 
 ## 114. Facility header: level / max, cap never below level
 The Guild header read "Lv 2 / 1" beside a "capped" Upgrade button: the header printed the Scroll-of-Upgrade `cap` (not the facility max), and nothing kept `cap >= level` (the screenshot harness, debug edits or an old save can set a level without the cap). `GameState.facility_cap(id)` = clamp(max(cap, level), 1, max) is used by can_upgrade_facility, apply_sou and on load; the header shows "Lv level / max" and adds "(cap N)" only while the cap is what blocks the next level. test_facility_cap covers the reported state.
+
+## 116. Dew has a use
+Dewdrops (+1 per 12% of every floor, plus events) had no sink at all: nothing in recipes, facilities or the delve spent them, and a 40-expedition campaign ended with 1.7k-6k dew. Alchemy now has "Condense Dew into Healing" (20 dew -> 1 Potion of Healing, Alchemy Lv1), echoing SPD's Dew Vial. This gives dew a purpose and early players a second potion source; it does not by itself stop late-game stockpiling (see the playtest report on gold/dew inflation). test_dew_sink.

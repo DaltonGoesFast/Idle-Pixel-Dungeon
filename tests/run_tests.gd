@@ -35,6 +35,7 @@ func _ready() -> void:
 	test_armor_tiers(gs)
 	test_floor_label(gs)
 	test_total_wipe(gs)
+	test_dew_sink(gs)
 	test_goo_spiral(gs)
 	test_food_sources(gs)
 	test_facility_cap(gs)
@@ -1633,3 +1634,16 @@ func test_facility_cap(gs) -> void:
 	check(cs.open_name == "Heroes", "tapping the selected hero again opens Heroes")
 	m_slot.free(); m_slot2.free(); cs.queue_free()
 
+
+## DECISIONS #116: dew is no longer a dead currency.
+func test_dew_sink(gs) -> void:
+	print("[dew sink]")
+	gs.new_game()
+	var users := []
+	for fac in DB.recipes:
+		for r in DB.recipes[fac]:
+			if r.cost.has("dew"): users.append(r.id)
+	check(not users.is_empty(), "some recipe spends dew %s" % [users])
+	gs.mats.dew = 45; gs.mats.potion_healing = 0
+	check(gs.craft_max("alchemy", "condense_dew") == 2, "45 dew condenses into 2 potions")
+	check(gs.craft_n("alchemy", "condense_dew", 2) and gs.mat("potion_healing") == 2 and gs.mat("dew") == 5, "condensing spends 20 dew per potion")
