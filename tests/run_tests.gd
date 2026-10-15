@@ -17,6 +17,7 @@ func _ready() -> void:
 	ss.path = "user://test_save.json"
 	gs.new_game()
 	test_rules(gs)
+	test_status_pane_layout(gs)
 	test_balance(gs)
 	test_boss(gs)
 	test_traps(gs)
@@ -1920,4 +1921,22 @@ func test_goo_spd(gs) -> void:
 	check(not g.has("enraged_dmg"), "a floored Goo no longer enrages")
 	gs.end_run("abandon")
 	check(int(gs.stats.goo_losses) == 5, "only deaths count")
+
+func test_status_pane_layout(_gs) -> void:
+	print("[status pane layout] cover 968 / inner 1856 at every pixel scale")
+	for w in [968.0, 1856.0]:
+		for k in [2.0, 3.0, 4.0, 5.0]:
+			var L: Dictionary = StatusPane.layout(w, k, 2)
+			var hp: Rect2 = L.hp; var a: Rect2 = L.minis[0]; var b: Rect2 = L.minis[1]
+			var tag := "w%d k%d" % [w, k]
+			check(hp.size.x >= w * 0.8 - 35 * k, "%s: HP bar spans the pane next to the portrait" % tag)
+			check(a.position.x == hp.position.x, "%s: torch bar left edge aligns with HP" % tag)
+			check(absf(b.end.x - hp.end.x) <= k, "%s: food bar right edge aligns with HP" % tag)
+			check(a.size == b.size, "%s: torch and food bars are the same size" % tag)
+			check(a.size.y == hp.size.y and a.position.y == b.position.y, "%s: supply bars match the HP bar height and row" % tag)
+			check(a.position.y >= hp.end.y, "%s: supply row sits under HP without overlap" % tag)
+			check(a.end.y <= L.height and Rect2(L.level).end.y <= L.height, "%s: everything fits inside the pane" % tag)
+			check(Rect2(L.level).end.x <= hp.position.x, "%s: level badge clear of the bars" % tag)
+			var isz: Vector2 = StatusPane.icon_size(Vector2(14, 14), a.size.y)
+			check(isz.y <= a.size.y and isz.y >= a.size.y * 0.5, "%s: supply icon fits the bar height" % tag)
 
