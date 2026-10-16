@@ -754,6 +754,7 @@
     "halls"
    ],
    "title": "Trapped Vault",
+   "text": "Pressure plates guard a sealed vault. Something valuable waits at the far end.",
    "icon": "CRYSTAL_CHEST",
    "options": [
     {
@@ -793,6 +794,7 @@
     "prison"
    ],
    "title": "Chained Prisoner",
+   "text": "A prisoner strains against iron shackles. The jailers are not far.",
    "icon": "IRON_KEY",
    "options": [
     {
@@ -832,6 +834,7 @@
     "halls"
    ],
    "title": "Abandoned Shop",
+   "text": "The shopkeeper is gone, but a few goods are still priced on the counter.",
    "icon": "gold",
    "options": [
     {
@@ -874,6 +877,7 @@
    ],
    "min_floor": 3,
    "title": "Gnoll Camp",
+   "text": "Gnolls have made camp here. Their stash sits in the open, and they are watching it.",
    "icon": "TORCH",
    "options": [
     {

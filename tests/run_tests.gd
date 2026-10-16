@@ -1056,6 +1056,8 @@ func test_specials(gs) -> void:
 	print("[special rooms]")
 	gs.new_game(); gs.start_run("warrior", {}, "sewers", 3)
 	var ids: Array = DB.specials.map(func(x): return x.id)
+	for sp in DB.specials:
+		check(String(sp.get("title", "")) != "" and String(sp.get("text", "")) != "", "special room has a title and description: " + String(sp.get("id", "?")))
 	for want in ["vault", "library", "well_health", "well_awareness", "laboratory", "treasury", "shrine", "larder"]:
 		check(want in ids, "special room exists: " + want)
 	gs.run.hp = 5
