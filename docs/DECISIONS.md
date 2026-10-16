@@ -460,3 +460,7 @@ v0.29 made tall grass and closed doors block sight, and `can_bolt` required sigh
 - Sight memory: when it is the hero's turn, every enemy in the hero's sight records `last_seen = [x, y]` (plain array, so it saves and restores with the fight).
 - CombatBot only takes aimed shots at foes it can see whose line is clear of other bodies (`_can_shoot`; before, it could shoot through bodies). With nothing in sight and nothing adjacent, it shoots at an unseen foe's `last_seen`: up to 2 arrows per sighting, or 1 wand charge while 2+ remain.
 Covered by `test_blind_shots` (hidden rat in grass hit, empty tile wastes the shot, the first body takes it, a closed door stops it, a wand bolt carries past, last_seen survives save/load, the bot's blind shot).
+
+## 152. Chained Prisoner (Prison special room)
+SPD's Prison is full of captives, but no special room used that theme. `prisoner` (Prison only) offers: unlock the shackles with 1 Iron Key (ration + 10 gold), fight the jailers (a guard + a thief, the floor-7+ Prison pair, in a normal Prison room) for an unknown scroll + ration + 15 gold, or leave. Pure data in `events.json`; no combat numbers change.
+Deep campaign sim (4 classes x 2 seeds x 40 runs, Auto policy, plus a pass that forces the fight): seen 45 times per campaign set, 71 jailer fights, 0 deaths, 4% mean HP lost (max 80%). The key option is what the Auto policy takes when it has a key. Covered by `test_prisoner`.

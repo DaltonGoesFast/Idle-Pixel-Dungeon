@@ -36,6 +36,7 @@ func _ready() -> void:
 	test_rooms_surprise(gs)
 	test_paperdoll(gs)
 	test_specials(gs)
+	test_prisoner(gs)
 	test_icon_centering(gs)
 	test_armor_tiers(gs)
 	test_floor_label(gs)
@@ -2434,3 +2435,15 @@ func test_bat_drain(gs) -> void:
 		c._mob_act(b)
 		check(int(b.hp) == 10 + case[1], "bat heals dealt-2 like SPD's dealt-4 (DR %d -> +%d, got %d)" % [case[0], case[1], int(b.hp) - 10])
 
+func test_prisoner(gs) -> void:
+	print("[chained prisoner]")
+	var pr: Dictionary = DB.specials.filter(func(x): return x.id == "prisoner")[0]
+	check(pr.biomes == ["prison"], "the prisoner only appears in the Prison")
+	gs.new_game(); gs.start_run("warrior", {}, "prison", 3); gs.run.floor = 7
+	var fe := Delve.combat_event(gs.run, Delve.rng_for(gs.run, 55), pr.options[1].fight)
+	check("guard" in fe.mobs and "thief" in fe.mobs, "freeing the prisoner by force means fighting a guard and a thief")
+	var r0 := int(gs.run.supplies.get("ration", 0))
+	check(Delve.pay(gs, pr.options[0].cost), "a key opens the shackles")
+	Delve.reward(gs, pr.options[0].reward)
+	check(int(gs.run.supplies.get("ration", 0)) == r0 + 1, "the grateful prisoner shares a ration")
+	gs.end_run("abandon")

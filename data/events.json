@@ -743,6 +743,41 @@
     "halls"
    ],
    "icon": "ration"
+  },
+  {
+   "id": "prisoner",
+   "biomes": [
+    "prison"
+   ],
+   "title": "Chained Prisoner",
+   "icon": "IRON_KEY",
+   "options": [
+    {
+     "text": "Unlock the shackles (1 Iron Key)",
+     "cost": {
+      "iron_key": 1
+     },
+     "reward": {
+      "ration": 1,
+      "gold": 10
+     }
+    },
+    {
+     "text": "Fight the jailers",
+     "fight": [
+      "guard",
+      "thief"
+     ],
+     "reward": {
+      "item_unknown": "scroll",
+      "ration": 1,
+      "gold": 15
+     }
+    },
+    {
+     "text": "Leave"
+    }
+   ]
   }
  ]
 }
