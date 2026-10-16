@@ -244,6 +244,17 @@ static func combat_event(run: Dictionary, r: RandomNumberGenerator, mobs := []) 
 	var room: Array = rooms[r.randi() % rooms.size()]
 	return {"kind": "combat", "room": room, "mobs": fill_mobs(mobs, room)}
 
+## Fight behind a special-room option: "fight" is "biome" (this floor's encounter pool) or a mob list.
+## An optional "room" gives the fight its own map, e.g. the Trapped Vault's trap floor (DECISIONS #151).
+static func special_fight_event(run: Dictionary, o: Dictionary) -> Dictionary:
+	var r := rng_for(run, 55)
+	var mobs: Array = [] if typeof(o.fight) == TYPE_STRING else o.fight
+	if not o.has("room"): return combat_event(run, r, mobs)
+	if mobs.is_empty():
+		var sets: Array = biome(run).encounter_sets.filter(func(s): return int(s.min_floor) <= int(run.floor))
+		mobs = sets[r.randi() % sets.size()].mobs
+	return {"kind": "combat", "room": o.room, "mobs": fill_mobs(mobs, o.room)}
+
 static func pay_possible(gs, cost: Dictionary) -> bool:
 	var run: Dictionary = gs.run
 	for k in cost:

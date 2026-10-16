@@ -36,6 +36,7 @@ func _ready() -> void:
 	test_rooms_surprise(gs)
 	test_paperdoll(gs)
 	test_specials(gs)
+	test_trap_vault(gs)
 	test_icon_centering(gs)
 	test_armor_tiers(gs)
 	test_floor_label(gs)
@@ -2434,3 +2435,19 @@ func test_bat_drain(gs) -> void:
 		c._mob_act(b)
 		check(int(b.hp) == 10 + case[1], "bat heals dealt-2 like SPD's dealt-4 (DR %d -> +%d, got %d)" % [case[0], case[1], int(b.hp) - 10])
 
+func test_trap_vault(gs) -> void:
+	print("[trapped vault]")
+	gs.new_game(); gs.start_run("warrior", {}, "sewers", 3); gs.run.floor = 3
+	var tv: Dictionary = DB.specials.filter(func(x): return x.id == "trap_vault")[0]
+	var o: Dictionary = tv.options[1]
+	var fe := Delve.special_fight_event(gs.run, o)
+	check(fe.room == o.room and not fe.mobs.is_empty() and fe.mobs.size() <= Delve.room_slot_count(o.room), "trapped vault fights on its own trap floor (%s)" % [fe.mobs])
+	var c := Delve.new_combat(gs, fe)
+	var hidden := 0
+	for t in c.traps.values(): if t.hidden: hidden += 1
+	check(c.traps.size() == 6 and hidden == 4, "trapped vault floor holds %d traps, %d hidden" % [c.traps.size(), hidden])
+	check(Delve.room_has_door(o.room), "the vault has a real doorway, so snakes can be fought at the threshold")
+	var plain := Delve.special_fight_event(gs.run, {"fight": "biome"})
+	check(plain.kind == "combat" and not plain.mobs.is_empty(), "options without a room still use the biome rooms")
+	check(tv.options[0].requires_class == "rogue" and tv.options[0].reward == o.reward, "a Rogue disarms the vault for the same loot")
+	gs.end_run("abandon")

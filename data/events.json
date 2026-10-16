@@ -743,6 +743,49 @@
     "halls"
    ],
    "icon": "ration"
+  },
+  {
+   "id": "trap_vault",
+   "biomes": [
+    "sewers",
+    "prison",
+    "caves",
+    "city",
+    "halls"
+   ],
+   "title": "Trapped Vault",
+   "icon": "CRYSTAL_CHEST",
+   "options": [
+    {
+     "text": "Disarm and loot it (Rogue)",
+     "requires_class": "rogue",
+     "reward": {
+      "item_unknown": "ring",
+      "gold": 20
+     }
+    },
+    {
+     "text": "Fight the guards among the plates",
+     "fight": "biome",
+     "reward": {
+      "item_unknown": "ring",
+      "gold": 20
+     },
+     "room": [
+      "########",
+      "#H..^..#",
+      "#.?....#",
+      "###+####",
+      "#.?.1..#",
+      "#..2.?.#",
+      "#^...3?#",
+      "########"
+     ]
+    },
+    {
+     "text": "Leave"
+    }
+   ]
   }
  ]
 }

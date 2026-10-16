@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- New special room in every biome: Trapped Vault. Fight the floor's encounter on a trap-strewn floor (2 visible, 4 hidden) for an unknown ring and gold, or disarm it for free as the Rogue. Special-room fight options can now name their own map (+test).
 
 ## 0.30.0
 - Huntress and Mage blind shots, like SPD: the Spirit Bow (tap any tile in range) and wands (Bolt mode) aim at a tile, seen or not. The shot hits the first body on the line and flies through tall grass; walls and closed doors stop it; an empty line wastes it. Wand bolts carry past the aimed tile. Auto Battle takes up to 2 arrows (1 wand charge, keeping one in reserve) at where an unseen foe was last seen, and no longer shoots through bodies (+tests).
