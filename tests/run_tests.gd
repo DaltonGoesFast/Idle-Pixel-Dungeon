@@ -2223,12 +2223,42 @@ func test_identify_queue_all(gs) -> void:
 		for i in 3: shown = shown and absf(bars[i].value - gs.identify_progress(gs.id_queue[i])) < 0.02 and bars[i].value > 0.1
 	check(shown, "the Enchanter draws a filling bar for every queued item")
 	cs2.close_page(); cs2.queue_free()
-	gs.time_offset -= 300.0
+	# DECISIONS #171: when the front item finishes, the waiting bars keep their fill (they used to drop to 0).
+	var saved_q: Array = gs.id_queue.duplicate(true)
+	var off0: float = gs.time_offset
+	var t_q: float = gs.now()
+	var front_left: float = float(gs.id_queue[0].ready_at) - t_q
+	gs.time_offset += front_left - 1.0
+	var before_tick := []
+	for q in gs.id_queue: before_tick.append(gs.identify_progress(q))
+	gs.time_offset += 2.0
+	var ticked: Array = gs.tick_identify()
+	var after_tick := []
+	for q in gs.id_queue: after_tick.append(gs.identify_progress(q))
+	check(ticked.size() == 1 and after_tick.size() == 2 and after_tick[0] >= before_tick[1] and after_tick[1] >= before_tick[2] and after_tick[0] > 0.4,
+		"identify bars never jump back when the front item finishes (%s -> %s)" % [before_tick, after_tick])
+	var legacy: Dictionary = JSON.parse_string(JSON.stringify(gs.to_dict()))
+	for q in legacy.id_queue: q.erase("queued_at")
+	var p_legacy0: float = gs.identify_progress(gs.id_queue[1])
+	gs.from_dict(legacy)
+	var p_legacy1: float = gs.identify_progress(gs.id_queue[1])
+	gs.time_offset += 30.0
+	var p_legacy2: float = gs.identify_progress(gs.id_queue[1])
+	check(gs.id_queue.all(func(q): return q.has("queued_at")) and p_legacy2 > p_legacy1 and p_legacy1 <= p_legacy0 + 0.001,
+		"a queue saved before queued_at loads with a fixed start and keeps filling (%.2f %.2f %.2f)" % [p_legacy0, p_legacy1, p_legacy2])
+	gs.time_offset -= 30.0
+	var u_back: int = int(ticked[0]) if not ticked.is_empty() else 0
+	var g_back: Dictionary = gs.gear_by_uid(u_back)
+	if not g_back.is_empty(): g_back.known = false
+	gs.id_queue = saved_q
+	gs.time_offset = off0 - 300.0
 	var s1: float = gs.identify_seconds()
 	gs.time_offset += 300.0
 	var t0: float = gs.now()
 	var left0 := []
 	for q in gs.id_queue: left0.append(float(q.ready_at) - t0)
+	var prog_before := []
+	for q in gs.id_queue: prog_before.append(gs.identify_progress(q))
 	gs.mats.gold = 10000; gs.facilities.enchanter.cap = 3
 	var cost: Dictionary = gs.facility_upgrade_cost("enchanter"); for k in cost: gs.mats[k] = int(cost[k]) + 100
 	check(gs.upgrade_facility("enchanter"), "Enchanter upgrades")
@@ -2236,6 +2266,11 @@ func test_identify_queue_all(gs) -> void:
 	var ok := true
 	for i in gs.id_queue.size():
 		ok = ok and absf((float(gs.id_queue[i].ready_at) - t0) - left0[i] * k) < 0.5
+	var prog_after := []
+	for q in gs.id_queue: prog_after.append(gs.identify_progress(q))
+	var same_bar := prog_after.size() == prog_before.size()
+	for i in prog_after.size(): same_bar = same_bar and absf(prog_after[i] - prog_before[i]) < 0.01
+	check(same_bar, "an Enchanter upgrade keeps every identify bar where it was (%s -> %s)" % [prog_before, prog_after])
 	check(ok and k < 1.0, "upgrade scales every remaining time by new/old (%.2f): %s -> %s" % [k, left0, gs.id_queue.map(func(q): return snappedf(float(q.ready_at) - t0, 0.1))])
 	# save/load keeps the rescaled timers; offline time then finishes them on schedule
 	var d: Dictionary = JSON.parse_string(JSON.stringify(gs.to_dict()))

@@ -1041,16 +1041,20 @@ func imbue_wand(uid: int) -> bool:
 func identify_seconds() -> float:
 	return maxf(60.0, 600.0 - 180.0 * (facility_level("enchanter") - 1))   # 10 / 7 / 4 minutes
 
-## 0..1 of the wait until this queued item is identified. Items run one after another, so the bar
-## starts when the front item's slot started. Measuring only the last identify_seconds() left every
-## waiting row at 0 until it became the active one.
+## 0..1 of the wait until this queued item is identified. Each item fills from the moment it was queued
+## (`queued_at`) to its own ready_at, so every waiting row moves and no bar ever jumps back. Anchoring on the
+## current front item made every waiting bar drop to 0 the moment the front one finished (DECISIONS #171).
 func identify_progress(q: Dictionary) -> float:
-	if id_queue.is_empty(): return 0.0
-	var dur := maxf(1.0, identify_seconds())
-	var anchor := float(id_queue[0].ready_at) - dur
-	var left := maxf(0.0, float(q.ready_at) - now())
-	var total := maxf(1.0, float(q.ready_at) - anchor)
+	var ready := float(q.ready_at)
+	var start := float(q.get("queued_at", _identify_anchor()))
+	var total := maxf(1.0, ready - start)
+	var left := maxf(0.0, ready - now())
 	return clampf(1.0 - left / total, 0.0, 1.0)
+
+## Start of the front item's slot. Only used for queue entries saved before `queued_at` existed.
+func _identify_anchor() -> float:
+	if id_queue.is_empty(): return now()
+	return minf(now(), float(id_queue[0].ready_at) - maxf(1.0, identify_seconds()))
 
 func enqueue_identify(uid: int) -> bool:
 	var g := gear_by_uid(uid)
@@ -1059,7 +1063,7 @@ func enqueue_identify(uid: int) -> bool:
 		if q.uid == uid: return false
 	var start := now()
 	if not id_queue.is_empty(): start = maxf(start, float(id_queue.back().ready_at))
-	id_queue.append({"uid": uid, "ready_at": start + identify_seconds()})
+	id_queue.append({"uid": uid, "ready_at": start + identify_seconds(), "queued_at": now()})
 	touch(); return true
 
 ## Every unknown item not already queued, in stash order (Enchanter "Queue all", DECISIONS #145).
@@ -1084,7 +1088,10 @@ func rescale_identify(old_secs: float, new_secs: float) -> void:
 	var t := now(); var k := new_secs / old_secs
 	for q in id_queue:
 		var left := float(q.ready_at) - t
-		if left > 0.0: q.ready_at = t + left * k
+		if left <= 0.0: continue
+		var p := identify_progress(q)   # keep the bar where it was: the rest of the wait shrinks, the part done stays
+		q.ready_at = t + left * k
+		q.queued_at = float(q.ready_at) - (left * k) / maxf(0.0001, 1.0 - p)
 	touch()
 
 ## Finishes any identifications whose time has passed. Returns identified uids.
@@ -1399,6 +1406,10 @@ func _fix_types() -> void:
 		facilities[f].level = int(facilities[f].level); facilities[f].cap = int(facilities[f].cap)
 		if DB.facilities.has(f): facilities[f].cap = facility_cap(f)
 	for q in id_queue: q.uid = int(q.uid)
+	# queues saved before queued_at: freeze today's front-slot anchor so their bars keep filling and never jump back
+	var id_anchor := _identify_anchor()
+	for q in id_queue:
+		q.queued_at = float(q.get("queued_at", id_anchor))
 	if not run.is_empty():
 		# runs saved before a field existed (backpack #67, milestones, boss flag...) get its start value (DECISIONS #117)
 		for k in RUN_DEFAULTS:
