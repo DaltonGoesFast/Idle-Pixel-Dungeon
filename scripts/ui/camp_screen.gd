@@ -732,22 +732,20 @@ func _facility_header(v: VBoxContainer, id: String) -> void:
 	var cap: int = GameState.facility_cap(id)
 	var lvl := int(f.level); var mx := int(d.max)
 	cv.add_child(UIKit.label("%s   Lv %d / %d" % [d.name, lvl, mx], 1.0, Color("ffd27a")))
-	# Slots sit under the name, above the description: filled = level, open = cap, locked = the rest.
+	# Small slot row: filled = level, open = ready to upgrade, locked = needs a Scroll of Upgrade.
 	col.add_child(_facility_slots(lvl, cap, mx))
-	var hint := UIKit.label(_slot_hint(lvl, cap, mx), 0.8, Color("c9a96e")); hint.name = "SlotHint"; col.add_child(hint)
 	_facility_unlock(col, id)
 	if lvl < mx:
 		col.add_child(UIKit.label("Next: " + _preview(id, lvl + 1), 0.85, Color("9fd3ff")))
-		col.add_child(UIKit.label("Fill a slot", 0.95, Color("ffd27a")))
 		var why: String = GameState.can_upgrade_facility(id)
 		var fr := UIKit.hbox(col)
 		var cost := cost_row(GameState.facility_upgrade_cost(id)); cost.size_flags_horizontal = SIZE_EXPAND_FILL; cost.size_flags_vertical = SIZE_SHRINK_CENTER; fr.add_child(cost)
-		var fill := UIKit.button("Fill slot", func(): GameState.upgrade_facility(id), why == "")
+		var fill := UIKit.button("Upgrade", func(): GameState.upgrade_facility(id), why == "")
 		fill.name = "FillSlot"; fill.autowrap_mode = TextServer.AUTOWRAP_OFF; fill.size_flags_horizontal = SIZE_SHRINK_END
-		fill.tooltip_text = "Spend materials to fill one open slot and raise the level."
+		fill.tooltip_text = "Spend materials. Raises the level by one, up to an open slot."
 		fr.add_child(fill)
 		if why != "":
-			var shown := "Unlock a slot first. Scrolls do not raise the level." if why.begins_with("unlock a slot") else why
+			var shown := "Unlock a slot first." if why.begins_with("unlock a slot") else why
 			col.add_child(UIKit.label(shown, 0.75, Color("c9a96e")))
 	col.add_child(UIKit.label(d.desc, 0.8, Color("bdb3a0")))
 
@@ -768,7 +766,7 @@ func _fac_slot(state: String, n: int) -> VBoxContainer:
 	box.name = "FacSlot"
 	box.set_meta("state", state)
 	box.alignment = BoxContainer.ALIGNMENT_CENTER
-	var sz := UIKit.font_size * 2.6
+	var sz := UIKit.font_size * 1.8
 	var slot := PanelContainer.new()
 	slot.custom_minimum_size = Vector2(sz, sz)
 	var bg := StyleBoxFlat.new()
@@ -802,18 +800,10 @@ func _fac_slot(state: String, n: int) -> VBoxContainer:
 	box.add_child(word)
 	return box
 
-static func _slot_hint(level: int, cap: int, mx: int) -> String:
-	if level >= mx: return "Every slot is filled."
-	if cap >= mx: return "Every slot is unlocked. Materials fill an open slot."
-	if level >= cap: return "No open slot. Scrolls of Upgrade only unlock a slot. They do not raise the level."
-	return "Scrolls of Upgrade only unlock slots. Materials fill an open slot."
-
-## Scroll row, under the slots. Hidden once every slot is unlocked. Always shown while any slot is locked,
-## even with no scrolls in the stash, so the cost is visible.
+## One row under the slots. Hidden once every slot is unlocked. Shown with no scrolls in the stash, so the cost is visible.
 func _facility_unlock(col: VBoxContainer, id: String) -> void:
 	var need: int = GameState.sou_cap_cost(id)
 	if need <= 0: return
-	col.add_child(UIKit.label("Unlock a slot", 0.95, Color("ffd27a")))
 	var ur := HFlowContainer.new()
 	ur.add_theme_constant_override("h_separation", int(UIKit.font_size * 0.45))
 	ur.add_theme_constant_override("v_separation", int(UIKit.font_size * 0.2))
@@ -821,19 +811,15 @@ func _facility_unlock(col: VBoxContainer, id: String) -> void:
 	var cr := cost_row({"scroll_upgrade": need})
 	cr.size_flags_vertical = SIZE_SHRINK_CENTER
 	ur.add_child(cr)
-	var have := UIKit.chip_label("have %d" % GameState.mat("scroll_upgrade"), 0.85, Color("bdb3a0"))
-	ur.add_child(have)
+	ur.add_child(UIKit.chip_label("have %d" % GameState.mat("scroll_upgrade"), 0.85, Color("bdb3a0")))
 	var can := GameState.mat("scroll_upgrade") >= need
-	var ub := UIKit.button("Unlock slot", func(): GameState.apply_sou(id), can)
+	var ub := UIKit.button("Unlock", func(): GameState.apply_sou(id), can)
 	ub.name = "UnlockSlot"
 	ub.autowrap_mode = TextServer.AUTOWRAP_OFF
 	ub.size_flags_horizontal = SIZE_SHRINK_END
-	ub.tooltip_text = "Spends Scrolls of Upgrade to unlock one slot. Does not raise the level."
-	# Fill is the red action when it can be done. Unlock stays red while filling is blocked.
+	ub.tooltip_text = "Scrolls of Upgrade only open a locked slot. They do not raise the level."
 	if GameState.can_upgrade_facility(id) == "": UIKit.secondary(ub)
 	ur.add_child(ub)
-	if not can:
-		col.add_child(UIKit.label("need %d Scroll%s of Upgrade" % [need, "" if need == 1 else "s"], 0.75, Color("c9a96e")))
 
 func _recipe_slots(v: VBoxContainer, id: String, title: String) -> void:
 	var rs: Array = DB.recipes.get(id, [])
