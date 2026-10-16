@@ -501,7 +501,7 @@ static func apply_fight_result(gs, ev: Dictionary, res: Dictionary, reward: Dict
 		gs.log_line("Defeated by %s." % ", ".join(ev.get("mobs", []).map(func(m): return DB.mobs[m].name)), "negative"); return false
 	gs.log_line("Victory: %d kill%s, took %d damage, +%d gold, +%d xp." % [int(res.get("kills", 0)), "" if int(res.get("kills", 0)) == 1 else "s", taken, int(res.loot), int(res.xp)], "positive")
 	run.hp = int(res.hp)
-	gs.pack_add("gold", int(round(int(res.loot) * float(gs.hero_stats(run.hero).get("gold_mult", 1.0)))))   # Ring of Wealth
+	gs.pack_add("gold", int(round(int(res.loot) * float(gs.hero_stats(run.hero).get("gold_mult", 1.0)) * float(gs.hero_stats(run.hero).get("loot_mult", 1.0)))))   # Ring of Wealth
 	# every 4th won fight drops an unknown potion or scroll (SPD-style consumable loot, DECISIONS #80)
 	run.fights_won = int(run.get("fights_won", 0)) + 1
 	gs.charge_artifact(run.hero)   # DECISIONS #158

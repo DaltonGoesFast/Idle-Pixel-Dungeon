@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Five more vanilla artifacts from boss drops: Cape of Thorns, Ethereal Chains, Timekeeper's Hourglass, Sandals of Nature and Master Thieves' Armband. They start weak and level from won fights up to the Enchanter's Desk cap (+tests).
 - Rings, wands and artifacts now level and repair at the Enchanter's Desk: the Desk level caps their level (Lv1: +0), rings and the staff wand cost a Scroll of Upgrade + resin + gold per level, artifacts level slowly from won fights, and repairs need Desk Lv2 (Lv3 for artifacts). New rings and artifacts start weaker (Tenacity +1, Wealth +15%, Energy +2 HP, Chalice +6 HP, Horn x0.8). A levelled imbued wand cracks on death; Patch up no longer covers rings/artifacts (+tests).
 
 ## 0.30.0

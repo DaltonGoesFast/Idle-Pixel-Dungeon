@@ -551,3 +551,16 @@ Leveled and repaired at the **Enchanter's Desk**, not the Forge. Item level cap 
 | Repair artifact | Desk Lv3 | 4 + 2 x level resin, 40 + 20 x level gold |
 
 Per level: Might +1 dmg, Tenacity +1 Barrier, Evasion +1 DR per 2 levels, Wealth +5% gold, Energy +2 HP; staff wand +1 bolt dmg and +1 charge per 2 levels; Chalice +3 HP, Talisman +1 search per 2 levels, Horn -5% hunger. New drops start at +0 with lower base power: Tenacity +1 Barrier (was 2), Wealth +15% (was 30%), Energy +2 HP (was 4), Chalice +6 HP (was 15), Horn x0.8 hunger (was 0.6). On death, equipped rings/artifacts crack as before; an imbued wand with levels cracks too (its levels go dormant, base bolt still works). The free Patch up only covers weapons and armor.
+
+### Vanilla artifacts (DECISIONS #159)
+Bosses drop an artifact you don't own yet (as before). They start at +0, gain a level every 8 x (next level) won fights while equipped, and are capped by the Enchanter's Desk (#158).
+
+| Artifact | +0 | Per level |
+|---|---|---|
+| Cape of Thorns | Melee attackers take 1 dmg back (ignores DR) | +1 per 2 levels |
+| Ethereal Chains | Fight start: nearest non-boss 3+ tiles away is dragged next to you | held 0.5 tick per level |
+| Timekeeper's Hourglass | Fight start: non-boss enemies frozen 0.5 tick | +0.25 tick |
+| Sandals of Nature | Stepping into tall grass roots adjacent enemies 0.5 tick | +0.25 tick |
+| Master Thieves' Armband | +10% gold from fights (stacks with Wealth) | +5% |
+
+Not ported: Dried Rose (ally), Alchemist's Toolkit and Unstable Spellbook (need in-fight alchemy/scroll casting), Lloyd's Beacon (extraction rules are the core risk loop), Horn/Chalice already exist.

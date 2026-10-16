@@ -57,7 +57,8 @@ func setup(room_rows: Array, hs: Dictionary, hp: int, mob_ids: Array, darkness :
 		"abilities": hs.get("abilities", []), "bolt": hs.get("bolt", {}), "charges": 0, "recharge_t": 0.0, "hero": true,
 		"cloak": hs.get("cloak", {}), "cloak_charges": int(hs.get("cloak", {}).get("charges", 0)), "hidden_until": -1.0,
 		"slams": 1 if "slam" in hs.get("abilities", []) else 0, "search_radius": int(hs.get("search_radius", 1)),
-		"poison": 0, "keen_eyes": hs.get("keen_eyes", false), "perk": hs.get("perk", ""), "combo": 0}
+		"poison": 0, "keen_eyes": hs.get("keen_eyes", false), "perk": hs.get("perk", ""), "combo": 0,
+		"thorns": int(float(hs.get("thorns", 0.0))), "grass_root": float(hs.get("grass_root", 0.0))}
 	if not hero.bolt.is_empty(): hero.charges = hero.bolt.charges
 	units.append(hero)
 	var slots := {}
@@ -84,6 +85,7 @@ func setup(room_rows: Array, hs: Dictionary, hp: int, mob_ids: Array, darkness :
 	for i in mob_ids.size():
 		var p: Vector2i = slots.get(i, _free_tile_near(Vector2i(w - 2, h - 2)))
 		spawn(mob_ids[i], p)
+	_artifact_openers(hs)
 	_log("A fight! Barrier %d, HP %d/%d%s." % [hero.barrier, hero.hp, hero.ht, " (darkness: no Barrier)" if darkness else ""])
 	_note_sightings()
 
@@ -384,10 +386,33 @@ func knockback(m: Dictionary, dir: Vector2i) -> void:
 	else:
 		_place(m, dest)
 
+## Fight-start artifact effects (DECISIONS #159): Hourglass freezes, Ethereal Chains drag one far foe close.
+func _artifact_openers(hs: Dictionary) -> void:
+	var fz := float(hs.get("freeze_start", 0.0))
+	if fz > 0.0:
+		for e in enemies():
+			if not e.get("boss", false): e.next = float(e.next) + fz
+		_log("Time slows around you.")
+	if hs.get("chain_pull", false):
+		var best = null
+		for e in enemies():
+			if e.get("boss", false) or cheb(e.pos, hero.pos) < 3: continue
+			if best == null or cheb(e.pos, hero.pos) < cheb(best.pos, hero.pos): best = e
+		if best != null:
+			for d in DIRS:
+				var q: Vector2i = hero.pos + d
+				if passable(q) and unit_at(q) == null and not traps.has(q):
+					_ev({"t": "move", "uid": best.uid, "from": best.pos, "to": q}); best.pos = q
+					best.next = float(best.next) + float(hs.get("chain_root", 0.0))
+					_log("Ethereal chains drag %s to you." % best.name); break
+
 ## Move a unit (hero or mob) and fire any trap on the destination tile.
 func _place(u: Dictionary, dest: Vector2i) -> void:
 	_ev({"t": "move", "uid": u.uid, "from": u.pos, "to": dest})
 	u.pos = dest
+	if u == hero and tile(dest) == T.GRASS and float(hero.get("grass_root", 0.0)) > 0.0:   # Sandals of Nature (DECISIONS #159)
+		for e in enemies():
+			if cheb(e.pos, dest) == 1: e.next = float(e.next) + float(hero.grass_root); _log("Roots grip %s." % e.name)
 	if tile(dest) == T.GRASS:
 		terrain[dest.y][dest.x] = T.FLOOR; trampled[dest] = true
 		_ev({"t": "trample", "pos": dest})
@@ -829,6 +854,8 @@ func _mob_act(m: Dictionary) -> void:
 		_ev({"t": "attack", "uid": m.uid, "to": hero.pos})
 		var hp_before: int = hero.hp + hero.barrier
 		hit_hero(int(m.dmg), m.name)
+		if int(hero.get("thorns", 0)) > 0 and m.hp > 0 and hero.hp > 0:   # Cape of Thorns (DECISIONS #159)
+			_log("Thorns!"); hit_mob(m, int(hero.thorns), false, true)
 		var dealt: int = hp_before - (hero.hp + hero.barrier)
 		# SPD Bat.attackProc: heals (damage dealt - 4); our bat hits at half damage twice as often, so -2 (DECISIONS #148)
 		var heal := dealt - int(m.drain_over) if m.has("drain_over") else (int(m.get("drain", 0)) if dealt > 0 else 0)

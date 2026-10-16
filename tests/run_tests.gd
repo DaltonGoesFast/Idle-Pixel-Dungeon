@@ -57,6 +57,7 @@ func _ready() -> void:
 	test_guild_pack_cap(gs)
 	test_identify_queue_all(gs)
 	test_blind_shots(gs)
+	test_vanilla_artifacts(gs)
 	test_trinket_upgrades(gs)
 	await test_guided_surprise_tip(gs)
 	test_no_collapsing_labels(gs)
@@ -2482,3 +2483,36 @@ func test_trinket_upgrades(gs) -> void:
 	gs.heroes.mage.wand_lvl = 0; gs.heroes.mage.wand = keep_wand
 	gs.gear.erase(gs.gear_by_uid(ru)); gs.gear.erase(gs.gear_by_uid(au))
 	gs.facilities = keep_fac; gs.mats = keep_mats
+
+## DECISIONS #159: vanilla artifacts.
+func _art_stats(gs, id: String, lvl := 0) -> Dictionary:
+	var old := int(gs.heroes.warrior.get("artifact", 0))
+	var uid: int = gs.add_gear(id, true, lvl)
+	gs.heroes.warrior.artifact = uid
+	var st: Dictionary = gs.hero_stats("warrior")
+	gs.heroes.warrior.artifact = old; gs.gear.erase(gs.gear_by_uid(uid))
+	return st
+
+func test_vanilla_artifacts(gs) -> void:
+	print("[vanilla artifacts]")
+	var room := ["########", "#H.....#", "#......#", "#......#", "#......#", "#......#", "#.....1#", "########"]
+	for id in ["cape_thorns", "ethereal_chains", "timekeepers_hourglass", "sandals_nature", "thieves_armband"]:
+		check(DB.items.has(id) and DB.item(id).type == "artifact" and DB.item(id).has("per_level"), "%s is a levelling artifact" % id)
+	var st: Dictionary = _art_stats(gs, "cape_thorns")
+	var c := Combat.new(); c.setup(room, st, int(st.ht), ["rat"]); var r = c.enemies()[0]
+	r.hp = 50; c._place(r, Vector2i(2, 1))
+	for i in 3: c.hero_wait()
+	check(int(r.hp) < 50, "Cape of Thorns hurts a melee attacker (rat hp %d)" % r.hp)
+	check(int(_art_stats(gs, "cape_thorns", 2).thorns) == 2, "the cape gains thorns with level")
+	st = _art_stats(gs, "timekeepers_hourglass")
+	c = Combat.new(); c.setup(room, st, int(st.ht), ["rat"])
+	check(float(c.enemies()[0].next) >= 0.5, "the Hourglass freezes enemies at the start")
+	st = _art_stats(gs, "ethereal_chains")
+	c = Combat.new(); c.setup(room, st, int(st.ht), ["rat"])
+	check(c.cheb(c.enemies()[0].pos, c.hero.pos) == 1, "Ethereal Chains drag a far enemy next to you")
+	var gr := ["########", "#H\"....#", "#......#", "#......#", "#......#", "#......#", "#.....1#", "########"]
+	st = _art_stats(gs, "sandals_nature")
+	c = Combat.new(); c.setup(gr, st, int(st.ht), ["rat"]); r = c.enemies()[0]; c._place(r, Vector2i(3, 2))
+	var n0 := float(r.next); c._place(c.hero, Vector2i(2, 1))
+	check(float(r.next) > n0, "Sandals root a neighbour when you step into grass")
+	check(is_equal_approx(float(_art_stats(gs, "thieves_armband", 2).loot_mult), 1.2), "the Armband's gold bonus grows with level")

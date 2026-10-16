@@ -379,5 +379,55 @@
   "per_level": {
    "hunger_mult": -0.05
   }
+ },
+ "cape_thorns": {
+  "name": "Cape of Thorns",
+  "type": "artifact",
+  "thorns": 1,
+  "per_level": {
+   "thorns": 0.5
+  },
+  "icon": "ARTIFACT_CAPE",
+  "desc": "An enemy that hits you in melee takes 1 damage back (+1 per 2 levels; levels by use)."
+ },
+ "ethereal_chains": {
+  "name": "Ethereal Chains",
+  "type": "artifact",
+  "chain_pull": 1,
+  "per_level": {
+   "chain_root": 0.5
+  },
+  "icon": "ARTIFACT_CHAINS",
+  "desc": "Once per fight, the nearest enemy 3+ tiles away is dragged next to you (bosses resist). From +1 it is held 0.5 tick per level."
+ },
+ "timekeepers_hourglass": {
+  "name": "Timekeeper's Hourglass",
+  "type": "artifact",
+  "freeze_start": 0.5,
+  "per_level": {
+   "freeze_start": 0.25
+  },
+  "icon": "ARTIFACT_HOURGLASS",
+  "desc": "Each fight opens with enemies frozen 0.5 tick (+0.25 per level; bosses immune)."
+ },
+ "sandals_nature": {
+  "name": "Sandals of Nature",
+  "type": "artifact",
+  "grass_root": 0.5,
+  "per_level": {
+   "grass_root": 0.25
+  },
+  "icon": "ARTIFACT_SANDALS",
+  "desc": "Stepping into tall grass roots adjacent enemies 0.5 tick (+0.25 per level)."
+ },
+ "thieves_armband": {
+  "name": "Master Thieves' Armband",
+  "type": "artifact",
+  "loot_mult": 1.1,
+  "per_level": {
+   "loot_mult": 0.05
+  },
+  "icon": "ARTIFACT_ARMBAND",
+  "desc": "+10% gold from fights (+5% per level)."
  }
 }

@@ -181,6 +181,11 @@ func hero_stats(c: String) -> Dictionary:
 		var ed := DB.item(eq.id)
 		s.ht += int(ed.get("ht_bonus", 0)) + trinket_bonus(eq, "ht_bonus"); s.search_radius += int(ed.get("search_add", 0)) + trinket_bonus(eq, "search_add")
 		if ed.get("keen_eyes", false): s.keen_eyes = true
+		# vanilla artifacts (DECISIONS #159)
+		for fk in ["thorns", "freeze_start", "grass_root", "chain_root"]:
+			if ed.has(fk) or ed.get("per_level", {}).has(fk): s[fk] = float(ed.get(fk, 0.0)) + trinket_bonus_f(eq, fk)
+		if ed.has("chain_pull"): s.chain_pull = true
+		if ed.has("loot_mult"): s.loot_mult = float(ed.loot_mult) + trinket_bonus_f(eq, "loot_mult")
 		if ed.has("gold_mult"): s.gold_mult = float(ed.gold_mult) + trinket_bonus_f(eq, "gold_mult")
 		if ed.has("hunger_mult"): s.hunger_mult = maxf(0.3, float(ed.hunger_mult) + trinket_bonus_f(eq, "hunger_mult"))
 		s.charges_bonus = int(s.get("charges_bonus", 0)) + int(ed.get("charges_bonus", 0))
