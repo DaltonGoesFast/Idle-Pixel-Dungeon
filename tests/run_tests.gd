@@ -19,6 +19,7 @@ func _ready() -> void:
 	test_rules(gs)
 	test_barrier_spd(gs)
 	test_bat_drain(gs)
+	test_vanilla_mobs(gs)
 	test_status_pane_layout(gs)
 	test_combat_bag_fits(gs)
 	test_balance(gs)
@@ -2434,3 +2435,85 @@ func test_bat_drain(gs) -> void:
 		c._mob_act(b)
 		check(int(b.hp) == 10 + case[1], "bat heals dealt-2 like SPD's dealt-4 (DR %d -> +%d, got %d)" % [case[0], case[1], int(b.hp) - 10])
 
+
+## DECISIONS #155: vanilla SPD enemy behaviours
+func _vm_room() -> Array:
+	var r := ["##########"]
+	for i in 8: r.append("#........#")
+	r.append("##########")
+	r[1] = "#H.......#"
+	return r
+
+func _vm(gs, id: String, hp_pos: Vector2i, m_pos: Vector2i) -> Combat:
+	var hs: Dictionary = gs.hero_stats("warrior")
+	var c := Combat.new(); c.setup(_vm_room(), hs, hs.ht, [id])
+	c.hero.barrier = 0; c.hero.dr = 0; c.hero.hp = 200; c.hero.ht = 200
+	c._place(c.hero, hp_pos); c._place(c.enemies()[0], m_pos)
+	return c
+
+func _resolve(c: Combat) -> void:
+	c.time = 999.0; c._resolve_danger()
+
+func test_vanilla_mobs(gs) -> void:
+	print("[vanilla mobs]")
+	gs.new_game()
+	# DM-100 lightning: x1.5 on water
+	var c := _vm(gs, "dm100", Vector2i(2, 2), Vector2i(5, 2))
+	c.terrain[2][2] = Combat.T.WATER
+	var m: Dictionary = c.enemies()[0]; c._mob_act(m); _resolve(c)
+	check(200 - int(c.hero.hp) == int(int(m.zap_dmg) * 1.5) - int(c.hero.dr) or 200 - int(c.hero.hp) == int(int(m.zap_dmg) * 1.5), "DM-100 lightning x1.5 in water (took %d)" % (200 - int(c.hero.hp)))
+	# a body in the line blocks the shot
+	c = _vm(gs, "dm100", Vector2i(2, 2), Vector2i(6, 2)); m = c.enemies()[0]
+	var rat := c.spawn("rat", Vector2i(4, 2)); rat.next = 99.0
+	c._mob_act(m)
+	check(c.danger.is_empty(), "mob zap needs a clear line (no bodies)")
+	# ranged mobs hold range and reload instead of closing in
+	c = _vm(gs, "shaman", Vector2i(2, 2), Vector2i(5, 2)); m = c.enemies()[0]
+	c._mob_act(m); check(c.danger.size() == 1, "shaman zaps at range"); _resolve(c)
+	var p0: Vector2i = m.pos; c._mob_act(m)
+	check(m.pos == p0, "shaman holds range on cooldown")
+	# shaman colours: red = weak, blue = vulnerable
+	var seen := {}
+	for uid in [2, 3]:
+		c = _vm(gs, "shaman", Vector2i(2, 2), Vector2i(5, 2)); m = c.enemies()[0]; m.uid = uid
+		c._mob_act(m); _resolve(c)
+		seen["weak" if c.has_debuff("weak") else ("vuln" if c.has_debuff("vuln") else "none")] = true
+	check(seen.has("weak") and seen.has("vuln"), "shaman bolts weaken or make vulnerable (%s)" % str(seen.keys()))
+	c = _vm(gs, "rat", Vector2i(2, 2), Vector2i(3, 2)); c.add_debuff("weak", 3)
+	check(c._melee_dmg() < int(c.hero.dmg) or int(c.hero.dmg) <= 1, "weakness lowers melee damage")
+	c.hero.debuffs = {}; c.add_debuff("vuln", 3); c.hit_hero(6, "test")
+	check(200 - int(c.hero.hp) == 8, "vulnerable: 6 -> 8 damage (took %d)" % (200 - int(c.hero.hp)))
+	# warlock bolt weakens
+	c = _vm(gs, "warlock", Vector2i(2, 2), Vector2i(5, 2)); m = c.enemies()[0]; c._mob_act(m); _resolve(c)
+	check(c.has_debuff("weak"), "warlock shadow bolt weakens")
+	# eye beam: a whole line, eye charges
+	c = _vm(gs, "eye", Vector2i(3, 2), Vector2i(5, 2)); m = c.enemies()[0]; c._mob_act(m)
+	check(c.danger.size() >= 3 and c.is_danger(Vector2i(1, 2)) and m.charging, "Evil Eye beam covers the line past the hero (%d tiles)" % c.danger.size())
+	# spinner web roots: moving spends the turn
+	c = _vm(gs, "spinner", Vector2i(2, 2), Vector2i(5, 2)); m = c.enemies()[0]; c._mob_act(m); _resolve(c)
+	check(c.has_debuff("root"), "spinner web roots")
+	c.time = 0.0; c.hero.debuffs.root = 5.0; c.hero.next = 0.0
+	var before: Vector2i = c.hero.pos; c.hero_tap(before + Vector2i(0, 1))
+	check(c.hero.pos == before, "rooted hero can't step")
+	# scorpio cripple: steps cost 2 ticks
+	c = _vm(gs, "scorpio", Vector2i(2, 2), Vector2i(3, 2)); m = c.enemies()[0]; c._mob_act(m)
+	check(c.has_debuff("cripple"), "scorpio sting cripples")
+	# monk disarm every 3rd hit
+	c = _vm(gs, "monk", Vector2i(2, 2), Vector2i(3, 2)); m = c.enemies()[0]
+	for i in 3: c._mob_act(m)
+	check(c.has_debuff("weak"), "monk disarms on the 3rd hit")
+	# succubus blink
+	c = _vm(gs, "succubus", Vector2i(1, 1), Vector2i(7, 7)); m = c.enemies()[0]; c._mob_act(m)
+	check(Combat.cheb(m.pos, c.hero.pos) == 1, "succubus blinks next to the hero")
+	# ripper leap: telegraph, hit, land
+	c = _vm(gs, "ripper", Vector2i(2, 2), Vector2i(5, 2)); m = c.enemies()[0]; c._mob_act(m)
+	check(c.is_danger(Vector2i(2, 2)) and m.charging, "ripper telegraphs a leap")
+	c.hero.pos = Vector2i(2, 4); _resolve(c)
+	check(m.pos == Vector2i(2, 2) and int(c.hero.hp) == 200, "dodged leap: ripper lands on the tile")
+	# golem pulls the hero in
+	c = _vm(gs, "golem", Vector2i(1, 1), Vector2i(6, 6)); m = c.enemies()[0]; c._mob_act(m)
+	check(Combat.cheb(m.pos, c.hero.pos) == 1, "golem teleports the hero to it")
+	# save/load keeps debuffs
+	c = _vm(gs, "rat", Vector2i(2, 2), Vector2i(6, 6)); c.add_debuff("vuln", 3)
+	var c2 := Combat.new(); c2.from_dict(JSON.parse_string(JSON.stringify(c.to_dict())))
+	check(c2.has_debuff("vuln"), "debuffs survive save/load")

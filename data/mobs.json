@@ -45,7 +45,8 @@
    3
   ],
   "throw_cooldown": 3,
-  "spd": "HT 12, dmg 1-6, DR 0-2"
+  "spd": "HT 12, dmg 1-6, DR 0-2",
+  "tuned": " Throws need a clear line (#155)."
  },
  "crab": {
   "name": "Sewer Crab",
@@ -145,7 +146,8 @@
   "zap_dmg": 5,
   "zap_cooldown": 3,
   "spd": "HT 20, dmg 2-8, DR 0-4; ranged lightning 3-10",
-  "tuned": "zap is a 1-tick red tile at range 2-4 (5 dmg, DR applies); cooldown 3 actions"
+  "tuned": "zap is a 1-tick red tile at range 2-4 (5 dmg, DR applies); cooldown 3 actions Needs a clear line; lightning x1.5 if you stand in water (#155).",
+  "zap_water": 1.5
  },
  "guard": {
   "name": "Prison Guard",
@@ -229,7 +231,12 @@
   "zap_cooldown": 2,
   "zap_magic": true,
   "spd": "HT 35, dmg 5-10, DR 0-6; magic bolt 6-15",
-  "tuned": "magic zap = 1-tick red tile, 6 dmg ignoring DR, range 2-4, every 2 actions"
+  "tuned": "magic zap = 1-tick red tile, 6 dmg ignoring DR, range 2-4, every 2 actions Holds range; red shamans (even uid) weaken, blue ones make you vulnerable for 3 turns (#155).",
+  "zap_debuffs": [
+   "weak",
+   "vuln"
+  ],
+  "holds_range": true
  },
  "spinner": {
   "name": "Cave Spinner",
@@ -244,7 +251,14 @@
   "fh": 16,
   "bite_poison": 3,
   "spd": "HT 50, dmg 10-20, DR 0-6; poison bite, webs",
-  "tuned": "HT 32, dmg 6, bite adds 3 poison (no webs)"
+  "tuned": "HT 32, dmg 6, bite adds 3 poison. Spits a web at range 2-4 every 4 actions (red tile; rooted 2 turns: you can attack but not step) (#155).",
+  "ability": "web",
+  "web_range": [
+   2,
+   4
+  ],
+  "web_cooldown": 4,
+  "web_root": 2
  },
  "dm300": {
   "name": "DM-300",
@@ -298,7 +312,11 @@
   "zap_cooldown": 2,
   "zap_magic": true,
   "spd": "HT 70, dmg 12-18, DR 0-8; shadow bolt 12-18 + weakness",
-  "tuned": "HT 34; shadow bolt = 1-tick red tile, 9 dmg ignoring DR, every 2 actions"
+  "tuned": "HT 34; shadow bolt = 1-tick red tile, 9 dmg ignoring DR, every 2 actions Holds range; the bolt weakens for 3 turns (#155).",
+  "zap_debuffs": [
+   "weak"
+  ],
+  "holds_range": true
  },
  "monk": {
   "name": "Dwarf Monk",
@@ -312,7 +330,9 @@
   "fw": 15,
   "fh": 14,
   "spd": "HT 70, dmg 12-25, fast attacks, DR 0-2; disarms",
-  "tuned": "HT 34, dmg 5, acts twice per tick"
+  "tuned": "HT 34, dmg 5, acts twice per tick Every 3rd hit knocks your weapon aside (weakened 2 turns) (#155).",
+  "disarm_every": 3,
+  "disarm_t": 2
  },
  "golem": {
   "name": "Golem",
@@ -326,7 +346,9 @@
   "fw": 17,
   "fh": 19,
   "spd": "HT 120, dmg 25-30, DR 0-12; slow",
-  "tuned": "HT 75, dmg 15, DR 7, acts every 1.5 ticks"
+  "tuned": "HT 75, dmg 15, DR 7, acts every 1.5 ticks Every 6 actions pulls a hero it sees at range 3+ to its side (#155).",
+  "ability": "teleport",
+  "tele_cooldown": 6
  },
  "dking": {
   "name": "King of Dwarves",
@@ -376,7 +398,9 @@
   "fh": 15,
   "drain": 5,
   "spd": "HT 80, dmg 25-30, DR 0-10; charm, lifesteal, blink",
-  "tuned": "HT 70, dmg 16, DR 5; heals 5 per bite"
+  "tuned": "HT 70, dmg 16, DR 5; heals 5 per bite Once per fight blinks next to you from range 3+, only if nothing else is next to you (#155).",
+  "ability": "blink",
+  "blink_cooldown": 999
  },
  "ripper": {
   "name": "Ripper Demon",
@@ -390,7 +414,13 @@
   "fw": 15,
   "fh": 14,
   "spd": "HT 60, dmg 15-25, DR 0-4; leaps, fast",
-  "tuned": "HT 40, dmg 14, DR 3, acts every 0.6 ticks"
+  "tuned": "HT 40, dmg 14, DR 3, acts every 0.6 ticks Telegraphed leap onto your tile from range 2-4 (dmg, then lands), cooldown 4 (#155).",
+  "ability": "leap",
+  "leap_range": [
+   2,
+   4
+  ],
+  "leap_cooldown": 4
  },
  "eye": {
   "name": "Evil Eye",
@@ -408,7 +438,8 @@
   "zap_cooldown": 2,
   "zap_magic": true,
   "spd": "HT 100, dmg 20-30, DR 0-10; disintegration beam",
-  "tuned": "HT 60, dmg 12; beam = 1-tick red tile, 20 ignoring DR, every 2 actions"
+  "tuned": "HT 60, dmg 12; beam = 1-tick red tile, 20 ignoring DR, every 2 actions The beam lights the whole line through you out to range 6; the eye charges while it is up (#155).",
+  "zap_beam": true
  },
  "scorpio": {
   "name": "Scorpio",
@@ -430,7 +461,8 @@
   "throw_cooldown": 2,
   "bite_poison": 3,
   "spd": "HT 110, dmg 30-40, DR 0-16; ranged spit, cripple",
-  "tuned": "HT 72, dmg 16, DR 6; spits at range 2-4, bite poisons"
+  "tuned": "HT 72, dmg 16, DR 6; spits at range 2-4, bite poisons The bite cripples (steps cost 2 ticks) for 2 turns (#155).",
+  "bite_cripple": 2
  },
  "larva": {
   "name": "God's Larva",
@@ -517,6 +549,7 @@
   "zap_cooldown": 2,
   "zap_magic": true,
   "spd": "HT 300, ranged light zaps, blinds",
-  "tuned": "HT 35, dmg 6, zaps 8 at range. Shields Yog while it lives."
+  "tuned": "HT 35, dmg 6, zaps 8 at range. Shields Yog while it lives. Holds range (#155).",
+  "holds_range": true
  }
 }

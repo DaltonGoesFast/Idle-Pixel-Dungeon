@@ -115,7 +115,7 @@ func from_dict(d: Dictionary) -> void:
 	for u in d.units:
 		var x: Dictionary = u.duplicate(true)
 		x.pos = Vector2i(int(u.pos[0]), int(u.pos[1]))
-		for k in ["uid", "hp", "ht", "dmg", "dr", "barrier", "barrier_max", "charges", "cloak_charges", "cooldown", "acts", "exp", "loot", "pump_count", "poison", "search_radius", "stolen", "slams", "bombs", "blinks", "steal_gold", "abil", "abil_n", "combo"]:
+		for k in ["uid", "hp", "ht", "dmg", "dr", "barrier", "barrier_max", "charges", "cloak_charges", "cooldown", "acts", "exp", "loot", "pump_count", "poison", "search_radius", "stolen", "hits", "slams", "bombs", "blinks", "steal_gold", "abil", "abil_n", "combo"]:
 			if x.has(k): x[k] = int(x[k])
 		if x.has("aim"): x.aim = Vector2i(int(x.aim[0]), int(x.aim[1])) if x.aim is Array else x.aim
 		units.append(x)
@@ -223,6 +223,36 @@ static func _line(a: Vector2i, b: Vector2i) -> Array:
 func has_ranged() -> bool:
 	return not hero.bolt.is_empty() and (hero.bolt.get("infinite", false) or hero.charges > 0)
 
+## Vanilla debuffs on the hero (DECISIONS #155): weak (Weakness: melee x2/3), vuln (Vulnerable: +1/3 damage taken),
+## root (Roots/web: moving spends the turn), cripple (Cripple: steps cost 2 ticks). Stored as hero.debuffs[id] = expiry time.
+const WEAK_MULT := 0.67
+const VULN_MULT := 1.33
+const CRIPPLE_MOVE := 2.0
+const DEBUFF_NAMES := {"weak": "weakened", "vuln": "vulnerable", "root": "caught in a web", "cripple": "crippled"}
+func has_debuff(id: String) -> bool:
+	return float(hero.get("debuffs", {}).get(id, -1.0)) > time
+
+func add_debuff(id: String, turns: float) -> void:
+	if not hero.has("debuffs"): hero.debuffs = {}
+	hero.debuffs[id] = maxf(float(hero.debuffs.get(id, -1.0)), time + turns)
+	_log("%s is %s! (%d turns)" % [hero.name, DEBUFF_NAMES.get(id, id), int(turns)]); _ev({"t": "sfx", "name": "debuff"})
+
+## Enemy projectiles (SPD Ballistica PROJECTILE): need sight (walls, closed doors and tall grass block it, #149) and
+## stop at the first body, so another mob in the way shields the hero.
+func mob_can_shoot(m: Dictionary) -> bool:
+	return sees(m.pos, hero.pos) and line_clear(m.pos, hero.pos)
+
+## Evil Eye beam (SPD DisintegrationRay): every tile from the eye through the hero out to BOLT_RANGE, until a wall.
+func beam_tiles(from: Vector2i, to: Vector2i) -> Array:
+	var d := maxi(1, cheb(from, to)); var k := int(ceil(float(BOLT_RANGE) / d))
+	var out := []
+	var pts := _line(from, from + (to - from) * k)
+	for i in range(1, pts.size()):
+		var p: Vector2i = pts[i]
+		if cheb(from, p) > BOLT_RANGE or _solid(p): break
+		out.append(p)
+	return out
+
 func hidden() -> bool:
 	return float(hero.hidden_until) > time
 
@@ -305,6 +335,7 @@ func close_to_dying() -> bool:
 # ------------------------------------------------------------------ damage
 ## Damage to the hero: flat DR -> Barrier -> HP. Chip rule on fully blocked hits.
 func hit_hero(raw: int, src: String, pierce := false) -> void:
+	if has_debuff("vuln"): raw = int(ceil(raw * VULN_MULT))
 	var dmg := raw if pierce else maxi(0, raw - int(hero.dr))
 	if dmg == 0:
 		if hero.barrier > 0:
@@ -563,8 +594,12 @@ func hero_tap(p: Vector2i, mode := "") -> bool:
 		_end_hero_turn(float(hero.delay))
 		return true
 	if passable(p) and u == null:
+		if has_debuff("root"):
+			_log("%s struggles against the web." % hero.name)
+			_end_hero_turn(1.0)
+			return true
 		_place(hero, p)
-		_end_hero_turn(1.0)
+		_end_hero_turn(CRIPPLE_MOVE if has_debuff("cripple") else 1.0)
 		return true
 	return false
 
@@ -575,6 +610,7 @@ func _melee_dmg() -> int:
 		"rage":
 			if int(hero.hp) * 2 < int(hero.ht): d = int(d * 1.2)
 		"combo": d += mini(int(hero.combo), 3)
+	if has_debuff("weak"): d = maxi(1, int(d * WEAK_MULT))
 	return d
 
 func _melee_perks() -> void:
@@ -732,8 +768,19 @@ func _resolve_danger() -> void:
 		if d.at <= time:
 			danger.erase(d)
 			_ev({"t": "blast", "pos": d.pos})
+			if d.has("leap"):   # Ripper Demon lands (on the tile, or next to it if taken)
+				var lm = null
+				for e in enemies():
+					if e.uid == int(d.uid): lm = e
+				if lm != null:
+					var lp: Vector2i = d.pos if unit_at(d.pos) == null else _adjacent_free(d.pos, lm.pos)
+					if lp.x >= 0: _place(lm, lp)
 			if hero.pos == d.pos:
-				hit_hero(d.dmg, d.src, d.get("pierce", false))
+				var dd := int(d.dmg)
+				if float(d.get("water_mult", 0.0)) > 0.0 and tile(hero.pos) == T.WATER:
+					dd = int(dd * float(d.water_mult)); _log("The water conducts the shock!")
+				if dd > 0: hit_hero(dd, d.src, d.get("pierce", false))
+				if d.has("debuff") and not over: add_debuff(String(d.debuff), float(d.get("debuff_t", 3)))
 				if d.has("poison") and not over:
 					hero.poison = int(hero.get("poison", 0)) + int(d.poison); _ev({"t": "sfx", "name": "debuff"})
 			elif d.get("hits_mobs", false):
@@ -773,7 +820,7 @@ func _mob_act(m: Dictionary) -> void:
 	match m.get("ability", ""):
 		"throw":
 			var rng: Array = m.throw_range
-			if in_view and m.cooldown <= 0 and cheb(m.pos, hero.pos) >= int(rng[0]) and cheb(m.pos, hero.pos) <= int(rng[1]):
+			if in_view and m.cooldown <= 0 and cheb(m.pos, hero.pos) >= int(rng[0]) and cheb(m.pos, hero.pos) <= int(rng[1]) and mob_can_shoot(m):
 				danger.append({"pos": hero.pos, "dmg": int(m.dmg) + int(m.throw_bonus), "at": m.next + 1.0, "src": m.name + "'s spear", "uid": m.uid})
 				m.cooldown = int(m.throw_cooldown)
 				_log("%s winds up a throw! (red tile)" % m.name)
@@ -782,12 +829,60 @@ func _mob_act(m: Dictionary) -> void:
 			m.cooldown = maxi(0, m.cooldown - 1)
 		"zap":
 			# DM-100: telegraphed lightning bolt (ignores DR); conducts through water to the hero
-			if in_view and m.cooldown <= 0 and cheb(m.pos, hero.pos) >= 2 and cheb(m.pos, hero.pos) <= 4:
-				danger.append({"pos": hero.pos, "dmg": int(m.zap_dmg), "at": m.next + 1.0, "src": m.name + "'s lightning", "uid": m.uid, "pierce": m.get("zap_magic", false)})
+			if in_view and m.cooldown <= 0 and cheb(m.pos, hero.pos) >= 2 and cheb(m.pos, hero.pos) <= 4 and (m.get("zap_beam", false) or mob_can_shoot(m)):
+				var zd := {"pos": hero.pos, "dmg": int(m.zap_dmg), "at": m.next + 1.0, "src": m.name + "'s lightning", "uid": m.uid, "pierce": m.get("zap_magic", false)}
+				if m.has("zap_water"): zd.water_mult = float(m.zap_water)
+				var dbs: Array = m.get("zap_debuffs", [])
+				if not dbs.is_empty(): zd.debuff = dbs[int(m.uid) % dbs.size()]; zd.debuff_t = 3   # shaman colour by uid (red weak / blue vuln)
+				if m.get("zap_beam", false):   # Evil Eye: the whole line lights up; step off it
+					for bp in beam_tiles(m.pos, hero.pos):
+						var bd: Dictionary = zd.duplicate(); bd.pos = bp; bd.src = m.name + "'s beam"; danger.append(bd)
+					m.charging = true
+				else:
+					danger.append(zd)
 				m.cooldown = int(m.zap_cooldown)
 				_log("%s crackles with energy! (red tile)" % m.name)
 				_ev({"t": "telegraph", "uid": m.uid}); _ev({"t": "sfx", "name": "chargeup"})
 				return
+			m.cooldown = maxi(0, m.cooldown - 1)
+		"web":
+			# SPD Spinner: shoots a web; the hero is rooted for web_root turns (still able to attack)
+			var wr: Array = m.web_range; var wdist := cheb(m.pos, hero.pos)
+			if in_view and m.cooldown <= 0 and wdist >= int(wr[0]) and wdist <= int(wr[1]) and mob_can_shoot(m):
+				danger.append({"pos": hero.pos, "dmg": 0, "at": m.next + 1.0, "src": m.name + "'s web", "uid": m.uid, "debuff": "root", "debuff_t": int(m.web_root)})
+				m.cooldown = int(m.web_cooldown)
+				_log("%s spits a web! (red tile)" % m.name); _ev({"t": "telegraph", "uid": m.uid})
+				return
+			m.cooldown = maxi(0, m.cooldown - 1)
+		"blink":
+			# SPD Succubus: blinks next to a hero it sees at range 3+
+			# only into an open duel: never when another enemy is already next to the hero (no double-blink ganks)
+			if in_view and m.cooldown <= 0 and cheb(m.pos, hero.pos) >= 3 and enemies().filter(func(e): return cheb(e.pos, hero.pos) == 1).is_empty():
+				var bp := _adjacent_free(hero.pos, m.pos)
+				if bp.x >= 0:
+					m.cooldown = int(m.blink_cooldown)
+					_log("%s blinks to your side!" % m.name); _ev({"t": "sfx", "name": "teleport"})
+					_ev({"t": "move", "uid": m.uid, "from": m.pos, "to": bp}); m.pos = bp
+					return
+			m.cooldown = maxi(0, m.cooldown - 1)
+		"leap":
+			# SPD Ripper Demon: telegraphed leap onto the hero's tile from range 2-4 (hits, then lands there)
+			var lr: Array = m.leap_range; var ld := cheb(m.pos, hero.pos)
+			if in_view and m.cooldown <= 0 and ld >= int(lr[0]) and ld <= int(lr[1]) and line_clear(m.pos, hero.pos):
+				danger.append({"pos": hero.pos, "dmg": int(m.dmg), "at": m.next + 1.0, "src": m.name + "'s leap", "uid": m.uid, "leap": true})
+				m.cooldown = int(m.leap_cooldown); m.charging = true
+				_log("%s crouches to leap! (red tile)" % m.name); _ev({"t": "telegraph", "uid": m.uid})
+				return
+			m.cooldown = maxi(0, m.cooldown - 1)
+		"teleport":
+			# SPD Golem: pulls a hero it sees at range 3+ to its side (teleport), so slowness isn't a free kite
+			if in_view and m.cooldown <= 0 and cheb(m.pos, hero.pos) >= 3:
+				var tp := _adjacent_free(m.pos, hero.pos)
+				if tp.x >= 0:
+					m.cooldown = int(m.tele_cooldown)
+					_log("%s's runes flare - you are pulled to it!" % m.name); _ev({"t": "sfx", "name": "teleport"})
+					_place(hero, tp)
+					return
 			m.cooldown = maxi(0, m.cooldown - 1)
 		"chain":
 			# Prison Guard: once per fight, yanks the hero next to it
@@ -837,11 +932,20 @@ func _mob_act(m: Dictionary) -> void:
 			_ev({"t": "heal", "uid": m.uid, "amount": h, "pos": m.pos}); _log("%s drinks your blood (+%d)." % [m.name, h])
 		if m.has("bite_poison") and dealt > 0 and not over:
 			hero.poison = int(hero.get("poison", 0)) + int(m.bite_poison); _log("The bite is venomous!"); _ev({"t": "sfx", "name": "debuff"})
+		if m.has("bite_cripple") and dealt > 0 and not over: add_debuff("cripple", float(m.bite_cripple))
+		if m.has("disarm_every") and not over:   # SPD Monk: knocks your weapon aside (melee weakened)
+			m.hits = int(m.get("hits", 0)) + 1
+			if m.hits % int(m.disarm_every) == 0:
+				_log("%s knocks your weapon aside!" % m.name); add_debuff("weak", float(m.disarm_t))
 		if m.get("ability", "") == "steal" and int(m.get("stolen", 0)) == 0 and not over:
 			m.stolen = int(m.steal_gold)
 			_log("%s snatches %d gold and runs! Kill it to get it back." % [m.name, m.stolen]); _ev({"t": "sfx", "name": "gold"})
 		return
 	if m.get("stationary", false): return   # Yog-Dzewa never moves
+	# SPD casters (shaman, warlock, Bright Fist): with a clear shot in range they hold position instead
+	# of closing to melee, and reload there (DECISIONS #155)
+	if m.get("holds_range", false) and in_view and _in_shot_range(m) and (m.get("zap_beam", false) or mob_can_shoot(m)):
+		return
 	var target: Vector2i = hero.pos if in_view else m.aim
 	# Hunting a last-seen tile: step onto it (path_step only approaches adjacent)
 	if not in_view and cheb(m.pos, target) == 1 and passable(target) and unit_at(target) == null:
@@ -850,6 +954,19 @@ func _mob_act(m: Dictionary) -> void:
 	var step = path_step(m.pos, target, false, true)
 	if step != null:
 		_place(m, step)
+
+func _in_shot_range(m: Dictionary) -> bool:
+	var d := cheb(m.pos, hero.pos)
+	if m.has("throw_range"): return d >= int(m.throw_range[0]) and d <= int(m.throw_range[1])
+	return d >= 2 and d <= 4
+
+## A free, passable, trap-free tile next to `around`, closest to `toward` (or Vector2i(-1, -1)).
+func _adjacent_free(around: Vector2i, toward: Vector2i) -> Vector2i:
+	var best := Vector2i(-1, -1); var bd := 999
+	for d in DIRS:
+		var n: Vector2i = around + d
+		if passable(n) and unit_at(n) == null and not traps.has(n) and cheb(n, toward) < bd: bd = cheb(n, toward); best = n
+	return best
 
 ## Thief: after stealing, runs to the tile farthest from the hero.
 func _flee(m: Dictionary) -> void:

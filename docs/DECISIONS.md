@@ -460,3 +460,33 @@ v0.29 made tall grass and closed doors block sight, and `can_bolt` required sigh
 - Sight memory: when it is the hero's turn, every enemy in the hero's sight records `last_seen = [x, y]` (plain array, so it saves and restores with the fight).
 - CombatBot only takes aimed shots at foes it can see whose line is clear of other bodies (`_can_shoot`; before, it could shoot through bodies). With nothing in sight and nothing adjacent, it shoots at an unseen foe's `last_seen`: up to 2 arrows per sighting, or 1 wand charge while 2+ remain.
 Covered by `test_blind_shots` (hidden rat in grass hit, empty tile wastes the shot, the first body takes it, a closed door stops it, a wand bolt carries past, last_seen survives save/load, the bot's blind shot).
+
+## 155. Vanilla SPD enemy behaviours
+Most mobs were stat blocks with SPD's names; their signature tricks were missing. Compared every `data/mobs.json` entry with `actors/mobs/*.java` in 00-Evan/shattered-pixel-dungeon and added the ones that fit a turn-based 8-12 tile room. Base HT, damage and DR are unchanged; each behaviour has its own key.
+- **Shots need a line** (`Combat.mob_can_shoot`, SPD Ballistica PROJECTILE): gnoll spears, DM-100/shaman/warlock zaps and spinner webs need sight (walls, closed doors, tall grass block it, matching #149) and stop at the first body. The Evil Eye's beam ignores bodies.
+- **Casters hold range** (`holds_range`: shaman, warlock, Bright Fist): with a clear shot at range 2-4 they stay put and reload instead of walking into melee, like SPD's `canAttack` via bolt. Tried on gnolls and DM-100s too: Sewers floor 1-2 deaths at doors to gnoll pairs and Prison DM-100 pairs (10 deaths) turned the Warrior's early game into a wall (deep-sim deaths 56 -> 125, one Warrior seed never left the Sewers), so those two keep closing in. Vanilla gnolls are melee anyway (the thrower is the Trickster).
+- **DM-100** lightning x1.5 when you stand in water (`zap_water`).
+- **Shaman colours** (`zap_debuffs`, chosen by uid): red = Weakness (melee x0.67), blue = Vulnerable (damage taken x1.33), 3 turns. Purple (Hex) is skipped: we have no accuracy roll for it to affect. **Warlock** shadow bolt = Weakness.
+- **Evil Eye** (`zap_beam`): the telegraph covers the whole line through you to range 6 and the eye charges while it is up (SPD DisintegrationRay); step sideways.
+- **Spinner** (`ability: web`): every 4 actions spits a web at range 2-4 (red tile); hit = rooted 2 turns (you can attack, a step spends the turn).
+- **Scorpio** bite cripples 2 turns (steps cost 2 ticks). Holding range was tried and dropped: cripple + spit from range killed a Lv18 tier-5 Warrior in 8 of 32 Halls fights.
+- **Monk** every 3rd hit knocks your weapon aside (Weakness 2 turns), our version of SPD's disarm.
+- **Succubus** (`ability: blink`): once per fight blinks next to a hero it sees at range 3+, only if no other enemy is adjacent. Unlimited / stacked blinks let two succubi gank the Halls test Warrior (2 losses).
+- **Ripper Demon** (`ability: leap`): telegraphed leap onto your tile from range 2-4 (its melee damage), then lands there; cooldown 4.
+- **Golem** (`ability: teleport`): every 6 actions pulls a hero it sees at range 3+ to its side, so its slowness is no longer a free kite.
+- Already in place and left alone: crab/bat/monk/ripper speed, bat drain, thief steal-and-flee, guard chain, ghoul revive, skeleton bone burst, brute enrage, Goo/Tengu/DM-300/King/Yog kits.
+- Skipped: Necromancer, Fire Elemental, Swarm of Flies (not in the game; new mobs are content, not behaviour), Succubus charm (would need charm handling in Auto Battle and the UI), Brute "dies raging" (our below-half enrage is the stand-in), Golem self-teleport.
+- Hero debuffs live in `hero.debuffs[id] = expiry time` (saved with the fight). They only show in the log for now; status icons are a polish item.
+
+Deep campaign sim (`balrun.sh`, 4 classes x 2 seeds x 40 runs, plus 25-seed Goo first try):
+
+| | v0.30 (9687597) | #155 |
+|---|---|---|
+| total deaths | 56 | 70 |
+| Sewers / Prison / Caves / City / Halls deaths | 35 / 1 / 7 / 9 / 4 | 38 / 1 / 9 / 14 / 8 |
+| deaths W / M / R / H | 13 / 25 / 7 / 11 | 13 / 33 / 10 / 14 |
+| Goo first try | 24% | 25% |
+| top killers (non-boss) | crab+snake+snake 15, golem pair 6 | crab+snake+snake 15, succubus pair 5 |
+
+Covered by `test_vanilla_mobs`.
+

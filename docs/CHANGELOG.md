@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Vanilla SPD enemy behaviours: mob shots need a clear line (bodies block them), shamans/warlocks hold range and their bolts debuff (red shaman + warlock: Weakness, blue shaman: Vulnerable), DM-100 lightning x1.5 in water, Evil Eye beam covers the whole line, Spinner webs root, Scorpio stings cripple, Monks disarm every 3rd hit, Succubus blinks in once, Ripper leaps, Golem pulls you to it. Base HP/damage/armor unchanged. Deep-sim deaths 56 -> 70, Goo first try 24% -> 25% (+tests).
 
 ## 0.30.0
 - Huntress and Mage blind shots, like SPD: the Spirit Bow (tap any tile in range) and wands (Bolt mode) aim at a tile, seen or not. The shot hits the first body on the line and flies through tall grass; walls and closed doors stop it; an empty line wastes it. Wand bolts carry past the aimed tile. Auto Battle takes up to 2 arrows (1 wand charge, keeping one in reserve) at where an unseen foe was last seen, and no longer shoots through bodies (+tests).
