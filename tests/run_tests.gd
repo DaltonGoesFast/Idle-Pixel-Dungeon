@@ -57,6 +57,7 @@ func _ready() -> void:
 	test_guild_pack_cap(gs)
 	test_identify_queue_all(gs)
 	test_blind_shots(gs)
+	test_artifact_lines(gs)
 	test_vanilla_artifacts(gs)
 	test_trinket_upgrades(gs)
 	await test_guided_surprise_tip(gs)
@@ -2516,3 +2517,18 @@ func test_vanilla_artifacts(gs) -> void:
 	var n0 := float(r.next); c._place(c.hero, Vector2i(2, 1))
 	check(float(r.next) > n0, "Sandals root a neighbour when you step into grass")
 	check(is_equal_approx(float(_art_stats(gs, "thieves_armband", 2).loot_mult), 1.2), "the Armband's gold bonus grows with level")
+
+## DECISIONS #164: artifact stats and per-level growth in camp item details.
+func test_artifact_lines(gs) -> void:
+	print("[artifact lines]")
+	var g := {"uid": 1, "id": "cape_thorns", "lvl": 2, "known": true, "cracked": false, "xp": 3}
+	var L: Array = Codex.artifact_lines(g, 2)
+	check(L.any(func(x): return String(x).begins_with("Thorns 2 dmg") and String(x).contains("every 2 levels")), "cape shows thorns at its level and the step (%s)" % [L])
+	check(String(L[-1]).contains("Desk cap +2"), "a capped artifact says the Desk caps it")
+	g = {"uid": 2, "id": "thieves_armband", "lvl": 1, "known": true, "cracked": false, "xp": 5}
+	L = Codex.artifact_lines(g, 2)
+	check(L.any(func(x): return String(x).begins_with("Fight gold +15%") and String(x).contains("+5% per level")), "armband shows +15% at +1 and +5% per level (%s)" % [L])
+	check(String(L[-1]).contains("5 of 16 won fights to +2"), "XP progress to the next level (%s)" % L[-1])
+	g = {"uid": 3, "id": "timekeepers_hourglass", "lvl": 0, "known": true, "cracked": false}
+	check(Codex.artifact_lines(g, 1).any(func(x): return String(x).begins_with("Opening freeze 0.5 ticks")), "hourglass shows its freeze")
+	check(Codex.artifact_lines({"uid": 4, "id": "ring_might", "lvl": 0}, 2).is_empty(), "non-artifacts get no artifact lines")

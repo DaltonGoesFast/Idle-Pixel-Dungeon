@@ -64,3 +64,34 @@ static func item_known(id: String) -> bool:
 	for c in GameState.heroes:
 		if GameState.heroes[c].unlocked and DB.heroes[c].get("heirloom", "") == id: return true
 	return false
+
+## Artifact stat lines for camp item details (DECISIONS #164): current value at the item's level, the per-level step,
+## and level / Desk cap / XP progress. Keys: [label, unit, scale] (scale 100 shows a multiplier as a percent).
+const ARTIFACT_STATS := {"ht_bonus": ["Max HP", "", 1.0], "search_add": ["Search radius", "", 1.0], "hunger_mult": ["Hunger", "%", 100.0],
+	"thorns": ["Thorns", " dmg", 1.0], "freeze_start": ["Opening freeze", " ticks", 1.0], "grass_root": ["Grass root", " ticks", 1.0],
+	"chain_root": ["Chain hold", " ticks", 1.0], "loot_mult": ["Fight gold", "%", 100.0]}
+static func artifact_lines(g: Dictionary, cap: int, xp_per := 8) -> Array:
+	var d: Dictionary = DB.item(g.id); var out := []
+	if d.get("type", "") != "artifact" or d.get("heirloom", false): return out
+	var lv := int(g.get("lvl", 0)); var pl: Dictionary = d.get("per_level", {})
+	for k in ARTIFACT_STATS:
+		if not d.has(k) and not pl.has(k): continue
+		var spec: Array = ARTIFACT_STATS[k]
+		var base := float(d.get(k, 0.0)); var step := float(pl.get(k, 0.0)); var v := base + step * lv
+		var ints: bool = k in ["ht_bonus", "search_add", "thorns"]
+		if ints: v = floor(v)
+		var txt: String
+		if spec[2] == 100.0:
+			txt = "%s %+d%%" % [spec[0], int(round((v - 1.0) * 100))]
+			if step != 0.0: txt += " (%+d%% per level)" % int(round(step * 100))
+		elif ints:
+			txt = "%s %d%s" % [spec[0], int(v), spec[1]]
+			if step != 0.0: txt += " (+1 every %d levels)" % int(round(1.0 / step)) if step < 1.0 else " (+%d per level)" % int(step)
+		else:
+			txt = "%s %s%s" % [spec[0], str(snappedf(v, 0.01)), spec[1]]
+			if step != 0.0: txt += " (+%s per level)" % str(snappedf(step, 0.01))
+		out.append(txt)
+	var need := xp_per * (lv + 1)
+	if lv >= cap: out.append("Level +%d (Desk cap +%d: upgrade the Enchanter's Desk to grow)" % [lv, cap])
+	else: out.append("Level +%d / cap +%d - %d of %d won fights to +%d" % [lv, cap, int(g.get("xp", 0)), need, lv + 1])
+	return out

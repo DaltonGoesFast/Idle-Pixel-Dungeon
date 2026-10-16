@@ -546,6 +546,15 @@ func gear_stats(g: Dictionary) -> Dictionary:
 		if d.has(k): out[k.replace("_bonus", "").replace("_add", "").replace("ht", "HP").capitalize()] = int(d[k])
 	if d.has("gold_mult"): out["Gold %"] = int(round((float(d.gold_mult) - 1.0) * 100))
 	if d.has("hunger_mult"): out["Hunger %"] = int(round((float(d.hunger_mult) - 1.0) * 100))
+	if d.get("type", "") == "artifact":   # artifact stats at the item's level (DECISIONS #164)
+		var pl: Dictionary = d.get("per_level", {})
+		for k in ["thorns", "freeze_start", "grass_root", "chain_root", "loot_mult", "ht_bonus", "search_add", "hunger_mult"]:
+			if not d.has(k) and not pl.has(k): continue
+			var v := float(d.get(k, 0.0)) + float(pl.get(k, 0.0)) * lv
+			var lab: String = Codex.ARTIFACT_STATS[k][0]
+			if k in ["loot_mult", "hunger_mult"]: out[lab + " %"] = int(round((v - 1.0) * 100))
+			elif k in ["ht_bonus", "search_add", "thorns"]: out[lab] = int(floor(v))
+			else: out[lab] = snappedf(v, 0.01)
 	return out
 
 ## Side-by-side compare window: the item vs the selected hero's equipped item of the same kind.
@@ -592,6 +601,7 @@ func gear_lines(g: Dictionary) -> Array:
 		if not bits.is_empty(): out.append("  ".join(bits))
 		if d.has("desc"): out.append(d.desc)
 		elif bits.is_empty(): out.append(Codex.item_line(g.id))
+		out.append_array(Codex.artifact_lines(g, GameState.enchant_cap(), GameState.ARTIFACT_XP_PER_LVL))   # DECISIONS #164
 	else: out.append("Unidentified. The Enchanter can identify it.")
 	if g.get("cracked", false): out.append("Cracked - repair at the Forge.")
 	if who != "": out.append("Equipped by " + DB.heroes[who].name)
