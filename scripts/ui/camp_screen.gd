@@ -361,7 +361,7 @@ func qty_picker(max_n: int, cost_fn: Callable, verb: String, act: Callable, why0
 	for c in [minus, sl, plus, cnt]: row.add_child(c)
 	var total := UIKit.hbox(box)
 	var tl := UIKit.label("Total:", 0.85, Color("bdb3a0")); tl.autowrap_mode = TextServer.AUTOWRAP_OFF; tl.size_flags_vertical = SIZE_SHRINK_CENTER; total.add_child(tl)
-	var cost_host := HBoxContainer.new(); total.add_child(cost_host)
+	var cost_host := HBoxContainer.new(); cost_host.size_flags_horizontal = SIZE_EXPAND_FILL; total.add_child(cost_host)
 	var why := why0 if max_n < 1 else ""
 	var act_host := UIKit.action("%s x%d" % [verb, maxi(1, n[0])], func(): if n[0] >= 1: act.call(n[0]); _close_info(), why if why != "" else ("" if max_n >= 1 else "can't afford"))
 	box.add_child(act_host)
@@ -391,8 +391,10 @@ func mats_header(id: String) -> HFlowContainer:
 	return f
 
 ## Cost as resource chips; amounts you can't afford are red.
+## Expands so it stays one row beside a label in an HBox (a bare flow stacks one chip per line, DECISIONS #168).
 func cost_row(cost: Dictionary) -> HFlowContainer:
 	var f := HFlowContainer.new(); f.add_theme_constant_override("h_separation", int(UIKit.font_size * 0.6))
+	f.size_flags_horizontal = SIZE_EXPAND_FILL
 	for k in cost:
 		var chip := UIKit.res_chip(k, "%d" % int(cost[k]), 0.85)
 		if GameState.mat(k) < int(cost[k]): (chip.get_child(1) as Label).add_theme_color_override("font_color", Color("ff6a5a"))
@@ -1077,7 +1079,7 @@ func _attune_section(v: VBoxContainer) -> void:
 		row.add_child(UIKit.icon(String(h.wand), -1, "NONE"))
 		var nm := "%s +%d%s" % [DB.item(h.wand).name, int(h.get("wand_lvl", 0)), " (cracked)" if cr else ""]
 		var lv := UIKit.label(nm, 0.85); lv.size_flags_horizontal = SIZE_EXPAND_FILL; row.add_child(lv)
-		row.add_child(cost_row(cost))
+		v.add_child(cost_row(cost))   # own line: beside the name it stacked and clipped (DECISIONS #168)
 		var b := UIKit.action("Repair" if cr else "Upgrade", func(): (GameState.repair_staff_wand() if cr else GameState.upgrade_staff_wand()), why); b.name = "StaffWand"; v.add_child(b)
 	var g2 := slot_grid(v)
 	for g in GameState.gear:

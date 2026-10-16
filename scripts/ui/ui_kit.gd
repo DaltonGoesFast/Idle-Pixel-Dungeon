@@ -284,6 +284,20 @@ static func collapsing_labels(root: Node) -> Array:
 			out.append(l)
 	return out
 
+## HFlowContainers (e.g. CampScreen.cost_row) that will stack one item per line: a flow's minimum width is
+## its widest child, so inside an HBoxContainer it needs SIZE_EXPAND (and so does every HBox around it that sits
+## in another HBox), or "4 ore 10 gold" turns into a column that can clip at the panel edge (DECISIONS #168).
+static func collapsing_flows(root: Node) -> Array:
+	var out := []
+	for f in root.find_children("*", "HFlowContainer", true, false):
+		if not f.is_visible_in_tree(): continue
+		if f.get_children().filter(func(c): return c is Control and c.visible).size() < 2: continue
+		var n: Control = f
+		while n.get_parent() is HBoxContainer:
+			if not (n.size_flags_horizontal & Control.SIZE_EXPAND): out.append(f); break
+			n = n.get_parent()
+	return out
+
 static func res_chip(id: String, text: String, scale := 0.85, icon_px := -1) -> HBoxContainer:
 	var h := HBoxContainer.new()
 	h.add_theme_constant_override("separation", maxi(2, px_scale))

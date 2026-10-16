@@ -24,6 +24,8 @@ Priority: **P1** fix before a public build, **P2** next polish pass, **P3** nice
 | 11 | Artifact XP progress (fights to next level) isn't shown anywhere | #48 | P2 | S |
 | 12 | Forge ring stack with mixed identification: title shows the unknown name while the effect line shows the known copy's description | report dd2bfb4 | P3 | S |
 | 13 | New wand riders aren't in the Codex mob/item inspect toast beyond one line | #46 | P3 | S |
+| 29 | Forge "Upgrade & repair (N cracked)" and its Cracked count include rings/artifacts that only the Enchanter's Desk can repair (the Forge Repair all also repairs them once the Desk allows). Count and list only Forge items there, or label Desk items | report e6a206d | P3 | S |
+| 30 | Attune grid: the staff wand row has no item-slot frame and the Desk items have no captions; ring slots look identical apart from the corner glyph | report e6a206d | P3 | S |
 
 ## Delve screen and status pane
 | # | Item | Source | Pri | Effort |
@@ -32,6 +34,7 @@ Priority: **P1** fix before a public build, **P2** next polish pass, **P3** nice
 | 15 | Menu window overlaps the "Brought" line while open | report b1a4afa | P3 | S |
 | 16 | Potion/scroll badge glyphs float above their icons in the Expedition supply rows | report 4dd90ed | P2 | S |
 | 17 | Transmutation gives no before/after of the item it changed | #51 | P3 | S |
+| 28 | Fold inner: special-room cards with 3 disabled options (Abandoned Shop when broke) need a scroll; each "can't afford" line under its button pushes Leave half below the card edge. Put the reason inside the button or drop the log lines above the title when the card is tall | report e6a206d | P2 | S |
 
 ## Camp windows (Guild, Expedition, Patrol)
 | # | Item | Source | Pri | Effort |

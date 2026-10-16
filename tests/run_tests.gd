@@ -75,6 +75,7 @@ func _ready() -> void:
 	await test_guided_surprise_tip(gs)
 	test_no_collapsing_labels(gs)
 	await test_camp_dock(gs)
+	test_no_stacked_cost_rows(gs)
 	await test_delve_chips(gs)
 	test_owed_sou(gs)
 	await test_icon_sizes(gs)
@@ -2359,6 +2360,36 @@ func test_camp_dock(gs) -> void:
 	check(cs.side.find_child("PatrolScroll", true, false) == null and cs.side.find_child("DelveGo", true, false) != null, "cover dock keeps Delve and leaves patrols to the Guild")
 	cs.queue_free()
 	UIKit.make_theme(fs0)
+
+## Cost rows (HFlowContainer) beside a label or inside the quantity picker must lay out in a row: in an HBox
+## without SIZE_EXPAND they stacked one chip per line and the last number clipped at the panel edge (DECISIONS #168).
+func test_no_stacked_cost_rows(gs) -> void:
+	print("[stacked cost rows]")
+	gs.new_game()
+	for c in gs.heroes: gs.heroes[c].unlocked = true
+	gs.mats.gold = 2000; gs.mats.iron_ore = 40; gs.mats.arcane_resin = 20; gs.mats.scroll_upgrade = 2
+	gs.facilities.enchanter.level = 2; gs.facilities.enchanter.cap = 2; gs.facilities.blacksmith.level = 2
+	gs.heroes.mage.wand = "wand_frost"
+	var ring: int = gs.add_gear("ring_haste", true); var cr: int = gs.add_gear("ring_force", true); gs.gear_by_uid(cr).cracked = true
+	var sw: int = gs.add_gear("shortsword", true); gs.gear_by_uid(sw).cracked = true
+	var mace: int = gs.add_gear("mace", true)
+	check(gs.repair_all_cost().size() >= 2 and gs.staff_wand_cost().size() >= 2, "Repair all and the staff wand cost more than one material")
+	for vs in [Vector2(968, 2376), Vector2(1856, 2160)]:
+		var cs = load("res://scripts/ui/camp_screen.gd").new(); add_child(cs); cs.size = vs
+		var bad := []
+		cs.section["Forge"] = "upgrade"
+		for pg in cs.PAGE_ORDER:
+			cs.open_page(pg)
+			for f in UIKit.collapsing_flows(cs.win_layer): bad.append("%s: %s" % [pg, f.get_parent().get_class()])
+			cs.close_page()
+		cs.open_page("Forge")
+		for uid in [mace, ring]:
+			cs._open_gear_forge(uid)
+			for f in UIKit.collapsing_flows(cs.info_layer): bad.append("upgrade popup %s: %s" % [gs.gear_by_uid(uid).id, f.get_parent().get_class()])
+			cs._close_info()
+		cs.close_page()
+		check(bad.is_empty(), "%s: no cost row stacks one material per line %s" % [vs, bad])
+		cs.queue_free()
 
 func test_crate_slot(gs) -> void:
 	print("[crate slot]")
