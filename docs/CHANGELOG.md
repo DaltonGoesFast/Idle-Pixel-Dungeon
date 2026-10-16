@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- The "next attack is a SURPRISE" status line only shows when a foe you can hit right now (adjacent, or a clear Spirit Bow shot) has lost sight of you, not whenever any foe is out of sight (+tests).
 
 ## 0.30.0
 - Huntress and Mage blind shots, like SPD: the Spirit Bow (tap any tile in range) and wands (Bolt mode) aim at a tile, seen or not. The shot hits the first body on the line and flies through tall grass; walls and closed doors stop it; an empty line wastes it. Wand bolts carry past the aimed tile. Auto Battle takes up to 2 arrows (1 wand charge, keeping one in reserve) at where an unseen foe was last seen, and no longer shoots through bodies (+tests).

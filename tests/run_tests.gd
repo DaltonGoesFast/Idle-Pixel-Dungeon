@@ -57,6 +57,7 @@ func _ready() -> void:
 	test_guild_pack_cap(gs)
 	test_identify_queue_all(gs)
 	test_blind_shots(gs)
+	test_surprise_now(gs)
 	await test_guided_surprise_tip(gs)
 	test_no_collapsing_labels(gs)
 	await test_delve_chips(gs)
@@ -2434,3 +2435,20 @@ func test_bat_drain(gs) -> void:
 		c._mob_act(b)
 		check(int(b.hp) == 10 + case[1], "bat heals dealt-2 like SPD's dealt-4 (DR %d -> +%d, got %d)" % [case[0], case[1], int(b.hp) - 10])
 
+
+## DECISIONS #163: the SURPRISE status line only when the next attack would really surprise a hittable foe.
+func test_surprise_now(gs) -> void:
+	print("[surprise now]")
+	var room := ["########", "#H.#...#", "#..#...#", "#..+..1#", "#..#...#", "#..#...#", "#..#...#", "########"]
+	var ws: Dictionary = gs.hero_stats("warrior")
+	var c := Combat.new(); c.setup(room, ws, int(ws.ht), ["rat"])
+	check(c.surprise_ready() and not c.surprise_now(), "a foe out of sight behind a door is not a hittable Surprise")
+	var r = c.enemies()[0]; r.seen_hero = false; c._place(r, Vector2i(2, 2))
+	check(c.surprise_now(), "an adjacent foe that lost sight of you is a Surprise")
+	r.seen_hero = true
+	var open := ["########", "#H.....#", "#......#", "#......#", "#......#", "#......#", "#.....1#", "########"]
+	var c2 := Combat.new(); c2.setup(open, ws, int(ws.ht), ["rat"]); c2.enemies()[0].seen_hero = true
+	check(not c2.surprise_now(), "no Surprise line when the foe sees you")
+	var hs: Dictionary = gs.hero_stats("huntress")
+	var c3 := Combat.new(); c3.setup(room, hs, int(hs.ht), ["rat"])
+	check(not c3.surprise_now(), "the bow can't surprise through a closed door")

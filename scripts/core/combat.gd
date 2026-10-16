@@ -291,6 +291,17 @@ func surprise_ready() -> bool:
 		if surprise_against(e): return true
 	return false
 
+## Status-line check (DECISIONS #163): the hero's next attack really is a Surprise on a foe it can hit right now:
+## an adjacent foe for melee, or (Spirit Bow; wand bolts are magic and never surprise) the first body on a clear shot.
+func surprise_now() -> bool:
+	if over or hero.is_empty(): return false
+	var bow: bool = not hero.bolt.is_empty() and hero.bolt.get("infinite", false)
+	for e in enemies():
+		if e.hp <= 0 or not surprise_against(e): continue
+		if cheb(e.pos, hero.pos) == 1: return true
+		if bow and can_bolt(e.pos) and bolt_victim(e.pos) == e: return true
+	return false
+
 ## True when the hero is at critical HP (<= 30% max HP) or adjacent enemies / poison could kill them next turn.
 func close_to_dying() -> bool:
 	if over or hero.is_empty(): return false
