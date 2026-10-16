@@ -1,7 +1,10 @@
 # Changelog
 
 ## Unreleased
-- Facilities show their levels as slots: filled, open, and locked. Scrolls of Upgrade unlock a slot, and materials fill it (Upgrade). The slot row was later made smaller so the facility's recipes and supplies stay on screen (+tests).
+
+## 0.41.0
+- Unidentified alchemy brews stay on their own flask. The pot was showing the healing yield's description and sprite, so every unknown potion looked like a Potion of Healing (+tests).
+- Camp facilities show their levels as slots: filled, open, and locked. A Scroll of Upgrade opens the next slot; materials raise a level into an open slot. The slot row stays compact (+tests).
 - Snakes can now be killed at range: wand and staff magic always hits them (as in SPD), and they slip only the first Spirit Bow arrow of each fight. Melee still needs a Surprise (+tests, DECISIONS #172).
 - Enchanter: identify bars no longer jump back. Each queued item now fills from when it was queued to when it finishes, so the waiting bars keep their fill when the front item is done (they used to drop to empty). An Enchanter upgrade keeps every bar where it was, and older saves keep filling from where they load (+tests).
 - Levelling rings and the staff wand at the Enchanter's Desk no longer costs Scrolls of Upgrade, so all 22 Scrolls go to camp caps. Each level costs 4N resin + 75N² gold instead (was 1 Scroll + 3N resin + 50N² gold). Cracked artifacts can be repaired at Desk Lv2 (was Lv3) (+tests).

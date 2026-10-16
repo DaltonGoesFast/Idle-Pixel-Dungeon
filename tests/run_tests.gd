@@ -3035,7 +3035,7 @@ func test_bot_surprise_priority(gs) -> void:
 	c6.terrain[2][4] = Combat.T.CHASM
 	sug = CombatBot.suggest(c6)
 	check(sug.get("mode", "") == "shove", "a chasm shove still beats a Surprise swing (%s)" % sug)
-	# Spirit Bow cashes a Surprise shot instead of walking to a door. A wand cannot surprise a snake.
+	# Spirit Bow cashes a Surprise shot instead of walking to a door. Magic always hits a snake.
 	var door_room := ["########", "#H.....#", "#......#", "#...+..#", "#...#..#", "#...#..#", "#......#", "########"]
 	var hs: Dictionary = gs.hero_stats("huntress")
 	var c7 := Combat.new(); c7.setup(door_room, hs, int(hs.ht), ["snake"])
@@ -3047,7 +3047,7 @@ func test_bot_surprise_priority(gs) -> void:
 	var c8 := Combat.new(); c8.setup(door_room, ms, int(ms.ht), ["snake"])
 	var sn8 = c8.enemies()[0]; sn8.pos = Vector2i(5, 1); sn8.seen_hero = false
 	sug = CombatBot.suggest(c8)
-	check(sug.get("mode", "") != "bolt", "a wand does not spend a charge on a snake it cannot Surprise (%s)" % sug)
+	check(sug.get("mode", "") == "bolt" and sug.pos == sn8.pos, "a wand spends its charge on a snake, since magic always hits (%s)" % sug)
 
 ## DECISIONS #150: maxing every facility takes the whole Scroll of Upgrade supply (4 heroes x 5 bosses + milestones).
 func test_camp_sou_budget(gs) -> void:
