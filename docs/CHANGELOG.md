@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Levelling rings and the staff wand at the Enchanter's Desk no longer costs Scrolls of Upgrade, so all 22 Scrolls go to camp caps. Each level costs 4N resin + 75N² gold instead (was 1 Scroll + 3N resin + 50N² gold). Cracked artifacts can be repaired at Desk Lv2 (was Lv3) (+tests).
 - Abandoning an expedition no longer destroys the Scrolls of Upgrade in the pack: like a death, they are owed and return on the next boss kill. Every Scroll is needed to max the Camp, so one abandon after a boss kill used to make that impossible. The abandon confirm says the Scrolls will come back (+tests).
 - Upgrade costs no longer stack into a column that cuts off the last number: the Enchanter staff wand row (now on its own line), the Forge Repair all row, and the "Total:" of every upgrade quantity picker show their materials in one row (+test).
 - The UI smoke test now opens every special-room card through the real delve screen. v0.40.0 crashed on the four new rooms (no description), and the smoke test missed it because it always picked "Leave" from rolled rooms (+test).

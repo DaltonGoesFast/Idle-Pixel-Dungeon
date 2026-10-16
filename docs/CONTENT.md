@@ -579,10 +579,10 @@ Leveled and repaired at the **Enchanter's Desk**, not the Forge. Item level cap 
 
 | Action | Needs | Cost |
 |---|---|---|
-| Ring / wand to +N | Desk Lv N+1 | 1 Scroll of Upgrade + 3N Arcane Resin + 50N^2 gold (+1: 1 SoU, 3 resin, 50g; +2: 1 SoU, 6 resin, 200g; +3: 1 SoU, 9 resin, 450g; +4: 1 SoU, 12 resin, 800g) |
+| Ring / wand to +N | Desk Lv N+1 | 4N Arcane Resin + 75N^2 gold, no Scroll of Upgrade (+1: 4 resin, 75g; +2: 8 resin, 300g; +3: 12 resin, 675g; +4: 16 resin, 1200g) |
 | Artifact to +N | Desk Lv N+1 | No Scrolls: 8N won fights while equipped |
 | Repair ring / wand | Desk Lv2 | 2 + level Arcane Resin |
-| Repair artifact | Desk Lv3 | 4 + 2 x level resin, 40 + 20 x level gold |
+| Repair artifact | Desk Lv2 | 4 + 2 x level resin, 40 + 20 x level gold |
 
 Per level: Might +1 dmg, Tenacity +1 Barrier, Evasion +1 DR per 2 levels, Wealth +5% gold, Energy +2 HP; staff wand +1 bolt dmg and +1 charge per 2 levels; Chalice +3 HP, Talisman +1 search per 2 levels, Horn -5% hunger. New drops start at +0 with lower base power: Tenacity +1 Barrier (was 2), Wealth +15% (was 30%), Energy +2 HP (was 4), Chalice +6 HP (was 15), Horn x0.8 hunger (was 0.6). On death, equipped rings/artifacts crack as before; an imbued wand with levels cracks too (its levels go dormant, base bolt still works). The free Patch up only covers weapons and armor.
 

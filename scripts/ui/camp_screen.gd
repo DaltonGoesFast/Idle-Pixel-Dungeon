@@ -1069,7 +1069,7 @@ func _forge_upgrade_section(v: VBoxContainer) -> void:
 func _attune_section(v: VBoxContainer) -> void:
 	var cap := GameState.enchant_cap()
 	v.add_child(UIKit.header("Attune rings, wands & artifacts (cap +%d)" % cap))
-	if cap <= 0: v.add_child(UIKit.label("Upgrade the Desk to Lv2 to level and repair rings and wands (Lv3: repair artifacts).", 0.8, Color("9a9488")))
+	if cap <= 0: v.add_child(UIKit.label("Upgrade the Desk to Lv2 to level and repair rings, wands and artifacts.", 0.8, Color("9a9488")))
 	var h: Dictionary = GameState.heroes.mage
 	if String(h.get("wand", "")) != "":
 		var cr: bool = h.get("wand_cracked", false)

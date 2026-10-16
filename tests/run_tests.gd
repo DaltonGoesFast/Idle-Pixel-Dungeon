@@ -2696,7 +2696,9 @@ func test_trinket_upgrades(gs) -> void:
 	check(gs.upgrade_max(ru) == 0, "upgrade_max is 0 at Desk Lv1")
 	gs.facilities.enchanter.level = 2
 	check(gs.can_upgrade_item(ru) == "", "a Lv2 Desk can level a ring to +1")
-	check(gs.upgrade_item(ru) and int(gs.gear_by_uid(ru).lvl) == 1 and gs.mat("scroll_upgrade") == 4, "ring upgrade costs a Scroll of Upgrade")
+	check(gs.upgrade_item(ru) and int(gs.gear_by_uid(ru).lvl) == 1 and gs.mat("scroll_upgrade") == 5 and gs.mat("arcane_resin") == 96 and gs.mat("gold") == 4925, "ring upgrade costs resin + gold, never a Scroll of Upgrade")
+	check(not gs.trinket_step_cost(1).has("scroll_upgrade") and not gs.trinket_step_cost(2).has("scroll_upgrade"), "no trinket level costs a Scroll (all 22 go to camp caps)")
+	check(gs.trinket_step_cost(2).arcane_resin == 8 and gs.trinket_step_cost(2).gold == 300, "+2 costs 8 resin + 300 gold")
 	check(gs.can_upgrade_item(ru).begins_with("Enchanter cap"), "the Desk caps the ring at +1")
 	var old_r := int(gs.heroes.warrior.ring); gs.heroes.warrior.ring = 0
 	var d0 := int(gs.hero_stats("warrior").dmg); gs.heroes.warrior.ring = ru
@@ -2709,14 +2711,17 @@ func test_trinket_upgrades(gs) -> void:
 	gs.facilities.enchanter.level = 2
 	check(gs.repair(ru) and not gs.gear_by_uid(ru).cracked, "Desk Lv2 repairs the ring")
 	gs.heroes.warrior.ring = old_r
-	# artifact: no scrolls, levels by won fights up to the cap, repair at Lv3
+	# artifact: no scrolls, levels by won fights up to the cap, repair at Lv2
 	var au: int = gs.add_gear("chalice_blood", true)
 	check(gs.can_upgrade_item(au) == "artifacts level up by use", "artifacts don't take Scrolls")
 	var old_a := int(gs.heroes.warrior.get("artifact", 0)); gs.heroes.warrior.artifact = au
 	for i in 30: gs.charge_artifact("warrior")
 	check(int(gs.gear_by_uid(au).lvl) == 1, "won fights level the artifact, capped at the Desk cap (+%d)" % gs.gear_by_uid(au).lvl)
 	gs.gear_by_uid(au).cracked = true
-	check(gs.can_repair(au).begins_with("needs Enchanter's Desk Lv3"), "artifact repair needs Desk Lv3")
+	gs.facilities.enchanter.level = 1
+	check(gs.can_repair(au).begins_with("needs Enchanter's Desk Lv2"), "artifact repair needs Desk Lv2")
+	gs.facilities.enchanter.level = 2
+	check(gs.repair(au) and not gs.gear_by_uid(au).cracked, "Desk Lv2 repairs an artifact")
 	gs.heroes.warrior.artifact = old_a
 	# staff wand
 	gs.heroes.mage.wand = "wand_magic_missile"; gs.heroes.mage.wand_lvl = 0; gs.heroes.mage.wand_cracked = false
@@ -2951,6 +2956,8 @@ func test_camp_sou_budget(gs) -> void:
 	check(supply >= DB.heroes.size() * bosses, "supply counts every hero's first kill of every boss (%d)" % supply)
 	check(gs.total_sou_to_max() >= supply, "maxing the camp costs >= every Scroll the game grants (%d vs %d)" % [gs.total_sou_to_max(), supply])
 	check(gs.total_sou_to_max() == supply, "and is still reachable: cost == supply (%d)" % supply)
+	for lv in range(1, 4):
+		check(not gs.trinket_step_cost(lv).has("scroll_upgrade"), "trinket +%d spends no Scroll, so camp caps keep all %d" % [lv, supply])
 	gs.new_game()
 	for id in ["blacksmith", "alchemy", "guild", "enchanter"]:
 		check(gs.sou_cap_cost(id) == 1, "%s: first cap raise is 1 Scroll (first boss kill buys it)" % id)

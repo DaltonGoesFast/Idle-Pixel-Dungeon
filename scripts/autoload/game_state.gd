@@ -756,9 +756,9 @@ func repair(uid: int) -> bool:
 
 # ---------------------------------------------------------------- rings, wands, artifacts (DECISIONS #158)
 ## Rings, wands and artifacts ("trinkets") level and repair at the Enchanter's Desk, not the Forge.
-## Max item level = Desk level - 1 (Lv1: +0 only). Rings/wands: 1 Scroll of Upgrade + resin + gold per level.
+## Max item level = Desk level - 1 (Lv1: +0 only). Rings/wands: resin + gold per level, no Scrolls (DECISIONS #170).
 ## Artifacts can't take Scrolls (SPD): they gain XP from won fights, capped by the same Desk cap.
-## Repair: rings/wands need Desk Lv2, artifacts Lv3. Patch up (free) never covers them.
+## Repair: rings, wands and artifacts need Desk Lv2. Patch up (free) never covers them.
 func is_trinket(g: Dictionary) -> bool:
 	return not g.is_empty() and DB.item(g.id).type in ["ring", "wand", "artifact"] and not DB.item(g.id).get("heirloom", false)
 
@@ -766,10 +766,10 @@ func enchant_cap() -> int:
 	return maxi(0, facility_level("enchanter") - 1)
 
 static func trinket_step_cost(next_lvl: int) -> Dictionary:
-	return {"scroll_upgrade": 1, "arcane_resin": 3 * next_lvl, "gold": 50 * next_lvl * next_lvl}
+	return {"arcane_resin": 4 * next_lvl, "gold": 75 * next_lvl * next_lvl}   # no Scrolls: all 22 go to camp caps (DECISIONS #170)
 
 static func trinket_repair_level(t: String) -> int:
-	return 3 if t == "artifact" else 2
+	return 2   # artifacts too since DECISIONS #170 (was Lv3)
 
 static func trinket_repair_cost(t: String, lvl: int) -> Dictionary:
 	if t == "artifact": return {"arcane_resin": 4 + 2 * lvl, "gold": 40 + 20 * lvl}
