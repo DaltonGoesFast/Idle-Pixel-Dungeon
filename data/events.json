@@ -743,6 +743,44 @@
     "halls"
    ],
    "icon": "ration"
+  },
+  {
+   "id": "gnoll_camp",
+   "biomes": [
+    "sewers",
+    "prison"
+   ],
+   "min_floor": 3,
+   "title": "Gnoll Camp",
+   "icon": "TORCH",
+   "options": [
+    {
+     "text": "Raid the camp",
+     "fight": [
+      "gnoll",
+      "gnoll",
+      "gnoll"
+     ],
+     "reward": {
+      "item_unknown": "wand",
+      "gold": 25,
+      "iron_ore": 3
+     }
+    },
+    {
+     "text": "Sneak in and grab the stash (-10 torch)",
+     "cost": {
+      "torch_fuel": 10
+     },
+     "reward": {
+      "gold": 10,
+      "iron_ore": 1
+     }
+    },
+    {
+     "text": "Leave"
+    }
+   ]
   }
  ]
 }

@@ -36,6 +36,7 @@ func _ready() -> void:
 	test_rooms_surprise(gs)
 	test_paperdoll(gs)
 	test_specials(gs)
+	test_gnoll_camp(gs)
 	test_icon_centering(gs)
 	test_armor_tiers(gs)
 	test_floor_label(gs)
@@ -2434,3 +2435,14 @@ func test_bat_drain(gs) -> void:
 		c._mob_act(b)
 		check(int(b.hp) == 10 + case[1], "bat heals dealt-2 like SPD's dealt-4 (DR %d -> +%d, got %d)" % [case[0], case[1], int(b.hp) - 10])
 
+func test_gnoll_camp(gs) -> void:
+	print("[gnoll camp]")
+	gs.new_game(); gs.start_run("warrior", {}, "sewers", 3)
+	gs.run.floor = 2
+	check(not ("gnoll_camp" in Delve._for_biome(DB.specials, gs.run).map(func(x): return x.id)), "no Gnoll Camp before Sewers floor 3")
+	gs.run.floor = 3
+	check("gnoll_camp" in Delve._for_biome(DB.specials, gs.run).map(func(x): return x.id), "Gnoll Camp can appear from floor 3")
+	var gc: Dictionary = DB.specials.filter(func(x): return x.id == "gnoll_camp")[0]
+	var fe := Delve.combat_event(gs.run, Delve.rng_for(gs.run, 55), gc.options[0].fight)
+	check(fe.mobs.count("gnoll") >= 3, "raiding the camp is a fight with three gnolls")
+	gs.end_run("abandon")

@@ -127,8 +127,9 @@ static func build_event(run: Dictionary, ev: Dictionary) -> Dictionary:
 			return {"kind": "special", "special": ss[r.randi() % ss.size()]}
 	return combat_event(run, r)
 
+## Entries for this biome; an optional "min_floor" keeps tougher rooms off the first floors (DECISIONS #154).
 static func _for_biome(list: Array, run: Dictionary) -> Array:
-	return list.filter(func(x): return run.biome in x.get("biomes", [run.biome]))
+	return list.filter(func(x): return run.biome in x.get("biomes", [run.biome]) and int(run.floor) >= int(x.get("min_floor", 0)))
 
 ## Rooms used for ordinary fights. Sewers/Prison keep shared 8x8s; later biomes use larger maps only.
 static func room_pool(run: Dictionary) -> Array:
