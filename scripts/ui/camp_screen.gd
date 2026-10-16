@@ -711,8 +711,9 @@ func _facility_header(v: VBoxContainer, id: String) -> void:
 	pb.custom_minimum_size.y = UIKit.font_size * 0.5; pb.tooltip_text = "Max level %d (cap raised by Scrolls of Upgrade)" % d.max; cv.add_child(pb)
 	cv.add_child(UIKit.label(d.desc, 0.8, Color("bdb3a0")))
 	var why: String = GameState.can_upgrade_facility(id)
-	if cap < int(d.max) and GameState.mat("scroll_upgrade") > 0:
-		_foot().add_child(UIKit.button("Apply Scroll of Upgrade (raise cap)", func(): GameState.apply_sou(id)))
+	var need: int = GameState.sou_cap_cost(id)
+	if need > 0 and GameState.mat("scroll_upgrade") > 0:   # DECISIONS #150: later caps cost several Scrolls
+		_foot().add_child(UIKit.button("Raise cap: %d Scroll%s of Upgrade (have %d)" % [need, "" if need == 1 else "s", GameState.mat("scroll_upgrade")], func(): GameState.apply_sou(id), GameState.mat("scroll_upgrade") >= need))
 	if f.level < int(d.max):
 		cv.add_child(UIKit.label("Next: " + _preview(id, f.level + 1), 0.85, Color("9fd3ff")))
 		var ur := UIKit.hbox(_foot())

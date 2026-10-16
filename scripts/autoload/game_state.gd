@@ -573,7 +573,7 @@ static func facility_title(fname: String, level: int, cap: int, mx: int) -> Stri
 func can_upgrade_facility(id: String) -> String:
 	var f: Dictionary = facilities[id]
 	if f.level >= int(DB.facilities[id].max): return "max level"
-	if f.level >= facility_cap(id): return "capped - apply a Scroll of Upgrade"
+	if f.level >= facility_cap(id): return "capped - apply %d Scroll%s of Upgrade" % [sou_cap_cost(id), "" if sou_cap_cost(id) == 1 else "s"]
 	if not can_afford(facility_upgrade_cost(id)): return "need " + cost_text(facility_upgrade_cost(id))
 	return ""
 
@@ -584,11 +584,39 @@ func upgrade_facility(id: String) -> bool:
 	if id == "enchanter": rescale_identify(id_old, identify_seconds())
 	say("%s upgraded to level %d." % [DB.facilities[id].name, facilities[id].level]); touch(); return true
 
+## Scrolls of Upgrade needed to raise this facility's cap by one (0 at max). Cheap first raise, steep last raise,
+## so maxing the whole camp takes every Scroll the game hands out: each hero's first kill of each boss plus the
+## Scroll milestones (DECISIONS #150).
+func sou_cap_cost(id: String) -> int:
+	var d: Dictionary = DB.facilities[id]
+	var cap := facility_cap(id)
+	if cap >= int(d.max): return 0
+	var cs: Array = d.get("cap_scrolls", [])
+	return int(cs[cap - 1]) if cap - 1 < cs.size() else 1
+
+## Every Scroll of Upgrade the game can ever grant: one per hero per boss (first kill only, record_boss_kill) plus
+## milestone rewards. Owed Scrolls (lost on death, returned on the next boss kill) are the same Scrolls, not new ones.
+static func total_sou_supply() -> int:
+	var n: int = DB.heroes.size() * DB.biomes.values().filter(func(b): return b is Dictionary and str(b.get("boss", "")) != "").size()
+	for m in DB.milestones: n += int(m.get("reward", {}).get("scroll_upgrade", 0))
+	return n
+
+## Total Scrolls of Upgrade to raise every facility from cap 1 to max.
+static func total_sou_to_max() -> int:
+	var n := 0
+	for id in DB.facilities:
+		var d = DB.facilities[id]
+		if not (d is Dictionary): continue
+		var cs: Array = d.get("cap_scrolls", [])
+		for c in range(1, int(d.max)): n += int(cs[c - 1]) if c - 1 < cs.size() else 1
+	return n
+
 func apply_sou(id: String) -> bool:
 	var f: Dictionary = facilities[id]
-	if mat("scroll_upgrade") < 1 or facility_cap(id) >= int(DB.facilities[id].max): return false
-	add_mat("scroll_upgrade", -1); f.cap = facility_cap(id) + 1
-	say("Scroll of Upgrade: %s cap raised to %d." % [DB.facilities[id].name, f.cap]); touch(); return true
+	var need := sou_cap_cost(id)
+	if need <= 0 or mat("scroll_upgrade") < need: return false
+	add_mat("scroll_upgrade", -need); f.cap = facility_cap(id) + 1
+	say("%d Scroll%s of Upgrade: %s cap raised to %d." % [need, "" if need == 1 else "s", DB.facilities[id].name, f.cap]); touch(); return true
 
 func recipe(fac: String, rid: String) -> Dictionary:
 	for r in DB.recipes.get(fac, []):

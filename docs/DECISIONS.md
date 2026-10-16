@@ -460,3 +460,71 @@ v0.29 made tall grass and closed doors block sight, and `can_bolt` required sigh
 - Sight memory: when it is the hero's turn, every enemy in the hero's sight records `last_seen = [x, y]` (plain array, so it saves and restores with the fight).
 - CombatBot only takes aimed shots at foes it can see whose line is clear of other bodies (`_can_shoot`; before, it could shoot through bodies). With nothing in sight and nothing adjacent, it shoots at an unseen foe's `last_seen`: up to 2 arrows per sighting, or 1 wand charge while 2+ remain.
 Covered by `test_blind_shots` (hidden rat in grass hit, empty tile wastes the shot, the first body takes it, a closed door stops it, a wand bolt carries past, last_seen survives save/load, the bot's blind shot).
+
+## 150. `verify_apk.sh` finds Java the way the Godot export does
+`apksigner` is a Java program, but Godot's Android export finds Java through its own editor setting (`export/android/java_sdk_path`), not `PATH`. A machine can export an APK and still have no `java` on `PATH`; the playtest box is one (`/workspace/tools/jdk17` lives only in `editor_settings-4.7.tres`). Before #141 that was hidden: `"$BT/apksigner" verify "$APK" && echo "ok apksigner"` is an `&&` list, which `set -e` does not stop on, so a failed signature check (or "java: not found") was skipped silently and the script still printed `VERIFY: PASS` (the a8e5fe0 playtest's `verify-apk` log shows exactly this). Since #141 the certificate check's command substitution fails under `pipefail`, so `verify_apk.sh` and `build.sh` now stop with only `exec: java: not found` and exit 127, with no hint about what to fix. Now `verify_apk.sh`:
+- uses `java` from `PATH` if there is one, else `$JAVA_HOME`, else `export/android/java_sdk_path` from the newest `editor_settings-4*.tres` (Linux `~/.config/godot`, macOS `~/Library/Application Support/Godot`, Windows `%APPDATA%/Godot`), and prints `ok java from …` when it had to look;
+- otherwise fails with `JAVA NOT FOUND` and the three ways to fix it;
+- fails if `apksigner verify` fails (no more silent skip), and fails clearly if the signer digest can't be read, instead of printing "signed by  but …".
+The certificate pin itself (#141) is unchanged. Covered by `test_verify_apk_java`, which runs the script against a stub SDK, a stub JDK and a stub editor settings file.
+
+## 150. Camp maxes only after every hero beats every boss
+Facility caps were raised by 1 Scroll of Upgrade each, so maxing the camp (4 facilities x 2 cap raises) took 8 Scrolls. Supply: `record_boss_kill` grants 1 Scroll per hero per boss on the first kill only, 4 heroes x 5 bosses (Goo, Tengu, DM-300, Dwarf King, Yog) = 20, plus the Jailbreak and Full Roster milestones (+1 each) = **22**. Owed Scrolls (lost on death, returned by `grant_owed_sou` on the next boss kill) are the same Scrolls coming back, not new supply, so they are not counted. Gold and materials were never the gate: in the v0.30 deep sim heroes end campaigns with 800-4500 gold, while the Lv3 costs are at most 200 gold / 20 ore / 16 seeds / 6 resin.
+New `cap_scrolls` per facility in `data/facilities.json`, cost to raise cap C -> C+1 = `cap_scrolls[C-1]`:
+| Facility | Cap 1->2 | Cap 2->3 | Total |
+|---|---|---|---|
+| Blacksmith | 1 | 5 | 6 |
+| Guild Hall | 1 | 5 | 6 |
+| Alchemy Pot | 1 | 4 | 5 |
+| Enchanter's Desk | 1 | 4 | 5 |
+| **All** | 4 | 18 | **22** (was 8) |
+The first Goo kill still buys a Lv2 cap; all four Lv2 caps cost 4 Scrolls (one hero through Dwarf King, or a couple of heroes past Goo). The Lv3 caps need 18 more, so the last one lands only with the final first kills (Yog on the last hero). Blacksmith and Guild are the steeper 5s because they gate gear +3 and the 10-supply pack. `apply_sou` spends all the Scrolls at once or none. `GameState.total_sou_supply()` / `total_sou_to_max()` compute both sides from data, and `test_camp_sou_budget` asserts cost >= supply (and == supply, so it stays reachable); adding a boss, hero or Scroll milestone without raising `cap_scrolls` fails the test. Existing saves keep caps they already raised.
+Estimate from the v0.30 deep sim (one hero, 40 expeditions per campaign, 8 campaigns): a hero earns 3-5 Scrolls (2-4 boss first kills + Jailbreak) and no sim hero beat Yog. Before: 5 Scrolls = 5 of 8 caps by run 12-34, and two heroes' campaigns (~60-80 expeditions) maxed the camp. After: the same 5 Scrolls buy the four Lv2 caps plus 1 toward a Lv3; two heroes (~9-10 Scrolls) get one Lv3 facility; maxing needs all 20 boss first kills, i.e. 160+ expeditions at sim pace.
+
+## 151. Trapped Vault: special-room fights can use their own map
+Special-room fights (`"fight"` options) always used a random ordinary room, so a room's theme never reached the battlefield. A fight option may now carry `"room"`: its own map in rooms.json legend (`Delve.special_fight_event`, used by DelveScreen; without `room` it behaves exactly as before). First user: `trap_vault` (all biomes) - fight this floor's encounter on an 8x8 with 2 visible and 4 hidden traps from the biome pool, for an unknown ring + 20 gold; a Rogue disarms it for the same loot; or leave. The map has a real doorway so snake encounters still get their threshold (the snake rule in `combat_event`). No combat numbers change.
+Iteration in the deep campaign sim (4 classes x 2 seeds x 40 runs): a first doorless map with 12 traps killed 43 of 121 challengers (36%; snakes in the open plus traps). The shipped map: 143 fights, 5 deaths (3.5%, close to the Animated Statue's ~2%), 72 free Rogue disarms, seen ~200 times per campaign set. 3 of the 5 deaths were Huntress on Sewers floor 4 vs crab+snake+snake, the same spot that is already the top non-boss killer. Covered by `test_trap_vault`.
+
+## 152. Chained Prisoner (Prison special room)
+SPD's Prison is full of captives, but no special room used that theme. `prisoner` (Prison only) offers: unlock the shackles with 1 Iron Key (ration + 10 gold), fight the jailers (a guard + a thief, the floor-7+ Prison pair, in a normal Prison room) for an unknown scroll + ration + 15 gold, or leave. Pure data in `events.json`; no combat numbers change.
+Deep campaign sim (4 classes x 2 seeds x 40 runs, Auto policy, plus a pass that forces the fight): seen 45 times per campaign set, 71 jailer fights, 0 deaths, 4% mean HP lost (max 80%). The key option is what the Auto policy takes when it has a key. Covered by `test_prisoner`.
+
+## 153. Abandoned Shop (gold sink inside a run)
+Gold found during a run had no use until extraction, and SPD has shops on the way down. `abandoned_shop` (all biomes) lets the hero spend gold carried in the pack this run: ration 20, torch 15, unknown potion 35, or leave. Stash gold is not usable (same rule as every other run cost: `Delve.pay` only reaches run supplies, the pack, and stash keys). Bought rations/torches go straight to supplies (`Delve.reward`). Pack gold is lost on death anyway, so this is a real choice: bank it or turn it into survival now. Pure data.
+Deep campaign sim (4 classes x 2 seeds x 40 runs): seen 197 times; the Auto policy (which buys the first affordable line, usually a ration) bought something on every visit. No deaths attributable. Covered by `test_abandoned_shop`.
+
+## 154. Gnoll Camp mini-boss room + floor gate for special rooms
+Sewers had no optional 'big fight for big loot' beyond the single statue. `gnoll_camp` (Sewers and Prison) is a three-gnoll raid for an unknown wand + 25 gold + 3 iron ore, or sneak the stash for 10 torch (10 gold + 1 ore), or leave. Three bodies at once is too much for floor 1-2, so special rooms gain an optional `min_floor` (`Delve._for_biome`, also used by door cards); the camp uses `min_floor: 3`. Existing entries have no `min_floor` and are unaffected. No combat numbers change.
+Deep campaign sim (4 classes x 2 seeds x 40 runs, plus a pass that forces the raid): 140 raids on floors 3-10, 0 deaths, 2% mean HP lost (max 74%). It is a safe loot room on today's combat; if the combat rework makes gnolls tougher, re-check it. Covered by `test_gnoll_camp`.
+
+## 155. Vanilla SPD enemy behaviours
+Most mobs were stat blocks with SPD's names; their signature tricks were missing. Compared every `data/mobs.json` entry with `actors/mobs/*.java` in 00-Evan/shattered-pixel-dungeon and added the ones that fit a turn-based 8-12 tile room. Base HT, damage and DR are unchanged; each behaviour has its own key.
+- **Shots need a line** (`Combat.mob_can_shoot`, SPD Ballistica PROJECTILE): gnoll spears, DM-100/shaman/warlock zaps and spinner webs need sight (walls, closed doors, tall grass block it, matching #149) and stop at the first body. The Evil Eye's beam ignores bodies.
+- **Casters hold range** (`holds_range`: shaman, warlock, Bright Fist): with a clear shot at range 2-4 they stay put and reload instead of walking into melee, like SPD's `canAttack` via bolt. Tried on gnolls and DM-100s too: Sewers floor 1-2 deaths at doors to gnoll pairs and Prison DM-100 pairs (10 deaths) turned the Warrior's early game into a wall (deep-sim deaths 56 -> 125, one Warrior seed never left the Sewers), so those two keep closing in. Vanilla gnolls are melee anyway (the thrower is the Trickster).
+- **DM-100** lightning x1.5 when you stand in water (`zap_water`).
+- **Shaman colours** (`zap_debuffs`, chosen by uid): red = Weakness (melee x0.67), blue = Vulnerable (damage taken x1.33), 3 turns. Purple (Hex) is skipped: we have no accuracy roll for it to affect. **Warlock** shadow bolt = Weakness.
+- **Evil Eye** (`zap_beam`): the telegraph covers the whole line through you to range 6 and the eye charges while it is up (SPD DisintegrationRay); step sideways.
+- **Spinner** (`ability: web`): every 4 actions spits a web at range 2-4 (red tile); hit = rooted 2 turns (you can attack, a step spends the turn).
+- **Scorpio** bite cripples 2 turns (steps cost 2 ticks). Holding range was tried and dropped: cripple + spit from range killed a Lv18 tier-5 Warrior in 8 of 32 Halls fights.
+- **Monk** every 3rd hit knocks your weapon aside (Weakness 2 turns), our version of SPD's disarm.
+- **Succubus** (`ability: blink`): once per fight blinks next to a hero it sees at range 3+, only if no other enemy is adjacent. Unlimited / stacked blinks let two succubi gank the Halls test Warrior (2 losses).
+- **Ripper Demon** (`ability: leap`): telegraphed leap onto your tile from range 2-4 (its melee damage), then lands there; cooldown 4.
+- **Golem** (`ability: teleport`): every 6 actions pulls a hero it sees at range 3+ to its side, so its slowness is no longer a free kite.
+- Already in place and left alone: crab/bat/monk/ripper speed, bat drain, thief steal-and-flee, guard chain, ghoul revive, skeleton bone burst, brute enrage, Goo/Tengu/DM-300/King/Yog kits.
+- Skipped: Necromancer, Fire Elemental, Swarm of Flies (not in the game; new mobs are content, not behaviour), Succubus charm (would need charm handling in Auto Battle and the UI), Brute "dies raging" (our below-half enrage is the stand-in), Golem self-teleport.
+- Hero debuffs live in `hero.debuffs[id] = expiry time` (saved with the fight). They only show in the log for now; status icons are a polish item.
+
+Deep campaign sim (`balrun.sh`, 4 classes x 2 seeds x 40 runs, plus 25-seed Goo first try):
+
+| | v0.30 (9687597) | #155 |
+|---|---|---|
+| total deaths | 56 | 70 |
+| Sewers / Prison / Caves / City / Halls deaths | 35 / 1 / 7 / 9 / 4 | 38 / 1 / 9 / 14 / 8 |
+| deaths W / M / R / H | 13 / 25 / 7 / 11 | 13 / 33 / 10 / 14 |
+| Goo first try | 24% | 25% |
+| top killers (non-boss) | crab+snake+snake 15, golem pair 6 | crab+snake+snake 15, succubus pair 5 |
+
+Covered by `test_vanilla_mobs`.
+
+## 162. Polish backlog in docs/POLISH.md
+Visual and feel polish is batched for the end, after combat and balance settle, so it isn't redone. Polish that changes how the game plays (broken screen, unreadable text, confusing control) is still fixed right away in small PRs. Everything else goes into `docs/POLISH.md`, grouped by screen with a priority (P1 before a public build, P2 next pass, P3 nice to have) and an effort (S/M/L). Content blocked on the combat rework (thrown weapons and bombs, exotics, wand retuning, enchantments) is listed there in a separate deferred section. Agents append to it when a PR or playtest report notes a polish item.

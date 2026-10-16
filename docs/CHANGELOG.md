@@ -1,6 +1,14 @@
 # Changelog
 
 ## Unreleased
+- `tools/verify_apk.sh` finds Java like the Godot export does: `PATH`, then `JAVA_HOME`, then Editor Settings > Export > Android > Java SDK Path. Without Java it now fails with "JAVA NOT FOUND" and how to fix it (it used to stop on a bare `java: not found`, and before the signing pin it skipped the signature check silently and still printed PASS). A failed `apksigner verify` now fails the script (+test).
+- New `docs/POLISH.md`: the polish backlog from today's PRs and playtest reports, grouped by screen with priority and effort, plus what waits for the combat rework.
+- Camp upgrades are gated on the whole Scroll of Upgrade supply: raising a facility's cap to Lv2 still costs 1 Scroll, but the Lv3 cap now costs 5 (Blacksmith, Guild) or 4 (Alchemy, Enchanter). Maxing all four facilities takes 22 Scrolls, which is every Scroll the game grants (4 heroes x 5 bosses, first kill only, + Jailbreak + Full Roster). Was 8, reachable by about two heroes clearing the City. The cap button shows the Scroll count; gold and material costs are unchanged; caps on existing saves are kept (+tests).
+- New special room in every biome: Trapped Vault. Fight the floor's encounter on a trap-strewn floor (2 visible, 4 hidden) for an unknown ring and gold, or disarm it for free as the Rogue. Special-room fight options can now name their own map (+test).
+- New Prison special room: Chained Prisoner. Free them with an Iron Key (ration + gold) or fight a guard and a thief for an unknown scroll, a ration and gold (+test).
+- New special room in every biome: Abandoned Shop. Spend gold carried this run on a ration (20), a torch (15) or an unknown potion (35) (+test).
+- New special room: Gnoll Camp (Sewers floor 3+ and Prison). Raid three gnolls for an unknown wand, gold and ore, or sneak the stash for torch. Special rooms can now set a `min_floor` (+test).
+- Vanilla SPD enemy behaviours: mob shots need a clear line (bodies block them), shamans/warlocks hold range and their bolts debuff (red shaman + warlock: Weakness, blue shaman: Vulnerable), DM-100 lightning x1.5 in water, Evil Eye beam covers the whole line, Spinner webs root, Scorpio stings cripple, Monks disarm every 3rd hit, Succubus blinks in once, Ripper leaps, Golem pulls you to it. Base HP/damage/armor unchanged. Deep-sim deaths 56 -> 70, Goo first try 24% -> 25% (+tests).
 
 ## 0.30.0
 - Huntress and Mage blind shots, like SPD: the Spirit Bow (tap any tile in range) and wands (Bolt mode) aim at a tile, seen or not. The shot hits the first body on the line and flies through tall grass; walls and closed doors stop it; an empty line wastes it. Wand bolts carry past the aimed tile. Auto Battle takes up to 2 arrows (1 wand charge, keeping one in reserve) at where an unseen foe was last seen, and no longer shoots through bodies (+tests).

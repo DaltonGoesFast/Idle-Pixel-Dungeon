@@ -2,6 +2,8 @@
 
 Everything here is data-driven (`data/*.json`). Add content by editing JSON; no code changes are needed for new mobs (melee), rooms, encounter sets, recipes, door choices or special rooms. New *mechanics* (abilities like `throw`/`pump`) live in `scripts/core/combat.gd::_mob_act`.
 
+**Vanilla enemy behaviours (DECISIONS #155).** Mob shots (`throw`, `zap`, `web`) need sight (walls, closed doors, tall grass block it) and a body-free line (`Combat.mob_can_shoot`). Mobs with `holds_range` (shaman, warlock, Bright Fist) stay put while they have a clear shot in range instead of walking into melee. Per-mob keys: `zap_water` (damage multiplier if the hero stands in water), `zap_debuffs` (debuff a zap applies, picked by uid), `zap_beam` (Evil Eye: whole line to range 6), `web_range`/`web_cooldown`/`web_root` (Spinner), `bite_cripple` (Scorpio), `disarm_every`/`disarm_t` (Monk), `ability: blink` + `blink_cooldown` (Succubus), `ability: leap` + `leap_range`/`leap_cooldown` (Ripper), `ability: teleport` + `tele_cooldown` (Golem). Hero debuffs live in `hero.debuffs[id] = expiry time`: `weak` (melee x0.67), `vuln` (damage taken x1.33), `root` (a step spends the turn), `cripple` (steps cost 2 ticks).
+
 Assets used (all from Shattered Pixel Dungeon, GPL-3.0): hero sprites (warrior, mage), mobs (rat, snake, gnoll, crab, statue, goo, piranha), `tiles_sewers.png`, `items.png` icons, ~30 sound effects, music (`sewers_1`, `sewers_boss`, `theme_1`).
 
 <!-- GENERATED -->
@@ -66,6 +68,10 @@ Assets used (all from Shattered Pixel Dungeon, GPL-3.0): hero sprites (warrior, 
 | treasury | sewers, prison, caves, city, halls | Collapsed Treasury | Dig it out (-10 torch) / Grab what you can |
 | shrine | city, halls | Forgotten Shrine | Offer blood (-12 HP) / Leave |
 | larder | sewers, prison, caves, city, halls | Larder | Eat your fill / Pack rations |
+| trap_vault | sewers, prison, caves, city, halls | Trapped Vault | Disarm and loot it (Rogue) / Fight the guards among the plates / Leave |
+| prisoner | prison | Chained Prisoner | Unlock the shackles (1 Iron Key) / Fight the jailers / Leave |
+| abandoned_shop | sewers, prison, caves, city, halls | Abandoned Shop | Buy a ration (20 gold) / Buy a torch (15 gold) / Buy an unknown potion (35 gold) / Leave |
+| gnoll_camp | sewers, prison | Gnoll Camp | Raid the camp / Sneak in and grab the stash (-10 torch) / Leave |
 
 ### Arenas
 

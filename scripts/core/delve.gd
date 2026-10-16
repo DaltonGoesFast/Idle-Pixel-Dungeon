@@ -127,8 +127,9 @@ static func build_event(run: Dictionary, ev: Dictionary) -> Dictionary:
 			return {"kind": "special", "special": ss[r.randi() % ss.size()]}
 	return combat_event(run, r)
 
+## Entries for this biome; an optional "min_floor" keeps tougher rooms off the first floors (DECISIONS #154).
 static func _for_biome(list: Array, run: Dictionary) -> Array:
-	return list.filter(func(x): return run.biome in x.get("biomes", [run.biome]))
+	return list.filter(func(x): return run.biome in x.get("biomes", [run.biome]) and int(run.floor) >= int(x.get("min_floor", 0)))
 
 ## Rooms used for ordinary fights. Sewers/Prison keep shared 8x8s; later biomes use larger maps only.
 static func room_pool(run: Dictionary) -> Array:
@@ -243,6 +244,17 @@ static func combat_event(run: Dictionary, r: RandomNumberGenerator, mobs := []) 
 		if not with_door.is_empty(): rooms = with_door
 	var room: Array = rooms[r.randi() % rooms.size()]
 	return {"kind": "combat", "room": room, "mobs": fill_mobs(mobs, room)}
+
+## Fight behind a special-room option: "fight" is "biome" (this floor's encounter pool) or a mob list.
+## An optional "room" gives the fight its own map, e.g. the Trapped Vault's trap floor (DECISIONS #151).
+static func special_fight_event(run: Dictionary, o: Dictionary) -> Dictionary:
+	var r := rng_for(run, 55)
+	var mobs: Array = [] if typeof(o.fight) == TYPE_STRING else o.fight
+	if not o.has("room"): return combat_event(run, r, mobs)
+	if mobs.is_empty():
+		var sets: Array = biome(run).encounter_sets.filter(func(s): return int(s.min_floor) <= int(run.floor))
+		mobs = sets[r.randi() % sets.size()].mobs
+	return {"kind": "combat", "room": o.room, "mobs": fill_mobs(mobs, o.room)}
 
 static func pay_possible(gs, cost: Dictionary) -> bool:
 	var run: Dictionary = gs.run

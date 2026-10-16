@@ -743,6 +743,166 @@
     "halls"
    ],
    "icon": "ration"
+  },
+  {
+   "id": "trap_vault",
+   "biomes": [
+    "sewers",
+    "prison",
+    "caves",
+    "city",
+    "halls"
+   ],
+   "title": "Trapped Vault",
+   "icon": "CRYSTAL_CHEST",
+   "options": [
+    {
+     "text": "Disarm and loot it (Rogue)",
+     "requires_class": "rogue",
+     "reward": {
+      "item_unknown": "ring",
+      "gold": 20
+     }
+    },
+    {
+     "text": "Fight the guards among the plates",
+     "fight": "biome",
+     "reward": {
+      "item_unknown": "ring",
+      "gold": 20
+     },
+     "room": [
+      "########",
+      "#H..^..#",
+      "#.?....#",
+      "###+####",
+      "#.?.1..#",
+      "#..2.?.#",
+      "#^...3?#",
+      "########"
+     ]
+    },
+    {
+     "text": "Leave"
+    }
+   ]
+  },
+  {
+   "id": "prisoner",
+   "biomes": [
+    "prison"
+   ],
+   "title": "Chained Prisoner",
+   "icon": "IRON_KEY",
+   "options": [
+    {
+     "text": "Unlock the shackles (1 Iron Key)",
+     "cost": {
+      "iron_key": 1
+     },
+     "reward": {
+      "ration": 1,
+      "gold": 10
+     }
+    },
+    {
+     "text": "Fight the jailers",
+     "fight": [
+      "guard",
+      "thief"
+     ],
+     "reward": {
+      "item_unknown": "scroll",
+      "ration": 1,
+      "gold": 15
+     }
+    },
+    {
+     "text": "Leave"
+    }
+   ]
+  },
+  {
+   "id": "abandoned_shop",
+   "biomes": [
+    "sewers",
+    "prison",
+    "caves",
+    "city",
+    "halls"
+   ],
+   "title": "Abandoned Shop",
+   "icon": "gold",
+   "options": [
+    {
+     "text": "Buy a ration (20 gold)",
+     "cost": {
+      "gold": 20
+     },
+     "reward": {
+      "ration": 1
+     }
+    },
+    {
+     "text": "Buy a torch (15 gold)",
+     "cost": {
+      "gold": 15
+     },
+     "reward": {
+      "torch": 1
+     }
+    },
+    {
+     "text": "Buy an unknown potion (35 gold)",
+     "cost": {
+      "gold": 35
+     },
+     "reward": {
+      "item_unknown": "potion"
+     }
+    },
+    {
+     "text": "Leave"
+    }
+   ]
+  },
+  {
+   "id": "gnoll_camp",
+   "biomes": [
+    "sewers",
+    "prison"
+   ],
+   "min_floor": 3,
+   "title": "Gnoll Camp",
+   "icon": "TORCH",
+   "options": [
+    {
+     "text": "Raid the camp",
+     "fight": [
+      "gnoll",
+      "gnoll",
+      "gnoll"
+     ],
+     "reward": {
+      "item_unknown": "wand",
+      "gold": 25,
+      "iron_ore": 3
+     }
+    },
+    {
+     "text": "Sneak in and grab the stash (-10 torch)",
+     "cost": {
+      "torch_fuel": 10
+     },
+     "reward": {
+      "gold": 10,
+      "iron_ore": 1
+     }
+    },
+    {
+     "text": "Leave"
+    }
+   ]
   }
  ]
 }

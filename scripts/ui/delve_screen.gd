@@ -592,7 +592,7 @@ func _special_option(o: Dictionary) -> void:
 	GameState.log_line("Chose: " + String(o.text), "info")
 	if o.has("fight"):
 		# "biome": a regular encounter of this biome/floor (garden grass, sacrificial fire - DECISIONS #91)
-		var ev := Delve.combat_event(GameState.run, Delve.rng_for(GameState.run, 55), [] if typeof(o.fight) == TYPE_STRING else o.fight)
+		var ev := Delve.special_fight_event(GameState.run, o)   # optional own map (DECISIONS #151)
 		_fight(ev, o.get("reward", {})); return
 	var before := Delve.ledger(GameState)
 	if o.has("cost") and not Delve.pay(GameState, o.cost): return

@@ -37,7 +37,7 @@ def balance():
     s += "\n### Traps\n\n"
     s += table(["Trap", "Effect", "SPD source"], [[t["name"], t["desc"], t.get("spd", "")] for k, t in traps.items() if not k.startswith("_")])
     s += "\n### Facilities\n\n"
-    s += table(["Facility", "Upgrade cost (x current level)", "Max"], [[f["name"], ", ".join(f"{v} {k}" for k, v in f["upgrade_cost"].items()), f["max"]] for f in fac.values() if isinstance(f, dict)])
+    s += table(["Facility", "Upgrade cost (x current level)", "Scrolls of Upgrade per cap raise", "Max"], [[f["name"], ", ".join(f"{v} {k}" for k, v in f["upgrade_cost"].items()), " / ".join(str(x) for x in f.get("cap_scrolls", [])), f["max"]] for f in fac.values() if isinstance(f, dict)])
     return s
 
 def content():
