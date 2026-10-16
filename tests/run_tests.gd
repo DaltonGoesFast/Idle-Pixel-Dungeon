@@ -1928,7 +1928,7 @@ func test_log_and_sounds(gs) -> void:
 	check(int(gs.run.haul.gold) == 9 and int(gs.run.haul.dew) == 1, "an old save seeds the haul from the pack")
 	gs.end_run("abandon")
 
-## Scrolls of Upgrade in the pack at death are owed (stacking) and return on the next boss kill by any hero.
+## Scrolls of Upgrade in the pack at death or abandon are owed (stacking) and return on the next boss kill by any hero.
 func test_owed_sou(gs) -> void:
 	print("[owed scrolls]")
 	gs.new_game(); gs.add_mat("ration", 4); gs.add_mat("torch", 4)
@@ -1949,6 +1949,21 @@ func test_owed_sou(gs) -> void:
 	var held: int = gs.mat("scroll_upgrade")
 	gs.end_run("abandon")
 	check(gs.mat("scroll_upgrade") == held, "abandoning that run can't lose the returned scrolls again (DECISIONS #119)")
+	check(gs.owed_sou == 1, "the Goo kill's own first-kill Scroll, still in the abandoned pack, is owed (DECISIONS #169)")
+	# DECISIONS #169: abandoning with Scrolls in the pack owes them like a death; maxing the Camp needs every one (#150)
+	gs.start_run("huntress", {}, "sewers", 8); gs.run.pack["scroll_upgrade"] = 2
+	var DS = load("res://scripts/ui/delve_screen.gd")
+	check(DS.abandon_text(gs.run).contains("Scrolls of Upgrade in it will return"), "the abandon confirm says the pack's Scrolls come back")
+	gs.end_run("abandon")
+	check(gs.owed_sou == 3 and gs.mat("scroll_upgrade") == held, "abandoning a run owes its pack Scrolls of Upgrade instead of destroying them")
+	gs.start_run("warrior", {}, "sewers", 9)
+	check(not DS.abandon_text(gs.run).contains("Scroll"), "no Scroll line when the pack has none")
+	gs.end_run("abandon")
+	check(gs.owed_sou == 3, "abandoning with no Scrolls owes nothing more")
+	gs.start_run("rogue", {}, "sewers", 10)
+	Delve.apply_fight_result(gs, {"kind": "combat", "boss": true, "mobs": ["goo"]}, res, {})
+	check(gs.owed_sou == 0 and gs.mat("scroll_upgrade") >= held + 3, "the next boss kill returns the abandoned Scrolls")
+	gs.end_run("abandon")
 
 ## Total wipe: every hero dead, all gear cracked, 0 resources. A delve must still start with usable starter
 ## gear and supplies, earn repair ore, and the Forge must offer a free Patch up (DECISIONS #104).

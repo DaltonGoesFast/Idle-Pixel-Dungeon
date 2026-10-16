@@ -1253,10 +1253,7 @@ func end_run(result: String) -> void:
 					gear.append(g)
 			h.best_level = maxi(int(h.get("best_level", 1)), int(h.level))
 			h.level = 1; h.xp = 0; h.str = 10; h.talents = []; h.str_found = []
-			var lost_sou := int(run.pack.get("scroll_upgrade", 0))
-			if lost_sou > 0:
-				owed_sou += lost_sou
-				log_line("%d Scroll%s of Upgrade will return on the next boss kill (%d owed)." % [lost_sou, "" if lost_sou == 1 else "s", owed_sou], "highlight")
+			_owe_pack_sou()
 			say("%s fell. Pack lost, gear cracked, back to Lv1 / 10 Str." % DB.heroes[c].name)
 			if mat("gold") < SAFETY_GOLD:
 				log_line("The Camp chips in %d gold so you can restock." % (SAFETY_GOLD - mat("gold")), "positive")
@@ -1264,9 +1261,18 @@ func end_run(result: String) -> void:
 		"abandon":
 			for g in run.pack_gear:
 				if g.get("owned", false): g.erase("owned"); gear.append(g)
+			_owe_pack_sou()   # DECISIONS #169: never destroy a once-ever Scroll
 			say("Expedition abandoned. Unbanked loot lost.")
 	run = {}
 	touch()
+
+## Scrolls of Upgrade in the pack when a run ends without extracting (death or abandon) are owed and come back
+## on the next boss kill. Every Scroll is a one-time drop and maxing the Camp needs all of them (DECISIONS #150, #169).
+func _owe_pack_sou() -> void:
+	var lost_sou := int(run.pack.get("scroll_upgrade", 0))
+	if lost_sou <= 0: return
+	owed_sou += lost_sou
+	log_line("%d Scroll%s of Upgrade will return on the next boss kill (%d owed)." % [lost_sou, "" if lost_sou == 1 else "s", owed_sou], "highlight")
 
 func record_boss_kill(c: String, biome: String) -> bool:
 	var kills: Array = boss_kills.get(c, [])

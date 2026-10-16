@@ -435,6 +435,13 @@ func _confirm_abandon() -> void:
 	if _is_encounter(pending): _under = pending
 	running = false; pending = {"kind": "confirm_abandon"}; _show_card()
 
+## Abandon confirm body. Scrolls of Upgrade are owed, not lost (DECISIONS #169).
+static func abandon_text(run: Dictionary) -> String:
+	var t := "Everything in your pack is lost. Unused supplies return to the stash."
+	var n := int(run.get("pack", {}).get("scroll_upgrade", 0))
+	if n > 0: t += " The Scroll%s of Upgrade in it will return on the next boss kill." % ("" if n == 1 else "s")
+	return t
+
 func _cancel_abandon() -> void:
 	pending = _under; _under = {}
 	running = pending.is_empty(); _refresh_controls(); _show_card()
@@ -487,7 +494,7 @@ func _show_card() -> void:
 			SettingsPanel.build(v, false)
 			v.add_child(UIKit.button("Close", _close_panel))
 		"confirm_abandon":
-			var v := _card("Abandon the expedition?", "Everything in your pack is lost. Unused supplies return to the stash.")
+			var v := _card("Abandon the expedition?", abandon_text(GameState.run))
 			v.add_child(UIKit.button("Abandon", func(): GameState.end_run("abandon"); main.show_camp()))
 			v.add_child(UIKit.button("Keep delving", _cancel_abandon))
 		"menu": _card_menu()
