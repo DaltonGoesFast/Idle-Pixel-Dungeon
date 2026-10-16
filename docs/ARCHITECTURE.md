@@ -16,7 +16,7 @@
 
 ## Core (scripts/core)
 - **`Combat`** (`class_name Combat`): an 8x8 arena. `setup(room_rows, hero_stats, hp, mob_ids, darkness)`; hero actions `hero_tap(cell, mode)`, `hero_wait()`, `hero_heal(n)`, `hero_bolt(cell)`. `run_until_hero()` advances the SPD-style clock (each unit has `next`; hero acts on ties; telegraphs resolve at their `at` time). Visual/audio side effects are queued as `events` (`hit`, `move`, `die`, `fall`, `bolt`, `blast`, `telegraph`, `burn`, `heal`, `sfx`) and drained by the view.
-- **`CombatBot`**: `suggest(combat)` returns the next sensible action (dodge telegraphs > heal when low > chasm shove > bolt > attack the fastest kill > approach). Used by tests, the **Hint** button and **Auto**.
+- **`CombatBot`**: `suggest(combat)` returns the next sensible action (dodge telegraphs > heal when low > chasm shove > slam a crowd > a Surprise that can land this turn > bolt > attack the fastest kill > approach). Used by tests, the **Hint** button and **Auto**.
 - **`Delve`**: static functions over `GameState.run`: `plan_floor`, `advance(gs, pct)` (drain, auto-supplies, gathering, starvation, Strength milestones, event triggers), `build_event`, `combat_event`, `pay`/`pay_possible`, `reward`, `descend`.
 
 ## Traps & biomes

@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Auto Battle and Hint take a Surprise that can land this turn before a normal swing, a cloak, or a door dance. An adjacent foe who has lost sight of you, or a clear Spirit Bow shot, is the attack. Dodging a telegraph, a chasm shove, and a crowd slam still come first. A slam no longer counts snakes, since they slip it (+tests).
 
 ## 0.40.1
 - Opening a special room that had no description (Trapped Vault, Chained Prisoner, Abandoned Shop, Gnoll Camp) crashed the delve card. Those rooms now have descriptions, and a room with no text still opens (+tests).

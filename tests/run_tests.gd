@@ -71,6 +71,7 @@ func _ready() -> void:
 	test_ring_levels(gs)
 	test_vanilla_consumables(gs)
 	test_surprise_now(gs)
+	test_bot_surprise_priority(gs)
 	await test_guided_surprise_tip(gs)
 	test_no_collapsing_labels(gs)
 	await test_delve_chips(gs)
@@ -2715,6 +2716,77 @@ func test_surprise_now(gs) -> void:
 	var hs: Dictionary = gs.hero_stats("huntress")
 	var c3 := Combat.new(); c3.setup(room, hs, int(hs.ht), ["rat"])
 	check(not c3.surprise_now(), "the bow can't surprise through a closed door")
+
+## A Surprise that can land this turn beats a normal swing. Slams, chasm shoves, and telegraphs still come first.
+func test_bot_surprise_priority(gs) -> void:
+	print("[bot surprise priority]")
+	var open := ["########", "#H.....#", "#......#", "#......#", "#......#", "#......#", "#......#", "########"]
+	var ws: Dictionary = gs.hero_stats("warrior")
+	var c := Combat.new(); c.setup(open, ws, int(ws.ht), ["rat", "crab"])
+	c._place(c.hero, Vector2i(3, 3))
+	var rat = c.enemies().filter(func(e): return e.id == "rat")[0]
+	var crab = c.enemies().filter(func(e): return e.id == "crab")[0]
+	rat.pos = Vector2i(4, 3); rat.seen_hero = true
+	crab.pos = Vector2i(3, 4); crab.seen_hero = false
+	var sug: Dictionary = CombatBot.suggest(c)
+	check(sug.pos == crab.pos and String(sug.why).begins_with("surprise"), "ready Surprise on the crab beats a normal swing at the rat (%s)" % sug)
+	rat.seen_hero = true; crab.seen_hero = true
+	sug = CombatBot.suggest(c)
+	check(sug.pos == rat.pos and String(sug.why).begins_with("attack"), "no Surprise when both foes can see you: hit the faster kill (%s)" % sug)
+	# snake + rat: the snake is only hittable as a Surprise, so it comes before the rat
+	var c2 := Combat.new(); c2.setup(open, ws, int(ws.ht), ["rat", "snake"])
+	c2._place(c2.hero, Vector2i(3, 3))
+	var rat2 = c2.enemies().filter(func(e): return e.id == "rat")[0]
+	var sn = c2.enemies().filter(func(e): return e.id == "snake")[0]
+	rat2.pos = Vector2i(4, 3); rat2.seen_hero = true
+	sn.pos = Vector2i(3, 4); sn.seen_hero = false
+	sug = CombatBot.suggest(c2)
+	check(sug.pos == sn.pos and String(sug.why).begins_with("surprise"), "ready Surprise on the snake beats clearing the rat (%s)" % sug)
+	# two rats and a surprised snake is not a slam (the slam cannot hit the snake)
+	var c3 := Combat.new(); c3.setup(open, ws, int(ws.ht), ["rat", "rat", "snake"])
+	c3._place(c3.hero, Vector2i(3, 3))
+	var rats3 := c3.enemies().filter(func(e): return e.id == "rat")
+	rats3[0].pos = Vector2i(4, 3); rats3[0].seen_hero = true
+	rats3[1].pos = Vector2i(3, 2); rats3[1].seen_hero = true
+	var sn3 = c3.enemies().filter(func(e): return e.id == "snake")[0]
+	sn3.pos = Vector2i(2, 3); sn3.seen_hero = false
+	sug = CombatBot.suggest(c3)
+	check(sug.act == "tap" and sug.pos == sn3.pos, "two rats plus a surprised snake is a Surprise, not a slam (%s)" % sug)
+	# three real targets: slam still beats cashing one Surprise
+	var c4 := Combat.new(); c4.setup(open, ws, int(ws.ht), ["rat", "rat", "rat"])
+	c4._place(c4.hero, Vector2i(3, 3))
+	var rats4 := c4.enemies().filter(func(e): return e.id == "rat")
+	rats4[0].pos = Vector2i(4, 3); rats4[0].seen_hero = true
+	rats4[1].pos = Vector2i(3, 4); rats4[1].seen_hero = true
+	rats4[2].pos = Vector2i(2, 3); rats4[2].seen_hero = false
+	sug = CombatBot.suggest(c4)
+	check(sug.act == "slam", "a crowd slam still beats a single Surprise (%s)" % sug)
+	# telegraph still wins
+	var c5 := Combat.new(); c5.setup(open, ws, int(ws.ht), ["crab"])
+	var crab5 = c5.enemies()[0]; crab5.pos = Vector2i(2, 1); crab5.seen_hero = false
+	c5.danger.append({"pos": c5.hero.pos, "dmg": 6, "at": 1.0, "src": "test", "uid": -1})
+	sug = CombatBot.suggest(c5)
+	check(String(sug.why).contains("red") and sug.pos != crab5.pos, "dodging a telegraph still beats a ready Surprise (%s)" % sug)
+	# chasm shove still wins
+	var c6 := Combat.new(); c6.setup(open, ws, int(ws.ht), ["rat"])
+	c6._place(c6.hero, Vector2i(2, 2))
+	var rat6 = c6.enemies()[0]; rat6.pos = Vector2i(3, 2); rat6.seen_hero = false
+	c6.terrain[2][4] = Combat.T.CHASM
+	sug = CombatBot.suggest(c6)
+	check(sug.get("mode", "") == "shove", "a chasm shove still beats a Surprise swing (%s)" % sug)
+	# Spirit Bow cashes a Surprise shot instead of walking to a door. A wand cannot surprise a snake.
+	var door_room := ["########", "#H.....#", "#......#", "#...+..#", "#...#..#", "#...#..#", "#......#", "########"]
+	var hs: Dictionary = gs.hero_stats("huntress")
+	var c7 := Combat.new(); c7.setup(door_room, hs, int(hs.ht), ["snake"])
+	var sn7 = c7.enemies()[0]; sn7.pos = Vector2i(5, 1); sn7.seen_hero = false
+	check(c7.hero_sees(sn7) and c7.surprise_against(sn7), "the huntress can see a snake that has lost sight of her")
+	sug = CombatBot.suggest(c7)
+	check(sug.get("mode", "") == "bolt" and sug.pos == sn7.pos, "Spirit Bow takes the Surprise shot instead of a door dance (%s)" % sug)
+	var ms: Dictionary = gs.hero_stats("mage")
+	var c8 := Combat.new(); c8.setup(door_room, ms, int(ms.ht), ["snake"])
+	var sn8 = c8.enemies()[0]; sn8.pos = Vector2i(5, 1); sn8.seen_hero = false
+	sug = CombatBot.suggest(c8)
+	check(sug.get("mode", "") != "bolt", "a wand does not spend a charge on a snake it cannot Surprise (%s)" % sug)
 
 ## DECISIONS #150: maxing every facility takes the whole Scroll of Upgrade supply (4 heroes x 5 bosses + milestones).
 func test_camp_sou_budget(gs) -> void:

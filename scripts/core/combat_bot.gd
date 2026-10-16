@@ -1,6 +1,7 @@
 ## CombatBot: a "sensible tactics" player used by tests, balance sims and the in-game Hint button.
-## Priorities: dodge telegraphs > heal when low > chasm shove > surprise setups (door/grass) >
-## bolt > attack weakest adjacent > approach.
+## Priorities: dodge telegraphs > heal when low > chasm shove > slam a crowd >
+## a Surprise that can land this turn (adjacent melee, or a Spirit Bow shot) >
+## cloak > attack weakest adjacent > bolt > approach.
 class_name CombatBot
 extends RefCounted
 
@@ -77,16 +78,24 @@ static func suggest(c: Combat, potions := 0, heal_amount := 10) -> Dictionary:
 			var dir: Vector2i = e.pos - h.pos
 			if (c.tile(e.pos + dir) == Combat.T.CHASM or (c.visible_trap(e.pos + dir) and c.unit_at(e.pos + dir) == null)) and not e.get("boss", false):
 				return {"act": "tap", "pos": e.pos, "mode": "shove", "why": "shove it into the chasm"}
-	# 3a. warrior slam: 2+ adjacent, or one would fall into a chasm (skip if only snakes would be hit without surprise)
+	# 3a. warrior slam: 3+ foes the slam can actually hurt, or one would fall into a chasm.
+	# Snakes slip a slam (it is not a Surprise), so they do not count toward the crowd.
 	if "slam" in h.abilities and int(h.get("slams", 0)) > 0:
 		var into_chasm := adj.any(func(e): return c.tile(e.pos + (e.pos - h.pos)) == Combat.T.CHASM and not e.get("boss", false))
-		var slamable := adj.filter(func(e): return not e.get("evade_unless_surprise", false) or c.surprise_against(e))
+		var slamable := adj.filter(func(e): return not e.get("evade_unless_surprise", false))
 		if slamable.size() >= 3 or into_chasm:
 			return {"act": "slam", "why": "slam the crowd"}
+	# 3a2. A Surprise that can land this turn beats a normal swing: x surprise_mult, no DR, knockback.
+	# Cash it before cloaking or clearing someone else — the window closes once they see you.
+	var sur_hit := _surprise_strike(c, adj)
+	if not sur_hit.is_empty(): return sur_hit
+	if adj.is_empty():
+		var sur_shot := _surprise_shot(c, es)
+		if not sur_shot.is_empty(): return sur_shot
 	# 3b. rogue: cloak when swarmed or hurt, then strike from the shadows
 	if "cloak" in h.abilities and int(h.cloak_charges) > 0 and not c.hidden() and (adj.size() >= 2 or (adj.size() == 1 and _hits_to_kill(c, adj[0]) >= 2)):
 		return {"act": "cloak", "why": "cloak, then strike with a Surprise"}
-	# 3c. Clear non-snake threats in melee first, then SPD surprise setups for snakes / DR
+	# 3c. No Surprise ready: clear non-snake threats, then SPD door/grass setups for snakes
 	var hittable_now := adj.filter(func(e): return not e.get("evade_unless_surprise", false) or c.surprise_against(e))
 	var non_snake_adj := hittable_now.filter(func(e): return not e.get("evade_unless_surprise", false))
 	if not non_snake_adj.is_empty():
@@ -94,8 +103,6 @@ static func suggest(c: Combat, potions := 0, heal_amount := 10) -> Dictionary:
 		for e in non_snake_adj:
 			if _hits_to_kill(c, e) < _hits_to_kill(c, tgt0): tgt0 = e
 		return {"act": "tap", "pos": tgt0.pos, "mode": "", "why": "attack " + tgt0.name}
-	var sur_hit := _surprise_strike(c, adj)
-	if not sur_hit.is_empty(): return sur_hit
 	var snakes := es.filter(func(e): return e.get("evade_unless_surprise", false))
 	var non_snakes := es.filter(func(e): return not e.get("evade_unless_surprise", false))
 	# Clear non-snakes with bolts before committing to a snake door dance
@@ -240,16 +247,46 @@ static func _nearest_door(c: Combat, from: Vector2i) -> Vector2i:
 			if d < bd: bd = d; best = p
 	return best
 
-## Swing now if an adjacent foe is already surprised (especially snakes / DR / chasm setups).
+## Swing now at the adjacent foe a Surprise would hit hardest. Any ready Surprise counts:
+## bonus damage, no DR, and knockback, so it beats a normal swing on someone else.
 static func _surprise_strike(c: Combat, adj: Array) -> Dictionary:
+	var best = null
+	var best_hits := 99
+	var best_bonus := -1
 	for e in adj:
 		if not c.surprise_against(e): continue
-		var want: bool = bool(e.get("evade_unless_surprise", false)) or int(e.dr) > 0
 		var dir: Vector2i = e.pos - c.hero.pos
-		if c.tile(e.pos + dir) == Combat.T.CHASM: want = true
-		if want:
-			return {"act": "tap", "pos": e.pos, "mode": "", "why": "surprise " + e.name}
-	return {}
+		var hits := _hits_to_kill(c, e)
+		# Knockback into a chasm finishes anyone the blow itself would not.
+		if hits > 1 and c.tile(e.pos + dir) == Combat.T.CHASM and not e.get("boss", false): hits = 1
+		var bonus := (2 if e.get("evade_unless_surprise", false) else 0) + int(e.dr)
+		if best == null or hits < best_hits or (hits == best_hits and bonus > best_bonus):
+			best = e
+			best_hits = hits
+			best_bonus = bonus
+	if best == null: return {}
+	return {"act": "tap", "pos": best.pos, "mode": "", "why": "surprise " + best.name}
+
+## Spirit Bow only: a clear shot on a foe who would be surprised. Wands are magic and never surprise.
+## Called when nobody is adjacent, so the shot is not traded for a free hit.
+static func _surprise_shot(c: Combat, es: Array) -> Dictionary:
+	var h: Dictionary = c.hero
+	if not c.has_ranged() or h.bolt.get("magic", true): return {}
+	var best = null
+	var best_hits := 99
+	var best_bonus := -1
+	for e in es:
+		if not c.surprise_against(e) or not _can_shoot(c, e): continue
+		var raw := int(h.bolt.dmg)
+		var dmg := int(float(raw) * float(h.surprise_mult))
+		var hits := 99 if dmg <= 0 else int(ceil(float(e.hp) / float(dmg)))
+		var bonus := (2 if e.get("evade_unless_surprise", false) else 0) + int(e.dr)
+		if best == null or hits < best_hits or (hits == best_hits and bonus > best_bonus):
+			best = e
+			best_hits = hits
+			best_bonus = bonus
+	if best == null: return {}
+	return {"act": "tap", "pos": best.pos, "mode": "bolt", "why": "surprise shot on " + best.name}
 
 ## Step off a door or around tall grass/pillar so the foe loses sight (SPD surprise setups).
 static func _surprise_setup(c: Combat, es: Array) -> Dictionary:
@@ -307,9 +344,13 @@ static func _open(c: Combat, p: Vector2i) -> int:
 	return n
 
 static func _hits_to_kill(c: Combat, e: Dictionary) -> int:
-	var d := maxi(1, int(c.hero.dmg) - int(e.dr))
-	if e.get("evade_unless_surprise", false) and not c.surprise_against(e): return 99
-	return int(ceil(float(e.hp) / d))
+	var sur := c.surprise_against(e)
+	if e.get("evade_unless_surprise", false) and not sur: return 99
+	var raw := int(c.hero.dmg)
+	# A Surprise ignores DR and multiplies; a normal swing does not.
+	var d := int(float(raw) * float(c.hero.surprise_mult)) if sur else maxi(0, raw - int(e.dr))
+	if d <= 0: return 99
+	return int(ceil(float(e.hp) / float(d)))
 
 ## Plays a full fight. Returns {won, turns, hp, potions_used}.
 static func play(c: Combat, potions := 0, heal := 10, max_turns := 300) -> Dictionary:
