@@ -1,0 +1,63 @@
+# Polish backlog
+
+The cosmetic and feel work saved for the end (DECISIONS #162). Polish that changes how the game plays (a broken screen, unreadable text, a confusing control) still gets its own small PR right away. Sources: today's PRs #40–#51 and the playtest reports in `/workspace/playtest/` (report-*.md, overnight-2026-10-15.md).
+
+Priority: **P1** fix before a public build, **P2** next polish pass, **P3** nice to have. Effort: **S** < 1 h, **M** a few hours, **L** a day or more.
+
+## Combat screen
+| # | Item | Source | Pri | Effort |
+|---|---|---|---|---|
+| 1 | Debuff status icons: weakened, vulnerable, webbed, slowed, poisoned, chilled, rooted, corroded show only in the combat log. Add SPD BuffIndicator icons over the unit and in the hero's status pane | #45, #46 | P1 | M |
+| 2 | "They lost sight of you: next attack is a SURPRISE" shows wrongly: `surprise_ready()` is true if ANY foe can't see you, so it appears on guided-fight Step 1/3, at the start of most fights, and with no surprise-able target | reports 4dd90ed, dd2bfb4 | P1 | S |
+| 3 | Regrowth's `grow` event has no animation in `grid_view` (grass just appears) | #46 | P3 | S |
+| 4 | Wand riders (chill, corrode, knockback, transfusion heal) have no distinct bolt colour or sfx; SPD uses a per-wand MagicMissile effect | #46 | P2 | M |
+| 5 | Thorns / Hourglass / Chains / Sandals trigger only a log line; add a short flash or sfx | #49 | P3 | S |
+| 6 | Next-fight effects from potions/scrolls (Lullaby, Haste, Frost, Invisibility, ...) apply silently at fight start; show a banner or status icon | #51 | P2 | S |
+| 7 | Mob abilities ignore bodies (`sees` / `in_view`) while hero shots stop at the first body; visible as zaps passing through allies | report 4dd90ed | P2 | M |
+
+## Camp: Forge, Enchanter, stash item details
+| # | Item | Source | Pri | Effort |
+|---|---|---|---|---|
+| 8 | Artifact stats (thorns, freeze, root, chain hold, loot %) and their per-level growth aren't shown in the camp item details (only the description text) | #49 | P1 | S |
+| 9 | Ring/wand level effects: item popups show `+N` but not what the next level adds ("+1 dmg -> +2 dmg") | #48, #50 | P2 | S |
+| 10 | Enchanter "Attune" section is a plain row + grid; restyle to match the Forge Upgrade & repair section (cost chips, cap header) | #48 | P2 | M |
+| 11 | Artifact XP progress (fights to next level) isn't shown anywhere | #48 | P2 | S |
+| 12 | Forge ring stack with mixed identification: title shows the unknown name while the effect line shows the known copy's description | report dd2bfb4 | P3 | S |
+| 13 | New wand riders aren't in the Codex mob/item inspect toast beyond one line | #46 | P3 | S |
+
+## Delve screen and status pane
+| # | Item | Source | Pri | Effort |
+|---|---|---|---|---|
+| 14 | Status pane torch/food icons are small on the cover screen (integer scale to the 9px bar) | reports 7406e4f onward | P2 | S |
+| 15 | Menu window overlaps the "Brought" line while open | report b1a4afa | P3 | S |
+| 16 | Potion/scroll badge glyphs float above their icons in the Expedition supply rows | report 4dd90ed | P2 | S |
+| 17 | Transmutation gives no before/after of the item it changed | #51 | P3 | S |
+
+## Camp windows (Guild, Expedition, Patrol)
+| # | Item | Source | Pri | Effort |
+|---|---|---|---|---|
+| 18 | Cover-screen Guild/Expedition windows keep a large empty gap above the footer (footer-anchored action, DECISIONS #124) | report b1a4afa | P2 | S |
+| 19 | Camp UI windows rework (the plan you have Cursor writing) | chat | P2 | L |
+
+## Rooms and maps
+| # | Item | Source | Pri | Effort |
+|---|---|---|---|---|
+| 20 | City 10x10 rooms have 1 spawn slot and Prison 10x10s have 2 | report 4dd90ed | P2 | S |
+| 21 | Dark far halves in 12x12 arenas | report 4dd90ed | P3 | M |
+| 22 | Special-room cards (Trapped Vault, Chained Prisoner, Abandoned Shop, Gnoll Camp) use generic icons; give each its SPD sprite | #41–#44 | P3 | S |
+
+## Code / docs hygiene (no player impact)
+| # | Item | Source | Pri | Effort |
+|---|---|---|---|---|
+| 23 | `ui_kit.gd`: `res_chip`'s doc comment sits on `chip_label`; DECISIONS #146 says `res_chip` uses `SIZE_SHRINK_BEGIN` but the code doesn't | report 4dd90ed | P3 | S |
+| 24 | DECISIONS #142 still mentions `MAX_SUPPLY` (removed by #144) | report 4dd90ed | P3 | S |
+| 25 | 4x "non-equal opposite anchors" warnings in `test_tip_fit` | report 4dd90ed | P3 | S |
+| 26 | `export_plugin.gd.uid` untracked; TestFlight `mktemp` leftover | report 4dd90ed | P3 | S |
+| 27 | Combat Bag rect on fold/unfold while open relies on `apply_layout -> _refresh` (untested on device) | report 4dd90ed | P2 | S |
+
+## Deferred until the combat rework lands
+These are content or tuning, not polish, but they wait on the same thing:
+- **Thrown weapons and bombs.** These need a new combat action and a fight-screen picker for the item and target, which touches the combat input you're reworking.
+- **Exotic potions and scrolls.** They need Alchemy recipes that consume a base potion or scroll, and several (Dragon's Breath, Snap Freeze, Psionic Blast) need combat hooks. Shielding and Passage stay as they are.
+- **Wand buffs.** In forced-wand sims Frost, Transfusion, Disintegration and Prismatic Light are weaker than Magic Missile (#46), so retune them against the new combat numbers.
+- **Enchantments and glyphs** (and Ring of Arcana, Ring of Accuracy), which need base-combat hooks.
