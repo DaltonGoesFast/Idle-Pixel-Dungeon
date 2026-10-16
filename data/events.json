@@ -743,6 +743,50 @@
     "halls"
    ],
    "icon": "ration"
+  },
+  {
+   "id": "abandoned_shop",
+   "biomes": [
+    "sewers",
+    "prison",
+    "caves",
+    "city",
+    "halls"
+   ],
+   "title": "Abandoned Shop",
+   "icon": "gold",
+   "options": [
+    {
+     "text": "Buy a ration (20 gold)",
+     "cost": {
+      "gold": 20
+     },
+     "reward": {
+      "ration": 1
+     }
+    },
+    {
+     "text": "Buy a torch (15 gold)",
+     "cost": {
+      "gold": 15
+     },
+     "reward": {
+      "torch": 1
+     }
+    },
+    {
+     "text": "Buy an unknown potion (35 gold)",
+     "cost": {
+      "gold": 35
+     },
+     "reward": {
+      "item_unknown": "potion"
+     }
+    },
+    {
+     "text": "Leave"
+    }
+   ]
   }
  ]
 }

@@ -460,3 +460,7 @@ v0.29 made tall grass and closed doors block sight, and `can_bolt` required sigh
 - Sight memory: when it is the hero's turn, every enemy in the hero's sight records `last_seen = [x, y]` (plain array, so it saves and restores with the fight).
 - CombatBot only takes aimed shots at foes it can see whose line is clear of other bodies (`_can_shoot`; before, it could shoot through bodies). With nothing in sight and nothing adjacent, it shoots at an unseen foe's `last_seen`: up to 2 arrows per sighting, or 1 wand charge while 2+ remain.
 Covered by `test_blind_shots` (hidden rat in grass hit, empty tile wastes the shot, the first body takes it, a closed door stops it, a wand bolt carries past, last_seen survives save/load, the bot's blind shot).
+
+## 153. Abandoned Shop (gold sink inside a run)
+Gold found during a run had no use until extraction, and SPD has shops on the way down. `abandoned_shop` (all biomes) lets the hero spend gold carried in the pack this run: ration 20, torch 15, unknown potion 35, or leave. Stash gold is not usable (same rule as every other run cost: `Delve.pay` only reaches run supplies, the pack, and stash keys). Bought rations/torches go straight to supplies (`Delve.reward`). Pack gold is lost on death anyway, so this is a real choice: bank it or turn it into survival now. Pure data.
+Deep campaign sim (4 classes x 2 seeds x 40 runs): seen 197 times; the Auto policy (which buys the first affordable line, usually a ration) bought something on every visit. No deaths attributable. Covered by `test_abandoned_shop`.

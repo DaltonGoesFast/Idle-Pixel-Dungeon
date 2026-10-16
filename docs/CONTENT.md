@@ -66,6 +66,7 @@ Assets used (all from Shattered Pixel Dungeon, GPL-3.0): hero sprites (warrior, 
 | treasury | sewers, prison, caves, city, halls | Collapsed Treasury | Dig it out (-10 torch) / Grab what you can |
 | shrine | city, halls | Forgotten Shrine | Offer blood (-12 HP) / Leave |
 | larder | sewers, prison, caves, city, halls | Larder | Eat your fill / Pack rations |
+| abandoned_shop | sewers, prison, caves, city, halls | Abandoned Shop | Buy a ration (20 gold) / Buy a torch (15 gold) / Buy an unknown potion (35 gold) / Leave |
 
 ### Arenas
 

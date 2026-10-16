@@ -36,6 +36,7 @@ func _ready() -> void:
 	test_rooms_surprise(gs)
 	test_paperdoll(gs)
 	test_specials(gs)
+	test_abandoned_shop(gs)
 	test_icon_centering(gs)
 	test_armor_tiers(gs)
 	test_floor_label(gs)
@@ -2434,3 +2435,15 @@ func test_bat_drain(gs) -> void:
 		c._mob_act(b)
 		check(int(b.hp) == 10 + case[1], "bat heals dealt-2 like SPD's dealt-4 (DR %d -> +%d, got %d)" % [case[0], case[1], int(b.hp) - 10])
 
+func test_abandoned_shop(gs) -> void:
+	print("[abandoned shop]")
+	var sh: Dictionary = DB.specials.filter(func(x): return x.id == "abandoned_shop")[0]
+	gs.new_game(); gs.start_run("warrior", {}, "sewers", 3)
+	gs.run.pack["gold"] = 10
+	check(not Delve.pay_possible(gs, sh.options[0].cost), "the shop needs gold carried this run (10 is not enough)")
+	gs.run.pack["gold"] = 40
+	var t0 := int(gs.run.supplies.get("torch", 0))
+	check(Delve.pay(gs, sh.options[1].cost), "buying a torch spends pack gold")
+	Delve.reward(gs, sh.options[1].reward)
+	check(int(gs.run.pack.gold) == 25 and int(gs.run.supplies.get("torch", 0)) == t0 + 1, "torch bought for 15 gold goes straight to supplies")
+	gs.end_run("abandon")
