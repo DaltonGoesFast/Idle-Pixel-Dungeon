@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Barrier closer to SPD on the v0.29 combat: decays min(1, Barrier/20) per turn after the fight-start refresh, capped at half of max HP, armor upgrades add DR only, Shielding never goes above max HP, base Barrier 4 -> 3 (Warrior 6 -> 5, Broken Seal 3 -> 2). Sim: Barrier absorbed 24.3% -> 18.7% of damage taken, deaths 75 -> 65, Goo first try 32% -> 24% (+tests).
 
 ## 0.29.0
 - In-game Update on Android and Windows: Camp / Settings checks GitHub releases, downloads the APK or zip, and on Android opens the system Install screen. iOS stays on TestFlight; `tools/upload_testflight.sh` archives and uploads on a Mac. Android export uses Gradle so the updater can request install permission (+tests).

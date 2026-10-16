@@ -17,6 +17,7 @@ func _ready() -> void:
 	ss.path = "user://test_save.json"
 	gs.new_game()
 	test_rules(gs)
+	test_barrier_spd(gs)
 	test_status_pane_layout(gs)
 	test_balance(gs)
 	test_boss(gs)
@@ -2070,3 +2071,24 @@ func test_status_pane_layout(_gs) -> void:
 			var isz: Vector2 = StatusPane.icon_size(Vector2(14, 14), a.size.y)
 			check(isz.y <= a.size.y and isz.y >= a.size.y * 0.5, "%s: supply icon fits the bar height" % tag)
 
+
+func test_barrier_spd(gs) -> void:
+	print("[barrier spd]")
+	gs.new_game()
+	var w: Dictionary = gs.hero_stats("warrior"); var m: Dictionary = gs.hero_stats("mage")
+	check(int(w.barrier_max) == 8 and int(m.barrier_max) == 4, "starting Barrier: warrior 8 (seal-like), others 4 (was 10 / 5) (%d / %d)" % [w.barrier_max, m.barrier_max])
+	var uid: int = gs.add_gear("cloth_armor", true, 3); gs.heroes.mage.armor = uid
+	check(int(gs.hero_stats("mage").barrier_max) == int(m.barrier_max) and int(gs.hero_stats("mage").dr) == int(m.dr) + 3, "armor upgrades add DR, not Barrier")
+	gs.heroes.warrior.armor = gs.add_gear("plate_armor", true, 0); gs.heroes.warrior.str = 18
+	check(int(gs.hero_stats("warrior").barrier_max) <= int(gs.hero_stats("warrior").ht) / 2, "Barrier is capped at half of max HP")
+	var c := Combat.new(); var hs: Dictionary = gs.hero_stats("warrior"); c.setup(DB.boss_rooms[0], hs, hs.ht, ["rat"])
+	c.hero.barrier = 20
+	for i in 4: c._decay_barrier(1.0)
+	check(int(c.hero.barrier) == 17, "Barrier decays like SPD: min(1, shield/20) per turn")
+	c.hero.barrier = 5; c.hero.bar_partial = 0.0
+	for i in 4: c._decay_barrier(1.0)
+	check(int(c.hero.barrier) == 4, "small Barrier decays slowly (5/20 per turn)")
+	gs.heroes.mage.unlocked = true; gs.start_run("mage", {}, "sewers", 2); gs.run.shield_next = 999
+	var cc = Delve.new_combat(gs, Delve.combat_event(gs.run, Delve.rng_for(gs.run, 1), ["rat"]))
+	check(int(cc.hero.barrier) <= int(cc.hero.ht), "Shielding never stacks Barrier above max HP")
+	gs.end_run("abandon")

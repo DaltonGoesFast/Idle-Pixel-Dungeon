@@ -199,7 +199,7 @@ static func new_combat(gs, ev: Dictionary) -> Combat:
 	run.fighting_goo = "goo" in ev.mobs
 	if run.fighting_goo: _weaken_goo(gs, c)
 	if int(run.get("shield_next", 0)) > 0:   # Potion of Shielding
-		c.hero.barrier = int(c.hero.barrier) + int(run.shield_next); run.shield_next = 0
+		c.hero.barrier = mini(int(c.hero.ht), int(c.hero.barrier) + int(run.shield_next)); run.shield_next = 0   # never above max HP
 		c._log("Your shield shimmers: +Barrier.")
 	return c
 

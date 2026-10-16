@@ -161,7 +161,8 @@ func hero_stats(c: String) -> Dictionary:
 	var dmg := int(wd.dmg) + wl * (int(wd.tier) + 1) / 2          # upgrades: +((tier+1)/2) per level
 	if wd.has("dmg_per_levels"): dmg += int(h.level) / int(wd.dmg_per_levels)
 	var dr := int(ad.get("dr", 0)) + al
-	var barrier := int(def.base_barrier) + int(def.heirloom_barrier) + int(ad.get("barrier", 0)) + al
+	# armor upgrades add DR only, like SPD (DECISIONS #134)
+	var barrier := int(def.base_barrier) + int(def.heirloom_barrier) + int(ad.get("barrier", 0))
 	# Strength gate: each missing point costs 2 damage / 1 DR (SPD-like penalty, deterministic)
 	var str_short := maxi(0, int(wd.get("str", 10)) - int(h.str))
 	dmg = maxi(1, dmg - 2 * str_short)
@@ -215,6 +216,8 @@ func hero_stats(c: String) -> Dictionary:
 		if s.has("bolt"):
 			s.bolt.dmg += int(sub.get("bolt_add", 0))
 			if sub.get("bolt_pierce", false): s.bolt.pierce = true
+	# Barrier never exceeds half of max HP (DECISIONS #134)
+	s.barrier_max = mini(int(s.barrier_max), int(s.ht) / 2)
 	return s
 
 # ---------------------------------------------------------------- talents (SPD-style tiers, DECISIONS #66)

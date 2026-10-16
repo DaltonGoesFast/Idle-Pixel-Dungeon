@@ -395,3 +395,14 @@ a6b9d18/09b3032 drew the torch/food row as a full 16-game-px item cell (HP is 9)
 
 ## 135. In-game updater (Android / Windows) + TestFlight script (iOS)
 Sideloaded Android players were opening GitHub in a browser for every APK. `Updater` checks `releases/latest`, downloads the platform asset, and on Android opens the system installer via `JavaClassWrapper` + Godot's FileProvider. That needs `REQUEST_INSTALL_PACKAGES`, which the stock permission list does not expose, so Gradle is on and `addons/apk_install` injects the permission (still official templates — #2). Windows gets the zip opened in Explorer. iOS has no in-app check: `tools/upload_testflight.sh` archives and uploads; TestFlight delivers the update.
+
+## 147. Barrier closer to SPD (redo of #22 on the v0.29 combat)
+v0.29's larger rooms and surprise rules left Barrier untouched, and it was absorbing even more than before: 24.3% of all damage taken (79-83% in the Sewers for every class except the Mage), against 20.2% before v0.29 (deep campaign, main + #26 fill fix, with telemetry). The biggest sources were base Barrier (52%) and armor upgrades (26%). SPD's Broken Seal shield is 3 + 2·tier from the Warrior's armor, decays min(1, shield/20) per turn, and armor upgrades raise DR only. Changes: decay after the fight-start refresh (`_decay_barrier` in `_end_hero_turn`, fractional part kept in `hero.bar_partial`), `barrier_max <= ht/2`, armor upgrades add no Barrier, Shielding capped at max HP, base 4 -> 3 (Warrior 6 -> 5, heirloom 3 -> 2). Goo stays at 90 HT. #22's harsher base 2 (Warrior 3) over-corrected on the new rooms (deaths 75 -> 104, Huntress 20 -> 42), and a milder base 4 kept 21.9% absorbed. Deep campaign (4 classes x 2 seeds x 40 runs) + fresh-save Goo first try (25 seeds):
+
+| | v0.29 + #26 | base 2 (#22 values) | base 4 | **base 3 (this)** |
+|---|---|---|---|---|
+| Barrier share of damage taken | 24.3% | 19.1% | 21.9% | **18.7%** |
+| deaths | 75 | 104 | 67 | **65** |
+| Goo first try | 32% | 26% | 28% | **24%** |
+
+Goo first try lands at about 25% without retuning Goo, so the #18 target holds. Barrier telemetry (`dmg_in`, `absorbed_total` per source) stays in Combat for balance sims. `test_barrier_spd` covers the starting values, upgrades, cap, decay and Shielding.
