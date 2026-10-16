@@ -1,6 +1,8 @@
 # Changelog
 
 ## Unreleased
+
+## 0.30.0
 - Huntress and Mage blind shots, like SPD: the Spirit Bow (tap any tile in range) and wands (Bolt mode) aim at a tile, seen or not. The shot hits the first body on the line and flies through tall grass; walls and closed doors stop it; an empty line wastes it. Wand bolts carry past the aimed tile. Auto Battle takes up to 2 arrows (1 wand charge, keeping one in reserve) at where an unseen foe was last seen, and no longer shoots through bodies (+tests).
 - Bats heal like SPD (`dealt - 2`, matching `Bat.attackProc`'s `damage - 4` at our half-damage double-speed scale) instead of a flat 2 on any hit that got through, so armor that blunts the bite also blunts the heal. Caves bat deaths in the deep sim drop 11 -> 7 (+test).
 - Barrier closer to SPD: starting Barrier is 1-2 lower (Warrior 5 + Seal 2 + Cloth 1 = 8; others 3 + Cloth 1 = 4), armor upgrades add DR only, encounter Barrier is capped at half of max HP (Shielding at max HP), and Barrier decays by 1/turn after 3 ticks when no enemy is adjacent. Absorbed damage share drops 24% -> 19%, campaign deaths 75 -> 65, fresh Goo first-try wins 32% -> 24% (+tests).
