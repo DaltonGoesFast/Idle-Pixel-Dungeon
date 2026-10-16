@@ -539,3 +539,16 @@ Boss room 4:
 ############
 ```
 <!-- /GENERATED -->
+
+### Vanilla rings (DECISIONS #157)
+Flat bonuses like the existing rings (rings don't take upgrades here). Drop from `item_unknown: ring` rewards; spares melt at the Forge like the others.
+
+| Ring | Unknown as | Effect |
+|---|---|---|
+| Furor | Opal | Melee swings take 15% less time (`delay x0.85`) |
+| Haste | Tourmaline | Steps cost 0.85 tick |
+| Sharpshooting | Sapphire | +1 Spirit Bow / staff bolt damage |
+| Elements | Amethyst | Piercing damage (fire, your own lightning, zaps, traps that pierce) x0.67 |
+| Force | Quartz | +2 melee damage with a tier-1 weapon (worn shortsword, dagger, gloves, staff) |
+
+Not ported: Accuracy (no hit roll), Arcana (no enchantments yet).

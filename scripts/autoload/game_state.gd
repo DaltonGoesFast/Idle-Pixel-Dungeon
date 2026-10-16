@@ -169,6 +169,7 @@ func hero_stats(c: String) -> Dictionary:
 	if not r.is_empty() and r.known and not r.cracked:
 		var rd := DB.item(r.id)
 		dmg += int(rd.get("dmg_bonus", 0)); barrier += int(rd.get("barrier_bonus", 0)); dr += int(rd.get("dr_bonus", 0))
+		if int(wd.get("tier", 1)) <= 1: dmg += int(rd.get("force_bonus", 0))   # Ring of Force (DECISIONS #157)
 	var s := {"starter_weapon": not w_ok, "starter_armor": not a_ok, "class": c, "name": def.name, "sprite": def.sprite, "fw": def.fw, "fh": def.fh, "row": armor_tier(c),
 		"ht": int(def.base_ht) + int(def.ht_per_level) * (int(h.level) - 1),
 		"dmg": dmg, "dr": dr, "barrier_max": barrier, "delay": float(wd.get("delay", 1.0)),
@@ -183,6 +184,11 @@ func hero_stats(c: String) -> Dictionary:
 		if ed.has("gold_mult"): s.gold_mult = float(ed.gold_mult)
 		if ed.has("hunger_mult"): s.hunger_mult = float(ed.hunger_mult)
 		s.charges_bonus = int(s.get("charges_bonus", 0)) + int(ed.get("charges_bonus", 0))
+		# vanilla rings (DECISIONS #157)
+		s.delay *= float(ed.get("delay_mult", 1.0))
+		if ed.has("move_cost"): s.move_cost = float(ed.move_cost)
+		if ed.has("elem_resist"): s.elem_resist = float(ed.elem_resist)
+		s.bolt_bonus = int(s.get("bolt_bonus", 0)) + int(ed.get("bolt_bonus", 0))
 	if "bolt" in def.abilities and h.wand != "":
 		var wn := DB.item(h.wand)
 		s.bolt = {"dmg": int(wn.bolt_dmg) + int(h.level) / 2, "charges": int(wn.charges) + int(h.level) / int(def.get("charge_per_levels", 99)), "recharge": int(wn.recharge),
@@ -205,6 +211,7 @@ func hero_stats(c: String) -> Dictionary:
 			s.bolt.dmg += int(td.get("bolt_add", 0))
 			if not s.bolt.get("infinite", false): s.bolt.charges += int(td.get("charges_add", 0))
 	if s.has("bolt") and not s.bolt.get("infinite", false): s.bolt.charges += int(s.get("charges_bonus", 0))   # Ring of Energy
+	if s.has("bolt"): s.bolt.dmg += int(s.get("bolt_bonus", 0))   # Ring of Sharpshooting
 	# Subclass (Tengu's Mask, DECISIONS #61): flat modifiers here, "perk" hooks in Combat.
 	var sub: Dictionary = def.get("subclasses", {}).get(String(h.get("subclass", "")), {})
 	if not sub.is_empty():

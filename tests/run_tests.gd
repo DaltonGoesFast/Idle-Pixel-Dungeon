@@ -57,6 +57,7 @@ func _ready() -> void:
 	test_guild_pack_cap(gs)
 	test_identify_queue_all(gs)
 	test_blind_shots(gs)
+	test_vanilla_rings(gs)
 	await test_guided_surprise_tip(gs)
 	test_no_collapsing_labels(gs)
 	await test_delve_chips(gs)
@@ -2434,3 +2435,39 @@ func test_bat_drain(gs) -> void:
 		c._mob_act(b)
 		check(int(b.hp) == 10 + case[1], "bat heals dealt-2 like SPD's dealt-4 (DR %d -> +%d, got %d)" % [case[0], case[1], int(b.hp) - 10])
 
+
+## DECISIONS #157: vanilla rings.
+func _ring_stats(gs, cls: String, id: String) -> Dictionary:
+	var old := int(gs.heroes[cls].get("ring", 0))
+	if id == "":
+		gs.heroes[cls].ring = 0
+		var b: Dictionary = gs.hero_stats(cls); gs.heroes[cls].ring = old; return b
+	var uid: int = gs.add_gear(id, true)
+	gs.heroes[cls].ring = uid
+	var st: Dictionary = gs.hero_stats(cls)
+	gs.heroes[cls].ring = old
+	gs.gear.erase(gs.gear_by_uid(uid))
+	return st
+
+func test_vanilla_rings(gs) -> void:
+	print("[vanilla rings]")
+	for id in ["ring_furor", "ring_haste", "ring_sharpshooting", "ring_elements", "ring_force"]:
+		check(DB.items.has(id) and DB.item(id).type == "ring" and DB.item(id).has("unknown_name"), "%s exists with an unknown name" % id)
+		check(Codex.item_line(id).length() > 4, "%s has a codex line" % id)
+	var base: Dictionary = _ring_stats(gs, "warrior", "")
+	check(float(_ring_stats(gs, "warrior", "ring_furor").delay) < float(base.delay), "furor speeds up melee")
+	var hs: Dictionary = _ring_stats(gs, "warrior", "ring_haste")
+	check(float(hs.move_cost) < 1.0, "haste lowers move cost")
+	var c := Combat.new(); c.setup(DB.rooms[1], hs, int(hs.ht), ["rat"])
+	c.enemies()[0].next = 99.0
+	var t0 := float(c.hero.next)
+	for d in Combat.DIRS:
+		if c.hero_tap(c.hero.pos + d): break
+	check(float(c.hero.next) - t0 < 1.0, "a hasted step costs less than a tick")
+	check(int(_ring_stats(gs, "huntress", "ring_sharpshooting").bolt.dmg) == int(_ring_stats(gs, "huntress", "").bolt.dmg) + 1, "sharpshooting adds ranged damage")
+	var es: Dictionary = _ring_stats(gs, "warrior", "ring_elements")
+	var c2 := Combat.new(); c2.setup(DB.rooms[1], es, int(es.ht), ["rat"]); c2.hero.barrier = 0
+	var hp0 := int(c2.hero.hp); c2.hit_hero(6, "Fire", true)
+	check(hp0 - int(c2.hero.hp) == 4, "elements cuts piercing damage by a third (took %d)" % (hp0 - int(c2.hero.hp)))
+	var fs: Dictionary = _ring_stats(gs, "rogue", "ring_force")
+	check(int(fs.dmg) == int(_ring_stats(gs, "rogue", "").dmg) + 2, "force adds tier-1 melee damage (rogue dagger)")
