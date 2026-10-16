@@ -168,7 +168,8 @@ func hero_stats(c: String) -> Dictionary:
 	dr = maxi(0, dr - maxi(0, int(ad.get("str", 10)) - int(h.str)))
 	if not r.is_empty() and r.known and not r.cracked:
 		var rd := DB.item(r.id)
-		dmg += int(rd.get("dmg_bonus", 0)); barrier += int(rd.get("barrier_bonus", 0)); dr += int(rd.get("dr_bonus", 0))
+		dmg += int(rd.get("dmg_bonus", 0)) + trinket_bonus(r, "dmg_bonus"); barrier += int(rd.get("barrier_bonus", 0)) + trinket_bonus(r, "barrier_bonus")
+		dr += int(rd.get("dr_bonus", 0)) + trinket_bonus(r, "dr_bonus")
 	var s := {"starter_weapon": not w_ok, "starter_armor": not a_ok, "class": c, "name": def.name, "sprite": def.sprite, "fw": def.fw, "fh": def.fh, "row": armor_tier(c),
 		"ht": int(def.base_ht) + int(def.ht_per_level) * (int(h.level) - 1),
 		"dmg": dmg, "dr": dr, "barrier_max": barrier, "delay": float(wd.get("delay", 1.0)),
@@ -178,14 +179,15 @@ func hero_stats(c: String) -> Dictionary:
 	for eq in [r, art]:
 		if eq.is_empty() or eq.cracked or not eq.known: continue
 		var ed := DB.item(eq.id)
-		s.ht += int(ed.get("ht_bonus", 0)); s.search_radius += int(ed.get("search_add", 0))
+		s.ht += int(ed.get("ht_bonus", 0)) + trinket_bonus(eq, "ht_bonus"); s.search_radius += int(ed.get("search_add", 0)) + trinket_bonus(eq, "search_add")
 		if ed.get("keen_eyes", false): s.keen_eyes = true
-		if ed.has("gold_mult"): s.gold_mult = float(ed.gold_mult)
-		if ed.has("hunger_mult"): s.hunger_mult = float(ed.hunger_mult)
+		if ed.has("gold_mult"): s.gold_mult = float(ed.gold_mult) + trinket_bonus_f(eq, "gold_mult")
+		if ed.has("hunger_mult"): s.hunger_mult = maxf(0.3, float(ed.hunger_mult) + trinket_bonus_f(eq, "hunger_mult"))
 		s.charges_bonus = int(s.get("charges_bonus", 0)) + int(ed.get("charges_bonus", 0))
 	if "bolt" in def.abilities and h.wand != "":
 		var wn := DB.item(h.wand)
-		s.bolt = {"dmg": int(wn.bolt_dmg) + int(h.level) / 2, "charges": int(wn.charges) + int(h.level) / int(def.get("charge_per_levels", 99)), "recharge": int(wn.recharge),
+		var wnl := 0 if h.get("wand_cracked", false) else int(h.get("wand_lvl", 0))   # DECISIONS #158: wand levels (dormant while cracked)
+		s.bolt = {"dmg": int(wn.bolt_dmg) + int(h.level) / 2 + wnl, "charges": int(wn.charges) + int(h.level) / int(def.get("charge_per_levels", 99)) + wnl / 2, "recharge": int(wn.recharge),
 			"burns_grass": wn.get("burns_grass", false), "chains_water": wn.get("chains_water", false), "name": wn.name, "magic": true}
 	if "shoot" in def.abilities:
 		# SPD Spirit Bow: (1 + lvl/5) - (6 + lvl/2.5), collapsed to the average
@@ -307,8 +309,9 @@ func delve_equip(uid: int) -> bool:
 	run.pack_gear.erase(g)
 	if d.type == "wand":
 		var old: String = h.wand
-		h.wand = g.id
-		if old != "": run.pack_gear.append({"uid": _take_uid(), "id": old, "lvl": 0, "cracked": false, "known": true, "owned": true})
+		var old_lvl := int(h.get("wand_lvl", 0)); var old_cr: bool = h.get("wand_cracked", false)
+		h.wand = g.id; h.wand_lvl = int(g.get("lvl", 0)); h.wand_cracked = g.get("cracked", false)
+		if old != "": run.pack_gear.append({"uid": _take_uid(), "id": old, "lvl": old_lvl, "cracked": old_cr, "known": true, "owned": true})
 		say("Imbued %s into the staff." % d.name)
 	else:
 		var slot := _slot_for(d.type)
@@ -629,10 +632,20 @@ func forge_cap() -> int:
 	return MASTERWORK_MAX if l >= int(DB.facilities.blacksmith.max) else l
 
 func item_upgrade_cost(uid: int) -> Dictionary:
-	return upgrade_step_cost(int(gear_by_uid(uid).lvl) + 1)
+	var g := gear_by_uid(uid)
+	if is_trinket(g): return trinket_step_cost(int(g.lvl) + 1)
+	return upgrade_step_cost(int(g.lvl) + 1)
 
 func can_upgrade_item(uid: int) -> String:
 	var g := gear_by_uid(uid)
+	if is_trinket(g):
+		var t: String = DB.item(g.id).type
+		if t == "artifact": return "artifacts level up by use"
+		if not g.known: return "identify first"
+		if g.cracked: return "repair first"
+		if g.lvl >= enchant_cap(): return "Enchanter cap +%d" % enchant_cap() if enchant_cap() > 0 else "needs Enchanter's Desk Lv2"
+		if not can_afford(item_upgrade_cost(uid)): return "need " + cost_text(item_upgrade_cost(uid))
+		return ""
 	if g.is_empty() or not (DB.item(g.id).type in ["weapon", "armor"]): return "not upgradable"
 	if g.cracked: return "repair first"
 	if g.lvl >= forge_cap(): return "Blacksmith cap +%d" % forge_cap()
@@ -646,12 +659,96 @@ func upgrade_item(uid: int) -> bool:
 
 func repair_cost(uid: int) -> Dictionary:
 	var g := gear_by_uid(uid)
+	if is_trinket(g): return trinket_repair_cost(DB.item(g.id).type, int(g.lvl))
 	return {"iron_ore": 2 + int(DB.item(g.id).get("tier", 1)) + int(g.lvl)}
+
+## Why a cracked item can't be repaired now ("" = ok). Rings/wands/artifacts need the Enchanter (DECISIONS #158).
+func can_repair(uid: int) -> String:
+	var g := gear_by_uid(uid)
+	if g.is_empty() or not g.cracked: return "not cracked"
+	if is_trinket(g):
+		var need := trinket_repair_level(DB.item(g.id).type)
+		if facility_level("enchanter") < need: return "needs Enchanter's Desk Lv%d" % need
+	if not can_afford(repair_cost(uid)): return "need " + cost_text(repair_cost(uid))
+	return ""
 
 func repair(uid: int) -> bool:
 	var g := gear_by_uid(uid)
-	if g.is_empty() or not g.cracked or not pay(repair_cost(uid)): return false
+	if can_repair(uid) != "" or not pay(repair_cost(uid)): return false
 	g.cracked = false; say("Repaired " + gear_name(g) + "."); touch(); return true
+
+# ---------------------------------------------------------------- rings, wands, artifacts (DECISIONS #158)
+## Rings, wands and artifacts ("trinkets") level and repair at the Enchanter's Desk, not the Forge.
+## Max item level = Desk level - 1 (Lv1: +0 only). Rings/wands: 1 Scroll of Upgrade + resin + gold per level.
+## Artifacts can't take Scrolls (SPD): they gain XP from won fights, capped by the same Desk cap.
+## Repair: rings/wands need Desk Lv2, artifacts Lv3. Patch up (free) never covers them.
+func is_trinket(g: Dictionary) -> bool:
+	return not g.is_empty() and DB.item(g.id).type in ["ring", "wand", "artifact"] and not DB.item(g.id).get("heirloom", false)
+
+func enchant_cap() -> int:
+	return maxi(0, facility_level("enchanter") - 1)
+
+static func trinket_step_cost(next_lvl: int) -> Dictionary:
+	return {"scroll_upgrade": 1, "arcane_resin": 3 * next_lvl, "gold": 50 * next_lvl * next_lvl}
+
+static func trinket_repair_level(t: String) -> int:
+	return 3 if t == "artifact" else 2
+
+static func trinket_repair_cost(t: String, lvl: int) -> Dictionary:
+	if t == "artifact": return {"arcane_resin": 4 + 2 * lvl, "gold": 40 + 20 * lvl}
+	return {"arcane_resin": 2 + lvl}
+
+## Per-level bonus from the item's "per_level" table (ints round down, so +0.5 steps land every other level).
+func trinket_bonus(g: Dictionary, key: String) -> int:
+	if g.is_empty() or g.get("cracked", false): return 0
+	return int(floor(float(DB.item(g.id).get("per_level", {}).get(key, 0)) * int(g.get("lvl", 0))))
+
+func trinket_bonus_f(g: Dictionary, key: String) -> float:
+	if g.is_empty() or g.get("cracked", false): return 0.0
+	return float(DB.item(g.id).get("per_level", {}).get(key, 0.0)) * int(g.get("lvl", 0))
+
+const ARTIFACT_XP_PER_LVL := 8
+## A won fight charges the equipped artifact; at 8 x (next level) XP it levels, up to the Desk cap.
+func charge_artifact(c: String) -> void:
+	var a := gear_by_uid(int(heroes[c].get("artifact", 0)))
+	if a.is_empty() or a.cracked or not a.known or DB.item(a.id).get("heirloom", false): return
+	if int(a.lvl) >= enchant_cap(): return
+	a.xp = int(a.get("xp", 0)) + 1
+	if int(a.xp) >= ARTIFACT_XP_PER_LVL * (int(a.lvl) + 1):
+		a.xp = 0; a.lvl = int(a.lvl) + 1
+		say("%s grows stronger (+%d)." % [DB.item(a.id).name, a.lvl], "positive")
+
+## The wand imbued in the Mage's Staff (it lives on the hero, not in gear).
+func staff_wand_cost() -> Dictionary:
+	return trinket_step_cost(int(heroes.mage.get("wand_lvl", 0)) + 1)
+
+func can_upgrade_staff_wand() -> String:
+	var h: Dictionary = heroes.mage
+	if String(h.get("wand", "")) == "": return "no wand imbued"
+	if h.get("wand_cracked", false): return "repair first"
+	if enchant_cap() <= 0: return "needs Enchanter's Desk Lv2"
+	if int(h.get("wand_lvl", 0)) >= enchant_cap(): return "Enchanter cap +%d" % enchant_cap()
+	if not can_afford(staff_wand_cost()): return "need " + cost_text(staff_wand_cost())
+	return ""
+
+func upgrade_staff_wand() -> bool:
+	if can_upgrade_staff_wand() != "": return false
+	pay(staff_wand_cost()); heroes.mage.wand_lvl = int(heroes.mage.get("wand_lvl", 0)) + 1
+	say("Upgraded %s to +%d." % [DB.item(heroes.mage.wand).name, heroes.mage.wand_lvl]); touch(); return true
+
+func staff_wand_repair_cost() -> Dictionary:
+	return trinket_repair_cost("wand", int(heroes.mage.get("wand_lvl", 0)))
+
+func can_repair_staff_wand() -> String:
+	if not heroes.mage.get("wand_cracked", false): return "not cracked"
+	if facility_level("enchanter") < 2: return "needs Enchanter's Desk Lv2"
+	if not can_afford(staff_wand_repair_cost()): return "need " + cost_text(staff_wand_repair_cost())
+	return ""
+
+func repair_staff_wand() -> bool:
+	if can_repair_staff_wand() != "": return false
+	pay(staff_wand_repair_cost()); heroes.mage.wand_cracked = false
+	say("Repaired the staff's %s." % DB.item(heroes.mage.wand).name); touch(); return true
 
 # ---------------------------------------------------------------- bulk Forge/Guild actions (DECISIONS #97)
 const BULK_CAP := 99
@@ -684,14 +781,15 @@ func craft_n(fac: String, rid: String, n: int) -> bool:
 ## Total iron ore for `n` successive upgrades of one item (costs rise per level).
 func upgrade_cost_n(uid: int, n: int) -> Dictionary:
 	var g := gear_by_uid(uid); var total := {}
-	for i in n: total = cost_add(total, upgrade_step_cost(int(g.lvl) + i + 1))
+	for i in n: total = cost_add(total, trinket_step_cost(int(g.lvl) + i + 1) if is_trinket(g) else upgrade_step_cost(int(g.lvl) + i + 1))
 	return total
 
 ## Most levels the item can gain now: limited by the Blacksmith cap and by what is affordable.
 func upgrade_max(uid: int) -> int:
 	var g := gear_by_uid(uid)
-	if g.is_empty() or g.get("cracked", false) or not (DB.item(g.id).type in ["weapon", "armor"]): return 0
-	var room := maxi(0, forge_cap() - int(g.lvl))
+	if g.is_empty() or g.get("cracked", false) or not (DB.item(g.id).type in ["weapon", "armor", "ring", "wand"]): return 0
+	if is_trinket(g) and not g.known: return 0
+	var room := maxi(0, (enchant_cap() if is_trinket(g) else forge_cap()) - int(g.lvl))
 	var n := 0
 	while n < room and can_afford(upgrade_cost_n(uid, n + 1)): n += 1
 	return n
@@ -704,7 +802,7 @@ func upgrade_item_n(uid: int, n: int) -> bool:
 ## "Patch up" (DECISIONS #104): when no cracked item's repair is affordable, the Blacksmith repairs the cheapest
 ## cracked weapon/armor for free, so a total wipe can never lock the player out.
 func can_patch_up() -> String:
-	var cr := cracked_gear()
+	var cr := cracked_gear().filter(func(g): return DB.item(g.id).type in ["weapon", "armor"])
 	if cr.is_empty(): return "nothing to repair"
 	for g in cr:
 		if can_afford(repair_cost(g.uid)): return "you can afford a repair"
@@ -712,7 +810,7 @@ func can_patch_up() -> String:
 
 func patch_up() -> bool:
 	if can_patch_up() != "": return false
-	var cr := cracked_gear()
+	var cr := cracked_gear().filter(func(g): return DB.item(g.id).type in ["weapon", "armor"])
 	cr.sort_custom(func(a, b):
 		var wa := 0 if DB.item(a.id).type in ["weapon", "armor"] else 1; var wb := 0 if DB.item(b.id).type in ["weapon", "armor"] else 1
 		if wa != wb: return wa < wb
@@ -732,11 +830,15 @@ func cracked_gear() -> Array:
 
 func repair_all_cost() -> Dictionary:
 	var total := {}
-	for g in cracked_gear(): total = cost_add(total, repair_cost(g.uid))
+	for g in repairable_gear(): total = cost_add(total, repair_cost(g.uid))
 	return total
 
+## Cracked gear whose facility gate is met (cost aside).
+func repairable_gear() -> Array:
+	return cracked_gear().filter(func(g): return not is_trinket(g) or facility_level("enchanter") >= trinket_repair_level(DB.item(g.id).type))
+
 func can_repair_all() -> String:
-	if cracked_gear().is_empty(): return "nothing to repair"
+	if repairable_gear().is_empty(): return "nothing to repair" if cracked_gear().is_empty() else "needs the Enchanter's Desk"
 	if not can_afford(repair_all_cost()): return "need " + cost_text(repair_all_cost())
 	return ""
 
@@ -851,9 +953,11 @@ func imbue_wand(uid: int) -> bool:
 	var g := gear_by_uid(uid)
 	if g.is_empty() or DB.item(g.id).type != "wand" or not g.known: return false
 	var old: String = heroes.mage.wand
-	heroes.mage.wand = g.id
+	var old_lvl := int(heroes.mage.get("wand_lvl", 0)); var old_cr: bool = heroes.mage.get("wand_cracked", false)
+	heroes.mage.wand = g.id; heroes.mage.wand_lvl = int(g.lvl); heroes.mage.wand_cracked = g.get("cracked", false)
 	gear.erase(g)
-	if old != "": add_gear(old)
+	if old != "":
+		var ou := add_gear(old, true, old_lvl); gear_by_uid(ou).cracked = old_cr
 	say("Imbued %s into the Mage's Staff." % DB.item(g.id).name); touch(); return true
 
 # ---------------------------------------------------------------- Enchanter's Desk
@@ -1053,10 +1157,11 @@ func end_run(result: String) -> void:
 				var g := gear_by_uid(int(h.get(slot, 0)))
 				# heirlooms (Mage's Staff...) are permanent and never crack
 				if not g.is_empty() and not DB.item(g.id).get("heirloom", false): g.cracked = true
+			if String(h.get("wand", "")) != "" and int(h.get("wand_lvl", 0)) > 0: h.wand_cracked = true   # DECISIONS #158
 			for g in run.pack_gear:
 				if g.get("owned", false):
 					g.erase("owned")
-					if not DB.item(g.id).get("heirloom", false) and DB.item(g.id).type != "wand": g.cracked = true
+					if not DB.item(g.id).get("heirloom", false) and (DB.item(g.id).type != "wand" or int(g.get("lvl", 0)) > 0): g.cracked = true
 					gear.append(g)
 			h.best_level = maxi(int(h.get("best_level", 1)), int(h.level))
 			h.level = 1; h.xp = 0; h.str = 10; h.talents = []; h.str_found = []

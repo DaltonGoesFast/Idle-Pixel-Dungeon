@@ -504,6 +504,7 @@ static func apply_fight_result(gs, ev: Dictionary, res: Dictionary, reward: Dict
 	gs.pack_add("gold", int(round(int(res.loot) * float(gs.hero_stats(run.hero).get("gold_mult", 1.0)))))   # Ring of Wealth
 	# every 4th won fight drops an unknown potion or scroll (SPD-style consumable loot, DECISIONS #80)
 	run.fights_won = int(run.get("fights_won", 0)) + 1
+	gs.charge_artifact(run.hero)   # DECISIONS #158
 	if run.fights_won % 4 == 0:
 		gs.say("Found: " + reward(gs, {"item_unknown": "potion" if (run.fights_won / 4) % 2 == 1 else "scroll"}))
 	run.pending_loot = int(run.pending_loot) + int(res.fallen_loot)

@@ -38,6 +38,6 @@
    "gold": 40
   },
   "max": 3,
-  "desc": "Identify curios over time (faster per level); scribe Scrolls of Passage."
+  "desc": "Identify curios over time (faster per level); scribe Scrolls of Passage. Levels rings and wands (cap = level - 1) and repairs them from Lv2, artifacts from Lv3."
  }
 }

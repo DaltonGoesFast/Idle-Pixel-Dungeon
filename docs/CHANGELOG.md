@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Rings, wands and artifacts now level and repair at the Enchanter's Desk: the Desk level caps their level (Lv1: +0), rings and the staff wand cost a Scroll of Upgrade + resin + gold per level, artifacts level slowly from won fights, and repairs need Desk Lv2 (Lv3 for artifacts). New rings and artifacts start weaker (Tenacity +1, Wealth +15%, Energy +2 HP, Chalice +6 HP, Horn x0.8). A levelled imbued wand cracks on death; Patch up no longer covers rings/artifacts (+tests).
 
 ## 0.30.0
 - Huntress and Mage blind shots, like SPD: the Spirit Bow (tap any tile in range) and wands (Bolt mode) aim at a tile, seen or not. The shot hits the first body on the line and flies through tall grass; walls and closed doors stop it; an empty line wastes it. Wand bolts carry past the aimed tile. Auto Battle takes up to 2 arrows (1 wand charge, keeping one in reserve) at where an unseen foe was last seen, and no longer shoots through bodies (+tests).
