@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+## 0.40.1
+- Opening a special room that had no description (Trapped Vault, Chained Prisoner, Abandoned Shop, Gnoll Camp) crashed the delve card. Those rooms now have descriptions, and a room with no text still opens (+tests).
+
 ## 0.40.0
 - The "next attack is a SURPRISE" status line only shows when a foe you can hit right now (adjacent, or a clear Spirit Bow shot) has lost sight of you, not whenever any foe is out of sight (+tests).
 - Eleven more vanilla potions and scrolls drop as unknowns: Invisibility, Haste, Levitation, Frost, Paralytic Gas, Liquid Flame, Recharging, Lullaby, Retribution, Terror and Transmutation. Three potions hurt you when drunk blind, so identifying matters more (+tests).
