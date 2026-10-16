@@ -587,3 +587,10 @@ The first whole-wait bars anchored every row on the current front item's slot (`
 
 ## 172. Snakes: magic always hits, bows after one slip
 Requested by the user: ranged heroes must be able to kill snakes. In SPD magic never misses, so wand and staff bolts (and other magic damage) now always hit a snake. Spirit Bow arrows are physical, so a snake slips the first arrow of each fight (`slipped_shot` on the mob), then every later arrow connects. This keeps a small cost for the Huntress without making snakes a wall. Melee is unchanged: only a Surprise connects. Considered and rejected: a dodge on the first arrow every turn, which with one shot per turn would block every arrow.
+
+## 173. Facility levels are slots: Scrolls unlock, materials fill
+Recorded from 2a078e4 and 0476bd6, which shipped without an entry. The old header showed "Lv x / y (cap z)" over a bar, with "Raise cap: N Scrolls" and "Upgrade" in the footer, and it read as one upgrade with two costs. Now a facility shows one box per level up to its max (3):
+- **Filled**: a numbered gold box. Filled boxes are the current level.
+- **Open**: a green "+". The slot is unlocked but not filled yet.
+- **Locked**: a dimmed Scroll of Upgrade icon.
+The **Unlock** row (Scroll cost, "have N", button) calls `apply_sou`. It turns one Locked slot into an Open one by raising `cap`, and it never raises `level`. The row is hidden once every slot is unlocked and stays visible with no Scrolls in the stash, so the cost is always shown. **Upgrade** (button `FillSlot`) calls `upgrade_facility`. It spends the materials and fills one Open slot, raising `level`. With no Open slot it says "Unlock a slot first." The rules and costs did not change (#114, #150): this is display and wording only. 0476bd6 shrank the boxes from 2.6 to 1.8 font heights and dropped the extra headings and explanation lines. On the Fold inner, the header plus the materials strip had grown to 73-89% of the window body before max (23-42% before slots). It is now 55-66%, so the recipes and the Guild Supplies start on screen (playtest of 2a078e4, `newc/facmeasure.gd`). Covered by `test_facility_cap`. Follow-ups are POLISH #33-#37.
