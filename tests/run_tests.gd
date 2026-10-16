@@ -2016,7 +2016,7 @@ func test_facility_cap(gs) -> void:
 	check(gs.facility_cap("guild") == 2, "a level above the stored cap counts as the cap")
 	var t: String = gs.facility_title("Guild Hall", 2, gs.facility_cap("guild"), int(DB.facilities.guild.max))
 	check(t.contains("Lv 2 / 3") and not t.contains("/ 1") and t.contains("cap 2"), "header shows level / max and the blocking cap (%s)" % t)
-	check(gs.can_upgrade_facility("guild").begins_with("capped"), "level 2 at cap 2 is capped")
+	check(gs.can_upgrade_facility("guild").begins_with("unlock a slot"), "level 2 at cap 2 has no open slot")
 	gs.mats.scroll_upgrade = gs.sou_cap_cost("guild")
 	check(gs.apply_sou("guild") and gs.facility_cap("guild") == 3, "Scrolls raise the cap from the effective cap (2 -> 3)")
 	gs.mats.gold = 1000
@@ -2037,6 +2037,36 @@ func test_facility_cap(gs) -> void:
 	m_slot2.pressed.emit()
 	check(cs.open_name == "Heroes", "tapping the selected hero again opens Heroes")
 	m_slot.free(); m_slot2.free(); cs.queue_free()
+	# Scrolls unlock a locked slot. Materials fill an open one. The two actions are not one button.
+	gs.facilities.enchanter.level = 1; gs.facilities.enchanter.cap = 2
+	gs.mats.scroll_upgrade = 4; gs.mats.arcane_resin = 0; gs.mats.gold = 0
+	var camp = load("res://scripts/ui/camp_screen.gd").new(); add_child(camp)
+	camp.open_page("Enchanter")
+	var blob := _node_text(camp.win_layer)
+	check(blob.contains("Unlock a slot") and blob.contains("Fill a slot") and not blob.contains("Raise cap"), "scrolls and materials are separate actions")
+	check(blob.contains("only unlock") and blob.contains("Filled") and blob.contains("Open") and blob.contains("Locked"), "slots say scrolls only unlock, materials fill")
+	var unlock = camp.win_layer.find_child("UnlockSlot", true, false)
+	var fill = camp.win_layer.find_child("FillSlot", true, false)
+	check(unlock != null and not unlock.disabled, "enough scrolls enables Unlock slot")
+	check(fill != null and fill.disabled and blob.contains("Arcane Resin"), "Fill slot stays shut until the materials are there")
+	unlock.pressed.emit()
+	check(gs.facility_cap("enchanter") == 3 and gs.mat("scroll_upgrade") == 0, "Unlock slot spends the scrolls and opens one slot")
+	check(camp.win_layer.find_child("UnlockSlot", true, false) == null, "no unlock row once every slot is unlocked")
+	var row = camp.win_layer.find_child("FacilitySlots", true, false)
+	var states: Array = []
+	if row:
+		for c in row.get_children(): states.append(str(c.get_meta("state")))
+	check(str(states) == str(["filled", "open", "open"]), "level 1 at cap 3 is one filled slot and two open %s" % str(states))
+	gs.mats.arcane_resin = 10; gs.mats.gold = 200; camp._fill_window()
+	var fill2 = camp.win_layer.find_child("FillSlot", true, false)
+	check(fill2 != null and not fill2.disabled, "Fill slot enables once a slot is open and the materials are in hand")
+	fill2.pressed.emit()
+	check(gs.facility_level("enchanter") == 2, "Fill slot raises the level")
+	gs.facilities.enchanter.level = 2; gs.facilities.enchanter.cap = 2; gs.mats.scroll_upgrade = 0
+	camp._fill_window()
+	var u2 = camp.win_layer.find_child("UnlockSlot", true, false)
+	check(u2 != null and u2.disabled and _node_text(camp.win_layer).contains("Unlock a slot first"), "with no open slot, fill says to unlock first and the scroll row stays visible")
+	camp.queue_free()
 
 ## DECISIONS #115: the Guild ration crate slot is told apart from the single Ration slot by its pack size.
 func _slot_texts(slot: Control) -> Array:

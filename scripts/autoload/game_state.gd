@@ -625,7 +625,7 @@ static func facility_title(fname: String, level: int, cap: int, mx: int) -> Stri
 func can_upgrade_facility(id: String) -> String:
 	var f: Dictionary = facilities[id]
 	if f.level >= int(DB.facilities[id].max): return "max level"
-	if f.level >= facility_cap(id): return "capped - apply %d Scroll%s of Upgrade" % [sou_cap_cost(id), "" if sou_cap_cost(id) == 1 else "s"]
+	if f.level >= facility_cap(id): return "unlock a slot first"
 	if not can_afford(facility_upgrade_cost(id)): return "need " + cost_text(facility_upgrade_cost(id))
 	return ""
 
@@ -634,7 +634,7 @@ func upgrade_facility(id: String) -> bool:
 	var id_old := identify_seconds()
 	pay(facility_upgrade_cost(id)); facilities[id].level += 1
 	if id == "enchanter": rescale_identify(id_old, identify_seconds())
-	say("%s upgraded to level %d." % [DB.facilities[id].name, facilities[id].level]); touch(); return true
+	say("%s filled a slot: level %d." % [DB.facilities[id].name, facilities[id].level]); touch(); return true
 
 ## Scrolls of Upgrade needed to raise this facility's cap by one (0 at max). Cheap first raise, steep last raise,
 ## so maxing the whole camp takes every Scroll the game hands out: each hero's first kill of each boss plus the
@@ -668,7 +668,7 @@ func apply_sou(id: String) -> bool:
 	var need := sou_cap_cost(id)
 	if need <= 0 or mat("scroll_upgrade") < need: return false
 	add_mat("scroll_upgrade", -need); f.cap = facility_cap(id) + 1
-	say("%d Scroll%s of Upgrade: %s cap raised to %d." % [need, "" if need == 1 else "s", DB.facilities[id].name, f.cap]); touch(); return true
+	say("Spent %d Scroll%s of Upgrade. %s has a new open slot. Fill it with materials." % [need, "" if need == 1 else "s", DB.facilities[id].name]); touch(); return true
 
 func recipe(fac: String, rid: String) -> Dictionary:
 	for r in DB.recipes.get(fac, []):
