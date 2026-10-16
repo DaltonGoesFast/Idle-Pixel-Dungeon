@@ -52,6 +52,7 @@ func _ready() -> void:
 	test_goo_spiral(gs)
 	test_food_sources(gs)
 	test_facility_cap(gs)
+	test_camp_sou_budget(gs)
 	test_crate_slot(gs)
 	test_max_all_supplies(gs)
 	test_guild_pack_cap(gs)
@@ -1935,8 +1936,8 @@ func test_facility_cap(gs) -> void:
 	var t: String = gs.facility_title("Guild Hall", 2, gs.facility_cap("guild"), int(DB.facilities.guild.max))
 	check(t.contains("Lv 2 / 3") and not t.contains("/ 1") and t.contains("cap 2"), "header shows level / max and the blocking cap (%s)" % t)
 	check(gs.can_upgrade_facility("guild").begins_with("capped"), "level 2 at cap 2 is capped")
-	gs.mats.scroll_upgrade = 1
-	check(gs.apply_sou("guild") and gs.facility_cap("guild") == 3, "a Scroll raises the cap from the effective cap (2 -> 3)")
+	gs.mats.scroll_upgrade = gs.sou_cap_cost("guild")
+	check(gs.apply_sou("guild") and gs.facility_cap("guild") == 3, "Scrolls raise the cap from the effective cap (2 -> 3)")
 	gs.mats.gold = 1000
 	check(gs.can_upgrade_facility("guild") == "" and gs.upgrade_facility("guild"), "upgrade allowed once the cap is raised")
 	check(not gs.facility_title("Guild Hall", 3, 3, 3).contains("cap"), "no cap note at max level")
@@ -2434,3 +2435,31 @@ func test_bat_drain(gs) -> void:
 		c._mob_act(b)
 		check(int(b.hp) == 10 + case[1], "bat heals dealt-2 like SPD's dealt-4 (DR %d -> +%d, got %d)" % [case[0], case[1], int(b.hp) - 10])
 
+
+
+## DECISIONS #150: maxing every facility takes the whole Scroll of Upgrade supply (4 heroes x 5 bosses + milestones).
+func test_camp_sou_budget(gs) -> void:
+	print("[camp sou budget]")
+	var supply: int = gs.total_sou_supply()
+	var bosses := 0
+	for b in DB.biomes.values(): if b is Dictionary and str(b.get("boss", "")) != "": bosses += 1
+	check(supply >= DB.heroes.size() * bosses, "supply counts every hero's first kill of every boss (%d)" % supply)
+	check(gs.total_sou_to_max() >= supply, "maxing the camp costs >= every Scroll the game grants (%d vs %d)" % [gs.total_sou_to_max(), supply])
+	check(gs.total_sou_to_max() == supply, "and is still reachable: cost == supply (%d)" % supply)
+	gs.new_game()
+	for id in ["blacksmith", "alchemy", "guild", "enchanter"]:
+		check(gs.sou_cap_cost(id) == 1, "%s: first cap raise is 1 Scroll (first boss kill buys it)" % id)
+	gs.mats.scroll_upgrade = 1
+	check(gs.apply_sou("blacksmith") and gs.mat("scroll_upgrade") == 0, "1 Scroll raises the Blacksmith cap to 2")
+	check(gs.sou_cap_cost("blacksmith") >= 4, "last cap raise is steep (%d)" % gs.sou_cap_cost("blacksmith"))
+	gs.mats.scroll_upgrade = gs.sou_cap_cost("blacksmith") - 1
+	check(not gs.apply_sou("blacksmith") and gs.facility_cap("blacksmith") == 2, "short of Scrolls: cap unchanged, nothing spent")
+	check(gs.mat("scroll_upgrade") == gs.sou_cap_cost("blacksmith") - 1, "no Scrolls spent on a failed raise")
+	gs.mats.scroll_upgrade += 1
+	check(gs.apply_sou("blacksmith") and gs.facility_cap("blacksmith") == 3 and gs.mat("scroll_upgrade") == 0, "enough Scrolls: cap 3")
+	check(gs.sou_cap_cost("blacksmith") == 0 and not gs.apply_sou("blacksmith"), "no raise past max")
+	# first-kill rule: a repeat kill grants nothing, so the supply is the hard limit
+	gs.new_game(); gs.start_run("warrior", {})
+	check(gs.record_boss_kill("warrior", "sewers") and int(gs.run.pack.get("scroll_upgrade", 0)) == 1, "first Goo kill: 1 Scroll")
+	check(not gs.record_boss_kill("warrior", "sewers") and int(gs.run.pack.get("scroll_upgrade", 0)) == 1, "repeat Goo kill: no Scroll")
+	gs.run = {}

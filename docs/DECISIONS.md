@@ -460,3 +460,16 @@ v0.29 made tall grass and closed doors block sight, and `can_bolt` required sigh
 - Sight memory: when it is the hero's turn, every enemy in the hero's sight records `last_seen = [x, y]` (plain array, so it saves and restores with the fight).
 - CombatBot only takes aimed shots at foes it can see whose line is clear of other bodies (`_can_shoot`; before, it could shoot through bodies). With nothing in sight and nothing adjacent, it shoots at an unseen foe's `last_seen`: up to 2 arrows per sighting, or 1 wand charge while 2+ remain.
 Covered by `test_blind_shots` (hidden rat in grass hit, empty tile wastes the shot, the first body takes it, a closed door stops it, a wand bolt carries past, last_seen survives save/load, the bot's blind shot).
+
+## 150. Camp maxes only after every hero beats every boss
+Facility caps were raised by 1 Scroll of Upgrade each, so maxing the camp (4 facilities x 2 cap raises) took 8 Scrolls. Supply: `record_boss_kill` grants 1 Scroll per hero per boss on the first kill only, 4 heroes x 5 bosses (Goo, Tengu, DM-300, Dwarf King, Yog) = 20, plus the Jailbreak and Full Roster milestones (+1 each) = **22**. Owed Scrolls (lost on death, returned by `grant_owed_sou` on the next boss kill) are the same Scrolls coming back, not new supply, so they are not counted. Gold and materials were never the gate: in the v0.30 deep sim heroes end campaigns with 800-4500 gold, while the Lv3 costs are at most 200 gold / 20 ore / 16 seeds / 6 resin.
+New `cap_scrolls` per facility in `data/facilities.json`, cost to raise cap C -> C+1 = `cap_scrolls[C-1]`:
+| Facility | Cap 1->2 | Cap 2->3 | Total |
+|---|---|---|---|
+| Blacksmith | 1 | 5 | 6 |
+| Guild Hall | 1 | 5 | 6 |
+| Alchemy Pot | 1 | 4 | 5 |
+| Enchanter's Desk | 1 | 4 | 5 |
+| **All** | 4 | 18 | **22** (was 8) |
+The first Goo kill still buys a Lv2 cap; all four Lv2 caps cost 4 Scrolls (one hero through Dwarf King, or a couple of heroes past Goo). The Lv3 caps need 18 more, so the last one lands only with the final first kills (Yog on the last hero). Blacksmith and Guild are the steeper 5s because they gate gear +3 and the 10-supply pack. `apply_sou` spends all the Scrolls at once or none. `GameState.total_sou_supply()` / `total_sou_to_max()` compute both sides from data, and `test_camp_sou_budget` asserts cost >= supply (and == supply, so it stays reachable); adding a boss, hero or Scroll milestone without raising `cap_scrolls` fails the test. Existing saves keep caps they already raised.
+Estimate from the v0.30 deep sim (one hero, 40 expeditions per campaign, 8 campaigns): a hero earns 3-5 Scrolls (2-4 boss first kills + Jailbreak) and no sim hero beat Yog. Before: 5 Scrolls = 5 of 8 caps by run 12-34, and two heroes' campaigns (~60-80 expeditions) maxed the camp. After: the same 5 Scrolls buy the four Lv2 caps plus 1 toward a Lv3; two heroes (~9-10 Scrolls) get one Lv3 facility; maxing needs all 20 boss first kills, i.e. 160+ expeditions at sim pace.

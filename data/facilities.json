@@ -1,5 +1,5 @@
 {
- "_note": "Level L->L+1 costs 'upgrade_cost' * (L). Max level is capped at 1 + scrolls of upgrade applied (hard cap 'max').",
+ "_note": "Level L->L+1 costs 'upgrade_cost' * (L). Max level is capped at the Scroll cap; raising the cap from C to C+1 costs cap_scrolls[C-1] Scrolls of Upgrade (hard cap 'max'). Sum of cap_scrolls over all facilities = total Scroll supply (DECISIONS #150).",
  "blacksmith": {
   "name": "Blacksmith",
   "fuel": "iron_ore",
@@ -8,7 +8,8 @@
    "gold": 50
   },
   "max": 3,
-  "desc": "Forge & upgrade gear (+1 per level cap), repair cracked gear, melt spare rings."
+  "desc": "Forge & upgrade gear (+1 per level cap), repair cracked gear, melt spare rings.",
+  "cap_scrolls": [1, 5]
  },
  "alchemy": {
   "name": "Alchemy Pot",
@@ -18,7 +19,8 @@
    "gold": 40
   },
   "max": 3,
-  "desc": "Brew potions. Lv2: Starter Elixirs. Potion belt = level+1."
+  "desc": "Brew potions. Lv2: Starter Elixirs. Potion belt = level+1.",
+  "cap_scrolls": [1, 4]
  },
  "guild": {
   "name": "Guild Hall",
@@ -28,7 +30,8 @@
   },
   "max": 3,
   "pack_cap": [3, 6, 10],
-  "desc": "Supplies & Offline Patrols (2h/4h/8h by level). Rations and torches per expedition: 3/6/10 by level."
+  "desc": "Supplies & Offline Patrols (2h/4h/8h by level). Rations and torches per expedition: 3/6/10 by level.",
+  "cap_scrolls": [1, 5]
  },
  "enchanter": {
   "name": "Enchanter's Desk",
@@ -38,6 +41,7 @@
    "gold": 40
   },
   "max": 3,
-  "desc": "Identify curios over time (faster per level); scribe Scrolls of Passage."
+  "desc": "Identify curios over time (faster per level); scribe Scrolls of Passage.",
+  "cap_scrolls": [1, 4]
  }
 }

@@ -209,12 +209,12 @@ Traps: worn_dart, poison_dart, teleport, gripping. Strength potions at [[22, 50]
 
 ### Facilities
 
-| Facility | Upgrade cost (x current level) | Max |
-|---|---|---|
-| Blacksmith | 10 iron_ore, 50 gold | 3 |
-| Alchemy Pot | 8 seeds, 40 gold | 3 |
-| Guild Hall | 100 gold | 3 |
-| Enchanter's Desk | 3 arcane_resin, 40 gold | 3 |
+| Facility | Upgrade cost (x current level) | Scrolls of Upgrade per cap raise | Max |
+|---|---|---|---|
+| Blacksmith | 10 iron_ore, 50 gold | 1 / 5 | 3 |
+| Alchemy Pot | 8 seeds, 40 gold | 1 / 4 | 3 |
+| Guild Hall | 100 gold | 1 / 5 | 3 |
+| Enchanter's Desk | 3 arcane_resin, 40 gold | 1 / 4 | 3 |
 <!-- /GENERATED -->
 
 ## Caves + subclasses (v0.12.0, tests [cavesrun], Lv8 / Str 14, tier-3 gear, 10 seeds)

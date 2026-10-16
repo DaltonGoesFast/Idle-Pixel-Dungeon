@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Camp upgrades are gated on the whole Scroll of Upgrade supply: raising a facility's cap to Lv2 still costs 1 Scroll, but the Lv3 cap now costs 5 (Blacksmith, Guild) or 4 (Alchemy, Enchanter). Maxing all four facilities takes 22 Scrolls, which is every Scroll the game grants (4 heroes x 5 bosses, first kill only, + Jailbreak + Full Roster). Was 8, reachable by about two heroes clearing the City. The cap button shows the Scroll count; gold and material costs are unchanged; caps on existing saves are kept (+tests).
 
 ## 0.30.0
 - Huntress and Mage blind shots, like SPD: the Spirit Bow (tap any tile in range) and wands (Bolt mode) aim at a tile, seen or not. The shot hits the first body on the line and flies through tall grass; walls and closed doors stop it; an empty line wastes it. Wand bolts carry past the aimed tile. Auto Battle takes up to 2 arrows (1 wand charge, keeping one in reserve) at where an unseen foe was last seen, and no longer shoots through bodies (+tests).
