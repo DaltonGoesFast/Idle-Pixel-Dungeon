@@ -539,3 +539,22 @@ Boss room 4:
 ############
 ```
 <!-- /GENERATED -->
+
+### Vanilla potions & scrolls (DECISIONS #161)
+All drop as unknown consumables (every 4th won fight and `item_unknown` rewards) and are used from the backpack between fights; using one identifies it. Most set a **next-fight** effect.
+
+| Item | Effect |
+|---|---|
+| Potion of Invisibility | Next fight: unseen for 3 ticks (first blow is a Surprise) |
+| Potion of Haste | Next fight: enemies lose their first 1.5 ticks |
+| Potion of Levitation | Next fight: you float over traps |
+| Potion of Frost (bad) | Next fight: you lose your first 1.5 ticks |
+| Potion of Paralytic Gas (bad) | Next fight: you lose your first 2.5 ticks |
+| Potion of Liquid Flame (bad) | Now: lose 15% of max HP |
+| Scroll of Recharging | Next fight: +1 staff charge, +1 cloak charge |
+| Scroll of Lullaby | Next fight: non-boss enemies start asleep 2 ticks |
+| Scroll of Retribution | Next fight opens with half your missing HP (min 2) to each non-boss foe |
+| Scroll of Terror | Next fight: non-boss foes are knocked back a tile and lose 1 tick |
+| Scroll of Transmutation | Now: the first ring or wand in your backpack becomes a different one of its kind |
+
+Unknown looks grow to 9 potion colours (+Charcoal, Silver, Ivory) and 9 runes (+Naudiz, Odal, Tiwaz). Not ported: Mind Vision, Purity, Remove Curse, Mirror Image, Rage, and all exotics except the existing Shielding/Passage.

@@ -208,6 +208,8 @@ static func new_combat(gs, ev: Dictionary) -> Combat:
 	if int(run.get("shield_next", 0)) > 0:   # Potion of Shielding (SPD-like cap: Barrier <= max HP)
 		c.hero.barrier = mini(int(c.hero.ht), int(c.hero.barrier) + int(run.shield_next)); run.shield_next = 0
 		c._log("Your shield shimmers: +Barrier.")
+	if not run.get("next_fx", {}).is_empty():
+		c.apply_fx(run.next_fx); run.next_fx = {}
 	return c
 
 ## Goo grudge (DECISIONS #131): Goo is SPD-strength (HT 90) but each earlier loss to it leaves it 15 HT weaker,

@@ -230,6 +230,94 @@
    "kind": "scroll",
    "desc": "Whisks you past the current encounter.",
    "badge": "SCROLL_TELEPORT"
+  },
+  "potion_invisibility": {
+   "name": "Potion of Invisibility",
+   "icon": "POTION_HOLDER",
+   "unknown": true,
+   "kind": "potion",
+   "desc": "Your next fight starts with you unseen for 3 ticks: your first blow is a Surprise.",
+   "badge": "POTION_INVIS"
+  },
+  "potion_haste": {
+   "name": "Potion of Haste",
+   "icon": "POTION_HOLDER",
+   "unknown": true,
+   "kind": "potion",
+   "desc": "Your next fight: enemies lose their first 1.5 ticks.",
+   "badge": "POTION_HASTE"
+  },
+  "potion_levitation": {
+   "name": "Potion of Levitation",
+   "icon": "POTION_HOLDER",
+   "unknown": true,
+   "kind": "potion",
+   "desc": "Your next fight: you float over traps.",
+   "badge": "POTION_LEVITATE"
+  },
+  "potion_frost": {
+   "name": "Potion of Frost",
+   "icon": "POTION_HOLDER",
+   "unknown": true,
+   "kind": "potion",
+   "desc": "Drinking it freezes you: you lose your first 1.5 ticks next fight.",
+   "badge": "POTION_FROST"
+  },
+  "potion_liquid_flame": {
+   "name": "Potion of Liquid Flame",
+   "icon": "POTION_HOLDER",
+   "unknown": true,
+   "kind": "potion",
+   "desc": "Drinking it burns you: lose 15% of max HP.",
+   "badge": "POTION_LIQFLAME"
+  },
+  "potion_paralytic": {
+   "name": "Potion of Paralytic Gas",
+   "icon": "POTION_HOLDER",
+   "unknown": true,
+   "kind": "potion",
+   "desc": "Drinking it paralyzes you: you lose your first 2.5 ticks next fight.",
+   "badge": "POTION_PARAGAS"
+  },
+  "scroll_recharging": {
+   "name": "Scroll of Recharging",
+   "icon": "SCROLL_HOLDER",
+   "unknown": true,
+   "kind": "scroll",
+   "desc": "Your next fight: +1 staff charge and +1 cloak charge.",
+   "badge": "SCROLL_RECHARGE"
+  },
+  "scroll_lullaby": {
+   "name": "Scroll of Lullaby",
+   "icon": "SCROLL_HOLDER",
+   "unknown": true,
+   "kind": "scroll",
+   "desc": "Your next fight: enemies start asleep for 2 ticks (bosses resist).",
+   "badge": "SCROLL_LULLABY"
+  },
+  "scroll_retribution": {
+   "name": "Scroll of Retribution",
+   "icon": "SCROLL_HOLDER",
+   "unknown": true,
+   "kind": "scroll",
+   "desc": "Your next fight opens with a blast: each non-boss foe takes half your missing HP (min 2).",
+   "badge": "SCROLL_RETRIB"
+  },
+  "scroll_terror": {
+   "name": "Scroll of Terror",
+   "icon": "SCROLL_HOLDER",
+   "unknown": true,
+   "kind": "scroll",
+   "desc": "Your next fight: enemies recoil a tile and lose 1 tick (bosses resist).",
+   "badge": "SCROLL_TERROR"
+  },
+  "scroll_transmutation": {
+   "name": "Scroll of Transmutation",
+   "icon": "SCROLL_HOLDER",
+   "unknown": true,
+   "kind": "scroll",
+   "desc": "Turns the first ring or wand in your backpack into a different one of the same kind.",
+   "badge": "SCROLL_TRANSMUTE"
   }
  },
  "studded_gloves": {

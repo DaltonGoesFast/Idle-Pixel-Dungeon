@@ -384,6 +384,32 @@ func knockback(m: Dictionary, dir: Vector2i) -> void:
 	else:
 		_place(m, dest)
 
+## Next-fight effects from vanilla potions and scrolls (DECISIONS #161).
+func apply_fx(fx: Dictionary) -> void:
+	var foes: Array = enemies().filter(func(e): return not e.get("boss", false))
+	if fx.has("invis"): hero.hidden_until = float(fx.invis); _log("You start the fight unseen.")
+	if fx.has("haste"):
+		for e in enemies(): e.next = float(e.next) + float(fx.haste)
+		_log("You move in a blur.")
+	if fx.has("levitate"): hero.levitate = true; _log("You float above the floor.")
+	if fx.has("frozen"): hero.next = float(hero.next) + float(fx.frozen); _log("You can't move yet!")
+	if fx.has("recharge"):
+		if not hero.bolt.is_empty() and not hero.bolt.get("infinite", false): hero.charges = int(hero.charges) + int(fx.recharge)
+		if not hero.cloak.is_empty(): hero.cloak_charges = int(hero.cloak_charges) + int(fx.recharge)
+	if fx.has("sleep"):
+		for e in foes: e.next = float(e.next) + float(fx.sleep)
+		_log("Your foes are drowsy.")
+	if fx.has("terror"):
+		for e in foes:
+			knockback(e, e.pos - hero.pos)
+			if e.hp > 0: e.next = float(e.next) + 1.0
+		_log("Your foes recoil in terror!")
+	if fx.has("retrib"):
+		var dmg := maxi(2, (int(hero.ht) - int(hero.hp)) / 2)
+		for e in foes:
+			if e.hp > 0: hit_mob(e, dmg, false, true)
+		_log("Retribution!")
+
 ## Move a unit (hero or mob) and fire any trap on the destination tile.
 func _place(u: Dictionary, dest: Vector2i) -> void:
 	_ev({"t": "move", "uid": u.uid, "from": u.pos, "to": dest})
@@ -395,6 +421,7 @@ func _place(u: Dictionary, dest: Vector2i) -> void:
 	if traps.has(dest): _trigger(dest, u)
 
 func _trigger(p: Vector2i, u: Dictionary) -> void:
+	if u == hero and hero.get("levitate", false): return   # Potion of Levitation (DECISIONS #161)
 	var tr: Dictionary = DB.traps[traps[p].id]
 	if not (traps[p].id in trap_ids_seen): trap_ids_seen.append(traps[p].id)
 	traps.erase(p)

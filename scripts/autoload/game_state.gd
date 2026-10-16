@@ -371,8 +371,8 @@ static func compare_text(cmp: Dictionary) -> String:
 
 ## Use a belt supply outside combat.
 ## Unknown potions/scrolls (DECISIONS #80): each save rolls SPD appearances; using one identifies its kind.
-const POTION_LOOKS := [["Jade", "POTION_JADE"], ["Turquoise", "POTION_TURQUOISE"], ["Azure", "POTION_AZURE"], ["Indigo", "POTION_INDIGO"], ["Magenta", "POTION_MAGENTA"], ["Bistre", "POTION_BISTRE"]]
-const SCROLL_LOOKS := [["Sowilo", "SCROLL_SOWILO"], ["Laguz", "SCROLL_LAGUZ"], ["Yngvi", "SCROLL_YNGVI"], ["Gyfu", "SCROLL_GYFU"], ["Raido", "SCROLL_RAIDO"], ["Mannaz", "SCROLL_MANNAZ"]]
+const POTION_LOOKS := [["Jade", "POTION_JADE"], ["Turquoise", "POTION_TURQUOISE"], ["Azure", "POTION_AZURE"], ["Indigo", "POTION_INDIGO"], ["Magenta", "POTION_MAGENTA"], ["Bistre", "POTION_BISTRE"], ["Charcoal", "POTION_CHARCOAL"], ["Silver", "POTION_SILVER"], ["Ivory", "POTION_IVORY"]]
+const SCROLL_LOOKS := [["Sowilo", "SCROLL_SOWILO"], ["Laguz", "SCROLL_LAGUZ"], ["Yngvi", "SCROLL_YNGVI"], ["Gyfu", "SCROLL_GYFU"], ["Raido", "SCROLL_RAIDO"], ["Mannaz", "SCROLL_MANNAZ"], ["Naudiz", "SCROLL_NAUDIZ"], ["Odal", "SCROLL_ODAL"], ["Tiwaz", "SCROLL_TIWAZ"]]
 var looks := {}     # mat id -> [appearance name, icon key]
 var ided := {}      # mat id -> true once identified
 
@@ -442,8 +442,35 @@ func delve_use_pack(k: String) -> bool:
 			run.progress = minf(99.0, float(run.get("progress", 0.0)) + 40.0); say("The floor's layout floods your mind (+40%).")
 		"scroll_teleport":
 			run.skip_card = true; say("You blink past whatever lies ahead.")
+		# vanilla potions & scrolls (DECISIONS #161): most set a next-fight effect, read by Delve.new_combat
+		"potion_invisibility": _next_fx("invis", 3.0); say("You fade from sight. Your next fight starts unseen.")
+		"potion_haste": _next_fx("haste", 1.5); say("Your limbs buzz. Next fight, you act first.")
+		"potion_levitation": _next_fx("levitate", 1.0); say("You float. Next fight, traps can't touch you.")
+		"potion_frost": _next_fx("frozen", 1.5); say("Ice spreads through you! You'll start your next fight frozen.")
+		"potion_paralytic": _next_fx("frozen", 2.5); say("Paralytic gas! You'll start your next fight unable to move.")
+		"potion_liquid_flame":
+			var ht2 := int(hero_stats(c).ht)
+			run.hp = maxi(1, int(run.hp) - ht2 * 3 / 20); say("Liquid flame! -%d HP." % (ht2 * 3 / 20))
+		"scroll_recharging": _next_fx("recharge", 1.0); say("Energy hums. +1 charge next fight.")
+		"scroll_lullaby": _next_fx("sleep", 2.0); say("A soothing tune lingers. Your next foes will start asleep.")
+		"scroll_retribution": _next_fx("retrib", 1.0); say("Your pain gathers. It will burst out at your next foes.")
+		"scroll_terror": _next_fx("terror", 1.0); say("A dreadful aura clings to you.")
+		"scroll_transmutation":
+			var done := false
+			for gg in run.pack_gear:
+				var t: String = DB.item(gg.id).type
+				if not (t in ["ring", "wand"]) or DB.item(gg.id).get("heirloom", false): continue
+				var pool: Array = DB.items.keys().filter(func(x): return DB.items[x] is Dictionary and DB.items[x].get("type", "") == t and x != gg.id and not DB.items[x].get("heirloom", false))
+				if pool.is_empty(): continue
+				gg.id = pool[(int(gg.uid) + int(run.get("floor", 0))) % pool.size()]
+				say("Your %s twists into something else." % t); done = true; break
+			if not done: say("Nothing to transmute.")
 		_: run.pack[k] = int(run.pack[k]) + 1; return false
 	touch(); return true
+
+func _next_fx(k: String, v: float) -> void:
+	if not run.has("next_fx"): run.next_fx = {}
+	run.next_fx[k] = float(run.next_fx.get(k, 0.0)) + v
 
 func delve_use(k: String) -> bool:
 	if run.is_empty() or int(run.supplies.get(k, 0)) <= 0: return false

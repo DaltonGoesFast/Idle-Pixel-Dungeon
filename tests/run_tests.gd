@@ -57,6 +57,7 @@ func _ready() -> void:
 	test_guild_pack_cap(gs)
 	test_identify_queue_all(gs)
 	test_blind_shots(gs)
+	test_vanilla_consumables(gs)
 	await test_guided_surprise_tip(gs)
 	test_no_collapsing_labels(gs)
 	await test_delve_chips(gs)
@@ -835,7 +836,7 @@ func test_identify(gs) -> void:
 	print("[identify]")
 	gs.new_game()
 	var um: Array = gs.unknown_mats()
-	check(um.size() == 6, "six unknown potions/scrolls")
+	check(um.size() == 17, "seventeen unknown potions/scrolls (DECISIONS #161)")
 	check(not gs.is_mat_known("potion_shielding"), "shielding starts unknown")
 	check(gs.mat_label("potion_shielding").ends_with("Potion"), "unknown label shows appearance")
 	var u: int = gs.add_gear("chalice_blood")
@@ -2434,3 +2435,32 @@ func test_bat_drain(gs) -> void:
 		c._mob_act(b)
 		check(int(b.hp) == 10 + case[1], "bat heals dealt-2 like SPD's dealt-4 (DR %d -> +%d, got %d)" % [case[0], case[1], int(b.hp) - 10])
 
+
+## DECISIONS #161: vanilla potions and scrolls.
+func test_vanilla_consumables(gs) -> void:
+	print("[vanilla potions & scrolls]")
+	var ids := ["potion_invisibility", "potion_haste", "potion_levitation", "potion_frost", "potion_liquid_flame", "potion_paralytic",
+		"scroll_recharging", "scroll_lullaby", "scroll_retribution", "scroll_terror", "scroll_transmutation"]
+	for id in ids: check(DB.materials.has(id) and DB.materials[id].unknown and gs.unknown_mats().has(id), "%s is an unknown consumable" % id)
+	gs.new_game()
+	var lk := {}
+	for k in gs.looks: lk[String(gs.looks[k][1])] = true
+	check(lk.size() == gs.looks.size(), "every unknown potion/scroll gets its own look (%d)" % gs.looks.size())
+	var room := ["########", "#H.....#", "#......#", "#......#", "#......#", "#......#", "#.....1#", "########"]
+	var ws: Dictionary = gs.hero_stats("warrior")
+	var c := Combat.new(); c.setup(room, ws, int(ws.ht), ["rat"]); var n0 := float(c.enemies()[0].next)
+	c.apply_fx({"sleep": 2.0, "invis": 3.0}); check(float(c.enemies()[0].next) >= n0 + 2.0 and c.hidden(), "lullaby + invisibility")
+	c = Combat.new(); c.setup(room, ws, 10, ["rat"]); var r = c.enemies()[0]; r.hp = 99
+	c.apply_fx({"retrib": 1.0}); check(int(r.hp) < 99, "retribution hurts foes based on missing HP")
+	c = Combat.new(); c.setup(room, ws, int(ws.ht), ["rat"]); c.apply_fx({"frozen": 2.5})
+	check(float(c.hero.next) >= 2.5, "paralytic gas/frost delay the hero")
+	var trap_room := ["########", "#H^....#", "#......#", "#......#", "#......#", "#......#", "#.....1#", "########"]
+	c = Combat.new(); c.setup(trap_room, ws, int(ws.ht), ["rat"]); c.apply_fx({"levitate": 1.0})
+	var hp0 := int(c.hero.hp); c._place(c.hero, Vector2i(2, 1))
+	check(int(c.hero.hp) == hp0 and c.traps.has(Vector2i(2, 1)), "levitation floats over traps")
+	# pack use routes to next_fx
+	gs.start_run("warrior", {})
+	if not gs.run.is_empty():
+		gs.run.pack["scroll_lullaby"] = 1
+		check(gs.delve_use_pack("scroll_lullaby") and float(gs.run.next_fx.sleep) == 2.0, "reading Lullaby queues a next-fight effect")
+		gs.end_run("abandon")
