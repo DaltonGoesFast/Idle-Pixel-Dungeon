@@ -395,3 +395,13 @@ a6b9d18/09b3032 drew the torch/food row as a full 16-game-px item cell (HP is 9)
 
 ## 135. In-game updater (Android / Windows) + TestFlight script (iOS)
 Sideloaded Android players were opening GitHub in a browser for every APK. `Updater` checks `releases/latest`, downloads the platform asset, and on Android opens the system installer via `JavaClassWrapper` + Godot's FileProvider. That needs `REQUEST_INSTALL_PACKAGES`, which the stock permission list does not expose, so Gradle is on and `addons/apk_install` injects the permission (still official templates — #2). Windows gets the zip opened in Explorer. iOS has no in-app check: `tools/upload_testflight.sh` archives and uploads; TestFlight delivers the update.
+
+## 149. Blind targeting through tall grass (SPD Ballistica)
+v0.29 made tall grass and closed doors block sight, and `can_bolt` required sight, so a foe one tile into grass could not be shot at all and Huntress/Mage had to walk into melee. In SPD you aim at a cell. `Ballistica.PROJECTILE` (thrown/bow) stops at the target, the first char, or solid terrain; `MAGIC_BOLT` (wands) ignores the target cell and flies on. HIGH_GRASS is LOS_BLOCKING but not SOLID; DOOR is SOLID. Now:
+- `can_bolt(tile)`: any non-wall tile within BOLT_RANGE. The Spirit Bow still refuses range 1, and also refuses a shot whose first body would be adjacent.
+- `bolt_impact(tile)` / `bolt_victim(tile)` walk the Bresenham line: the first unit is hit; a wall or closed door stops the shot on the tile before it; arrows stop at the aimed tile; wand bolts continue to range. Grass does not stop shots and is not trampled.
+- A shot with no victim logs "The shot hits nothing." and spends the turn (and a wand charge). Burning bolts still ignite grass where they land.
+- Input: the bow fires on any distant tap. A wand needs Bolt mode for an empty tile, so a mis-tap never spends a charge.
+- Sight memory: when it is the hero's turn, every enemy in the hero's sight records `last_seen = [x, y]` (plain array, so it saves and restores with the fight).
+- CombatBot only takes aimed shots at foes it can see whose line is clear of other bodies (`_can_shoot`; before, it could shoot through bodies). With nothing in sight and nothing adjacent, it shoots at an unseen foe's `last_seen`: up to 2 arrows per sighting, or 1 wand charge while 2+ remain.
+Covered by `test_blind_shots` (hidden rat in grass hit, empty tile wastes the shot, the first body takes it, a closed door stops it, a wand bolt carries past, last_seen survives save/load, the bot's blind shot).

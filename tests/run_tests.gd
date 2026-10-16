@@ -50,6 +50,7 @@ func _ready() -> void:
 	test_food_sources(gs)
 	test_facility_cap(gs)
 	test_crate_slot(gs)
+	test_blind_shots(gs)
 	await test_delve_chips(gs)
 	test_owed_sou(gs)
 	await test_icon_sizes(gs)
@@ -1862,6 +1863,49 @@ func _slot_texts(slot: Control) -> Array:
 	var t := []
 	for l in slot.find_children("*", "Label", true, false): t.append(String(l.text))
 	return t
+
+## DECISIONS #149: bows/wands aim at tiles (SPD Ballistica); shots pass tall grass, stop at bodies, walls, closed doors.
+func test_blind_shots(gs) -> void:
+	print("[blind shots]")
+	var room := ["########", "#H.\"\"..#", "#......#", "#......#", "#......#", "#......#", "#.....1#", "########"]
+	var hu: Dictionary = gs.hero_stats("huntress")
+	var c := Combat.new(); c.setup(room, hu, int(hu.ht), ["rat"])
+	var rat = c.enemies()[0]; rat.next = 999.0
+	c._place(rat, Vector2i(4, 1))   # hidden in the second grass tile
+	check(not c.sees(c.hero.pos, rat.pos), "the rat in tall grass is out of sight")
+	check(c.can_bolt(Vector2i(4, 1)) and c.can_bolt(Vector2i(6, 4)), "the bow can aim at any tile in range, seen or not")
+	check(not c.can_bolt(Vector2i(0, 0)) and not c.can_bolt(c.hero.pos), "walls and the hero's own tile are not aims")
+	var hp0 := int(rat.hp)
+	check(c.hero_tap(Vector2i(4, 1)), "tapping an unseen tile shoots (time passes)")
+	check(int(rat.hp) < hp0, "the arrow flies through tall grass and hits the hidden rat (%d -> %d)" % [hp0, rat.hp])
+	var log_n := c.log_lines.size()
+	check(c.hero_tap(Vector2i(2, 4)), "a shot at an empty tile still takes the turn")
+	check("\n".join(c.log_lines.slice(log_n)).contains("hits nothing"), "an empty tile wastes the shot")
+	# bodies block: a rat in front takes the arrow aimed past it
+	var c2 := Combat.new(); c2.setup(room, hu, int(hu.ht), ["rat", "rat"])
+	var a = c2.enemies()[0]; var b = c2.enemies()[1]; a.next = 999.0; b.next = 999.0
+	c2._place(a, Vector2i(3, 1)); c2._place(b, Vector2i(5, 1))
+	check(c2.bolt_victim(Vector2i(5, 1)) == a, "the first body on the line takes the shot")
+	# a closed door stops shots
+	var room3 := ["########", "#H.+...#", "#####..#", "#......#", "#......#", "#......#", "#.....1#", "########"]
+	var c3 := Combat.new(); c3.setup(room3, hu, int(hu.ht), ["rat"])
+	check(c3.bolt_impact(Vector2i(5, 1)) == Vector2i(2, 1), "a closed door stops the arrow in front of it")
+	# wand bolts fly past the aimed tile until they hit something
+	var ms: Dictionary = gs.hero_stats("mage")
+	var c4 := Combat.new(); c4.setup(room, ms, int(ms.ht), ["rat"])
+	var r4 = c4.enemies()[0]; r4.next = 999.0; c4._place(r4, Vector2i(5, 1))
+	check(c4.bolt_victim(Vector2i(3, 1)) == r4, "a wand bolt aimed short of a hidden foe keeps going and hits it")
+	# last-known position survives save/load; the bot takes a blind shot there
+	var c5 := Combat.new(); c5.setup(room, hu, int(hu.ht), ["rat"])
+	var r5 = c5.enemies()[0]; r5.next = 999.0
+	c5._place(r5, Vector2i(2, 3)); c5._note_sightings()
+	c5._place(r5, Vector2i(4, 1))   # slips into the grass
+	var d: Dictionary = JSON.parse_string(JSON.stringify(c5.to_dict())); var c6 := Combat.new(); c6.from_dict(d)
+	var r6 = c6.enemies()[0]
+	check(r6.has("last_seen") and int(r6.last_seen[0]) == 2 and int(r6.last_seen[1]) == 3, "last-seen position survives save/load")
+	r6.last_seen = [4, 1]
+	var sug: Dictionary = CombatBot.suggest(c6)
+	check(sug.get("mode", "") == "bolt" and sug.get("pos") == Vector2i(4, 1), "Auto Battle shoots where an unseen foe was last seen (%s)" % [sug])
 
 func test_crate_slot(gs) -> void:
 	print("[crate slot]")

@@ -102,7 +102,7 @@ static func suggest(c: Combat, potions := 0, heal_amount := 10) -> Dictionary:
 	if not snakes.is_empty() and not non_snakes.is_empty() and c.has_ranged():
 		var bolt_tgt = null
 		for e in non_snakes:
-			if c.can_bolt(e.pos) and (bolt_tgt == null or e.hp < bolt_tgt.hp): bolt_tgt = e
+			if _can_shoot(c, e) and (bolt_tgt == null or e.hp < bolt_tgt.hp): bolt_tgt = e
 		if bolt_tgt != null:
 			return {"act": "tap", "pos": bolt_tgt.pos, "mode": "bolt", "why": "bolt " + bolt_tgt.name + " before the snake"}
 	if not snakes.is_empty():
@@ -117,12 +117,21 @@ static func suggest(c: Combat, potions := 0, heal_amount := 10) -> Dictionary:
 		var tgt = null
 		for e in es:
 			if e.get("evade_unless_surprise", false) and not c.surprise_against(e): continue
-			if c.can_bolt(e.pos) and (tgt == null or e.hp < tgt.hp): tgt = e
+			if _can_shoot(c, e) and (tgt == null or e.hp < tgt.hp): tgt = e
 		# use the ranged attack when nothing is adjacent, when it kills, or when it out-damages melee
 		var ranged_net := int(h.bolt.dmg) if h.bolt.get("magic", true) else maxi(0, int(h.bolt.dmg) - (int(tgt.dr) if tgt != null else 0))
 		var melee_rate := float(maxi(0, int(h.dmg) - (int(tgt.dr) if tgt != null else 0))) / float(h.delay)
 		if tgt != null and (adj.is_empty() or tgt.hp <= ranged_net or float(ranged_net) > melee_rate):
 			return {"act": "tap", "pos": tgt.pos, "mode": "bolt", "why": "bolt " + tgt.name}
+	# 4a. blind shot (DECISIONS #149): nothing in sight to shoot and nothing adjacent -> shoot where an unseen foe
+	# was last seen (it is often still in that grass). At most 2 arrows per sighting; wands spend 1 charge only
+	# while keeping one in reserve.
+	if c.has_ranged() and adj.is_empty() and not es.any(func(e): return c.hero_sees(e)):
+		var cap := 2 if h.bolt.get("infinite", false) else (1 if int(h.charges) >= 2 else 0)
+		for e in es:
+			if e.has("last_seen") and int(e.get("blind_shots", 0)) < cap:
+				var ls := Vector2i(int(e.last_seen[0]), int(e.last_seen[1]))
+				if c.can_bolt(ls): return {"act": "tap", "pos": ls, "mode": "bolt", "why": "blind shot where %s was last seen" % e.name}
 	# 4b. search once for hidden traps only when every foe is far and slow to close (never vs bosses)
 	if adj.is_empty() and not h.get("searched", false) and es.size() == 1 \
 			and not es[0].get("boss", false) and not es[0].get("fist", false) \
@@ -142,7 +151,7 @@ static func suggest(c: Combat, potions := 0, heal_amount := 10) -> Dictionary:
 		if Combat.cheb(e.pos, h.pos) < Combat.cheb(near.pos, h.pos): near = e
 	if near.get("charging", false) and Combat.cheb(near.pos, h.pos) <= 2:
 		return {"act": "wait", "why": "let it waste the slam"}
-	if near.has("stolen") and int(near.stolen) > 0 and c.has_ranged() and c.can_bolt(near.pos):
+	if near.has("stolen") and int(near.stolen) > 0 and c.has_ranged() and _can_shoot(c, near):
 		return {"act": "tap", "pos": near.pos, "mode": "bolt", "why": "shoot the fleeing thief"}
 	var step = c.path_step(h.pos, near.pos, true, true, true)
 	if step == null: step = c.path_step(h.pos, near.pos, true, true, true)
@@ -317,3 +326,7 @@ static func play(c: Combat, potions := 0, heal := 10, max_turns := 300) -> Dicti
 			"tap":
 				if not c.hero_tap(s.pos, s.mode): c.hero_wait()
 	return {"won": c.won, "turns": turns, "hp": c.hero.hp, "potions_used": used}
+
+## A shot the bot would take: the target is in sight and the arrow/bolt aimed at it hits it (no body or door in front).
+static func _can_shoot(c, e: Dictionary) -> bool:
+	return c.hero_sees(e) and c.can_bolt(e.pos) and c.bolt_victim(e.pos) == e

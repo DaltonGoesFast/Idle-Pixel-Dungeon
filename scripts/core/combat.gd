@@ -83,6 +83,7 @@ func setup(room_rows: Array, hs: Dictionary, hp: int, mob_ids: Array, darkness :
 		var p: Vector2i = slots.get(i, _free_tile_near(Vector2i(w - 2, h - 2)))
 		spawn(mob_ids[i], p)
 	_log("A fight! Barrier %d, HP %d/%d%s." % [hero.barrier, hero.hp, hero.ht, " (darkness: no Barrier)" if darkness else ""])
+	_note_sightings()
 
 # ------------------------------------------------------------------ persistence
 ## Serialise to JSON-safe data (Vector2i -> [x, y]) so a fight survives the app being killed.
@@ -223,15 +224,57 @@ func has_ranged() -> bool:
 func hidden() -> bool:
 	return float(hero.hidden_until) > time
 
+## Blind targeting (DECISIONS #149): bows and wands aim at a tile, not a unit, like SPD Ballistica. Any tile in range
+## (not a wall) is a valid aim, seen or not. The shot follows the line and hits the first unit on it (STOP_CHARS);
+## walls and closed doors stop it (STOP_SOLID); tall grass blocks sight but not shots. Arrows stop at the aimed tile
+## (PROJECTILE); wand bolts fly on past it to BOLT_RANGE (MAGIC_BOLT). An empty path wastes the shot.
 func can_bolt(target: Vector2i) -> bool:
-	if not has_ranged(): return false
-	var u = unit_at(target)
-	if u == null or u == hero: return false
+	if not has_ranged() or not in_bounds(target) or target == hero.pos: return false
 	var d := cheb(hero.pos, target)
-	if d > BOLT_RANGE or d < 1: return false
+	if d > BOLT_RANGE or d < 1 or tile(target) == T.WALL: return false
 	# Spirit Bow: no point-blank shot (SPD); wands may zap adjacent
-	if hero.bolt.get("infinite", false) and d <= 1: return false
-	return sees(hero.pos, target)
+	if hero.bolt.get("infinite", false):
+		if d <= 1: return false
+		var v = bolt_victim(target)
+		if v != null and cheb(v.pos, hero.pos) <= 1: return false   # the arrow would be a point-blank shot
+	return true
+
+func _solid(p: Vector2i) -> bool:
+	return not in_bounds(p) or tile(p) == T.WALL or door_closed(p)
+
+## Where a shot aimed at target lands: the first unit on the line, else the last open tile before a wall/closed
+## door, else the aimed tile (arrows) or the end of range (wand bolts).
+func bolt_impact(target: Vector2i) -> Vector2i:
+	var a: Vector2i = hero.pos
+	var far := target
+	var magic: bool = not hero.bolt.get("infinite", false)
+	if magic:
+		var d := maxi(1, cheb(a, target)); var k := int(ceil(float(BOLT_RANGE) / d))
+		far = a + (target - a) * k
+	var pts := _line(a, far)
+	var last := a
+	for i in range(1, pts.size()):
+		var p: Vector2i = pts[i]
+		if cheb(a, p) > BOLT_RANGE or _solid(p): return last
+		var u = unit_at(p)
+		if u != null and u != hero: return p
+		last = p
+		if not magic and p == target: return p
+	return last
+
+## The unit a shot aimed at target would hit (or null).
+func bolt_victim(target: Vector2i):
+	var u = unit_at(bolt_impact(target))
+	return u if u != hero else null
+
+## Hero sight (for the bot and the UI): an enemy the hero can see right now.
+func hero_sees(m: Dictionary) -> bool:
+	return sees(hero.pos, m.pos)
+
+## Remember where the hero last saw each enemy (m.last_seen = [x, y]); called whenever it is the hero's turn.
+func _note_sightings() -> void:
+	for e in enemies():
+		if hero_sees(e): e.last_seen = [e.pos.x, e.pos.y]; e.blind_shots = 0
 
 ## SPD surprisedBy: cloaked, or the foe lost sight (seen_hero), or they cannot see you right now.
 func surprise_against(m: Dictionary) -> bool:
@@ -499,7 +542,8 @@ func _burn(p: Vector2i) -> void:
 func hero_tap(p: Vector2i, mode := "") -> bool:
 	if over: return false
 	var u = unit_at(p)
-	if mode == "bolt" or (cheb(p, hero.pos) > 1 and u != null and u != hero):
+	# distant enemy, or (Spirit Bow) any distant tile: shoot; wands need Bolt mode for an empty tile
+	if mode == "bolt" or (cheb(p, hero.pos) > 1 and ((u != null and u != hero) or hero.bolt.get("infinite", false))):
 		return hero_bolt(p)
 	if cheb(p, hero.pos) != 1: return false
 	if u != null and u != hero:
@@ -541,13 +585,23 @@ func _melee_perks() -> void:
 
 func hero_bolt(p: Vector2i) -> bool:
 	if not can_bolt(p): return false
-	var u = unit_at(p)
 	var magic: bool = hero.bolt.get("magic", true)
 	if not hero.bolt.get("infinite", false): hero.charges -= 1
+	var at := bolt_impact(p)
+	var u = bolt_victim(p)
 	_log("%s fires %s." % [hero.name, hero.bolt.name])
-	_ev({"t": "bolt", "from": hero.pos, "to": p, "magic": magic})
-	var sur := surprise_against(u) and not magic
+	_ev({"t": "bolt", "from": hero.pos, "to": at, "magic": magic})
+	var sur: bool = u != null and surprise_against(u) and not magic
+	for e in enemies():   # a blind shot at where an unseen foe was last seen (CombatBot caps these)
+		if not hero_sees(e) and e.has("last_seen") and Vector2i(int(e.last_seen[0]), int(e.last_seen[1])) == p:
+			e.blind_shots = int(e.get("blind_shots", 0)) + 1
 	_break_cloak()
+	if u == null:
+		_log("The shot hits nothing.")
+		if hero.bolt.get("burns_grass", false) and tile(at) == T.GRASS: _burn(at)
+		_end_hero_turn(1.0)
+		return true
+	p = at
 	var hp_before := int(u.hp)
 	hit_mob(u, int(hero.bolt.dmg), sur, magic or hero.bolt.get("pierce", false))
 	if hero.get("perk", "") == "soul_heal" and magic and hero.hp > 0 and hero.hp < hero.ht:
@@ -652,6 +706,7 @@ func run_until_hero() -> void:
 			best.next += best.delay
 	time = hero.next
 	_recharge()
+	_note_sightings()
 
 func _recharge() -> void:
 	if hero.bolt.is_empty(): return

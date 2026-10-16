@@ -138,7 +138,7 @@ func _refresh() -> void:
 		"danger": combat.enemies().filter(func(e): return e.hp > 0).size(), "minis": minis})
 	var line := "DR %d  Dmg %d   t=%.1f" % [h.dr, h.dmg, combat.time]
 	if not h.bolt.is_empty():
-		if h.bolt.get("infinite", false): line += "\nTap any enemy in sight to shoot %s (%d dmg)" % [h.bolt.name, h.bolt.dmg]
+		if h.bolt.get("infinite", false): line += "\nTap any tile in range to shoot %s (%d dmg; it passes tall grass)" % [h.bolt.name, h.bolt.dmg]
 		else: line += "\nStaff charges %d/%d (%s, %d dmg, ignores DR)" % [h.charges, h.bolt.charges, h.bolt.name, h.bolt.dmg]
 	if combat.hidden(): line += "\nHIDDEN in shadows - enemies can't find you"
 	if int(h.get("poison", 0)) > 0: line += "\nPOISONED: -1 HP per turn for %d turns" % int(h.poison)

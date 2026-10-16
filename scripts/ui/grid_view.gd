@@ -398,7 +398,7 @@ func _draw() -> void:
 				draw_rect(cell_rect(Vector2(n)).grow(-2), Color(1, 0.6, 0.2, 0.5) if warn else Color(1, 1, 1, 0.16), false, maxf(2.0, ps * 0.5))
 		if mode == "bolt" or not combat.hero.bolt.is_empty():
 			for e in combat.enemies():
-				if combat.can_bolt(e.pos) and Combat.cheb(e.pos, hp) > 1:
+				if combat.hero_sees(e) and combat.can_bolt(e.pos) and combat.bolt_victim(e.pos) == e and Combat.cheb(e.pos, hp) > 1:
 					draw_rect(cell_rect(Vector2(e.pos)).grow(-4), Color(0.75, 0.55, 1.0, 0.7), false, 2.0)
 	for dz in combat.danger:
 		var pulse := 0.3 + 0.2 * sin(anim_t * 9.0)
