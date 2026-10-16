@@ -1625,15 +1625,36 @@ func test_encounter_summary(gs) -> void:
 	cs._act(func(): pass)
 	var vcard: Node = cs.buttons.get_node_or_null("VictoryResults")
 	txt = _node_text(vcard)
-	check(vcard != null and _find_btn(vcard, "Continue") != null and txt.contains("Victory") and txt.contains("Got") and txt.contains("Lost") and txt.contains("+5 Gold") and txt.contains("-6 HP") and txt.contains("-1 Potion of Healing") and txt.contains("+2 Gold on the next floor") and txt.contains("+1 XP"), "post-battle Continue card lists loot, damage, a potion drunk, and fallen gold")
+	check(vcard != null and _find_btn(vcard, "Continue") != null and _find_btn(vcard, "Continue and pause") != null and txt.contains("Victory") and txt.contains("Got") and txt.contains("Lost") and txt.contains("+5 Gold") and txt.contains("-6 HP") and txt.contains("-1 Potion of Healing") and txt.contains("+2 Gold on the next floor") and txt.contains("+1 XP"), "post-battle Continue card lists loot, damage, a potion drunk, and fallen gold")
 	gs.settings.full_auto = true
 	var done_state := {"called": false}
 	cs.on_done = func(res): done_state.called = true; scr._after_fight(fight_ev, res, {})
 	cs._process(2.0)
 	check(not done_state.called, "auto battle does not auto-click Continue on the post-battle victory results")
+	scr.fast = true
 	cs._finish()
 	check(done_state.called and not scr._summary_open(), "clicking Continue finishes the fight without opening a second victory popup")
+	check(scr.running and scr.fast and gs.settings.get("full_auto", false), "Continue leaves x3 speed, Auto Battle, and the delve running")
 	cs.queue_free()
+	scr.fast = true
+	scr.running = true
+	var paused := {"flag": false}
+	var cs_pause = load("res://scripts/ui/combat_screen.gd").new()
+	cs_pause.setup(fight_ev, func(res):
+		paused.flag = bool(res.get("pause_after", false))
+		scr._after_fight(fight_ev, res, {}))
+	add_child(cs_pause)
+	cs_pause.combat.over = true
+	cs_pause.combat.won = true
+	cs_pause.combat.loot = 1
+	cs_pause.combat.xp = 1
+	cs_pause.combat.kills = 1
+	cs_pause._act(func(): pass)
+	var pbtn = _find_btn(cs_pause.buttons, "Continue and pause")
+	check(pbtn != null, "victory card splits Continue with Continue and pause")
+	pbtn.pressed.emit()
+	check(paused.flag and not scr.running and not scr.fast and not gs.settings.get("full_auto", false), "Continue and pause turns off x3 speed and Auto Battle and pauses the delve")
+	cs_pause.queue_free()
 	# Clean victory with nothing lost omits the Lost category on the post-battle Continue card.
 	gs.settings.full_auto = false
 	var cs_clean = load("res://scripts/ui/combat_screen.gd").new()

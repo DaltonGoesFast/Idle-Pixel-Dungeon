@@ -534,7 +534,19 @@ func _after_fight(ev: Dictionary, res: Dictionary, reward: Dictionary) -> void:
 			Sfx.play("levelup"); GameState.run.talent_prompted = false
 	if Delve.close_to_dying(GameState) and GameState.settings.get("full_auto", false):
 		_stop_auto_low_hp()
+	if res.get("pause_after", false): _pause_after_fight()
 	if main: main.end_combat()
+
+## Victory "Continue and pause": drop the in-run x3 toggle and Auto Battle, then hold the bar.
+func _pause_after_fight() -> void:
+	fast = false
+	running = false
+	_auto_t = 0.0
+	if GameState.settings.get("full_auto", false):
+		GameState.settings.full_auto = false
+	GameState.log_line("Paused after the fight. x3 speed and Auto Battle off.", "info")
+	SaveSystem.save_game()
+	_refresh_controls()
 
 func _defeat_ok() -> void:
 	GameState.end_run("death")

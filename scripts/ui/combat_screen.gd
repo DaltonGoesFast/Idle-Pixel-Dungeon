@@ -27,6 +27,7 @@ var _low_hp_stopped := false
 var finished := false
 var _applied := false
 var _summary := {}
+var _pause_after := false
 ## Guided first fight (v0.11.0, DECISIONS #63): 0 = off, 1 move, 2 attack, 3 finish, 4 done
 var bag_open := false
 var bag_layer: Control
@@ -37,7 +38,7 @@ var guide_label: Label
 ## `saved` (optional) = Combat.to_dict() from GameState.run.active_fight when resuming after the app was killed.
 func setup(ev: Dictionary, done: Callable, saved := {}) -> void:
 	event = ev; on_done = done
-	_applied = false; _summary = {}
+	_applied = false; _summary = {}; _pause_after = false
 	var run: Dictionary = GameState.run
 	reward = ev.get("reward", run.get("active_fight", {}).get("reward", {}))
 	var hs: Dictionary = GameState.hero_stats(run.hero)
@@ -387,10 +388,17 @@ func _result_buttons() -> void:
 		_result_section(box, "Got", _summary.got, GameState.LOG_COLORS.positive)
 		if not _summary.lost.is_empty():
 			_result_section(box, "Lost", _summary.lost, GameState.LOG_COLORS.negative)
-		var b := UIKit.button("Continue", _finish)
-		b.custom_minimum_size.x = UIKit.font_size * 6.5
-		UIKit.as_toolbar(b)
-		box.add_child(b)
+		var row := UIKit.hbox(box)
+		row.size_flags_horizontal = SIZE_EXPAND_FILL
+		row.add_theme_constant_override("separation", int(UIKit.font_size * 0.3))
+		var cont := UIKit.button("Continue", _finish)
+		var pause := UIKit.button("Continue and pause", _finish_paused, true,
+			"Turns off x3 speed and Auto Battle, then pauses the delve.")
+		var bh := UIKit.btn_height() + UIKit.font_px(UIKit.font_size)
+		for b in [cont, pause]:
+			b.custom_minimum_size = Vector2(UIKit.font_size * 6.5, bh)
+			UIKit.as_toolbar(b)
+			row.add_child(b)
 	else:
 		buttons.add_child(UIKit.label("Defeat... the pack is lost and your gear cracks.", 1.0, Color("ff7070")))
 		_btn("Wake at Camp", _finish)
@@ -406,8 +414,13 @@ func _result_section(parent: Node, heading: String, lines: PackedStringArray, co
 func result() -> Dictionary:
 	return {"won": combat.won, "hp": combat.hero.hp, "loot": combat.loot, "fallen_loot": combat.fallen_loot, "xp": combat.xp,
 		"boss_killed": combat.boss_killed, "potions_used": potions_used, "kills": combat.kills, "traps_found": combat.traps_found,
-		"trap_ids": combat.trap_ids_seen, "applied": _applied}
+		"trap_ids": combat.trap_ids_seen, "applied": _applied, "pause_after": _pause_after}
 
 func _finish() -> void:
 	GameState.run.erase("active_fight")
 	on_done.call(result())
+
+## Same as Continue, then the delve drops x3 speed and Auto Battle and holds the bar.
+func _finish_paused() -> void:
+	_pause_after = true
+	_finish()

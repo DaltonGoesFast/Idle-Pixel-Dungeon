@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- The post-fight Continue button is split. Continue and pause turns off x3 speed and Auto Battle, then pauses the delve so you can take a look (+tests).
 - Auto Battle and Hint take a Surprise that can land this turn before a normal swing, a cloak, or a door dance. An adjacent foe who has lost sight of you, or a clear Spirit Bow shot, is the attack. Dodging a telegraph, a chasm shove, and a crowd slam still come first. A slam no longer counts snakes, since they slip it (+tests).
 
 ## 0.40.1
