@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Enchanter: every item in the identify queue fills its bar toward when that item finishes. Waiting items used to stay empty until they were the one being identified (+tests).
 - The post-fight Continue button is split. Continue and pause turns off x3 speed and Auto Battle, then pauses the delve so you can take a look (+tests).
 - Auto Battle and Hint take a Surprise that can land this turn before a normal swing, a cloak, or a door dance. An adjacent foe who has lost sight of you, or a clear Spirit Bow shot, is the attack. Dodging a telegraph, a chasm shove, and a crowd slam still come first. A slam no longer counts snakes, since they slip it (+tests).
 

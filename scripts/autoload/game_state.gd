@@ -1041,6 +1041,17 @@ func imbue_wand(uid: int) -> bool:
 func identify_seconds() -> float:
 	return maxf(60.0, 600.0 - 180.0 * (facility_level("enchanter") - 1))   # 10 / 7 / 4 minutes
 
+## 0..1 of the wait until this queued item is identified. Items run one after another, so the bar
+## starts when the front item's slot started. Measuring only the last identify_seconds() left every
+## waiting row at 0 until it became the active one.
+func identify_progress(q: Dictionary) -> float:
+	if id_queue.is_empty(): return 0.0
+	var dur := maxf(1.0, identify_seconds())
+	var anchor := float(id_queue[0].ready_at) - dur
+	var left := maxf(0.0, float(q.ready_at) - now())
+	var total := maxf(1.0, float(q.ready_at) - anchor)
+	return clampf(1.0 - left / total, 0.0, 1.0)
+
 func enqueue_identify(uid: int) -> bool:
 	var g := gear_by_uid(uid)
 	if g.is_empty() or g.known: return false

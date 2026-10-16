@@ -2115,6 +2115,20 @@ func test_identify_queue_all(gs) -> void:
 	cs.close_page(); cs.queue_free()
 	check(gs.enqueue_identify_all() == 0, "Queue all with nothing to queue is a no-op")
 	# Upgrade mid-identification: 600 s each at Lv1, chained a=600 b=1200 c=1800. After 300 s, upgrade to Lv2 (420 s).
+	gs.time_offset += 300.0
+	var prog := []
+	for q in gs.id_queue: prog.append(gs.identify_progress(q))
+	check(prog.size() == 3 and prog[0] > 0.45 and prog[0] < 0.85 and prog[1] > 0.2 and prog[1] < prog[0] and prog[2] > 0.1 and prog[2] < prog[1],
+		"every queued item fills across its whole wait, not only the active one (%.2f %.2f %.2f)" % [prog[0] if prog.size() > 0 else -1, prog[1] if prog.size() > 1 else -1, prog[2] if prog.size() > 2 else -1])
+	var cs2 = load("res://scripts/ui/camp_screen.gd").new(); add_child(cs2)
+	cs2.open_page("Enchanter")
+	var bars: Array = cs2.win_layer.find_children("IdentifyBar", "ProgressBar", true, false)
+	var shown := bars.size() == 3
+	if shown:
+		for i in 3: shown = shown and absf(bars[i].value - gs.identify_progress(gs.id_queue[i])) < 0.02 and bars[i].value > 0.1
+	check(shown, "the Enchanter draws a filling bar for every queued item")
+	cs2.close_page(); cs2.queue_free()
+	gs.time_offset -= 300.0
 	var s1: float = gs.identify_seconds()
 	gs.time_offset += 300.0
 	var t0: float = gs.now()

@@ -1016,8 +1016,8 @@ func _identify_section(v: VBoxContainer) -> void:
 		row.add_child(UIKit.icon(gear_icon(g), -1, "NONE"))
 		var cv := UIKit.vbox(row); cv.size_flags_horizontal = SIZE_EXPAND_FILL
 		cv.add_child(UIKit.label("%s   %d:%02d" % [GameState.gear_name(g), int(left) / 60, int(left) % 60], 0.85))
-		var pb := ProgressBar.new(); pb.max_value = 1.0; pb.step = 0.0; pb.show_percentage = false
-		pb.value = clampf(1.0 - left / maxf(1.0, GameState.identify_seconds()), 0.0, 1.0); pb.custom_minimum_size.y = UIKit.font_size * 0.5
+		var pb := ProgressBar.new(); pb.name = "IdentifyBar"; pb.max_value = 1.0; pb.step = 0.0; pb.show_percentage = false
+		pb.value = GameState.identify_progress(q); pb.custom_minimum_size.y = UIKit.font_size * 0.5
 		cv.add_child(pb)
 	var unk := GameState.identify_candidates()
 	var uh := UIKit.hbox(v)
