@@ -460,3 +460,11 @@ v0.29 made tall grass and closed doors block sight, and `can_bolt` required sigh
 - Sight memory: when it is the hero's turn, every enemy in the hero's sight records `last_seen = [x, y]` (plain array, so it saves and restores with the fight).
 - CombatBot only takes aimed shots at foes it can see whose line is clear of other bodies (`_can_shoot`; before, it could shoot through bodies). With nothing in sight and nothing adjacent, it shoots at an unseen foe's `last_seen`: up to 2 arrows per sighting, or 1 wand charge while 2+ remain.
 Covered by `test_blind_shots` (hidden rat in grass hit, empty tile wastes the shot, the first body takes it, a closed door stops it, a wand bolt carries past, last_seen survives save/load, the bot's blind shot).
+
+## 150. `verify_apk.sh` finds Java the way the Godot export does
+`apksigner` is a Java program, but Godot's Android export finds Java through its own editor setting (`export/android/java_sdk_path`), not `PATH`. A machine can export an APK and still have no `java` on `PATH`; the playtest box is one (`/workspace/tools/jdk17` lives only in `editor_settings-4.7.tres`). Before #141 that was hidden: `"$BT/apksigner" verify "$APK" && echo "ok apksigner"` is an `&&` list, which `set -e` does not stop on, so a failed signature check (or "java: not found") was skipped silently and the script still printed `VERIFY: PASS` (the a8e5fe0 playtest's `verify-apk` log shows exactly this). Since #141 the certificate check's command substitution fails under `pipefail`, so `verify_apk.sh` and `build.sh` now stop with only `exec: java: not found` and exit 127, with no hint about what to fix. Now `verify_apk.sh`:
+- uses `java` from `PATH` if there is one, else `$JAVA_HOME`, else `export/android/java_sdk_path` from the newest `editor_settings-4*.tres` (Linux `~/.config/godot`, macOS `~/Library/Application Support/Godot`, Windows `%APPDATA%/Godot`), and prints `ok java from …` when it had to look;
+- otherwise fails with `JAVA NOT FOUND` and the three ways to fix it;
+- fails if `apksigner verify` fails (no more silent skip), and fails clearly if the signer digest can't be read, instead of printing "signed by  but …".
+The certificate pin itself (#141) is unchanged. Covered by `test_verify_apk_java`, which runs the script against a stub SDK, a stub JDK and a stub editor settings file.
+

@@ -5,7 +5,7 @@
 - **JDK 17** (Temurin) - box: `/workspace/tools/jdk17`.
 - **Android SDK**: platform-tools, build-tools 35.0.1 + 36.0.0, platforms 35 + 36 (Godot 4.7 targets SDK 36) - box: `~/Android/sdk`.
 - **NDK r28b** (`ndk;28.1.13356709`) and **CMake 3.10.2.4988404** — required for Gradle exports.
-- Editor settings (`~/.config/godot/editor_settings-4.7.tres`): `export/android/java_sdk_path`, `android_sdk_path`, `debug_keystore` (+ user `androiddebugkey`, pass `android`).
+- Editor settings (`~/.config/godot/editor_settings-4.7.tres`): `export/android/java_sdk_path`, `android_sdk_path`, `debug_keystore` (+ user `androiddebugkey`, pass `android`). `tools/verify_apk.sh` reads the same `java_sdk_path` for `apksigner` when `java` is not on `PATH` and `JAVA_HOME` is unset (DECISIONS #150).
 - Debug keystore: `keytool -genkeypair -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -validity 10000 -dname "CN=Android Debug,O=Android,C=US"`. **Never commit keystores** (`.gitignore` covers `*.keystore`).
 
 ## On your own machine

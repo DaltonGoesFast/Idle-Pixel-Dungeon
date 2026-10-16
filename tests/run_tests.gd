@@ -84,6 +84,7 @@ func _ready() -> void:
 	test_export_presets()
 	test_build_script_android_template()
 	test_release_cert_pin()
+	test_verify_apk_java()
 	await test_touch_scroll()
 	await test_tip_fit()
 	print("TESTS: %d passed, %d failed -> %s" % [passes, fails, "PASS" if fails == 0 else "FAIL"])
@@ -1802,6 +1803,44 @@ func test_release_cert_pin() -> void:
 	var v := FileAccess.open("res://tools/verify_apk.sh", FileAccess.READ)
 	var sh := v.get_as_text() if v else ""
 	check(sh.contains("release_cert.sha256") and sh.contains("SIGNING KEY MISMATCH") and sh.contains("ALLOW_NEW_SIGNING_KEY"), "verify_apk.sh fails on a different signing certificate (with an explicit override)")
+
+## DECISIONS #150: verify_apk.sh finds Java like the Godot export (PATH, JAVA_HOME, editor java_sdk_path) and fails
+## clearly without it, instead of a bare "java: not found" (or, before #141, silently skipping apksigner).
+func _vj_write(path: String, text: String, exe := false) -> void:
+	var f := FileAccess.open(path, FileAccess.WRITE); f.store_string(text); f.close()
+	if exe: OS.execute("chmod", ["+x", path])
+
+func test_verify_apk_java() -> void:
+	print("[verify_apk java]")
+	var sh := FileAccess.get_file_as_string("res://tools/verify_apk.sh")
+	check(sh.contains("java_sdk_path") and sh.contains("JAVA_HOME") and sh.contains("JAVA NOT FOUND"), "verify_apk.sh looks for Java in PATH, JAVA_HOME and the editor's java_sdk_path")
+	check(not sh.contains('verify "$APK" && echo'), "a failed apksigner verify fails the script (no && list that set -e skips)")
+	if not OS.get_name() in ["Linux", "macOS", "FreeBSD"] or OS.execute("/usr/bin/env", ["bash", "-c", "true"]) != 0:
+		print("  (skipped: needs a POSIX shell)"); return
+	if OS.execute("/usr/bin/env", ["-i", "PATH=/usr/bin:/bin", "sh", "-c", "command -v java"]) == 0:
+		print("  (skipped: java is installed in /usr/bin or /bin, so the no-Java path can't be exercised)"); return
+	var root := ProjectSettings.globalize_path("user://verify_java_test")
+	OS.execute("rm", ["-rf", root])
+	for d in ["sdk/build-tools/99.0.0", "jdk/bin", "home/.config/godot", "bare"]: DirAccess.make_dir_recursive_absolute(root + "/" + d)
+	_vj_write(root + "/jdk/bin/java", "#!/bin/sh\nexit 0\n", true)
+	# stub apksigner: like the real one it needs java; prints a signer digest that is not the pinned one
+	_vj_write(root + "/sdk/build-tools/99.0.0/apksigner", "#!/bin/sh\ncommand -v java >/dev/null 2>&1 || { echo 'exec: java: not found' >&2; exit 127; }\n[ \"$2\" = --print-certs ] && echo 'Signer #1 certificate SHA-256 digest: %s'\nexit 0\n" % "0".repeat(64), true)
+	_vj_write(root + "/home/.config/godot/editor_settings-4.7.tres", "[gd_resource type=\"EditorSettings\" format=3]\n\n[resource]\nexport/android/java_sdk_path = \"%s/jdk\"\n" % root)
+	_vj_write(root + "/x.apk", "")
+	var script := ProjectSettings.globalize_path("res://tools/verify_apk.sh")
+	var out := []
+	var code := OS.execute("/usr/bin/env", ["-i", "HOME=" + root + "/home", "PATH=/usr/bin:/bin", "ANDROID_HOME=" + root + "/sdk", "bash", script, root + "/x.apk"], out, true)
+	var txt := "".join(out)
+	check(txt.contains("ok java from %s/jdk" % root) and txt.contains("ok apksigner"), "Java comes from the editor's java_sdk_path when PATH and JAVA_HOME have none")
+	check(code == 1 and txt.contains("SIGNING KEY MISMATCH"), "the certificate pin still runs (and fails a foreign key) after finding Java")
+	out = []
+	code = OS.execute("/usr/bin/env", ["-i", "HOME=" + root + "/home", "PATH=/usr/bin:/bin", "JAVA_HOME=" + root + "/jdk", "XDG_CONFIG_HOME=" + root + "/bare", "ANDROID_HOME=" + root + "/sdk", "bash", script, root + "/x.apk"], out, true)
+	check("".join(out).contains("ok java from %s/jdk" % root), "JAVA_HOME is used when java is not on PATH")
+	out = []
+	code = OS.execute("/usr/bin/env", ["-i", "HOME=" + root + "/bare", "PATH=/usr/bin:/bin", "ANDROID_HOME=" + root + "/sdk", "bash", script, root + "/x.apk"], out, true)
+	txt = "".join(out)
+	check(code == 1 and txt.contains("JAVA NOT FOUND") and not txt.contains("java: not found"), "no Java anywhere fails with JAVA NOT FOUND and how to fix it")
+	OS.execute("rm", ["-rf", root])
 
 ## Log lines carry SPD colours; key moments are logged; the alarm sound is never played.
 func test_log_and_sounds(gs) -> void:
