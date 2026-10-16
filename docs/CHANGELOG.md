@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- The UI smoke test now opens every special-room card through the real delve screen. v0.40.0 crashed on the four new rooms (no description), and the smoke test missed it because it always picked "Leave" from rolled rooms (+test).
 - Camp dock: Delve sits under the destination, and each patrol card keeps the hero, timer, bar and loot with a Recall button beside the name, so the list is not a stack of full-width buttons (+tests).
 - Enchanter: every item in the identify queue fills its bar toward when that item finishes. Waiting items used to stay empty until they were the one being identified (+tests).
 - The post-fight Continue button is split. Continue and pause turns off x3 speed and Auto Battle, then pauses the delve so you can take a look (+tests).

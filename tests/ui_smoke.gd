@@ -45,6 +45,10 @@ func _process(_d: float) -> void:
 			GameState.settings.delve_speed = 1.0
 			main.delve.pending = {"kind": "settings"}; main.delve._show_card()
 			_check(main.delve.card_host.get_child_count() > 0, "delve settings card opens")
+			# render every special-room card through the real UI (v0.40.0 crashed on cards with no text, DECISIONS #167)
+			for sp in DB.specials:
+				main.delve.pending = {"kind": "special", "special": sp}; main.delve._show_card()
+				_check(main.delve.card_host.get_child_count() > 0 and _find_button(main.delve.card_host, String(sp.options[0].text)) != null, "special card renders: " + String(sp.id))
 			main.delve.pending = {}; main.delve.running = true; main.delve._show_card()
 		_:
 			if f > 8 and f < 20000: _drive()
