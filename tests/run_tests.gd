@@ -17,6 +17,7 @@ func _ready() -> void:
 	ss.path = "user://test_save.json"
 	gs.new_game()
 	test_rules(gs)
+	test_bat_drain(gs)
 	test_status_pane_layout(gs)
 	test_balance(gs)
 	test_boss(gs)
@@ -2070,3 +2071,15 @@ func test_status_pane_layout(_gs) -> void:
 			var isz: Vector2 = StatusPane.icon_size(Vector2(14, 14), a.size.y)
 			check(isz.y <= a.size.y and isz.y >= a.size.y * 0.5, "%s: supply icon fits the bar height" % tag)
 
+
+func test_bat_drain(gs) -> void:
+	print("[bat drain]")
+	gs.new_game()
+	var hs: Dictionary = gs.hero_stats("warrior")
+	for case in [[0, 4], [4, 0]]:   # hero DR 0: bat deals 6 -> heals 4; hero DR 4: deals 2 -> heals 0
+		var c := Combat.new(); c.setup(DB.boss_rooms[0], hs, hs.ht, ["bat"])
+		var b: Dictionary = c.enemies()[0]; b.hp = 10
+		c.hero.dr = case[0]; c.hero.barrier = 0
+		c._place(c.hero, Vector2i(3, 2)); c._place(b, Vector2i(3, 3))
+		c._mob_act(b)
+		check(int(b.hp) == 10 + case[1], "bat heals dealt-2 like SPD's dealt-4 (DR %d -> +%d, got %d)" % [case[0], case[1], int(b.hp) - 10])

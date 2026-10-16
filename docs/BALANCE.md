@@ -57,19 +57,19 @@ GDD target: 12-13 Str, tier 2-3 gear. Two Sewers Strength potions take a fresh h
 | Mob | HT | Dmg | DR | Delay (ticks) | EXP | Gold | SPD source | Tuning |
 |---|---|---|---|---|---|---|---|---|
 | Marsupial Rat | 8 | 2 | 0 | 1.0 | 1 | 2 | HT 8, dmg 1-4, DR 0-1 | - |
-| Sewer Snake | 4 | 2 | 0 | 1.0 | 2 | 2 | HT 4, dmg 1-4 | - |
+| Sewer Snake | 4 | 2 | 0 | 1.0 | 2 | 2 | HT 4, dmg 1-4; only hit by surprise attacks | - |
 | Gnoll Scout | 12 | 3 | 1 | 1.0 | 2 | 3 | HT 12, dmg 1-6, DR 0-2 | - |
 | Sewer Crab | 15 | 2 | 1 | 0.5 | 4 | 4 | HT 15, dmg 1-7, DR 0-4, speed 2x | dmg 4->2, DR 2->1: at 2 attacks/tick SPD avg damage was unbeatable without RNG misses |
 | Animated Statue | 20 | 4 | 2 | 1.0 | 5 | 6 | HT 15+5*depth, dmg 2+depth..2+3*depth (depth 2) | fixed to depth-2 values |
-| Goo | 70 | 4 | 0 | 1.0 | 10 | 30 | HT 100, dmg 1-8 (1-12 below half), DR 0-2, pump-up = 3x | HT 100->70, enraged dmg 6. Pump every 4 acts, every 3 below half HP (v0.5: the first pumps are slower so a new player can learn the telegraph; the danger ramps in the second half) |
+| Goo | 90 | 4 | 0 | 1.0 | 10 | 30 | HT 100, dmg 1-8 (1-12 below half), DR 0-2, pump-up = 3x | HT 90 (SPD 100; was 70), dmg 4, enraged 6. Pump every 4 acts, every 3 below half HP. Regenerates 1 HP/turn in water; the arena has 2 water tiles like SPD's pools. Each earlier death to Goo removes 15 HT (floor 70, which also stops the enrage) until it is killed. A Goo death also restocks 2 Potions of Healing (DECISIONS #131). |
 | Skeleton | 20 | 4 | 2 | 1.0 | 5 | 4 | HT 25, dmg 2-10, DR 0-5; explodes on death for 6-12 to adjacent | HT 25->20, dmg 4. The death explosion is a 1-tick 3x3 telegraph (5 dmg) instead of instant, so melee heroes can step away |
 | Crazy Thief | 16 | 3 | 1 | 1.0 | 5 | 5 | HT 20, dmg 1-10, DR 0-3; steals an item and flees | steals 8 gold (dropped back when killed) instead of an item; flees at normal speed so ranged heroes can catch it |
 | DM-100 | 16 | 3 | 2 | 1.0 | 6 | 5 | HT 20, dmg 2-8, DR 0-4; ranged lightning 3-10 | zap is a 1-tick red tile at range 2-4 (5 dmg, DR applies); cooldown 3 actions |
 | Prison Guard | 28 | 5 | 3 | 1.0 | 7 | 6 | HT 40, dmg 4-12, DR 0-7; chains and pulls the hero | HT 40->28, dmg 8->5, DR 3: once per fight pulls the hero adjacent from range 2-3 |
 | Tengu | 90 | 6 | 2 | 1.0 | 20 | 60 | HT 200, dmg 6-12, DR 0-5; phase 1 teleports & throws shurikens, phase 2 bombs/fire/shockers | HT 200->90. Blinks away every 15 HP lost; shuriken = 1-tick red tile (6). Below half HP lobs a 3x3 bomb every 3 actions (2-tick fuse, 8 dmg, also hurts mobs) |
-| Vampire Bat | 24 | 6 | 2 | 0.5 | 7 | 5 | HT 30, dmg 5-18, DR 0-4, speed 2x, heals on hit | HT 24, dmg 11->5 (it attacks twice per tick), heals 2 on a hit that gets through |
+| Vampire Bat | 24 | 6 | 2 | 0.5 | 7 | 5 | HT 30, dmg 5-18, DR 0-4, speed 2x, heals on hit | HT 24, dmg 11->5 (it attacks twice per tick), heals (damage dealt - 2) like SPD's (dealt - 4) at half damage |
 | Gnoll Brute | 34 | 8 | 4 | 1.0 | 8 | 7 | HT 40, dmg 5-25 (15-40 enraged), DR 0-8 | HT 34, dmg 7, enraged (below half HP) 10 |
-| Gnoll Shaman | 26 | 7 | 3 | 1.0 | 8 | 7 | HT 35, dmg 5-10, DR 0-6; magic bolt 6-15 | magic zap = 1-tick red tile, 6 dmg ignoring DR, range 2-4, every 2 actions |
+| Gnoll Shaman | 26 | 7 | 3 | 1.0 | 8 | 7 | HT 35, dmg 5-10, DR 0-6; magic bolt 6-15 | magic zap = 1-tick red tile, 7 dmg ignoring DR, range 2-4, every 2 actions |
 | Cave Spinner | 32 | 8 | 3 | 1.0 | 9 | 8 | HT 50, dmg 10-20, DR 0-6; poison bite, webs | HT 32, dmg 6, bite adds 3 poison (no webs) |
 | DM-300 | 160 | 8 | 4 | 1.0 | 30 | 100 | HT 300, dmg 15-25, DR 0-10; rockfall, toxic vents, supercharge with pylons | HT 160, dmg 8, DR 4 (+2 supercharged below half HP). Every 3 actions (2 supercharged) alternates rockfall (+ shape on you, 2-tick fuse, 10) and a toxic gas line (1 tick, 3 + 4 poison). No pylons. |
 | Dwarven Ghoul | 40 | 9 | 4 | 1.0 | 10 | 8 | HT 45, dmg 16-22, DR 0-4; rises again unless all ghouls die | HT 40, dmg 9; the first time it dies it gets back up with half HP after 2 ticks (red tile on its corpse) |
