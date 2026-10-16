@@ -143,7 +143,7 @@ func _refresh() -> void:
 		else: line += "\nStaff charges %d/%d (%s, %d dmg, ignores DR)" % [h.charges, h.bolt.charges, h.bolt.name, h.bolt.dmg]
 	if combat.hidden(): line += "\nHIDDEN in shadows - enemies can't find you"
 	if int(h.get("poison", 0)) > 0: line += "\nPOISONED: -1 HP per turn for %d turns" % int(h.poison)
-	if combat.surprise_ready(): line += "\nThey lost sight of you: next attack is a SURPRISE (x%.1f, no DR, knockback)" % float(h.surprise_mult)
+	if combat.surprise_now(): line += "\nThey lost sight of you: next attack is a SURPRISE (x%.1f, no DR, knockback)" % float(h.surprise_mult)
 	if combat.enemies().any(func(e): return e.get("evade_unless_surprise", false)):
 		line += "\nSnake: only a Surprise hits (door or circle tall grass)"
 	status.text = line

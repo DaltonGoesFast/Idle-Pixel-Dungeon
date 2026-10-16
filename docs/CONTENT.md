@@ -545,3 +545,83 @@ Boss room 4:
 ############
 ```
 <!-- /GENERATED -->
+
+### Vanilla wands (DECISIONS #156)
+Imbued into the Mage's Staff (only the Mage zaps). Each bolt ignores DR, gets +1 damage per 2 hero levels like the others, and drops from `item_unknown: wand` rewards (Scroll of Identify / use reveals them). Sprites are SPD's `ItemSpriteSheet` wands.
+
+| Wand | Unknown as | Bolt | Effect | Scaling |
+|---|---|---|---|---|
+| Frost | Holly | 3 | Target's next action delayed 1 tick | 1.5 ticks from hero Lv 15 |
+| Corrosion | Yew | 2 | +3 poison (1/action, ignores DR) | +1 poison per 6 hero levels |
+| Blast Wave | Elm | 3 | Knocks the target back 1 tile (bosses immune; chasms kill, walls deal 1) | 2 tiles from Lv 15 |
+| Disintegration | Ebony | 4 | Hits every enemy on the line to range (walls stop it) | - |
+| Transfusion | Willow | 3 | Heals you 2 HP on a hit | +1 per 10 hero levels |
+| Prismatic Light | Rowan | 4 | Reveals hidden traps within 2 tiles of the impact | - |
+| Regrowth | Maple | 1 | Roots the target 2 ticks, grows tall grass around the impact | - |
+
+Not ported: Corruption, Living Earth, Warding (all need allied units).
+
+### Vanilla rings (DECISIONS #157)
+Flat bonuses like the existing rings. Drop from `item_unknown: ring` rewards; spares melt at the Forge like the others. Levels are in the Enchanter section below.
+
+| Ring | Unknown as | Effect |
+|---|---|---|
+| Furor | Opal | Melee swings take 15% less time (`delay x0.85`) |
+| Haste | Tourmaline | Steps cost 0.85 tick |
+| Sharpshooting | Sapphire | +1 Spirit Bow / staff bolt damage |
+| Elements | Amethyst | Piercing damage (fire, your own lightning, zaps, traps that pierce) x0.67 |
+| Force | Quartz | +2 melee damage with a tier-1 weapon (worn shortsword, dagger, gloves, staff) |
+
+Not ported: Accuracy (no hit roll), Arcana (no enchantments yet).
+
+### Ring, wand and artifact levels (DECISIONS #158)
+Leveled and repaired at the **Enchanter's Desk**, not the Forge. Item level cap = Desk level - 1 (Lv1 Desk: +0 only).
+
+| Action | Needs | Cost |
+|---|---|---|
+| Ring / wand to +N | Desk Lv N+1 | 1 Scroll of Upgrade + 3N Arcane Resin + 50N^2 gold (+1: 1 SoU, 3 resin, 50g; +2: 1 SoU, 6 resin, 200g; +3: 1 SoU, 9 resin, 450g; +4: 1 SoU, 12 resin, 800g) |
+| Artifact to +N | Desk Lv N+1 | No Scrolls: 8N won fights while equipped |
+| Repair ring / wand | Desk Lv2 | 2 + level Arcane Resin |
+| Repair artifact | Desk Lv3 | 4 + 2 x level resin, 40 + 20 x level gold |
+
+Per level: Might +1 dmg, Tenacity +1 Barrier, Evasion +1 DR per 2 levels, Wealth +5% gold, Energy +2 HP; staff wand +1 bolt dmg and +1 charge per 2 levels; Chalice +3 HP, Talisman +1 search per 2 levels, Horn -5% hunger. New drops start at +0 with lower base power: Tenacity +1 Barrier (was 2), Wealth +15% (was 30%), Energy +2 HP (was 4), Chalice +6 HP (was 15), Horn x0.8 hunger (was 0.6). On death, equipped rings/artifacts crack as before; an imbued wand with levels cracks too (its levels go dormant, base bolt still works). The free Patch up only covers weapons and armor.
+
+### Vanilla artifacts (DECISIONS #159)
+Bosses drop an artifact you don't own yet (as before). They start at +0, gain a level every 8 x (next level) won fights while equipped, and are capped by the Enchanter's Desk (#158).
+
+| Artifact | +0 | Per level |
+|---|---|---|
+| Cape of Thorns | Melee attackers take 1 dmg back (ignores DR) | +1 per 2 levels |
+| Ethereal Chains | Fight start: nearest non-boss 3+ tiles away is dragged next to you | held 0.5 tick per level |
+| Timekeeper's Hourglass | Fight start: non-boss enemies frozen 0.5 tick | +0.25 tick |
+| Sandals of Nature | Stepping into tall grass roots adjacent enemies 0.5 tick | +0.25 tick |
+| Master Thieves' Armband | +10% gold from fights (stacks with Wealth) | +5% |
+
+Not ported: Dried Rose (ally), Alchemist's Toolkit and Unstable Spellbook (need in-fight alchemy/scroll casting), Lloyd's Beacon (extraction rules are the core risk loop), Horn/Chalice already exist.
+
+### Ring levels for the #157 rings (DECISIONS #160)
+| Ring | Per level | Floor |
+|---|---|---|
+| Furor | melee delay -5% | x0.6 |
+| Haste | step cost -0.05 tick | 0.6 |
+| Elements | piercing dmg taken -7% | x0.4 |
+| Force | +1 dmg (tier-1 weapons) | - |
+| Sharpshooting | +1 ranged dmg per 2 levels | - |
+### Vanilla potions & scrolls (DECISIONS #161)
+All drop as unknown consumables (every 4th won fight and `item_unknown` rewards) and are used from the backpack between fights; using one identifies it. Most set a **next-fight** effect.
+
+| Item | Effect |
+|---|---|
+| Potion of Invisibility | Next fight: unseen for 3 ticks (first blow is a Surprise) |
+| Potion of Haste | Next fight: enemies lose their first 1.5 ticks |
+| Potion of Levitation | Next fight: you float over traps |
+| Potion of Frost (bad) | Next fight: you lose your first 1.5 ticks |
+| Potion of Paralytic Gas (bad) | Next fight: you lose your first 2.5 ticks |
+| Potion of Liquid Flame (bad) | Now: lose 15% of max HP |
+| Scroll of Recharging | Next fight: +1 staff charge, +1 cloak charge |
+| Scroll of Lullaby | Next fight: non-boss enemies start asleep 2 ticks |
+| Scroll of Retribution | Next fight opens with half your missing HP (min 2) to each non-boss foe |
+| Scroll of Terror | Next fight: non-boss foes are knocked back a tile and lose 1 tick |
+| Scroll of Transmutation | Now: the first ring or wand in your backpack becomes a different one of its kind |
+
+Unknown looks grow to 9 potion colours (+Charcoal, Silver, Ivory) and 9 runes (+Naudiz, Odal, Tiwaz). Not ported: Mind Vision, Purity, Remove Curse, Mirror Image, Rage, and all exotics except the existing Shielding/Passage.

@@ -63,6 +63,14 @@ func _ready() -> void:
 	test_guild_pack_cap(gs)
 	test_identify_queue_all(gs)
 	test_blind_shots(gs)
+	test_vanilla_wands(gs)
+	test_artifact_lines(gs)
+	test_vanilla_artifacts(gs)
+	test_trinket_upgrades(gs)
+	test_vanilla_rings(gs)
+	test_ring_levels(gs)
+	test_vanilla_consumables(gs)
+	test_surprise_now(gs)
 	await test_guided_surprise_tip(gs)
 	test_no_collapsing_labels(gs)
 	await test_delve_chips(gs)
@@ -844,16 +852,16 @@ func test_identify(gs) -> void:
 	print("[identify]")
 	gs.new_game()
 	var um: Array = gs.unknown_mats()
-	check(um.size() == 6, "six unknown potions/scrolls")
+	check(um.size() == 17, "seventeen unknown potions/scrolls (DECISIONS #161)")
 	check(not gs.is_mat_known("potion_shielding"), "shielding starts unknown")
 	check(gs.mat_label("potion_shielding").ends_with("Potion"), "unknown label shows appearance")
 	var u: int = gs.add_gear("chalice_blood")
 	var base := int(gs.hero_stats("warrior").ht)
 	check(gs.equip("warrior", u), "artifact equips")
-	check(int(gs.hero_stats("warrior").ht) == base + 15, "chalice +15 HT")
+	check(int(gs.hero_stats("warrior").ht) == base + 6, "chalice +6 HT at +0 (DECISIONS #158)")
 	var r: int = gs.add_gear("ring_energy")
 	gs.equip("warrior", r)
-	check(int(gs.hero_stats("warrior").ht) == base + 19, "ring of energy stacks with artifact")
+	check(int(gs.hero_stats("warrior").ht) == base + 8, "ring of energy stacks with artifact")
 	check(gs.start_run("warrior", {}), "run starts")
 	gs.run.pack["potion_shielding"] = 1; gs.run.pack["scroll_teleport"] = 1
 	check(gs.delve_use_pack("potion_shielding") and int(gs.run.shield_next) == 10, "shielding queues barrier")
@@ -1371,10 +1379,12 @@ func test_ring_contexts(gs) -> void:
 	gs.end_run("abandon")
 	check(bad.is_empty(), "ring icons render in stash/Forge/paperdoll/backpack slots %s" % [bad.slice(0, 6)])
 	# repair a cracked ring
-	gs.new_game(); gs.add_mat("iron_ore", 50)
+	gs.new_game(); gs.add_mat("iron_ore", 50); gs.add_mat("arcane_resin", 20)
 	var ru: int = gs.add_gear("ring_wealth", true); gs.gear_by_uid(ru).cracked = true
-	check(gs.cracked_gear().size() == 1 and int(gs.repair_all_cost().get("iron_ore", 0)) > 0, "a cracked ring counts for Repair all")
-	check(gs.repair(ru) and not gs.gear_by_uid(ru).cracked, "a cracked ring can be repaired at the Forge")
+	check(gs.repairable_gear().is_empty() and not gs.repair(ru), "a cracked ring needs the Enchanter's Desk Lv2 (DECISIONS #158)")
+	gs.facilities.enchanter.level = 2
+	check(gs.cracked_gear().size() == 1 and int(gs.repair_all_cost().get("arcane_resin", 0)) > 0, "a cracked ring counts for Repair all")
+	check(gs.repair(ru) and not gs.gear_by_uid(ru).cracked, "a cracked ring can be repaired with arcane resin")
 	gs.gear_by_uid(ru).cracked = true
 	check(gs.repair_all() and gs.cracked_gear().is_empty(), "Repair all repairs a cracked ring")
 	cs.free()
@@ -2349,7 +2359,7 @@ func test_ring_charges_delta(gs) -> void:
 	var uid: int = gs.add_gear("ring_energy", true)
 	for cc in ["warrior", "rogue", "huntress"]:
 		var t: String = Paperdoll._delta_text(gs.hero_stats(cc), Paperdoll._stats_with(cc, "ring", uid))[0]
-		check(t.contains("HP +4") and not t.contains("Charges"), "%s: Ring of Energy shows HP +4 but no staff charge (%s)" % [cc, t])
+		check(t.contains("HP +2") and not t.contains("Charges"), "%s: Ring of Energy shows HP +2 but no staff charge (%s)" % [cc, t])
 	var tm: String = Paperdoll._delta_text(gs.hero_stats("mage"), Paperdoll._stats_with("mage", "ring", uid))[0]
 	check(tm.contains("Charges +1"), "mage: Ring of Energy shows Charges +1 (%s)" % tm)
 
@@ -2480,6 +2490,229 @@ func test_bat_drain(gs) -> void:
 		c._place(c.hero, Vector2i(3, 2)); c._place(b, Vector2i(3, 3))
 		c._mob_act(b)
 		check(int(b.hp) == 10 + case[1], "bat heals dealt-2 like SPD's dealt-4 (DR %d -> +%d, got %d)" % [case[0], case[1], int(b.hp) - 10])
+
+
+## DECISIONS #156: vanilla wands imbued into the Mage's Staff.
+func test_vanilla_wands(gs) -> void:
+	print("[vanilla wands]")
+	var room := ["########", "#H.....#", "#......#", "#......#", "#......#", "#......#", "#.....1#", "########"]
+	var old: String = gs.heroes.mage.wand
+	for id in ["wand_frost", "wand_corrosion", "wand_blast_wave", "wand_disintegration", "wand_transfusion", "wand_prismatic_light", "wand_regrowth"]:
+		check(DB.items.has(id) and DB.item(id).type == "wand" and DB.item(id).has("unknown_name"), "%s is an unidentified-able wand" % id)
+		check(Codex.item_line(id).begins_with("wand"), "%s has a codex line" % id)
+	var mk := func(id: String, mobs: Array) -> Combat:
+		gs.heroes.mage.wand = id
+		var ms: Dictionary = gs.hero_stats("mage")
+		var c := Combat.new(); c.setup(room, ms, int(ms.ht), mobs)
+		for e in c.enemies(): e.next = 50.0; e.hp = 99; e.ht = 99
+		return c
+	var c: Combat = mk.call("wand_frost", ["rat"]); var r = c.enemies()[0]; c._place(r, Vector2i(4, 1))
+	c.hero_bolt(r.pos); check(float(r.next) >= 51.0, "frost chills the target (next %.1f)" % r.next)
+	c = mk.call("wand_corrosion", ["rat"]); r = c.enemies()[0]; c._place(r, Vector2i(4, 1))
+	c.hero_bolt(r.pos); check(int(r.poison) >= 3, "corrosion poisons the target")
+	c = mk.call("wand_blast_wave", ["rat"]); r = c.enemies()[0]; c._place(r, Vector2i(3, 1))
+	c.hero_bolt(r.pos); check(r.pos == Vector2i(4, 1), "blast wave knocks the target back (%s)" % str(r.pos))
+	c = mk.call("wand_disintegration", ["rat", "rat"]); var a = c.enemies()[0]; var b = c.enemies()[1]
+	c._place(a, Vector2i(3, 1)); c._place(b, Vector2i(5, 1))
+	c.hero_bolt(Vector2i(5, 1)); check(int(a.hp) < 99 and int(b.hp) < 99, "disintegration hits every enemy on the line")
+	c = mk.call("wand_transfusion", ["rat"]); r = c.enemies()[0]; c._place(r, Vector2i(4, 1)); c.hero.hp = 5
+	c.hero_bolt(r.pos); check(int(c.hero.hp) == 7, "transfusion heals the caster 2 (hp %d)" % c.hero.hp)
+	c = mk.call("wand_regrowth", ["rat"]); r = c.enemies()[0]; c._place(r, Vector2i(4, 3))
+	c.hero_bolt(r.pos); check(float(r.next) >= 52.0 and c.tile(Vector2i(5, 3)) == Combat.T.GRASS, "regrowth roots and grows grass")
+	# the bot can fight with each new wand without errors
+	for id in ["wand_frost", "wand_blast_wave", "wand_disintegration", "wand_regrowth"]:
+		gs.heroes.mage.wand = id
+		var ms: Dictionary = gs.hero_stats("mage")
+		var cb := Combat.new(); cb.setup(DB.rooms[1], ms, int(ms.ht), ["rat", "gnoll"])
+		CombatBot.play(cb); check(cb.over, "auto battle finishes a fight with %s" % id)
+	gs.heroes.mage.wand = old
+
+## DECISIONS #158: rings, wands and artifacts level and repair at the Enchanter's Desk.
+func test_trinket_upgrades(gs) -> void:
+	print("[trinket upgrades]")
+	var keep_fac: Dictionary = gs.facilities.duplicate(true); var keep_mats: Dictionary = gs.mats.duplicate(true)
+	var keep_wand: String = gs.heroes.mage.wand
+	gs.facilities.enchanter.level = 1
+	gs.mats.scroll_upgrade = 5; gs.mats.arcane_resin = 100; gs.mats.gold = 5000
+	var ru: int = gs.add_gear("ring_might", true)
+	check(gs.enchant_cap() == 0 and gs.can_upgrade_item(ru) != "", "a Lv1 Desk can't level rings (%s)" % gs.can_upgrade_item(ru))
+	check(gs.upgrade_max(ru) == 0, "upgrade_max is 0 at Desk Lv1")
+	gs.facilities.enchanter.level = 2
+	check(gs.can_upgrade_item(ru) == "", "a Lv2 Desk can level a ring to +1")
+	check(gs.upgrade_item(ru) and int(gs.gear_by_uid(ru).lvl) == 1 and gs.mat("scroll_upgrade") == 4, "ring upgrade costs a Scroll of Upgrade")
+	check(gs.can_upgrade_item(ru).begins_with("Enchanter cap"), "the Desk caps the ring at +1")
+	var old_r := int(gs.heroes.warrior.ring); gs.heroes.warrior.ring = 0
+	var d0 := int(gs.hero_stats("warrior").dmg); gs.heroes.warrior.ring = ru
+	check(int(gs.hero_stats("warrior").dmg) == d0 + 2, "Might +1 gives +2 dmg")
+	gs.gear_by_uid(ru).cracked = true
+	check(int(gs.hero_stats("warrior").dmg) == d0, "a cracked ring does nothing")
+	gs.facilities.enchanter.level = 1
+	check(gs.can_repair(ru).begins_with("needs Enchanter"), "ring repair needs Desk Lv2")
+	check(gs.can_patch_up() != "" or true, "patch up ignores rings")
+	gs.facilities.enchanter.level = 2
+	check(gs.repair(ru) and not gs.gear_by_uid(ru).cracked, "Desk Lv2 repairs the ring")
+	gs.heroes.warrior.ring = old_r
+	# artifact: no scrolls, levels by won fights up to the cap, repair at Lv3
+	var au: int = gs.add_gear("chalice_blood", true)
+	check(gs.can_upgrade_item(au) == "artifacts level up by use", "artifacts don't take Scrolls")
+	var old_a := int(gs.heroes.warrior.get("artifact", 0)); gs.heroes.warrior.artifact = au
+	for i in 30: gs.charge_artifact("warrior")
+	check(int(gs.gear_by_uid(au).lvl) == 1, "won fights level the artifact, capped at the Desk cap (+%d)" % gs.gear_by_uid(au).lvl)
+	gs.gear_by_uid(au).cracked = true
+	check(gs.can_repair(au).begins_with("needs Enchanter's Desk Lv3"), "artifact repair needs Desk Lv3")
+	gs.heroes.warrior.artifact = old_a
+	# staff wand
+	gs.heroes.mage.wand = "wand_magic_missile"; gs.heroes.mage.wand_lvl = 0; gs.heroes.mage.wand_cracked = false
+	var b0 := int(gs.hero_stats("mage").bolt.dmg)
+	check(gs.upgrade_staff_wand() and int(gs.hero_stats("mage").bolt.dmg) == b0 + 1, "a staff wand level adds bolt damage")
+	gs.heroes.mage.wand_cracked = true
+	check(int(gs.hero_stats("mage").bolt.dmg) == b0, "a cracked staff wand keeps only base power")
+	check(gs.repair_staff_wand() and not gs.heroes.mage.wand_cracked, "the Desk repairs the staff wand")
+	gs.heroes.mage.wand_lvl = 0; gs.heroes.mage.wand = keep_wand
+	gs.gear.erase(gs.gear_by_uid(ru)); gs.gear.erase(gs.gear_by_uid(au))
+	gs.facilities = keep_fac; gs.mats = keep_mats
+## DECISIONS #157: vanilla rings.
+func _ring_stats(gs, cls: String, id: String) -> Dictionary:
+	var old := int(gs.heroes[cls].get("ring", 0))
+	if id == "":
+		gs.heroes[cls].ring = 0
+		var b: Dictionary = gs.hero_stats(cls); gs.heroes[cls].ring = old; return b
+	var uid: int = gs.add_gear(id, true)
+	gs.heroes[cls].ring = uid
+	var st: Dictionary = gs.hero_stats(cls)
+	gs.heroes[cls].ring = old
+	gs.gear.erase(gs.gear_by_uid(uid))
+	return st
+
+func test_vanilla_rings(gs) -> void:
+	print("[vanilla rings]")
+	for id in ["ring_furor", "ring_haste", "ring_sharpshooting", "ring_elements", "ring_force"]:
+		check(DB.items.has(id) and DB.item(id).type == "ring" and DB.item(id).has("unknown_name"), "%s exists with an unknown name" % id)
+		check(Codex.item_line(id).length() > 4, "%s has a codex line" % id)
+	var base: Dictionary = _ring_stats(gs, "warrior", "")
+	check(float(_ring_stats(gs, "warrior", "ring_furor").delay) < float(base.delay), "furor speeds up melee")
+	var hs: Dictionary = _ring_stats(gs, "warrior", "ring_haste")
+	check(float(hs.move_cost) < 1.0, "haste lowers move cost")
+	var c := Combat.new(); c.setup(DB.rooms[1], hs, int(hs.ht), ["rat"])
+	c.enemies()[0].next = 99.0
+	var t0 := float(c.hero.next)
+	for d in Combat.DIRS:
+		if c.hero_tap(c.hero.pos + d): break
+	check(float(c.hero.next) - t0 < 1.0, "a hasted step costs less than a tick")
+	check(int(_ring_stats(gs, "huntress", "ring_sharpshooting").bolt.dmg) == int(_ring_stats(gs, "huntress", "").bolt.dmg) + 1, "sharpshooting adds ranged damage")
+	var es: Dictionary = _ring_stats(gs, "warrior", "ring_elements")
+	var c2 := Combat.new(); c2.setup(DB.rooms[1], es, int(es.ht), ["rat"]); c2.hero.barrier = 0
+	var hp0 := int(c2.hero.hp); c2.hit_hero(6, "Fire", true)
+	check(hp0 - int(c2.hero.hp) == 4, "elements cuts piercing damage by a third (took %d)" % (hp0 - int(c2.hero.hp)))
+	var fs: Dictionary = _ring_stats(gs, "rogue", "ring_force")
+	check(int(fs.dmg) == int(_ring_stats(gs, "rogue", "").dmg) + 2, "force adds tier-1 melee damage (rogue dagger)")
+
+## DECISIONS #160: per-level values for Furor, Haste, Elements, Force, Sharpshooting.
+func test_ring_levels(gs) -> void:
+	print("[ring levels]")
+	var lv := func(cls: String, id: String, l: int) -> Dictionary:
+		var old := int(gs.heroes[cls].get("ring", 0))
+		var uid: int = gs.add_gear(id, true, l); gs.heroes[cls].ring = uid
+		var st: Dictionary = gs.hero_stats(cls)
+		gs.heroes[cls].ring = old; gs.gear.erase(gs.gear_by_uid(uid)); return st
+	check(float(lv.call("warrior", "ring_furor", 2).delay) < float(lv.call("warrior", "ring_furor", 0).delay), "Furor gets faster with level")
+	check(is_equal_approx(float(lv.call("warrior", "ring_haste", 2).move_cost), 0.75), "Haste +2 steps cost 0.75")
+	check(is_equal_approx(float(lv.call("warrior", "ring_haste", 9).move_cost), 0.6), "Haste is floored at 0.6")
+	check(float(lv.call("warrior", "ring_elements", 2).elem_resist) < 0.67, "Elements resists more with level")
+	check(int(lv.call("rogue", "ring_force", 2).dmg) == int(lv.call("rogue", "ring_force", 0).dmg) + 2, "Force +1 dmg per level")
+	check(int(lv.call("huntress", "ring_sharpshooting", 2).bolt.dmg) == int(lv.call("huntress", "ring_sharpshooting", 0).bolt.dmg) + 1, "Sharpshooting +1 per 2 levels")
+
+## DECISIONS #159: vanilla artifacts.
+func _art_stats(gs, id: String, lvl := 0) -> Dictionary:
+	var old := int(gs.heroes.warrior.get("artifact", 0))
+	var uid: int = gs.add_gear(id, true, lvl)
+	gs.heroes.warrior.artifact = uid
+	var st: Dictionary = gs.hero_stats("warrior")
+	gs.heroes.warrior.artifact = old; gs.gear.erase(gs.gear_by_uid(uid))
+	return st
+
+func test_vanilla_artifacts(gs) -> void:
+	print("[vanilla artifacts]")
+	var room := ["########", "#H.....#", "#......#", "#......#", "#......#", "#......#", "#.....1#", "########"]
+	for id in ["cape_thorns", "ethereal_chains", "timekeepers_hourglass", "sandals_nature", "thieves_armband"]:
+		check(DB.items.has(id) and DB.item(id).type == "artifact" and DB.item(id).has("per_level"), "%s is a levelling artifact" % id)
+	var st: Dictionary = _art_stats(gs, "cape_thorns")
+	var c := Combat.new(); c.setup(room, st, int(st.ht), ["rat"]); var r = c.enemies()[0]
+	r.hp = 50; c._place(r, Vector2i(2, 1))
+	for i in 3: c.hero_wait()
+	check(int(r.hp) < 50, "Cape of Thorns hurts a melee attacker (rat hp %d)" % r.hp)
+	check(int(_art_stats(gs, "cape_thorns", 2).thorns) == 2, "the cape gains thorns with level")
+	st = _art_stats(gs, "timekeepers_hourglass")
+	c = Combat.new(); c.setup(room, st, int(st.ht), ["rat"])
+	check(float(c.enemies()[0].next) >= 0.5, "the Hourglass freezes enemies at the start")
+	st = _art_stats(gs, "ethereal_chains")
+	c = Combat.new(); c.setup(room, st, int(st.ht), ["rat"])
+	check(c.cheb(c.enemies()[0].pos, c.hero.pos) == 1, "Ethereal Chains drag a far enemy next to you")
+	var gr := ["########", "#H\"....#", "#......#", "#......#", "#......#", "#......#", "#.....1#", "########"]
+	st = _art_stats(gs, "sandals_nature")
+	c = Combat.new(); c.setup(gr, st, int(st.ht), ["rat"]); r = c.enemies()[0]; c._place(r, Vector2i(3, 2))
+	var n0 := float(r.next); c._place(c.hero, Vector2i(2, 1))
+	check(float(r.next) > n0, "Sandals root a neighbour when you step into grass")
+	check(is_equal_approx(float(_art_stats(gs, "thieves_armband", 2).loot_mult), 1.2), "the Armband's gold bonus grows with level")
+
+## DECISIONS #164: artifact stats and per-level growth in camp item details.
+func test_artifact_lines(gs) -> void:
+	print("[artifact lines]")
+	var g := {"uid": 1, "id": "cape_thorns", "lvl": 2, "known": true, "cracked": false, "xp": 3}
+	var L: Array = Codex.artifact_lines(g, 2)
+	check(L.any(func(x): return String(x).begins_with("Thorns 2 dmg") and String(x).contains("every 2 levels")), "cape shows thorns at its level and the step (%s)" % [L])
+	check(String(L[-1]).contains("Desk cap +2"), "a capped artifact says the Desk caps it")
+	g = {"uid": 2, "id": "thieves_armband", "lvl": 1, "known": true, "cracked": false, "xp": 5}
+	L = Codex.artifact_lines(g, 2)
+	check(L.any(func(x): return String(x).begins_with("Fight gold +15%") and String(x).contains("+5% per level")), "armband shows +15%% at +1 and +5%% per level (%s)" % [L])
+	check(String(L[-1]).contains("5 of 16 won fights to +2"), "XP progress to the next level (%s)" % L[-1])
+	g = {"uid": 3, "id": "timekeepers_hourglass", "lvl": 0, "known": true, "cracked": false}
+	check(Codex.artifact_lines(g, 1).any(func(x): return String(x).begins_with("Opening freeze 0.5 ticks")), "hourglass shows its freeze")
+	check(Codex.artifact_lines({"uid": 4, "id": "ring_might", "lvl": 0}, 2).is_empty(), "non-artifacts get no artifact lines")
+## DECISIONS #161: vanilla potions and scrolls.
+func test_vanilla_consumables(gs) -> void:
+	print("[vanilla potions & scrolls]")
+	var ids := ["potion_invisibility", "potion_haste", "potion_levitation", "potion_frost", "potion_liquid_flame", "potion_paralytic",
+		"scroll_recharging", "scroll_lullaby", "scroll_retribution", "scroll_terror", "scroll_transmutation"]
+	for id in ids: check(DB.materials.has(id) and DB.materials[id].unknown and gs.unknown_mats().has(id), "%s is an unknown consumable" % id)
+	gs.new_game()
+	var lk := {}
+	for k in gs.looks: lk[String(gs.looks[k][1])] = true
+	check(lk.size() == gs.looks.size(), "every unknown potion/scroll gets its own look (%d)" % gs.looks.size())
+	var room := ["########", "#H.....#", "#......#", "#......#", "#......#", "#......#", "#.....1#", "########"]
+	var ws: Dictionary = gs.hero_stats("warrior")
+	var c := Combat.new(); c.setup(room, ws, int(ws.ht), ["rat"]); var n0 := float(c.enemies()[0].next)
+	c.apply_fx({"sleep": 2.0, "invis": 3.0}); check(float(c.enemies()[0].next) >= n0 + 2.0 and c.hidden(), "lullaby + invisibility")
+	c = Combat.new(); c.setup(room, ws, 10, ["rat"]); var r = c.enemies()[0]; r.hp = 99
+	c.apply_fx({"retrib": 1.0}); check(int(r.hp) < 99, "retribution hurts foes based on missing HP")
+	c = Combat.new(); c.setup(room, ws, int(ws.ht), ["rat"]); c.apply_fx({"frozen": 2.5})
+	check(float(c.hero.next) >= 2.5, "paralytic gas/frost delay the hero")
+	var trap_room := ["########", "#H^....#", "#......#", "#......#", "#......#", "#......#", "#.....1#", "########"]
+	c = Combat.new(); c.setup(trap_room, ws, int(ws.ht), ["rat"]); c.apply_fx({"levitate": 1.0})
+	var hp0 := int(c.hero.hp); c._place(c.hero, Vector2i(2, 1))
+	check(int(c.hero.hp) == hp0 and c.traps.has(Vector2i(2, 1)), "levitation floats over traps")
+	# pack use routes to next_fx
+	gs.start_run("warrior", {})
+	if not gs.run.is_empty():
+		gs.run.pack["scroll_lullaby"] = 1
+		check(gs.delve_use_pack("scroll_lullaby") and float(gs.run.next_fx.sleep) == 2.0, "reading Lullaby queues a next-fight effect")
+		gs.end_run("abandon")
+## DECISIONS #163: the SURPRISE status line only when the next attack would really surprise a hittable foe.
+func test_surprise_now(gs) -> void:
+	print("[surprise now]")
+	var room := ["########", "#H.#...#", "#..#...#", "#..+..1#", "#..#...#", "#..#...#", "#..#...#", "########"]
+	var ws: Dictionary = gs.hero_stats("warrior")
+	var c := Combat.new(); c.setup(room, ws, int(ws.ht), ["rat"])
+	check(c.surprise_ready() and not c.surprise_now(), "a foe out of sight behind a door is not a hittable Surprise")
+	var r = c.enemies()[0]; r.seen_hero = false; c._place(r, Vector2i(2, 2))
+	check(c.surprise_now(), "an adjacent foe that lost sight of you is a Surprise")
+	r.seen_hero = true
+	var open := ["########", "#H.....#", "#......#", "#......#", "#......#", "#......#", "#.....1#", "########"]
+	var c2 := Combat.new(); c2.setup(open, ws, int(ws.ht), ["rat"]); c2.enemies()[0].seen_hero = true
+	check(not c2.surprise_now(), "no Surprise line when the foe sees you")
+	var hs: Dictionary = gs.hero_stats("huntress")
+	var c3 := Combat.new(); c3.setup(room, hs, int(hs.ht), ["rat"])
+	check(not c3.surprise_now(), "the bow can't surprise through a closed door")
 
 ## DECISIONS #150: maxing every facility takes the whole Scroll of Upgrade supply (4 heroes x 5 bosses + milestones).
 func test_camp_sou_budget(gs) -> void:

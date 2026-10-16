@@ -544,8 +544,22 @@ func gear_stats(g: Dictionary) -> Dictionary:
 	if d.has("str"): out["Str"] = int(d.str)
 	for k in ["ht_bonus", "dr_bonus", "dmg_bonus", "barrier_bonus", "charges_bonus", "search_add"]:
 		if d.has(k): out[k.replace("_bonus", "").replace("_add", "").replace("ht", "HP").capitalize()] = int(d[k])
+	if d.has("bolt_bonus"): out["Ranged dmg"] = int(d.bolt_bonus)
+	if d.has("force_bonus"): out["Tier-1 dmg"] = int(d.force_bonus)
+	if d.has("delay_mult"): out["Melee speed %"] = int(round((1.0 - float(d.delay_mult)) * 100))
+	if d.has("move_cost"): out["Move speed %"] = int(round((1.0 - float(d.move_cost)) * 100))
+	if d.has("elem_resist"): out["Magic resist %"] = int(round((1.0 - float(d.elem_resist)) * 100))
 	if d.has("gold_mult"): out["Gold %"] = int(round((float(d.gold_mult) - 1.0) * 100))
 	if d.has("hunger_mult"): out["Hunger %"] = int(round((float(d.hunger_mult) - 1.0) * 100))
+	if d.get("type", "") == "artifact":   # artifact stats at the item's level (DECISIONS #164)
+		var pl: Dictionary = d.get("per_level", {})
+		for k in ["thorns", "freeze_start", "grass_root", "chain_root", "loot_mult", "ht_bonus", "search_add", "hunger_mult"]:
+			if not d.has(k) and not pl.has(k): continue
+			var v := float(d.get(k, 0.0)) + float(pl.get(k, 0.0)) * lv
+			var lab: String = Codex.ARTIFACT_STATS[k][0]
+			if k in ["loot_mult", "hunger_mult"]: out[lab + " %"] = int(round((v - 1.0) * 100))
+			elif k in ["ht_bonus", "search_add", "thorns"]: out[lab] = int(floor(v))
+			else: out[lab] = snappedf(v, 0.01)
 	return out
 
 ## Side-by-side compare window: the item vs the selected hero's equipped item of the same kind.
@@ -592,6 +606,7 @@ func gear_lines(g: Dictionary) -> Array:
 		if not bits.is_empty(): out.append("  ".join(bits))
 		if d.has("desc"): out.append(d.desc)
 		elif bits.is_empty(): out.append(Codex.item_line(g.id))
+		out.append_array(Codex.artifact_lines(g, GameState.enchant_cap(), GameState.ARTIFACT_XP_PER_LVL))   # DECISIONS #164
 	else: out.append("Unidentified. The Enchanter can identify it.")
 	if g.get("cracked", false): out.append("Cracked - repair at the Forge.")
 	if who != "": out.append("Equipped by " + DB.heroes[who].name)
@@ -680,13 +695,14 @@ func _page_stash() -> void:
 				func(): info(gear_icon(g), GameState.gear_name(g), gear_lines(g), [], bdg), Color(1, 0.55, 0.5) if g.get("cracked", false) else Color.WHITE, "c9a96e" if who != "" else "", g))
 
 # ------------------------------------------------------------ Facilities
-const NEXT_TEXT := {"blacksmith": "Gear upgrade cap +%d", "alchemy": "Potion belt %d slots", "enchanter": "Faster identification (Lv%d)", "guild": "Patrols up to %dh"}
+const NEXT_TEXT := {"blacksmith": "Gear upgrade cap +%d", "alchemy": "Potion belt %d slots", "enchanter": "Faster identification, ring/wand cap +%d", "guild": "Patrols up to %dh"}
 
 func _preview(id: String, lvl: int) -> String:
 	match id:
 		"blacksmith": return NEXT_TEXT[id] % lvl
 		"alchemy": return (NEXT_TEXT[id] % (lvl + 1)) + (", Starter Elixirs" if lvl == 2 else "")
 		"guild": return NEXT_TEXT[id] % [2, 4, 8][clampi(lvl - 1, 0, 2)]
+		"enchanter": return NEXT_TEXT[id] % maxi(0, lvl - 1)
 		_: return NEXT_TEXT[id] % lvl
 
 func _facility_header(v: VBoxContainer, id: String) -> void:
@@ -776,7 +792,7 @@ func _open_gear_forge(uid: int) -> void:
 	if g.is_empty(): return
 	var cracked: bool = g.get("cracked", false)
 	var cost: Dictionary = GameState.repair_cost(uid) if cracked else GameState.item_upgrade_cost(uid)
-	var why: String = ("" if GameState.can_afford(cost) else "need " + GameState.cost_text(cost)) if cracked else GameState.can_upgrade_item(uid)
+	var why: String = GameState.can_repair(uid) if cracked else GameState.can_upgrade_item(uid)
 	var lines := gear_lines(g)
 	if not cracked and g.known: lines.push_front("+%d  ->  +%d" % [g.lvl, g.lvl + 1])
 	lines.push_front(cost_row(cost))
@@ -829,7 +845,7 @@ func _open_ring_stack(id: String) -> void:
 	var acts: Array = []
 	if cracked_uid != 0:
 		var rc: Dictionary = GameState.repair_cost(cracked_uid)
-		var why_r: String = "" if GameState.can_afford(rc) else "need " + GameState.cost_text(rc)
+		var why_r: String = GameState.can_repair(cracked_uid)
 		var fix: int = cracked_uid
 		acts.append(["Repair", func(): GameState.repair(fix), why_r])
 	var one: int = GameState.breakable_ring(id)
@@ -938,7 +954,7 @@ func _page_facility(page: String, id: String) -> void:
 		else: _forge_upgrade_section(v)
 		return
 	_recipe_slots(v, id, "Recipes (tap for details)")
-	if id == "enchanter": _identify_section(v)
+	if id == "enchanter": _identify_section(v); _attune_section(v)
 
 func _forge_upgrade_section(v: VBoxContainer) -> void:
 	v.add_child(UIKit.header("Upgrade & repair (cap +%d)" % GameState.forge_cap()))
@@ -958,11 +974,37 @@ func _forge_upgrade_section(v: VBoxContainer) -> void:
 		# Rings have their own section (DECISIONS #98, #107).
 		if not (t in ["weapon", "armor"]) and not (cracked and t == "artifact"): continue
 		var cost: Dictionary = GameState.repair_cost(g.uid) if cracked else GameState.item_upgrade_cost(g.uid)
-		var why: String = ("" if GameState.can_afford(cost) else "need " + GameState.cost_text(cost)) if cracked else GameState.can_upgrade_item(g.uid)
+		var why: String = GameState.can_repair(g.uid) if cracked else GameState.can_upgrade_item(g.uid)
 		var uid: int = int(g.uid)
 		g2.add_child(item_slot(gear_icon(g), "", "+%d" % g.lvl if g.lvl > 0 and g.known else "", func(): _open_gear_forge(uid),
 			Color(1, 0.55, 0.5) if cracked else Color.WHITE, "6bff6b" if why == "" else "", g))
 	if g2.get_child_count() == 0: v.add_child(UIKit.label("No weapons or armor yet. Craft some first.", 0.8, Color("9a9488")))
+
+## Rings, wands and artifacts level and repair here (DECISIONS #158).
+func _attune_section(v: VBoxContainer) -> void:
+	var cap := GameState.enchant_cap()
+	v.add_child(UIKit.header("Attune rings, wands & artifacts (cap +%d)" % cap))
+	if cap <= 0: v.add_child(UIKit.label("Upgrade the Desk to Lv2 to level and repair rings and wands (Lv3: repair artifacts).", 0.8, Color("9a9488")))
+	var h: Dictionary = GameState.heroes.mage
+	if String(h.get("wand", "")) != "":
+		var cr: bool = h.get("wand_cracked", false)
+		var cost: Dictionary = GameState.staff_wand_repair_cost() if cr else GameState.staff_wand_cost()
+		var why: String = GameState.can_repair_staff_wand() if cr else GameState.can_upgrade_staff_wand()
+		var row := UIKit.hbox(v)
+		row.add_child(UIKit.icon(String(h.wand), -1, "NONE"))
+		var nm := "%s +%d%s" % [DB.item(h.wand).name, int(h.get("wand_lvl", 0)), " (cracked)" if cr else ""]
+		var lv := UIKit.label(nm, 0.85); lv.size_flags_horizontal = SIZE_EXPAND_FILL; row.add_child(lv)
+		row.add_child(cost_row(cost))
+		var b := UIKit.action("Repair" if cr else "Upgrade", func(): (GameState.repair_staff_wand() if cr else GameState.upgrade_staff_wand()), why); b.name = "StaffWand"; v.add_child(b)
+	var g2 := slot_grid(v)
+	for g in GameState.gear:
+		if not GameState.is_trinket(g) or not g.known: continue
+		var cracked: bool = g.get("cracked", false)
+		if DB.item(g.id).type == "artifact" and not cracked: continue
+		var why2: String = GameState.can_repair(g.uid) if cracked else GameState.can_upgrade_item(g.uid)
+		var uid: int = int(g.uid)
+		g2.add_child(item_slot(gear_icon(g), "", "+%d" % g.lvl if g.lvl > 0 else "", func(): _open_gear_forge(uid),
+			Color(1, 0.55, 0.5) if cracked else Color.WHITE, "6bff6b" if why2 == "" else "", g))
 
 func _identify_section(v: VBoxContainer) -> void:
 	v.add_child(UIKit.header("Identifying (%d min each)" % int(GameState.identify_seconds() / 60)))

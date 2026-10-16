@@ -85,16 +85,22 @@
   "dmg_bonus": 1,
   "icon": "RING_GARNET",
   "badge": "RING_MIGHT",
-  "desc": "+1 melee damage."
+  "desc": "+1 melee damage. (+1 per level)",
+  "per_level": {
+   "dmg_bonus": 1
+  }
  },
  "ring_tenacity": {
   "name": "Ring of Tenacity",
   "type": "ring",
   "unknown_name": "Ruby Ring",
-  "barrier_bonus": 2,
+  "barrier_bonus": 1,
   "icon": "RING_RUBY",
   "badge": "RING_TENACITY",
-  "desc": "+2 Barrier."
+  "desc": "+1 Barrier (+1 per level).",
+  "per_level": {
+   "barrier_bonus": 1
+  }
  },
  "wand_magic_missile": {
   "name": "Wand of Magic Missile",
@@ -230,6 +236,94 @@
    "kind": "scroll",
    "desc": "Whisks you past the current encounter.",
    "badge": "SCROLL_TELEPORT"
+  },
+  "potion_invisibility": {
+   "name": "Potion of Invisibility",
+   "icon": "POTION_HOLDER",
+   "unknown": true,
+   "kind": "potion",
+   "desc": "Your next fight starts with you unseen for 3 ticks: your first blow is a Surprise.",
+   "badge": "POTION_INVIS"
+  },
+  "potion_haste": {
+   "name": "Potion of Haste",
+   "icon": "POTION_HOLDER",
+   "unknown": true,
+   "kind": "potion",
+   "desc": "Your next fight: enemies lose their first 1.5 ticks.",
+   "badge": "POTION_HASTE"
+  },
+  "potion_levitation": {
+   "name": "Potion of Levitation",
+   "icon": "POTION_HOLDER",
+   "unknown": true,
+   "kind": "potion",
+   "desc": "Your next fight: you float over traps.",
+   "badge": "POTION_LEVITATE"
+  },
+  "potion_frost": {
+   "name": "Potion of Frost",
+   "icon": "POTION_HOLDER",
+   "unknown": true,
+   "kind": "potion",
+   "desc": "Drinking it freezes you: you lose your first 1.5 ticks next fight.",
+   "badge": "POTION_FROST"
+  },
+  "potion_liquid_flame": {
+   "name": "Potion of Liquid Flame",
+   "icon": "POTION_HOLDER",
+   "unknown": true,
+   "kind": "potion",
+   "desc": "Drinking it burns you: lose 15% of max HP.",
+   "badge": "POTION_LIQFLAME"
+  },
+  "potion_paralytic": {
+   "name": "Potion of Paralytic Gas",
+   "icon": "POTION_HOLDER",
+   "unknown": true,
+   "kind": "potion",
+   "desc": "Drinking it paralyzes you: you lose your first 2.5 ticks next fight.",
+   "badge": "POTION_PARAGAS"
+  },
+  "scroll_recharging": {
+   "name": "Scroll of Recharging",
+   "icon": "SCROLL_HOLDER",
+   "unknown": true,
+   "kind": "scroll",
+   "desc": "Your next fight: +1 staff charge and +1 cloak charge.",
+   "badge": "SCROLL_RECHARGE"
+  },
+  "scroll_lullaby": {
+   "name": "Scroll of Lullaby",
+   "icon": "SCROLL_HOLDER",
+   "unknown": true,
+   "kind": "scroll",
+   "desc": "Your next fight: enemies start asleep for 2 ticks (bosses resist).",
+   "badge": "SCROLL_LULLABY"
+  },
+  "scroll_retribution": {
+   "name": "Scroll of Retribution",
+   "icon": "SCROLL_HOLDER",
+   "unknown": true,
+   "kind": "scroll",
+   "desc": "Your next fight opens with a blast: each non-boss foe takes half your missing HP (min 2).",
+   "badge": "SCROLL_RETRIB"
+  },
+  "scroll_terror": {
+   "name": "Scroll of Terror",
+   "icon": "SCROLL_HOLDER",
+   "unknown": true,
+   "kind": "scroll",
+   "desc": "Your next fight: enemies recoil a tile and lose 1 tick (bosses resist).",
+   "badge": "SCROLL_TERROR"
+  },
+  "scroll_transmutation": {
+   "name": "Scroll of Transmutation",
+   "icon": "SCROLL_HOLDER",
+   "unknown": true,
+   "kind": "scroll",
+   "desc": "Turns the first ring or wand in your backpack into a different one of the same kind.",
+   "badge": "SCROLL_TRANSMUTE"
   }
  },
  "studded_gloves": {
@@ -267,6 +361,91 @@
   "icon": "WAND_LIGHTNING",
   "spd": "dmg 5-10",
   "desc": "Bolt: 7 damage (ignores DR), 2 charges. Chains through water."
+ },
+ "wand_frost": {
+  "name": "Wand of Frost",
+  "type": "wand",
+  "bolt_dmg": 3,
+  "charges": 2,
+  "recharge": 4,
+  "chill": 1.0,
+  "unknown_name": "Holly Wand",
+  "icon": "WAND_FROST",
+  "spd": "dmg 2-8, chills",
+  "desc": "Bolt: 3 damage (ignores DR) and chills: the target's next action is delayed 1 tick (1.5 from hero Lv 15). 2 charges."
+ },
+ "wand_corrosion": {
+  "name": "Wand of Corrosion",
+  "type": "wand",
+  "bolt_dmg": 2,
+  "charges": 2,
+  "recharge": 5,
+  "corrode": 3,
+  "unknown_name": "Yew Wand",
+  "icon": "WAND_CORROSION",
+  "spd": "corrosive gas, no direct dmg",
+  "desc": "Bolt: 2 damage (ignores DR) and 3 poison (+1 per 6 hero levels). 2 charges."
+ },
+ "wand_blast_wave": {
+  "name": "Wand of Blast Wave",
+  "type": "wand",
+  "bolt_dmg": 3,
+  "charges": 2,
+  "recharge": 5,
+  "blast": 1,
+  "unknown_name": "Elm Wand",
+  "icon": "WAND_BLAST_WAVE",
+  "spd": "dmg 1-5 + knockback",
+  "desc": "Bolt: 3 damage (ignores DR) and knocks the target back a tile (2 tiles from hero Lv 15). Chasms kill. 2 charges."
+ },
+ "wand_disintegration": {
+  "name": "Wand of Disintegration",
+  "type": "wand",
+  "bolt_dmg": 4,
+  "charges": 2,
+  "recharge": 5,
+  "pierce_line": true,
+  "unknown_name": "Ebony Wand",
+  "icon": "WAND_DISINTEGRATION",
+  "spd": "dmg 2-8, pierces",
+  "desc": "Bolt: 4 damage (ignores DR) to every enemy on the line. Walls still stop it. 2 charges."
+ },
+ "wand_transfusion": {
+  "name": "Wand of Transfusion",
+  "type": "wand",
+  "bolt_dmg": 3,
+  "charges": 2,
+  "recharge": 5,
+  "transfuse": 2,
+  "unknown_name": "Willow Wand",
+  "icon": "WAND_TRANSFUSION",
+  "spd": "drains HP to the user",
+  "desc": "Bolt: 3 damage (ignores DR); heals you 2 HP (+1 per 10 hero levels) when it hits. 2 charges."
+ },
+ "wand_prismatic_light": {
+  "name": "Wand of Prismatic Light",
+  "type": "wand",
+  "bolt_dmg": 4,
+  "charges": 2,
+  "recharge": 4,
+  "reveal": 2,
+  "unknown_name": "Rowan Wand",
+  "icon": "WAND_PRISMATIC_LIGHT",
+  "spd": "dmg 1-5, reveals, blinds",
+  "desc": "Bolt: 4 damage (ignores DR); lights up hidden traps within 2 tiles of where it lands. 2 charges."
+ },
+ "wand_regrowth": {
+  "name": "Wand of Regrowth",
+  "type": "wand",
+  "bolt_dmg": 1,
+  "charges": 2,
+  "recharge": 5,
+  "root": 2.0,
+  "grow": true,
+  "unknown_name": "Maple Wand",
+  "icon": "WAND_REGROWTH",
+  "spd": "grass + roots",
+  "desc": "Bolt: 1 damage (ignores DR); roots the target for 2 ticks and grows tall grass around where it lands. 2 charges."
  },
  "longsword": {
   "name": "Longsword",
@@ -313,33 +492,105 @@
   "dr_bonus": 1,
   "icon": "RING_TOPAZ",
   "badge": "RING_EVASION",
-  "desc": "+1 DR."
+  "desc": "+1 DR (+1 per 2 levels).",
+  "per_level": {
+   "dr_bonus": 0.5
+  }
  },
  "ring_wealth": {
   "name": "Ring of Wealth",
   "type": "ring",
   "unknown_name": "Emerald Ring",
-  "gold_mult": 1.3,
+  "gold_mult": 1.15,
   "icon": "RING_EMERALD",
   "badge": "RING_WEALTH",
-  "desc": "+30% gold from fights."
+  "desc": "+15% gold from fights (+5% per level).",
+  "per_level": {
+   "gold_mult": 0.05
+  }
  },
  "ring_energy": {
   "name": "Ring of Energy",
   "type": "ring",
   "unknown_name": "Onyx Ring",
   "charges_bonus": 1,
-  "ht_bonus": 4,
+  "ht_bonus": 2,
   "icon": "RING_ONYX",
   "badge": "RING_ENERGY",
-  "desc": "+1 staff charge, +4 max HP."
+  "desc": "+1 staff charge, +2 max HP (+2 HP per level).",
+  "per_level": {
+   "ht_bonus": 2
+  }
+ },
+ "ring_furor": {
+  "name": "Ring of Furor",
+  "type": "ring",
+  "unknown_name": "Opal Ring",
+  "delay_mult": 0.85,
+  "icon": "RING_OPAL",
+  "badge": "RING_FUROR",
+  "desc": "Melee attacks take 15% less time. -5% more per level.",
+  "per_level": {
+   "delay_mult": -0.05
+  }
+ },
+ "ring_haste": {
+  "name": "Ring of Haste",
+  "type": "ring",
+  "unknown_name": "Tourmaline Ring",
+  "move_cost": 0.85,
+  "icon": "RING_TOURMALINE",
+  "badge": "RING_HASTE",
+  "desc": "Steps take 15% less time. -5% more per level.",
+  "per_level": {
+   "move_cost": -0.05
+  }
+ },
+ "ring_sharpshooting": {
+  "name": "Ring of Sharpshooting",
+  "type": "ring",
+  "unknown_name": "Sapphire Ring",
+  "bolt_bonus": 1,
+  "icon": "RING_SAPPHIRE",
+  "badge": "RING_SHARPSHOOT",
+  "desc": "+1 damage with the Spirit Bow and staff bolts. +1 per 2 levels.",
+  "per_level": {
+   "bolt_bonus": 0.5
+  }
+ },
+ "ring_elements": {
+  "name": "Ring of Elements",
+  "type": "ring",
+  "unknown_name": "Amethyst Ring",
+  "elem_resist": 0.67,
+  "icon": "RING_AMETHYST",
+  "badge": "RING_ELEMENTS",
+  "desc": "Fire, lightning, gas and other piercing magic hurt you a third less. -7% more per level.",
+  "per_level": {
+   "elem_resist": -0.07
+  }
+ },
+ "ring_force": {
+  "name": "Ring of Force",
+  "type": "ring",
+  "unknown_name": "Quartz Ring",
+  "force_bonus": 2,
+  "icon": "RING_QUARTZ",
+  "badge": "RING_FORCE",
+  "desc": "+2 melee damage while wielding a tier-1 weapon (fists, dagger, gloves, staff). +1 per level.",
+  "per_level": {
+   "force_bonus": 1
+  }
  },
  "chalice_blood": {
   "name": "Chalice of Blood",
   "type": "artifact",
-  "ht_bonus": 15,
+  "ht_bonus": 6,
   "icon": "ARTIFACT_CHALICE1",
-  "desc": "+15 max HP."
+  "desc": "+6 max HP (+3 per level; levels by use).",
+  "per_level": {
+   "ht_bonus": 3
+  }
  },
  "talisman_foresight": {
   "name": "Talisman of Foresight",
@@ -347,13 +598,69 @@
   "search_add": 1,
   "keen_eyes": true,
   "icon": "ARTIFACT_TALISMAN",
-  "desc": "+1 search radius; hidden traps next to you are revealed."
+  "desc": "+1 search radius; hidden traps next to you are revealed. (+1 search radius per 2 levels; levels by use)",
+  "per_level": {
+   "search_add": 0.5
+  }
  },
  "horn_plenty": {
   "name": "Horn of Plenty",
   "type": "artifact",
-  "hunger_mult": 0.6,
+  "hunger_mult": 0.8,
   "icon": "ARTIFACT_HORN1",
-  "desc": "Satiety drains 40% slower in the delve."
+  "desc": "Rations last 25% longer (better per level; levels by use).",
+  "per_level": {
+   "hunger_mult": -0.05
+  }
+ },
+ "cape_thorns": {
+  "name": "Cape of Thorns",
+  "type": "artifact",
+  "thorns": 1,
+  "per_level": {
+   "thorns": 0.5
+  },
+  "icon": "ARTIFACT_CAPE",
+  "desc": "An enemy that hits you in melee takes 1 damage back (+1 per 2 levels; levels by use)."
+ },
+ "ethereal_chains": {
+  "name": "Ethereal Chains",
+  "type": "artifact",
+  "chain_pull": 1,
+  "per_level": {
+   "chain_root": 0.5
+  },
+  "icon": "ARTIFACT_CHAINS",
+  "desc": "Once per fight, the nearest enemy 3+ tiles away is dragged next to you (bosses resist). From +1 it is held 0.5 tick per level."
+ },
+ "timekeepers_hourglass": {
+  "name": "Timekeeper's Hourglass",
+  "type": "artifact",
+  "freeze_start": 0.5,
+  "per_level": {
+   "freeze_start": 0.25
+  },
+  "icon": "ARTIFACT_HOURGLASS",
+  "desc": "Each fight opens with enemies frozen 0.5 tick (+0.25 per level; bosses immune)."
+ },
+ "sandals_nature": {
+  "name": "Sandals of Nature",
+  "type": "artifact",
+  "grass_root": 0.5,
+  "per_level": {
+   "grass_root": 0.25
+  },
+  "icon": "ARTIFACT_SANDALS",
+  "desc": "Stepping into tall grass roots adjacent enemies 0.5 tick (+0.25 per level)."
+ },
+ "thieves_armband": {
+  "name": "Master Thieves' Armband",
+  "type": "artifact",
+  "loot_mult": 1.1,
+  "per_level": {
+   "loot_mult": 0.05
+  },
+  "icon": "ARTIFACT_ARMBAND",
+  "desc": "+10% gold from fights (+5% per level)."
  }
 }

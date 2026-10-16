@@ -57,7 +57,9 @@ func setup(room_rows: Array, hs: Dictionary, hp: int, mob_ids: Array, darkness :
 		"abilities": hs.get("abilities", []), "bolt": hs.get("bolt", {}), "charges": 0, "recharge_t": 0.0, "hero": true,
 		"cloak": hs.get("cloak", {}), "cloak_charges": int(hs.get("cloak", {}).get("charges", 0)), "hidden_until": -1.0,
 		"slams": 1 if "slam" in hs.get("abilities", []) else 0, "search_radius": int(hs.get("search_radius", 1)),
-		"poison": 0, "keen_eyes": hs.get("keen_eyes", false), "perk": hs.get("perk", ""), "combo": 0}
+		"poison": 0, "keen_eyes": hs.get("keen_eyes", false), "perk": hs.get("perk", ""), "combo": 0,
+		"move_cost": float(hs.get("move_cost", 1.0)), "elem_resist": float(hs.get("elem_resist", 1.0)),
+		"thorns": int(float(hs.get("thorns", 0.0))), "grass_root": float(hs.get("grass_root", 0.0))}
 	if not hero.bolt.is_empty(): hero.charges = hero.bolt.charges
 	units.append(hero)
 	var slots := {}
@@ -84,6 +86,7 @@ func setup(room_rows: Array, hs: Dictionary, hp: int, mob_ids: Array, darkness :
 	for i in mob_ids.size():
 		var p: Vector2i = slots.get(i, _free_tile_near(Vector2i(w - 2, h - 2)))
 		spawn(mob_ids[i], p)
+	_artifact_openers(hs)
 	_log("A fight! Barrier %d, HP %d/%d%s." % [hero.barrier, hero.hp, hero.ht, " (darkness: no Barrier)" if darkness else ""])
 	_note_sightings()
 
@@ -321,6 +324,17 @@ func surprise_ready() -> bool:
 		if surprise_against(e): return true
 	return false
 
+## Status-line check (DECISIONS #163): the hero's next attack really is a Surprise on a foe it can hit right now:
+## an adjacent foe for melee, or (Spirit Bow; wand bolts are magic and never surprise) the first body on a clear shot.
+func surprise_now() -> bool:
+	if over or hero.is_empty(): return false
+	var bow: bool = not hero.bolt.is_empty() and hero.bolt.get("infinite", false)
+	for e in enemies():
+		if e.hp <= 0 or not surprise_against(e): continue
+		if cheb(e.pos, hero.pos) == 1: return true
+		if bow and can_bolt(e.pos) and bolt_victim(e.pos) == e: return true
+	return false
+
 ## True when the hero is at critical HP (<= 30% max HP) or adjacent enemies / poison could kill them next turn.
 func close_to_dying() -> bool:
 	if over or hero.is_empty(): return false
@@ -337,6 +351,7 @@ func close_to_dying() -> bool:
 func hit_hero(raw: int, src: String, pierce := false) -> void:
 	if has_debuff("vuln"): raw = int(ceil(raw * VULN_MULT))
 	var dmg := raw if pierce else maxi(0, raw - int(hero.dr))
+	if pierce and float(hero.get("elem_resist", 1.0)) < 1.0 and dmg > 0: dmg = maxi(1, int(round(dmg * float(hero.elem_resist))))   # Ring of Elements
 	if dmg == 0:
 		if hero.barrier > 0:
 			hero.barrier -= 1; dmg_in += 1; absorbed_total += 1
@@ -415,10 +430,59 @@ func knockback(m: Dictionary, dir: Vector2i) -> void:
 	else:
 		_place(m, dest)
 
+## Fight-start artifact effects (DECISIONS #159): Hourglass freezes, Ethereal Chains drag one far foe close.
+func _artifact_openers(hs: Dictionary) -> void:
+	var fz := float(hs.get("freeze_start", 0.0))
+	if fz > 0.0:
+		for e in enemies():
+			if not e.get("boss", false): e.next = float(e.next) + fz
+		_log("Time slows around you.")
+	if hs.get("chain_pull", false):
+		var best = null
+		for e in enemies():
+			if e.get("boss", false) or cheb(e.pos, hero.pos) < 3: continue
+			if best == null or cheb(e.pos, hero.pos) < cheb(best.pos, hero.pos): best = e
+		if best != null:
+			for d in DIRS:
+				var q: Vector2i = hero.pos + d
+				if passable(q) and unit_at(q) == null and not traps.has(q):
+					_ev({"t": "move", "uid": best.uid, "from": best.pos, "to": q}); best.pos = q
+					best.next = float(best.next) + float(hs.get("chain_root", 0.0))
+					_log("Ethereal chains drag %s to you." % best.name); break
+
+## Next-fight effects from vanilla potions and scrolls (DECISIONS #161).
+func apply_fx(fx: Dictionary) -> void:
+	var foes: Array = enemies().filter(func(e): return not e.get("boss", false))
+	if fx.has("invis"): hero.hidden_until = float(fx.invis); _log("You start the fight unseen.")
+	if fx.has("haste"):
+		for e in enemies(): e.next = float(e.next) + float(fx.haste)
+		_log("You move in a blur.")
+	if fx.has("levitate"): hero.levitate = true; _log("You float above the floor.")
+	if fx.has("frozen"): hero.next = float(hero.next) + float(fx.frozen); _log("You can't move yet!")
+	if fx.has("recharge"):
+		if not hero.bolt.is_empty() and not hero.bolt.get("infinite", false): hero.charges = int(hero.charges) + int(fx.recharge)
+		if not hero.cloak.is_empty(): hero.cloak_charges = int(hero.cloak_charges) + int(fx.recharge)
+	if fx.has("sleep"):
+		for e in foes: e.next = float(e.next) + float(fx.sleep)
+		_log("Your foes are drowsy.")
+	if fx.has("terror"):
+		for e in foes:
+			knockback(e, e.pos - hero.pos)
+			if e.hp > 0: e.next = float(e.next) + 1.0
+		_log("Your foes recoil in terror!")
+	if fx.has("retrib"):
+		var dmg := maxi(2, (int(hero.ht) - int(hero.hp)) / 2)
+		for e in foes:
+			if e.hp > 0: hit_mob(e, dmg, false, true)
+		_log("Retribution!")
+
 ## Move a unit (hero or mob) and fire any trap on the destination tile.
 func _place(u: Dictionary, dest: Vector2i) -> void:
 	_ev({"t": "move", "uid": u.uid, "from": u.pos, "to": dest})
 	u.pos = dest
+	if u == hero and tile(dest) == T.GRASS and float(hero.get("grass_root", 0.0)) > 0.0:   # Sandals of Nature (DECISIONS #159)
+		for e in enemies():
+			if cheb(e.pos, dest) == 1: e.next = float(e.next) + float(hero.grass_root); _log("Roots grip %s." % e.name)
 	if tile(dest) == T.GRASS:
 		terrain[dest.y][dest.x] = T.FLOOR; trampled[dest] = true
 		_ev({"t": "trample", "pos": dest})
@@ -426,6 +490,7 @@ func _place(u: Dictionary, dest: Vector2i) -> void:
 	if traps.has(dest): _trigger(dest, u)
 
 func _trigger(p: Vector2i, u: Dictionary) -> void:
+	if u == hero and hero.get("levitate", false): return   # Potion of Levitation (DECISIONS #161)
 	var tr: Dictionary = DB.traps[traps[p].id]
 	if not (traps[p].id in trap_ids_seen): trap_ids_seen.append(traps[p].id)
 	traps.erase(p)
@@ -599,7 +664,7 @@ func hero_tap(p: Vector2i, mode := "") -> bool:
 			_end_hero_turn(1.0)
 			return true
 		_place(hero, p)
-		_end_hero_turn(CRIPPLE_MOVE if has_debuff("cripple") else 1.0)
+		_end_hero_turn(CRIPPLE_MOVE if has_debuff("cripple") else float(hero.get("move_cost", 1.0)))   # Ring of Haste; Cripple costs 2
 		return true
 	return false
 
@@ -637,6 +702,8 @@ func hero_bolt(p: Vector2i) -> bool:
 	if u == null:
 		_log("The shot hits nothing.")
 		if hero.bolt.get("burns_grass", false) and tile(at) == T.GRASS: _burn(at)
+		if hero.bolt.has("reveal") and _reveal(at, int(hero.bolt.reveal)) > 0: _log("Prismatic light shows hidden traps.")
+		if hero.bolt.get("grow", false): _grow(at)
 		_end_hero_turn(1.0)
 		return true
 	p = at
@@ -645,6 +712,7 @@ func hero_bolt(p: Vector2i) -> bool:
 	if hero.get("perk", "") == "soul_heal" and magic and hero.hp > 0 and hero.hp < hero.ht:
 		var sh := mini(int(hero.ht) - int(hero.hp), maxi(1, (hp_before - maxi(0, int(u.hp))) / 3))
 		hero.hp += sh; _log("Soul siphon: +%d HP." % sh)
+	_wand_effects(u, p)
 	if hero.bolt.get("chains_water", false) and tile(p) == T.WATER:
 		_shock(p, int(hero.bolt.dmg))
 	if hero.bolt.get("burns_grass", false):
@@ -652,6 +720,44 @@ func hero_bolt(p: Vector2i) -> bool:
 			if tile(p + d) == T.GRASS: _burn(p + d); break
 	_end_hero_turn(1.0)
 	return true
+
+## Vanilla wand effects (DECISIONS #156), applied after the bolt's damage to the unit it hit (u) at p.
+func _wand_effects(u: Dictionary, p: Vector2i) -> void:
+	var b: Dictionary = hero.bolt
+	if b.get("pierce_line", false):   # Disintegration: every other enemy on the line beyond the first body
+		var d := maxi(1, cheb(hero.pos, p)); var far: Vector2i = hero.pos + (p - hero.pos) * int(ceil(float(BOLT_RANGE) / d))
+		var pts := _line(hero.pos, far)
+		for i in range(1, pts.size()):
+			var q: Vector2i = pts[i]
+			if cheb(hero.pos, q) > BOLT_RANGE or _solid(q): break
+			var o = unit_at(q)
+			if q != p and o != null and o != hero and o.hp > 0: hit_mob(o, int(b.dmg), false, true)
+	if b.has("transfuse") and hero.hp < hero.ht:
+		var hl := mini(int(hero.ht) - int(hero.hp), int(b.transfuse))
+		hero.hp += hl; _log("Transfusion: +%d HP." % hl)
+	if b.has("reveal") and _reveal(p, int(b.reveal)) > 0: _log("Prismatic light shows hidden traps.")
+	if b.get("grow", false): _grow(p)
+	if u.hp <= 0: return
+	if b.has("chill"):
+		u.next = float(u.next) + float(b.chill); _log("%s is chilled." % u.name); _ev({"t": "sfx", "name": "debuff"})
+	if b.has("corrode"):
+		u.poison = int(u.get("poison", 0)) + int(b.corrode); _log("%s is corroded." % u.name); _ev({"t": "sfx", "name": "debuff"})
+	if b.has("root"):
+		u.next = float(u.next) + float(b.root); _log("%s is rooted." % u.name)
+	if b.has("blast") and not u.get("boss", false):
+		for i in int(b.blast):
+			if u.hp <= 0: break
+			var before: Vector2i = u.pos
+			knockback(u, u.pos - hero.pos)
+			if u.pos == before: break
+	elif b.has("blast"): _log("%s is too heavy to move." % u.name)
+
+## Regrowth: tall grass springs up on open floor around p (blocks sight, not shots).
+func _grow(p: Vector2i) -> void:
+	for d in [Vector2i.ZERO] + DIRS:
+		var q: Vector2i = p + d
+		if in_bounds(q) and tile(q) == T.FLOOR and not traps.has(q):
+			terrain[q.y][q.x] = T.GRASS; _ev({"t": "grow", "pos": q})
 
 ## Warrior: Slam (1 per fight, 1.5 ticks). Hits every adjacent enemy for half damage (ignores DR) and knocks them all back.
 func hero_slam() -> bool:
@@ -924,6 +1030,8 @@ func _mob_act(m: Dictionary) -> void:
 		_ev({"t": "attack", "uid": m.uid, "to": hero.pos})
 		var hp_before: int = hero.hp + hero.barrier
 		hit_hero(int(m.dmg), m.name)
+		if int(hero.get("thorns", 0)) > 0 and m.hp > 0 and hero.hp > 0:   # Cape of Thorns (DECISIONS #159)
+			_log("Thorns!"); hit_mob(m, int(hero.thorns), false, true)
 		var dealt: int = hp_before - (hero.hp + hero.barrier)
 		# SPD Bat.attackProc: heals (damage dealt - 4); our bat hits at half damage twice as often, so -2 (DECISIONS #148)
 		var heal := dealt - int(m.drain_over) if m.has("drain_over") else (int(m.get("drain", 0)) if dealt > 0 else 0)

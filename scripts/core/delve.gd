@@ -209,6 +209,8 @@ static func new_combat(gs, ev: Dictionary) -> Combat:
 	if int(run.get("shield_next", 0)) > 0:   # Potion of Shielding (SPD-like cap: Barrier <= max HP)
 		c.hero.barrier = mini(int(c.hero.ht), int(c.hero.barrier) + int(run.shield_next)); run.shield_next = 0
 		c._log("Your shield shimmers: +Barrier.")
+	if not run.get("next_fx", {}).is_empty():
+		c.apply_fx(run.next_fx); run.next_fx = {}
 	return c
 
 ## Goo grudge (DECISIONS #131): Goo is SPD-strength (HT 90) but each earlier loss to it leaves it 15 HT weaker,
@@ -298,7 +300,7 @@ static func reward(gs, rw: Dictionary) -> String:
 					var mid: String = cands[(int(run.seed) + int(run.floor) * 7 + int(gs.next_uid)) % cands.size()]
 					gs.pack_add(mid, 1); gs.next_uid += 1
 					parts.append(DB.mat_name(mid)); continue
-				var pool: Array = ["ring_might", "ring_tenacity", "ring_evasion", "ring_wealth", "ring_energy"] if rw[k] == "ring" else ["wand_magic_missile", "wand_firebolt", "wand_lightning"]
+				var pool: Array = ["ring_might", "ring_tenacity", "ring_evasion", "ring_wealth", "ring_energy", "ring_furor", "ring_haste", "ring_sharpshooting", "ring_elements", "ring_force"] if rw[k] == "ring" else ["wand_magic_missile", "wand_firebolt", "wand_lightning", "wand_frost", "wand_corrosion", "wand_blast_wave", "wand_disintegration", "wand_transfusion", "wand_prismatic_light", "wand_regrowth"]
 				var id: String = pool[(int(run.seed) + int(run.floor) + run.pack_gear.size()) % pool.size()]
 				_stow(gs, _new_gear(gs, id, false))
 				parts.append(DB.item(id).unknown_name)
@@ -513,9 +515,10 @@ static func apply_fight_result(gs, ev: Dictionary, res: Dictionary, reward: Dict
 		gs.log_line("Defeated by %s." % ", ".join(ev.get("mobs", []).map(func(m): return DB.mobs[m].name)), "negative"); return false
 	gs.log_line("Victory: %d kill%s, took %d damage, +%d gold, +%d xp." % [int(res.get("kills", 0)), "" if int(res.get("kills", 0)) == 1 else "s", taken, int(res.loot), int(res.xp)], "positive")
 	run.hp = int(res.hp)
-	gs.pack_add("gold", int(round(int(res.loot) * float(gs.hero_stats(run.hero).get("gold_mult", 1.0)))))   # Ring of Wealth
+	gs.pack_add("gold", int(round(int(res.loot) * float(gs.hero_stats(run.hero).get("gold_mult", 1.0)) * float(gs.hero_stats(run.hero).get("loot_mult", 1.0)))))   # Ring of Wealth
 	# every 4th won fight drops an unknown potion or scroll (SPD-style consumable loot, DECISIONS #80)
 	run.fights_won = int(run.get("fights_won", 0)) + 1
+	gs.charge_artifact(run.hero)   # DECISIONS #158
 	if run.fights_won % 4 == 0:
 		gs.say("Found: " + reward(gs, {"item_unknown": "potion" if (run.fights_won / 4) % 2 == 1 else "scroll"}))
 	run.pending_loot = int(run.pending_loot) + int(res.fallen_loot)

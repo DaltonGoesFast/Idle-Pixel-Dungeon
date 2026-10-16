@@ -45,13 +45,18 @@ static func item_line(id: String) -> String:
 	match it.type:
 		"weapon": return "tier %d weapon, %d dmg%s, %d Str" % [it.tier, it.dmg, (", %.1f ticks" % it.delay) if float(it.get("delay", 1.0)) != 1.0 else "", it.str]
 		"armor": return "tier %d armor, DR %d, +%d Barrier, %d Str" % [it.tier, it.dr, it.barrier, it.str]
-		"wand": return "wand, bolt %d dmg (ignores DR), %d charges%s%s" % [it.bolt_dmg, it.charges, ", burns grass" if it.get("burns_grass", false) else "", ", chains through water" if it.get("chains_water", false) else ""]
+		"wand": return "wand, bolt %d dmg (ignores DR), %d charges%s%s" % [it.bolt_dmg, it.charges, ", burns grass" if it.get("burns_grass", false) else "", ", chains through water" if it.get("chains_water", false) else ""] + _wand_extra(it)
 		"ring":
 			var bits := []
 			if it.has("dmg_bonus"): bits.append("+%d dmg" % it.dmg_bonus)
 			if it.has("barrier_bonus"): bits.append("+%d Barrier" % it.barrier_bonus)
 			if it.has("dr_bonus"): bits.append("+%d DR" % it.dr_bonus)
 			if it.has("gold_mult"): bits.append("+%d%% gold" % int(round((float(it.gold_mult) - 1.0) * 100)))
+			if it.has("delay_mult"): bits.append("%d%% faster melee" % int(round((1.0 - float(it.delay_mult)) * 100)))
+			if it.has("move_cost"): bits.append("%d%% faster steps" % int(round((1.0 - float(it.move_cost)) * 100)))
+			if it.has("bolt_bonus"): bits.append("+%d ranged dmg" % it.bolt_bonus)
+			if it.has("elem_resist"): bits.append("-%d%% magic dmg taken" % int(round((1.0 - float(it.elem_resist)) * 100)))
+			if it.has("force_bonus"): bits.append("+%d dmg with tier-1 weapons" % it.force_bonus)
 			if it.has("charges_bonus"): bits.append("+%d staff charge, +%d HP" % [it.charges_bonus, it.get("ht_bonus", 0)])
 			return "ring, " + ", ".join(bits)
 		"artifact": return "artifact, " + String(it.get("desc", ""))
@@ -64,3 +69,45 @@ static func item_known(id: String) -> bool:
 	for c in GameState.heroes:
 		if GameState.heroes[c].unlocked and DB.heroes[c].get("heirloom", "") == id: return true
 	return false
+
+static func _wand_extra(it: Dictionary) -> String:
+	var b := []
+	if it.has("chill"): b.append("chills %.0f tick" % float(it.chill))
+	if it.has("corrode"): b.append("%d poison" % int(it.corrode))
+	if it.has("blast"): b.append("knockback")
+	if it.get("pierce_line", false): b.append("pierces every enemy on the line")
+	if it.has("transfuse"): b.append("heals you %d" % int(it.transfuse))
+	if it.has("reveal"): b.append("reveals traps")
+	if it.has("root"): b.append("roots %.0f ticks, grows grass" % float(it.root))
+	return "" if b.is_empty() else ", " + ", ".join(b)
+
+## Artifact stat lines for camp item details (DECISIONS #164): current value at the item's level, the per-level step,
+## and level / Desk cap / XP progress. Keys: [label, unit, scale] (scale 100 shows a multiplier as a percent).
+const ARTIFACT_STATS := {"ht_bonus": ["Max HP", "", 1.0], "search_add": ["Search radius", "", 1.0], "hunger_mult": ["Hunger", "%", 100.0],
+	"thorns": ["Thorns", " dmg", 1.0], "freeze_start": ["Opening freeze", " ticks", 1.0], "grass_root": ["Grass root", " ticks", 1.0],
+	"chain_root": ["Chain hold", " ticks", 1.0], "loot_mult": ["Fight gold", "%", 100.0]}
+static func artifact_lines(g: Dictionary, cap: int, xp_per := 8) -> Array:
+	var d: Dictionary = DB.item(g.id); var out := []
+	if d.get("type", "") != "artifact" or d.get("heirloom", false): return out
+	var lv := int(g.get("lvl", 0)); var pl: Dictionary = d.get("per_level", {})
+	for k in ARTIFACT_STATS:
+		if not d.has(k) and not pl.has(k): continue
+		var spec: Array = ARTIFACT_STATS[k]
+		var base := float(d.get(k, 0.0)); var step := float(pl.get(k, 0.0)); var v := base + step * lv
+		var ints: bool = k in ["ht_bonus", "search_add", "thorns"]
+		if ints: v = floor(v)
+		var txt: String
+		if spec[2] == 100.0:
+			txt = "%s %+d%%" % [spec[0], int(round((v - 1.0) * 100))]
+			if step != 0.0: txt += " (%+d%% per level)" % int(round(step * 100))
+		elif ints:
+			txt = "%s %d%s" % [spec[0], int(v), spec[1]]
+			if step != 0.0: txt += " (+1 every %d levels)" % int(round(1.0 / step)) if step < 1.0 else " (+%d per level)" % int(step)
+		else:
+			txt = "%s %s%s" % [spec[0], str(snappedf(v, 0.01)), spec[1]]
+			if step != 0.0: txt += " (+%s per level)" % str(snappedf(step, 0.01))
+		out.append(txt)
+	var need := xp_per * (lv + 1)
+	if lv >= cap: out.append("Level +%d (Desk cap +%d: upgrade the Enchanter's Desk to grow)" % [lv, cap])
+	else: out.append("Level +%d / cap +%d - %d of %d won fights to +%d" % [lv, cap, int(g.get("xp", 0)), need, lv + 1])
+	return out
