@@ -33,6 +33,7 @@ func _ready() -> void:
 	test_halls(gs)
 	test_render(gs)
 	test_identify(gs)
+	test_alchemy_unknown(gs)
 	test_doors_grass(gs)
 	test_rooms_surprise(gs)
 	test_paperdoll(gs)
@@ -878,6 +879,53 @@ func test_identify(gs) -> void:
 	var hp0: int = gs.mat("potion_healing")
 	check(not gs.is_mat_known("potion_toxic") and gs.craft("alchemy", "transmute_toxic"), "brew with an unknown potion")
 	check(gs.mat("potion_healing") == hp0 + 2 and gs.is_mat_known("potion_toxic"), "alchemy yields x2 and identifies the ingredient")
+
+
+## An unidentified brew keeps that flask. Reusing the yield painted every unknown potion as Healing.
+func test_alchemy_unknown(gs) -> void:
+	print("[alchemy unknown]")
+	gs.new_game()
+	var cs = load("res://scripts/ui/camp_screen.gd").new()
+	var r: Dictionary = gs.recipe("alchemy", "transmute_shielding")
+	check(cs.recipe_unknown(r) == "potion_shielding" and cs.recipe_result_id(r) == "potion_shielding", "unknown brew shows the unidentified flask")
+	check(cs.recipe_blurb(r) == cs.UNKNOWN_BREW and not cs.recipe_blurb(r).contains("Heal"), "unknown brew does not reuse the healing description")
+	cs.alch_sel = "transmute_shielding"
+	var v := VBoxContainer.new()
+	cs._alchemy_pot(v)
+	var card := _pot_card(v)
+	var texts := _label_texts(card)
+	check(cs.UNKNOWN_BREW in texts and not texts.any(func(t): return String(t).contains("Heal")), "pot text is the unidentified line (%s)" % [texts])
+	var result: Button = _pot_result(v)
+	var heal_rect := UIKit.item_rect(DB.icon_index("potion_healing"))
+	var pic: PixelIcon = result.find_children("*", "PixelIcon", true, false)[0]
+	check(pic.badge == null and (pic.texture as AtlasTexture).region != heal_rect, "pot result is the coloured flask, not a healing potion")
+	v.free()
+	gs.identify_mat("potion_shielding")
+	check(cs.recipe_result_id(r) == "potion_healing" and cs.recipe_blurb(r).begins_with("Heals"), "identifying the ingredient reveals the healing yield")
+	v = VBoxContainer.new()
+	cs._alchemy_pot(v)
+	texts = _label_texts(_pot_card(v))
+	result = _pot_result(v)
+	pic = result.find_children("*", "PixelIcon", true, false)[0]
+	check("Heals max(10, 30% of max HP)." in texts and "x2" in texts, "known brew shows the healing line and the yield count")
+	check(pic.badge is AtlasTexture and (pic.badge as AtlasTexture).region == UIKit.badge_rect("POTION_HEALING") and (pic.texture as AtlasTexture).region == heal_rect, "known brew shows the healing bottle and glyph")
+	v.free(); cs.free()
+
+func _label_texts(root: Node) -> Array:
+	var texts := []
+	for l in root.find_children("*", "Label", true, false): texts.append(l.text)
+	return texts
+
+func _pot_card(root: Node) -> Node:
+	for n in root.get_children():
+		if n is PanelContainer: return n
+	return null
+
+func _pot_result(root: Node) -> Button:
+	for n in root.find_children("*", "HBoxContainer", true, false):
+		if n.get_child_count() >= 4 and n.get_child(n.get_child_count() - 1) is Button:
+			return n.get_child(n.get_child_count() - 1)
+	return null
 
 
 func test_doors_grass(gs) -> void:

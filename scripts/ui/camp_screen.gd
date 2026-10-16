@@ -856,9 +856,10 @@ func recipe_slot(id: String, r: Dictionary) -> Button:
 func _recipe_lines(r: Dictionary) -> Array:
 	var out: String = r.get("out", r.get("out_mat", ""))
 	var lines: Array = [cost_row(r.cost)]
-	if recipe_qty(r) != "": lines.append("Gives %d %s." % [int(r.out_n), DB.mat_name(out) + ("s" if not DB.mat_name(out).ends_with("s") else "")])
+	if recipe_unknown(r) == "" and recipe_qty(r) != "": lines.append("Gives %d %s." % [int(r.out_n), DB.mat_name(out) + ("s" if not DB.mat_name(out).ends_with("s") else "")])
+	var blurb := recipe_blurb(r)
+	if blurb != "": lines.append(blurb)
 	var od: Dictionary = DB.item(out) if r.has("out") else DB.materials.get(out, {})
-	if od.has("desc"): lines.append(od.desc)
 	if r.has("out") and od.has("dmg"): lines.append("Dmg %d  Str %d" % [od.dmg, od.get("str", 10)])
 	if r.has("out") and od.has("dr"): lines.append("DR %d  Str %d" % [od.dr, od.get("str", 10)])
 	return lines
@@ -979,18 +980,55 @@ func _ring_forge_section(v: VBoxContainer) -> void:
 		g2.add_child(item_slot(rid, str(list.size()) if list.size() > 1 else "", "", func(): _open_ring_stack(rid), Color.WHITE, frame, one, bdg))
 
 var alch_sel := ""
+const UNKNOWN_BREW := "Unidentified. Brewing reveals what it is."
 ## Recipe names would give away an unidentified ingredient, so those read "Brew the <appearance>" until it is known.
 func recipe_name(r: Dictionary) -> String:
-	for k in r.cost:
-		if DB.materials.get(k, {}).get("unknown", false) and not GameState.is_mat_known(k): return "Brew the " + DB.mat_name(k)
+	var unk := recipe_unknown(r)
+	if unk != "": return "Brew the " + DB.mat_name(unk)
 	return r.name
+
+## First unidentified potion or scroll in the cost, or "" once every ingredient is known.
+func recipe_unknown(r: Dictionary) -> String:
+	for k in r.cost:
+		var key := String(k)
+		if DB.materials.get(key, {}).get("unknown", false) and not GameState.is_mat_known(key): return key
+	return ""
+
+## While an ingredient is unidentified, the pot must not reuse the yield's text. Healing is the usual yield,
+## and that line made every unknown flask read as a Potion of Healing.
+func recipe_blurb(r: Dictionary) -> String:
+	if recipe_unknown(r) != "": return UNKNOWN_BREW
+	var out: String = r.get("out", r.get("out_mat", ""))
+	var od: Dictionary = DB.item(out) if r.has("out") else DB.materials.get(out, {})
+	return String(od.get("desc", ""))
+
+## Same rule for the result slot: the unidentified flask, not the crimson healing bottle and its glyph.
+func recipe_result_id(r: Dictionary) -> String:
+	var unk := recipe_unknown(r)
+	if unk != "": return unk
+	return String(r.get("out", r.get("out_mat", "")))
+
+func _alchemy_ing_info(mk: String, need: int, have: int) -> void:
+	var lines: Array = ["Need %d, have %d." % [need, have]]
+	if GameState.is_mat_known(mk):
+		var d := String(DB.materials.get(mk, {}).get("desc", ""))
+		if d != "": lines.append(d)
+	else:
+		lines.append(UNKNOWN_BREW)
+	info(mk, DB.mat_name(mk), lines, [], "NONE" if not GameState.is_mat_known(mk) else "")
+
+func _alchemy_result_info(shown: String, blurb: String) -> void:
+	var lines: Array = []
+	if blurb != "": lines.append(blurb)
+	lines.append("In stash: %d" % GameState.mat(shown))
+	info(shown, DB.mat_name(shown), lines, [], "NONE" if not GameState.is_mat_known(shown) else "")
+
 ## SPD WndAlchemy-style pot: ingredient slots -> arrow -> result slot, with Brew underneath; recipes to pick below.
 func _alchemy_pot(v: VBoxContainer) -> void:
 	var rs: Array = DB.recipes.get("alchemy", [])
 	if rs.is_empty(): return
 	if not rs.any(func(r): return r.id == alch_sel): alch_sel = rs[0].id
 	var r: Dictionary = rs.filter(func(x): return x.id == alch_sel)[0]
-	var out: String = r.get("out", r.get("out_mat", ""))
 	var why: String = GameState.can_craft("alchemy", r.id)
 	var pot := UIKit.card(); v.add_child(pot)
 	var pv := UIKit.vbox(pot)
@@ -998,15 +1036,18 @@ func _alchemy_pot(v: VBoxContainer) -> void:
 	var row := HBoxContainer.new(); row.alignment = BoxContainer.ALIGNMENT_CENTER; pv.add_child(row)
 	row.add_theme_constant_override("separation", int(UIKit.font_size * 0.3))
 	for k in r.cost:
-		var need := int(r.cost[k]); var have := GameState.mat(k)
-		var sl := item_slot(k, "%d/%d" % [mini(have, need), need], "", func(): info(k, DB.mat_name(k), ["Need %d, have %d." % [need, have], DB.materials.get(k, {}).get("desc", "")]),
-			Color.WHITE if have >= need else Color(1, 1, 1, 0.4), "6bff6b" if have >= need else "ff6a5a")
+		var mk := String(k)
+		var need := int(r.cost[mk]); var have := GameState.mat(mk)
+		var sl := item_slot(mk, "%d/%d" % [mini(have, need), need], "", _alchemy_ing_info.bind(mk, need, have),
+			Color.WHITE if have >= need else Color(1, 1, 1, 0.4), "6bff6b" if have >= need else "ff6a5a", {}, "NONE" if not GameState.is_mat_known(mk) else "")
 		row.add_child(sl)
 	var arrow := UIKit.label("=>", 1.5, Color("ffd27a")); arrow.autowrap_mode = TextServer.AUTOWRAP_OFF; arrow.size_flags_vertical = SIZE_SHRINK_CENTER; row.add_child(arrow)
-	var od: Dictionary = DB.item(out) if r.has("out") else DB.materials.get(out, {})
+	var unk := recipe_unknown(r)
+	var shown := recipe_result_id(r)
 	var on := int(r.get("out_n", 1))
-	row.add_child(item_slot(out, "x%d" % on if on > 1 else "", "", func(): info(out, DB.mat_name(out), [od.get("desc", ""), "In stash: %d" % GameState.mat(out)]), Color.WHITE, "ffd27a"))
-	if od.has("desc"): pv.add_child(UIKit.label(od.desc, 0.8, Color("bdb3a0")))
+	var blurb := recipe_blurb(r)
+	row.add_child(item_slot(shown, "" if unk != "" else ("x%d" % on if on > 1 else ""), "", _alchemy_result_info.bind(shown, blurb), Color.WHITE, "ffd27a", {}, "NONE" if unk != "" else ""))
+	if blurb != "": pv.add_child(UIKit.label(blurb, 0.8, Color("bdb3a0")))
 	var brew := UIKit.action("Brew", func():
 		if GameState.craft("alchemy", r.id): Sfx.play("drink"), why)
 	brew.custom_minimum_size.y = UIKit.btn_height() * 1.2; pv.add_child(brew)
