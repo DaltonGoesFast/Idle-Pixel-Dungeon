@@ -539,3 +539,18 @@ Boss room 4:
 ############
 ```
 <!-- /GENERATED -->
+
+### Vanilla wands (DECISIONS #156)
+Imbued into the Mage's Staff (only the Mage zaps). Each bolt ignores DR, gets +1 damage per 2 hero levels like the others, and drops from `item_unknown: wand` rewards (Scroll of Identify / use reveals them). Sprites are SPD's `ItemSpriteSheet` wands.
+
+| Wand | Unknown as | Bolt | Effect | Scaling |
+|---|---|---|---|---|
+| Frost | Holly | 3 | Target's next action delayed 1 tick | 1.5 ticks from hero Lv 15 |
+| Corrosion | Yew | 2 | +3 poison (1/action, ignores DR) | +1 poison per 6 hero levels |
+| Blast Wave | Elm | 3 | Knocks the target back 1 tile (bosses immune; chasms kill, walls deal 1) | 2 tiles from Lv 15 |
+| Disintegration | Ebony | 4 | Hits every enemy on the line to range (walls stop it) | - |
+| Transfusion | Willow | 3 | Heals you 2 HP on a hit | +1 per 10 hero levels |
+| Prismatic Light | Rowan | 4 | Reveals hidden traps within 2 tiles of the impact | - |
+| Regrowth | Maple | 1 | Roots the target 2 ticks, grows tall grass around the impact | - |
+
+Not ported: Corruption, Living Earth, Warding (all need allied units).

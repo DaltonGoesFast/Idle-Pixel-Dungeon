@@ -57,6 +57,7 @@ func _ready() -> void:
 	test_guild_pack_cap(gs)
 	test_identify_queue_all(gs)
 	test_blind_shots(gs)
+	test_vanilla_wands(gs)
 	await test_guided_surprise_tip(gs)
 	test_no_collapsing_labels(gs)
 	await test_delve_chips(gs)
@@ -2434,3 +2435,38 @@ func test_bat_drain(gs) -> void:
 		c._mob_act(b)
 		check(int(b.hp) == 10 + case[1], "bat heals dealt-2 like SPD's dealt-4 (DR %d -> +%d, got %d)" % [case[0], case[1], int(b.hp) - 10])
 
+
+## DECISIONS #156: vanilla wands imbued into the Mage's Staff.
+func test_vanilla_wands(gs) -> void:
+	print("[vanilla wands]")
+	var room := ["########", "#H.....#", "#......#", "#......#", "#......#", "#......#", "#.....1#", "########"]
+	var old: String = gs.heroes.mage.wand
+	for id in ["wand_frost", "wand_corrosion", "wand_blast_wave", "wand_disintegration", "wand_transfusion", "wand_prismatic_light", "wand_regrowth"]:
+		check(DB.items.has(id) and DB.item(id).type == "wand" and DB.item(id).has("unknown_name"), "%s is an unidentified-able wand" % id)
+		check(Codex.item_line(id).begins_with("wand"), "%s has a codex line" % id)
+	var mk := func(id: String, mobs: Array) -> Combat:
+		gs.heroes.mage.wand = id
+		var ms: Dictionary = gs.hero_stats("mage")
+		var c := Combat.new(); c.setup(room, ms, int(ms.ht), mobs)
+		for e in c.enemies(): e.next = 50.0; e.hp = 99; e.ht = 99
+		return c
+	var c: Combat = mk.call("wand_frost", ["rat"]); var r = c.enemies()[0]; c._place(r, Vector2i(4, 1))
+	c.hero_bolt(r.pos); check(float(r.next) >= 51.0, "frost chills the target (next %.1f)" % r.next)
+	c = mk.call("wand_corrosion", ["rat"]); r = c.enemies()[0]; c._place(r, Vector2i(4, 1))
+	c.hero_bolt(r.pos); check(int(r.poison) >= 3, "corrosion poisons the target")
+	c = mk.call("wand_blast_wave", ["rat"]); r = c.enemies()[0]; c._place(r, Vector2i(3, 1))
+	c.hero_bolt(r.pos); check(r.pos == Vector2i(4, 1), "blast wave knocks the target back (%s)" % str(r.pos))
+	c = mk.call("wand_disintegration", ["rat", "rat"]); var a = c.enemies()[0]; var b = c.enemies()[1]
+	c._place(a, Vector2i(3, 1)); c._place(b, Vector2i(5, 1))
+	c.hero_bolt(Vector2i(5, 1)); check(int(a.hp) < 99 and int(b.hp) < 99, "disintegration hits every enemy on the line")
+	c = mk.call("wand_transfusion", ["rat"]); r = c.enemies()[0]; c._place(r, Vector2i(4, 1)); c.hero.hp = 5
+	c.hero_bolt(r.pos); check(int(c.hero.hp) == 7, "transfusion heals the caster 2 (hp %d)" % c.hero.hp)
+	c = mk.call("wand_regrowth", ["rat"]); r = c.enemies()[0]; c._place(r, Vector2i(4, 3))
+	c.hero_bolt(r.pos); check(float(r.next) >= 52.0 and c.tile(Vector2i(5, 3)) == Combat.T.GRASS, "regrowth roots and grows grass")
+	# the bot can fight with each new wand without errors
+	for id in ["wand_frost", "wand_blast_wave", "wand_disintegration", "wand_regrowth"]:
+		gs.heroes.mage.wand = id
+		var ms: Dictionary = gs.hero_stats("mage")
+		var cb := Combat.new(); cb.setup(DB.rooms[1], ms, int(ms.ht), ["rat", "gnoll"])
+		CombatBot.play(cb); check(cb.over, "auto battle finishes a fight with %s" % id)
+	gs.heroes.mage.wand = old

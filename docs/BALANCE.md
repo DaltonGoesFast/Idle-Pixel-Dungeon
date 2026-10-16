@@ -116,6 +116,13 @@ GDD target: 12-13 Str, tier 2-3 gear. Two Sewers Strength potions take a fresh h
 | Wand of Magic Missile | Oak Wand | bolt_dmg=5, charges=2, recharge=4 |
 | Wand of Firebolt | Ash Wand | bolt_dmg=4, charges=2, recharge=4, burns_grass=True |
 | Wand of Lightning | Birch Wand | bolt_dmg=7, charges=2, recharge=5, chains_water=True |
+| Wand of Frost | Holly Wand | bolt_dmg=3, charges=2, recharge=4 |
+| Wand of Corrosion | Yew Wand | bolt_dmg=2, charges=2, recharge=5 |
+| Wand of Blast Wave | Elm Wand | bolt_dmg=3, charges=2, recharge=5 |
+| Wand of Disintegration | Ebony Wand | bolt_dmg=4, charges=2, recharge=5 |
+| Wand of Transfusion | Willow Wand | bolt_dmg=3, charges=2, recharge=5 |
+| Wand of Prismatic Light | Rowan Wand | bolt_dmg=4, charges=2, recharge=4 |
+| Wand of Regrowth | Maple Wand | bolt_dmg=1, charges=2, recharge=5 |
 | Ring of Evasion | Topaz Ring |  |
 | Ring of Wealth | Emerald Ring |  |
 | Ring of Energy | Onyx Ring |  |

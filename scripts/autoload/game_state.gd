@@ -187,6 +187,15 @@ func hero_stats(c: String) -> Dictionary:
 		var wn := DB.item(h.wand)
 		s.bolt = {"dmg": int(wn.bolt_dmg) + int(h.level) / 2, "charges": int(wn.charges) + int(h.level) / int(def.get("charge_per_levels", 99)), "recharge": int(wn.recharge),
 			"burns_grass": wn.get("burns_grass", false), "chains_water": wn.get("chains_water", false), "name": wn.name, "magic": true}
+		# vanilla wand effects (DECISIONS #156); scale with hero level like the bolt damage
+		var lv := int(h.level)
+		if wn.has("chill"): s.bolt.chill = float(wn.chill) + (0.5 if lv >= 15 else 0.0)
+		if wn.has("corrode"): s.bolt.corrode = int(wn.corrode) + lv / 6
+		if wn.has("blast"): s.bolt.blast = int(wn.blast) + (1 if lv >= 15 else 0)
+		if wn.get("pierce_line", false): s.bolt.pierce_line = true
+		if wn.has("transfuse"): s.bolt.transfuse = int(wn.transfuse) + lv / 10
+		if wn.has("reveal"): s.bolt.reveal = int(wn.reveal)
+		if wn.has("root"): s.bolt.root = float(wn.root); s.bolt.grow = wn.get("grow", false)
 	if "shoot" in def.abilities:
 		# SPD Spirit Bow: (1 + lvl/5) - (6 + lvl/2.5), collapsed to the average
 		var lv := int(h.level)

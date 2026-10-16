@@ -601,6 +601,8 @@ func hero_bolt(p: Vector2i) -> bool:
 	if u == null:
 		_log("The shot hits nothing.")
 		if hero.bolt.get("burns_grass", false) and tile(at) == T.GRASS: _burn(at)
+		if hero.bolt.has("reveal") and _reveal(at, int(hero.bolt.reveal)) > 0: _log("Prismatic light shows hidden traps.")
+		if hero.bolt.get("grow", false): _grow(at)
 		_end_hero_turn(1.0)
 		return true
 	p = at
@@ -609,6 +611,7 @@ func hero_bolt(p: Vector2i) -> bool:
 	if hero.get("perk", "") == "soul_heal" and magic and hero.hp > 0 and hero.hp < hero.ht:
 		var sh := mini(int(hero.ht) - int(hero.hp), maxi(1, (hp_before - maxi(0, int(u.hp))) / 3))
 		hero.hp += sh; _log("Soul siphon: +%d HP." % sh)
+	_wand_effects(u, p)
 	if hero.bolt.get("chains_water", false) and tile(p) == T.WATER:
 		_shock(p, int(hero.bolt.dmg))
 	if hero.bolt.get("burns_grass", false):
@@ -616,6 +619,44 @@ func hero_bolt(p: Vector2i) -> bool:
 			if tile(p + d) == T.GRASS: _burn(p + d); break
 	_end_hero_turn(1.0)
 	return true
+
+## Vanilla wand effects (DECISIONS #156), applied after the bolt's damage to the unit it hit (u) at p.
+func _wand_effects(u: Dictionary, p: Vector2i) -> void:
+	var b: Dictionary = hero.bolt
+	if b.get("pierce_line", false):   # Disintegration: every other enemy on the line beyond the first body
+		var d := maxi(1, cheb(hero.pos, p)); var far: Vector2i = hero.pos + (p - hero.pos) * int(ceil(float(BOLT_RANGE) / d))
+		var pts := _line(hero.pos, far)
+		for i in range(1, pts.size()):
+			var q: Vector2i = pts[i]
+			if cheb(hero.pos, q) > BOLT_RANGE or _solid(q): break
+			var o = unit_at(q)
+			if q != p and o != null and o != hero and o.hp > 0: hit_mob(o, int(b.dmg), false, true)
+	if b.has("transfuse") and hero.hp < hero.ht:
+		var hl := mini(int(hero.ht) - int(hero.hp), int(b.transfuse))
+		hero.hp += hl; _log("Transfusion: +%d HP." % hl)
+	if b.has("reveal") and _reveal(p, int(b.reveal)) > 0: _log("Prismatic light shows hidden traps.")
+	if b.get("grow", false): _grow(p)
+	if u.hp <= 0: return
+	if b.has("chill"):
+		u.next = float(u.next) + float(b.chill); _log("%s is chilled." % u.name); _ev({"t": "sfx", "name": "debuff"})
+	if b.has("corrode"):
+		u.poison = int(u.get("poison", 0)) + int(b.corrode); _log("%s is corroded." % u.name); _ev({"t": "sfx", "name": "debuff"})
+	if b.has("root"):
+		u.next = float(u.next) + float(b.root); _log("%s is rooted." % u.name)
+	if b.has("blast") and not u.get("boss", false):
+		for i in int(b.blast):
+			if u.hp <= 0: break
+			var before: Vector2i = u.pos
+			knockback(u, u.pos - hero.pos)
+			if u.pos == before: break
+	elif b.has("blast"): _log("%s is too heavy to move." % u.name)
+
+## Regrowth: tall grass springs up on open floor around p (blocks sight, not shots).
+func _grow(p: Vector2i) -> void:
+	for d in [Vector2i.ZERO] + DIRS:
+		var q: Vector2i = p + d
+		if in_bounds(q) and tile(q) == T.FLOOR and not traps.has(q):
+			terrain[q.y][q.x] = T.GRASS; _ev({"t": "grow", "pos": q})
 
 ## Warrior: Slam (1 per fight, 1.5 ticks). Hits every adjacent enemy for half damage (ignores DR) and knocks them all back.
 func hero_slam() -> bool:

@@ -45,7 +45,7 @@ static func item_line(id: String) -> String:
 	match it.type:
 		"weapon": return "tier %d weapon, %d dmg%s, %d Str" % [it.tier, it.dmg, (", %.1f ticks" % it.delay) if float(it.get("delay", 1.0)) != 1.0 else "", it.str]
 		"armor": return "tier %d armor, DR %d, +%d Barrier, %d Str" % [it.tier, it.dr, it.barrier, it.str]
-		"wand": return "wand, bolt %d dmg (ignores DR), %d charges%s%s" % [it.bolt_dmg, it.charges, ", burns grass" if it.get("burns_grass", false) else "", ", chains through water" if it.get("chains_water", false) else ""]
+		"wand": return "wand, bolt %d dmg (ignores DR), %d charges%s%s" % [it.bolt_dmg, it.charges, ", burns grass" if it.get("burns_grass", false) else "", ", chains through water" if it.get("chains_water", false) else ""] + _wand_extra(it)
 		"ring":
 			var bits := []
 			if it.has("dmg_bonus"): bits.append("+%d dmg" % it.dmg_bonus)
@@ -64,3 +64,14 @@ static func item_known(id: String) -> bool:
 	for c in GameState.heroes:
 		if GameState.heroes[c].unlocked and DB.heroes[c].get("heirloom", "") == id: return true
 	return false
+
+static func _wand_extra(it: Dictionary) -> String:
+	var b := []
+	if it.has("chill"): b.append("chills %.0f tick" % float(it.chill))
+	if it.has("corrode"): b.append("%d poison" % int(it.corrode))
+	if it.has("blast"): b.append("knockback")
+	if it.get("pierce_line", false): b.append("pierces every enemy on the line")
+	if it.has("transfuse"): b.append("heals you %d" % int(it.transfuse))
+	if it.has("reveal"): b.append("reveals traps")
+	if it.has("root"): b.append("roots %.0f ticks, grows grass" % float(it.root))
+	return "" if b.is_empty() else ", " + ", ".join(b)
