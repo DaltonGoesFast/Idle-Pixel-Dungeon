@@ -58,6 +58,8 @@ func _ready() -> void:
 	test_identify_queue_all(gs)
 	test_blind_shots(gs)
 	test_trinket_upgrades(gs)
+	test_vanilla_rings(gs)
+	test_ring_levels(gs)
 	await test_guided_surprise_tip(gs)
 	test_no_collapsing_labels(gs)
 	await test_delve_chips(gs)
@@ -2482,3 +2484,53 @@ func test_trinket_upgrades(gs) -> void:
 	gs.heroes.mage.wand_lvl = 0; gs.heroes.mage.wand = keep_wand
 	gs.gear.erase(gs.gear_by_uid(ru)); gs.gear.erase(gs.gear_by_uid(au))
 	gs.facilities = keep_fac; gs.mats = keep_mats
+## DECISIONS #157: vanilla rings.
+func _ring_stats(gs, cls: String, id: String) -> Dictionary:
+	var old := int(gs.heroes[cls].get("ring", 0))
+	if id == "":
+		gs.heroes[cls].ring = 0
+		var b: Dictionary = gs.hero_stats(cls); gs.heroes[cls].ring = old; return b
+	var uid: int = gs.add_gear(id, true)
+	gs.heroes[cls].ring = uid
+	var st: Dictionary = gs.hero_stats(cls)
+	gs.heroes[cls].ring = old
+	gs.gear.erase(gs.gear_by_uid(uid))
+	return st
+
+func test_vanilla_rings(gs) -> void:
+	print("[vanilla rings]")
+	for id in ["ring_furor", "ring_haste", "ring_sharpshooting", "ring_elements", "ring_force"]:
+		check(DB.items.has(id) and DB.item(id).type == "ring" and DB.item(id).has("unknown_name"), "%s exists with an unknown name" % id)
+		check(Codex.item_line(id).length() > 4, "%s has a codex line" % id)
+	var base: Dictionary = _ring_stats(gs, "warrior", "")
+	check(float(_ring_stats(gs, "warrior", "ring_furor").delay) < float(base.delay), "furor speeds up melee")
+	var hs: Dictionary = _ring_stats(gs, "warrior", "ring_haste")
+	check(float(hs.move_cost) < 1.0, "haste lowers move cost")
+	var c := Combat.new(); c.setup(DB.rooms[1], hs, int(hs.ht), ["rat"])
+	c.enemies()[0].next = 99.0
+	var t0 := float(c.hero.next)
+	for d in Combat.DIRS:
+		if c.hero_tap(c.hero.pos + d): break
+	check(float(c.hero.next) - t0 < 1.0, "a hasted step costs less than a tick")
+	check(int(_ring_stats(gs, "huntress", "ring_sharpshooting").bolt.dmg) == int(_ring_stats(gs, "huntress", "").bolt.dmg) + 1, "sharpshooting adds ranged damage")
+	var es: Dictionary = _ring_stats(gs, "warrior", "ring_elements")
+	var c2 := Combat.new(); c2.setup(DB.rooms[1], es, int(es.ht), ["rat"]); c2.hero.barrier = 0
+	var hp0 := int(c2.hero.hp); c2.hit_hero(6, "Fire", true)
+	check(hp0 - int(c2.hero.hp) == 4, "elements cuts piercing damage by a third (took %d)" % (hp0 - int(c2.hero.hp)))
+	var fs: Dictionary = _ring_stats(gs, "rogue", "ring_force")
+	check(int(fs.dmg) == int(_ring_stats(gs, "rogue", "").dmg) + 2, "force adds tier-1 melee damage (rogue dagger)")
+
+## DECISIONS #160: per-level values for Furor, Haste, Elements, Force, Sharpshooting.
+func test_ring_levels(gs) -> void:
+	print("[ring levels]")
+	var lv := func(cls: String, id: String, l: int) -> Dictionary:
+		var old := int(gs.heroes[cls].get("ring", 0))
+		var uid: int = gs.add_gear(id, true, l); gs.heroes[cls].ring = uid
+		var st: Dictionary = gs.hero_stats(cls)
+		gs.heroes[cls].ring = old; gs.gear.erase(gs.gear_by_uid(uid)); return st
+	check(float(lv.call("warrior", "ring_furor", 2).delay) < float(lv.call("warrior", "ring_furor", 0).delay), "Furor gets faster with level")
+	check(is_equal_approx(float(lv.call("warrior", "ring_haste", 2).move_cost), 0.75), "Haste +2 steps cost 0.75")
+	check(is_equal_approx(float(lv.call("warrior", "ring_haste", 9).move_cost), 0.6), "Haste is floored at 0.6")
+	check(float(lv.call("warrior", "ring_elements", 2).elem_resist) < 0.67, "Elements resists more with level")
+	check(int(lv.call("rogue", "ring_force", 2).dmg) == int(lv.call("rogue", "ring_force", 0).dmg) + 2, "Force +1 dmg per level")
+	check(int(lv.call("huntress", "ring_sharpshooting", 2).bolt.dmg) == int(lv.call("huntress", "ring_sharpshooting", 0).bolt.dmg) + 1, "Sharpshooting +1 per 2 levels")

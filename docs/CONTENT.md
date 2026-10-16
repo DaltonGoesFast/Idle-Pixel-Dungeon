@@ -551,3 +551,24 @@ Leveled and repaired at the **Enchanter's Desk**, not the Forge. Item level cap 
 | Repair artifact | Desk Lv3 | 4 + 2 x level resin, 40 + 20 x level gold |
 
 Per level: Might +1 dmg, Tenacity +1 Barrier, Evasion +1 DR per 2 levels, Wealth +5% gold, Energy +2 HP; staff wand +1 bolt dmg and +1 charge per 2 levels; Chalice +3 HP, Talisman +1 search per 2 levels, Horn -5% hunger. New drops start at +0 with lower base power: Tenacity +1 Barrier (was 2), Wealth +15% (was 30%), Energy +2 HP (was 4), Chalice +6 HP (was 15), Horn x0.8 hunger (was 0.6). On death, equipped rings/artifacts crack as before; an imbued wand with levels cracks too (its levels go dormant, base bolt still works). The free Patch up only covers weapons and armor.
+### Vanilla rings (DECISIONS #157)
+Flat bonuses like the existing rings (rings don't take upgrades here). Drop from `item_unknown: ring` rewards; spares melt at the Forge like the others.
+
+| Ring | Unknown as | Effect |
+|---|---|---|
+| Furor | Opal | Melee swings take 15% less time (`delay x0.85`) |
+| Haste | Tourmaline | Steps cost 0.85 tick |
+| Sharpshooting | Sapphire | +1 Spirit Bow / staff bolt damage |
+| Elements | Amethyst | Piercing damage (fire, your own lightning, zaps, traps that pierce) x0.67 |
+| Force | Quartz | +2 melee damage with a tier-1 weapon (worn shortsword, dagger, gloves, staff) |
+
+Not ported: Accuracy (no hit roll), Arcana (no enchantments yet).
+
+### Ring levels for the #157 rings (DECISIONS #160)
+| Ring | Per level | Floor |
+|---|---|---|
+| Furor | melee delay -5% | x0.6 |
+| Haste | step cost -0.05 tick | 0.6 |
+| Elements | piercing dmg taken -7% | x0.4 |
+| Force | +1 dmg (tier-1 weapons) | - |
+| Sharpshooting | +1 ranged dmg per 2 levels | - |

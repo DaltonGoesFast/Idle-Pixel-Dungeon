@@ -119,6 +119,11 @@ GDD target: 12-13 Str, tier 2-3 gear. Two Sewers Strength potions take a fresh h
 | Ring of Evasion | Topaz Ring |  |
 | Ring of Wealth | Emerald Ring |  |
 | Ring of Energy | Onyx Ring |  |
+| Ring of Furor | Opal Ring |  |
+| Ring of Haste | Tourmaline Ring |  |
+| Ring of Sharpshooting | Sapphire Ring |  |
+| Ring of Elements | Amethyst Ring |  |
+| Ring of Force | Quartz Ring |  |
 
 ### Sewers (floors 1-5, boss goo on 5, 10 Str)
 

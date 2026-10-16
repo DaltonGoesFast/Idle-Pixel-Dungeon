@@ -286,7 +286,7 @@ static func reward(gs, rw: Dictionary) -> String:
 					var mid: String = cands[(int(run.seed) + int(run.floor) * 7 + int(gs.next_uid)) % cands.size()]
 					gs.pack_add(mid, 1); gs.next_uid += 1
 					parts.append(DB.mat_name(mid)); continue
-				var pool: Array = ["ring_might", "ring_tenacity", "ring_evasion", "ring_wealth", "ring_energy"] if rw[k] == "ring" else ["wand_magic_missile", "wand_firebolt", "wand_lightning"]
+				var pool: Array = ["ring_might", "ring_tenacity", "ring_evasion", "ring_wealth", "ring_energy", "ring_furor", "ring_haste", "ring_sharpshooting", "ring_elements", "ring_force"] if rw[k] == "ring" else ["wand_magic_missile", "wand_firebolt", "wand_lightning"]
 				var id: String = pool[(int(run.seed) + int(run.floor) + run.pack_gear.size()) % pool.size()]
 				_stow(gs, _new_gear(gs, id, false))
 				parts.append(DB.item(id).unknown_name)

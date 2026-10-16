@@ -544,6 +544,11 @@ func gear_stats(g: Dictionary) -> Dictionary:
 	if d.has("str"): out["Str"] = int(d.str)
 	for k in ["ht_bonus", "dr_bonus", "dmg_bonus", "barrier_bonus", "charges_bonus", "search_add"]:
 		if d.has(k): out[k.replace("_bonus", "").replace("_add", "").replace("ht", "HP").capitalize()] = int(d[k])
+	if d.has("bolt_bonus"): out["Ranged dmg"] = int(d.bolt_bonus)
+	if d.has("force_bonus"): out["Tier-1 dmg"] = int(d.force_bonus)
+	if d.has("delay_mult"): out["Melee speed %"] = int(round((1.0 - float(d.delay_mult)) * 100))
+	if d.has("move_cost"): out["Move speed %"] = int(round((1.0 - float(d.move_cost)) * 100))
+	if d.has("elem_resist"): out["Magic resist %"] = int(round((1.0 - float(d.elem_resist)) * 100))
 	if d.has("gold_mult"): out["Gold %"] = int(round((float(d.gold_mult) - 1.0) * 100))
 	if d.has("hunger_mult"): out["Hunger %"] = int(round((float(d.hunger_mult) - 1.0) * 100))
 	return out

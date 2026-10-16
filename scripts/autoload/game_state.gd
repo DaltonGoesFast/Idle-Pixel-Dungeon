@@ -170,6 +170,7 @@ func hero_stats(c: String) -> Dictionary:
 		var rd := DB.item(r.id)
 		dmg += int(rd.get("dmg_bonus", 0)) + trinket_bonus(r, "dmg_bonus"); barrier += int(rd.get("barrier_bonus", 0)) + trinket_bonus(r, "barrier_bonus")
 		dr += int(rd.get("dr_bonus", 0)) + trinket_bonus(r, "dr_bonus")
+		if int(wd.get("tier", 1)) <= 1: dmg += int(rd.get("force_bonus", 0)) + trinket_bonus(r, "force_bonus")   # Ring of Force (DECISIONS #157)
 	var s := {"starter_weapon": not w_ok, "starter_armor": not a_ok, "class": c, "name": def.name, "sprite": def.sprite, "fw": def.fw, "fh": def.fh, "row": armor_tier(c),
 		"ht": int(def.base_ht) + int(def.ht_per_level) * (int(h.level) - 1),
 		"dmg": dmg, "dr": dr, "barrier_max": barrier, "delay": float(wd.get("delay", 1.0)),
@@ -184,6 +185,12 @@ func hero_stats(c: String) -> Dictionary:
 		if ed.has("gold_mult"): s.gold_mult = float(ed.gold_mult) + trinket_bonus_f(eq, "gold_mult")
 		if ed.has("hunger_mult"): s.hunger_mult = maxf(0.3, float(ed.hunger_mult) + trinket_bonus_f(eq, "hunger_mult"))
 		s.charges_bonus = int(s.get("charges_bonus", 0)) + int(ed.get("charges_bonus", 0))
+		# vanilla rings (DECISIONS #157)
+		# per-level values (DECISIONS #160); speed/resist floors keep a maxed ring from breaking the tick economy
+		if ed.has("delay_mult"): s.delay *= maxf(0.6, float(ed.delay_mult) + trinket_bonus_f(eq, "delay_mult"))
+		if ed.has("move_cost"): s.move_cost = maxf(0.6, float(ed.move_cost) + trinket_bonus_f(eq, "move_cost"))
+		if ed.has("elem_resist"): s.elem_resist = maxf(0.4, float(ed.elem_resist) + trinket_bonus_f(eq, "elem_resist"))
+		s.bolt_bonus = int(s.get("bolt_bonus", 0)) + int(ed.get("bolt_bonus", 0)) + trinket_bonus(eq, "bolt_bonus")
 	if "bolt" in def.abilities and h.wand != "":
 		var wn := DB.item(h.wand)
 		var wnl := 0 if h.get("wand_cracked", false) else int(h.get("wand_lvl", 0))   # DECISIONS #158: wand levels (dormant while cracked)
@@ -207,6 +214,7 @@ func hero_stats(c: String) -> Dictionary:
 			s.bolt.dmg += int(td.get("bolt_add", 0))
 			if not s.bolt.get("infinite", false): s.bolt.charges += int(td.get("charges_add", 0))
 	if s.has("bolt") and not s.bolt.get("infinite", false): s.bolt.charges += int(s.get("charges_bonus", 0))   # Ring of Energy
+	if s.has("bolt"): s.bolt.dmg += int(s.get("bolt_bonus", 0))   # Ring of Sharpshooting
 	# Subclass (Tengu's Mask, DECISIONS #61): flat modifiers here, "perk" hooks in Combat.
 	var sub: Dictionary = def.get("subclasses", {}).get(String(h.get("subclass", "")), {})
 	if not sub.is_empty():

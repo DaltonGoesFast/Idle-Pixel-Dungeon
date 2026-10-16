@@ -57,7 +57,8 @@ func setup(room_rows: Array, hs: Dictionary, hp: int, mob_ids: Array, darkness :
 		"abilities": hs.get("abilities", []), "bolt": hs.get("bolt", {}), "charges": 0, "recharge_t": 0.0, "hero": true,
 		"cloak": hs.get("cloak", {}), "cloak_charges": int(hs.get("cloak", {}).get("charges", 0)), "hidden_until": -1.0,
 		"slams": 1 if "slam" in hs.get("abilities", []) else 0, "search_radius": int(hs.get("search_radius", 1)),
-		"poison": 0, "keen_eyes": hs.get("keen_eyes", false), "perk": hs.get("perk", ""), "combo": 0}
+		"poison": 0, "keen_eyes": hs.get("keen_eyes", false), "perk": hs.get("perk", ""), "combo": 0,
+		"move_cost": float(hs.get("move_cost", 1.0)), "elem_resist": float(hs.get("elem_resist", 1.0))}
 	if not hero.bolt.is_empty(): hero.charges = hero.bolt.charges
 	units.append(hero)
 	var slots := {}
@@ -306,6 +307,7 @@ func close_to_dying() -> bool:
 ## Damage to the hero: flat DR -> Barrier -> HP. Chip rule on fully blocked hits.
 func hit_hero(raw: int, src: String, pierce := false) -> void:
 	var dmg := raw if pierce else maxi(0, raw - int(hero.dr))
+	if pierce and float(hero.get("elem_resist", 1.0)) < 1.0 and dmg > 0: dmg = maxi(1, int(round(dmg * float(hero.elem_resist))))   # Ring of Elements
 	if dmg == 0:
 		if hero.barrier > 0:
 			hero.barrier -= 1; dmg_in += 1; absorbed_total += 1
@@ -564,7 +566,7 @@ func hero_tap(p: Vector2i, mode := "") -> bool:
 		return true
 	if passable(p) and u == null:
 		_place(hero, p)
-		_end_hero_turn(1.0)
+		_end_hero_turn(float(hero.get("move_cost", 1.0)))   # Ring of Haste
 		return true
 	return false
 

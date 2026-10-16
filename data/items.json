@@ -349,6 +349,66 @@
    "ht_bonus": 2
   }
  },
+ "ring_furor": {
+  "name": "Ring of Furor",
+  "type": "ring",
+  "unknown_name": "Opal Ring",
+  "delay_mult": 0.85,
+  "icon": "RING_OPAL",
+  "badge": "RING_FUROR",
+  "desc": "Melee attacks take 15% less time. -5% more per level.",
+  "per_level": {
+   "delay_mult": -0.05
+  }
+ },
+ "ring_haste": {
+  "name": "Ring of Haste",
+  "type": "ring",
+  "unknown_name": "Tourmaline Ring",
+  "move_cost": 0.85,
+  "icon": "RING_TOURMALINE",
+  "badge": "RING_HASTE",
+  "desc": "Steps take 15% less time. -5% more per level.",
+  "per_level": {
+   "move_cost": -0.05
+  }
+ },
+ "ring_sharpshooting": {
+  "name": "Ring of Sharpshooting",
+  "type": "ring",
+  "unknown_name": "Sapphire Ring",
+  "bolt_bonus": 1,
+  "icon": "RING_SAPPHIRE",
+  "badge": "RING_SHARPSHOOT",
+  "desc": "+1 damage with the Spirit Bow and staff bolts. +1 per 2 levels.",
+  "per_level": {
+   "bolt_bonus": 0.5
+  }
+ },
+ "ring_elements": {
+  "name": "Ring of Elements",
+  "type": "ring",
+  "unknown_name": "Amethyst Ring",
+  "elem_resist": 0.67,
+  "icon": "RING_AMETHYST",
+  "badge": "RING_ELEMENTS",
+  "desc": "Fire, lightning, gas and other piercing magic hurt you a third less. -7% more per level.",
+  "per_level": {
+   "elem_resist": -0.07
+  }
+ },
+ "ring_force": {
+  "name": "Ring of Force",
+  "type": "ring",
+  "unknown_name": "Quartz Ring",
+  "force_bonus": 2,
+  "icon": "RING_QUARTZ",
+  "badge": "RING_FORCE",
+  "desc": "+2 melee damage while wielding a tier-1 weapon (fists, dagger, gloves, staff). +1 per level.",
+  "per_level": {
+   "force_bonus": 1
+  }
+ },
  "chalice_blood": {
   "name": "Chalice of Blood",
   "type": "artifact",
