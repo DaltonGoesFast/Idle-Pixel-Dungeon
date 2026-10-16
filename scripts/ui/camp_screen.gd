@@ -1,6 +1,7 @@
 ## CampScreen: the persistent Surface Camp hub (DECISIONS #82, #124).
 ## Layout: a one-line resource strip, then a drawn camp scene (CampScene) where you tap the NPCs to open the facilities.
-## The scene takes the free space; a dock under it (beside it when wide) holds hero portraits, the destination and Delve.
+## The scene takes the free space; a dock under it (beside it when wide) holds hero portraits, the destination, then Delve.
+## On the wide dock the patrol list scrolls in whatever room is left under Delve, so the start button stays with the biome it uses.
 ## Facilities, Stash, Heroes, Journal and Settings open as SPD windows over the hub. Item lists are
 ## SPD-style item-slot grids; tapping a slot opens an info window with its actions.
 ## Content is rebuilt from GameState on every change.
@@ -137,16 +138,23 @@ func _build_side() -> void:
 		bb.size_flags_horizontal = 0; bb.custom_minimum_size.x = UIKit.font_size * 4.5
 		bf.add_child(bb)
 		if not (b in ok): break   # show only the next locked one
-	if not portrait:
-		# wide dock: fill the empty middle with patrols (cover stays lean; Guild still has the full page)
-		var sc := ScrollContainer.new(); sc.size_flags_vertical = SIZE_EXPAND_FILL
-		sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED; side.add_child(sc)
-		var pv := UIKit.vbox(sc); pv.size_flags_horizontal = SIZE_EXPAND_FILL
-		pv.add_child(UIKit.label("Patrols (max %dh)" % int(GameState.patrol_max_hours()), 0.8, Color("bdb3a0")))
-		_patrol_list(pv)
+	# Delve sits with the destination it uses. A disabled reason (hero out on patrol) stays on screen
+	# instead of falling off the bottom of a short dock.
 	var go := UIKit.action("Delve: %s" % DB.biomes[chosen_biome].name, func(): open_page("Delve"), GameState.can_start_run(chosen_hero))
-	go.custom_minimum_size.y = UIKit.btn_height() * 1.4
+	go.name = "DelveGo"
+	var delve_btn := go.get_child(0) as Button
+	if delve_btn: delve_btn.custom_minimum_size.y = UIKit.btn_height() * 1.35
 	side.add_child(go)
+	if not portrait:
+		# wide dock: patrols fill the rest and scroll. The cover stays lean; Guild still has the full page.
+		side.add_child(UIKit.label("Patrols (max %dh)" % int(GameState.patrol_max_hours()), 0.8, Color("bdb3a0")))
+		var sc := ScrollContainer.new(); sc.name = "PatrolScroll"; sc.size_flags_vertical = SIZE_EXPAND_FILL
+		sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+		sc.follow_focus = false
+		side.add_child(sc)
+		var pv := UIKit.vbox(sc); pv.size_flags_horizontal = SIZE_EXPAND_FILL
+		pv.size_flags_vertical = SIZE_SHRINK_BEGIN
+		_patrol_list(pv)
 
 ## The selected hero's stats in one line under the portraits.
 func hero_line(c: String) -> String:
@@ -1064,14 +1072,21 @@ func _patrol_list(v: Control) -> void:
 			if bf.get_child_count() == 0: cv.add_child(UIKit.label("Clear a biome first.", 0.8, Color("9a9488")))
 		else:
 			var y: Dictionary = GameState.patrol_preview(c)
-			cv.add_child(UIKit.label("%s - patrolling %.1fh / %dh" % [DB.heroes[c].name, y._hours, int(GameState.patrol_max_hours())], 0.9))
+			var head := UIKit.hbox(cv)
+			var title := UIKit.label("%s   %.1fh / %dh" % [DB.heroes[c].name, y._hours, int(GameState.patrol_max_hours())], 0.9, Color("ffd27a") if c == chosen_hero else Color.WHITE)
+			title.size_flags_horizontal = SIZE_EXPAND_FILL; title.size_flags_vertical = SIZE_SHRINK_CENTER
+			head.add_child(title)
+			var recall := UIKit.button("Recall", func(): GameState.collect_patrol(c))
+			recall.tooltip_text = "Recall and collect"; recall.autowrap_mode = TextServer.AUTOWRAP_OFF
+			recall.custom_minimum_size.x = UIKit.font_size * 4.6
+			recall.size_flags_horizontal = SIZE_SHRINK_END; recall.size_flags_vertical = SIZE_SHRINK_CENTER
+			UIKit.secondary(recall); head.add_child(recall)
 			var pr := ProgressBar.new(); pr.max_value = GameState.patrol_max_hours(); pr.step = 0.0; pr.value = float(y._hours); pr.show_percentage = false
 			pr.custom_minimum_size.y = UIKit.font_size * 0.5; cv.add_child(pr)
 			var yf := HFlowContainer.new(); cv.add_child(yf)
 			for k in y:
 				if not String(k).begins_with("_") and int(y[k]) > 0: yf.add_child(UIKit.res_chip(k, str(y[k]), 0.8))
 			if y._curios > 0: yf.add_child(UIKit.chip_label("+%d curio%s" % [y._curios, "" if int(y._curios) == 1 else "s"], 0.8))
-			cv.add_child(UIKit.button("Recall & collect", func(): GameState.collect_patrol(c)))
 
 # ------------------------------------------------------------ Journal (meta-progression + codex)
 var journal_view := "progress"

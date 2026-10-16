@@ -74,6 +74,7 @@ func _ready() -> void:
 	test_bot_surprise_priority(gs)
 	await test_guided_surprise_tip(gs)
 	test_no_collapsing_labels(gs)
+	await test_camp_dock(gs)
 	await test_delve_chips(gs)
 	test_owed_sou(gs)
 	await test_icon_sizes(gs)
@@ -2286,6 +2287,48 @@ func test_no_collapsing_labels(gs) -> void:
 		var bad2 := UIKit.collapsing_labels(cb).map(func(l): return l.text)
 		check(bad2.is_empty(), "combat screen + victory card: no wrapping label without width %s" % [bad2])
 		cb.queue_free(); gs.end_run("abandon")
+
+## Wide camp dock: Delve sits under the destination, and the patrol list opens at the top
+## so the first hero's timer and loot stay on screen.
+func test_camp_dock(gs) -> void:
+	print("[camp dock]")
+	gs.new_game()
+	var fs0 := UIKit.font_size
+	UIKit.make_theme(28)
+	gs.mats.gold = 5000
+	for c in gs.heroes:
+		gs.heroes[c].unlocked = true
+		gs.heroes[c].cleared.append("sewers")
+	for c in ["warrior", "rogue", "huntress"]:
+		check(gs.can_patrol(c, "sewers") == "" and gs.start_patrol(c, "sewers"), "%s can patrol" % c)
+	gs.time_offset += 0.2 * 3600.0
+	var vs := Vector2(1400, 640)
+	var cs = load("res://scripts/ui/camp_screen.gd").new(); add_child(cs); cs.size = vs
+	cs.apply_layout(false, vs)
+	for _i in 2: await get_tree().process_frame
+	var go: Control = cs.side.find_child("DelveGo", true, false)
+	var sc: ScrollContainer = cs.side.find_child("PatrolScroll", true, false)
+	check(go != null and sc != null and go.get_index() < sc.get_index(), "wide dock: Delve is above the patrol list")
+	check(go.get_global_rect().end.y <= sc.get_global_rect().position.y + 1.0, "Delve finishes above the patrol scroller")
+	var reason: Label = null
+	for l in go.find_children("*", "Label", true, false):
+		if l.text == "hero is on patrol": reason = l
+	var camp_r := Rect2(cs.global_position, cs.size)
+	check(reason != null and camp_r.encloses(reason.get_global_rect().grow(-1)), "delve reason stays inside the camp (%s)" % [reason.get_global_rect() if reason else null])
+	check(sc.scroll_vertical == 0, "patrol list opens at the top")
+	var title: Label = null
+	for l in sc.find_children("*", "Label", true, false):
+		if String(l.text).begins_with("Warrior"): title = l; break
+	check(title != null and sc.get_global_rect().intersects(title.get_global_rect()), "first patrol name is in view (%s vs %s)" % [title.get_global_rect() if title else null, sc.get_global_rect()])
+	var recall: Button = null
+	for b in sc.find_children("*", "Button", true, false):
+		if b.text == "Recall": recall = b; break
+	check(recall != null and title != null and absf(recall.get_global_rect().position.y - title.get_global_rect().position.y) < UIKit.btn_height(), "Recall sits on the hero's name row")
+	cs.apply_layout(true, Vector2(480, 1000))
+	await get_tree().process_frame
+	check(cs.side.find_child("PatrolScroll", true, false) == null and cs.side.find_child("DelveGo", true, false) != null, "cover dock keeps Delve and leaves patrols to the Guild")
+	cs.queue_free()
+	UIKit.make_theme(fs0)
 
 func test_crate_slot(gs) -> void:
 	print("[crate slot]")
