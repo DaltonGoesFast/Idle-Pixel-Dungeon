@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Snakes can now be killed at range: wand and staff magic always hits them (as in SPD), and they slip only the first Spirit Bow arrow of each fight. Melee still needs a Surprise (+tests, DECISIONS #172).
 - Enchanter: identify bars no longer jump back. Each queued item now fills from when it was queued to when it finishes, so the waiting bars keep their fill when the front item is done (they used to drop to empty). An Enchanter upgrade keeps every bar where it was, and older saves keep filling from where they load (+tests).
 - Levelling rings and the staff wand at the Enchanter's Desk no longer costs Scrolls of Upgrade, so all 22 Scrolls go to camp caps. Each level costs 4N resin + 75N² gold instead (was 1 Scroll + 3N resin + 50N² gold). Cracked artifacts can be repaired at Desk Lv2 (was Lv3) (+tests).
 - Abandoning an expedition no longer destroys the Scrolls of Upgrade in the pack: like a death, they are owed and return on the next boss kill. Every Scroll is needed to max the Camp, so one abandon after a boss kill used to make that impossible. The abandon confirm says the Scrolls will come back (+tests).

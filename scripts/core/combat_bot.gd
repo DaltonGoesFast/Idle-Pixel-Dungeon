@@ -174,6 +174,11 @@ static func _snake_plan(c: Combat, snakes: Array) -> Dictionary:
 	var sn = snakes[0]
 	for e in snakes:
 		if Combat.cheb(e.pos, h.pos) < Combat.cheb(sn.pos, h.pos): sn = e
+	# Magic always hits a snake and bows hit after one slip (DECISIONS #172): shoot when we can
+	if c.has_ranged() and (h.bolt.get("infinite", false) or int(h.charges) > 0):
+		for e in snakes:
+			if c.can_bolt(e.pos) and c.bolt_victim(e.pos) == e:
+				return {"act": "tap", "pos": e.pos, "mode": "bolt", "why": "shoot the snake"}
 	if Combat.cheb(sn.pos, h.pos) == 1 and c.surprise_against(sn):
 		return {"act": "tap", "pos": sn.pos, "mode": "", "why": "surprise the snake"}
 	# On a door: always step through so it closes — never wait on the threshold

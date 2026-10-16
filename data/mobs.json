@@ -25,7 +25,7 @@
   "fw": 12,
   "fh": 11,
   "evade_unless_surprise": true,
-  "spd": "HT 4, dmg 1-4; only hit by surprise attacks"
+  "spd": "HT 4, dmg 1-4; melee only by surprise; magic always hits; slips the first bow shot"
  },
  "gnoll": {
   "name": "Gnoll Scout",

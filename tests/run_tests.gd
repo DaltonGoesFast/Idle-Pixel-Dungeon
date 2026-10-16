@@ -1062,14 +1062,33 @@ func test_rooms_surprise(gs) -> void:
 	var hp1: int = sn2.hp
 	c2.hero_tap(sn2.pos)
 	check(sn2.hp == hp1, "snake slips a normal melee hit")
-	# mage bolt also misses without surprise (clear LOS south of the start)
+	# magic never misses a snake (SPD, DECISIONS #172): a starting Mage kills a lone snake with bolts
 	var ms: Dictionary = gs.hero_stats("mage")
 	var c3 := Combat.new(); c3.setup(room, ms, int(ms.ht), ["snake"])
-	c3.hero.pos = Vector2i(1, 5)
-	var sn3 = c3.enemies()[0]; sn3.pos = Vector2i(3, 5); sn3.seen_hero = true
+	var sn3 = c3.enemies()[0]
 	var hp2: int = sn3.hp
+	c3.hero.pos = Vector2i(1, 5); sn3.pos = Vector2i(3, 5); sn3.seen_hero = true
 	c3.hero_bolt(sn3.pos)
-	check(sn3.hp == hp2, "snake slips a wand bolt")
+	check(sn3.hp < hp2, "wand bolt hits a snake without a surprise")
+	var mage_shots := 1
+	while sn3.hp > 0 and c3.hero.hp > 0 and int(c3.hero.charges) > 0 and mage_shots < 10:
+		c3.hero.pos = Vector2i(1, 5); sn3.pos = Vector2i(3, 5); sn3.seen_hero = true
+		c3.hero_bolt(sn3.pos); mage_shots += 1
+	check(sn3.hp <= 0, "starting Mage kills a lone snake with staff bolts")
+	# Spirit Bow: the snake slips the first arrow of the fight, then arrows connect
+	var hu: Dictionary = gs.hero_stats("huntress")
+	var c_hb := Combat.new(); c_hb.setup(room, hu, int(hu.ht), ["snake"])
+	var sn_hb = c_hb.enemies()[0]
+	var hp_hb: int = sn_hb.hp
+	c_hb.hero.pos = Vector2i(1, 5); sn_hb.pos = Vector2i(3, 5); sn_hb.seen_hero = true
+	c_hb.hero_bolt(sn_hb.pos)
+	check(sn_hb.hp == hp_hb, "snake slips the first Spirit Bow arrow")
+	var arrows := 1
+	while sn_hb.hp > 0 and c_hb.hero.hp > 0 and arrows < 10:
+		c_hb.hero.pos = Vector2i(1, 5); sn_hb.pos = Vector2i(3, 5); sn_hb.seen_hero = true
+		c_hb.hero_bolt(sn_hb.pos); arrows += 1
+	check(sn_hb.hp <= 0, "starting Huntress kills a lone snake with the Spirit Bow")
+	check(arrows <= 4, "Huntress needs at most 4 arrows for a snake (%d)" % arrows)
 	# grass blocks sight
 	var c4 := Combat.new(); c4.setup(DB.rooms[0], hs, hs.ht, ["rat"])
 	check(not c4.sees(Vector2i(1, 1), Vector2i(5, 1)), "tall grass at (4,1) blocks sight across the row")

@@ -371,13 +371,17 @@ func hit_hero(raw: int, src: String, pierce := false) -> void:
 		_log("%s falls..." % hero.name)
 		_ev({"t": "die", "uid": hero.uid, "pos": hero.pos})
 
-func hit_mob(m: Dictionary, raw: int, surprise := false, magic := false) -> void:
+func hit_mob(m: Dictionary, raw: int, surprise := false, magic := false, ranged := false) -> void:
 	var dmg: int
 	if surprise: dmg = int(raw * float(hero.surprise_mult))
 	elif magic: dmg = raw
 	else: dmg = maxi(0, raw - int(m.dr))
-	# Snakes (SPD evasion): only a surprise connects; the swing still spends the turn
-	if m.get("evade_unless_surprise", false) and not surprise:
+	# Snakes (SPD evasion): melee only connects on a surprise; magic never misses (SPD);
+	# a bow shot is slipped once per fight, then connects (DECISIONS #172)
+	var snake_slips: bool = m.get("evade_unless_surprise", false) and not surprise and not magic
+	if snake_slips and ranged and m.get("slipped_shot", false): snake_slips = false
+	if snake_slips and ranged: m.slipped_shot = true
+	if snake_slips:
 		_log("%s slips aside!" % m.name)
 		_ev({"t": "hit", "uid": m.uid, "amount": 0, "kind": "block", "pos": m.pos})
 		return
@@ -708,7 +712,7 @@ func hero_bolt(p: Vector2i) -> bool:
 		return true
 	p = at
 	var hp_before := int(u.hp)
-	hit_mob(u, int(hero.bolt.dmg), sur, magic or hero.bolt.get("pierce", false))
+	hit_mob(u, int(hero.bolt.dmg), sur, magic or hero.bolt.get("pierce", false), true)
 	if hero.get("perk", "") == "soul_heal" and magic and hero.hp > 0 and hero.hp < hero.ht:
 		var sh := mini(int(hero.ht) - int(hero.hp), maxi(1, (hp_before - maxi(0, int(u.hp))) / 3))
 		hero.hp += sh; _log("Soul siphon: +%d HP." % sh)

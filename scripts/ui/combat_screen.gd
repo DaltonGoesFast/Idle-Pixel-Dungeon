@@ -146,7 +146,7 @@ func _refresh() -> void:
 	if int(h.get("poison", 0)) > 0: line += "\nPOISONED: -1 HP per turn for %d turns" % int(h.poison)
 	if combat.surprise_now(): line += "\nThey lost sight of you: next attack is a SURPRISE (x%.1f, no DR, knockback)" % float(h.surprise_mult)
 	if combat.enemies().any(func(e): return e.get("evade_unless_surprise", false)):
-		line += "\nSnake: only a Surprise hits (door or circle tall grass)"
+		line += "\nSnake: melee needs a Surprise; magic always hits, bows after the first shot"
 	status.text = line
 	status.visible = not finished
 	_guide_update()

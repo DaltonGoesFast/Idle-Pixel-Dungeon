@@ -16,7 +16,7 @@ static func ability_text(m: Dictionary) -> String:
 		"dking": return "Every %d actions alternates raising the dead (2 marked tiles, Risen Dwarves appear in 2 ticks, only when none are left) and a shadow blast (3x3 on you, 2-tick fuse, %d ignoring DR). While his dwarves live he is lifelinked and takes only 2/3 damage. Below half HP: +3 dmg. Below 1/4: his throne cracks - no more summons. His dwarves crumble when he dies." % [int(m.ability_every), int(m.blast_dmg)]
 		"dm300": return "Every %d actions (%d when supercharged below half HP, +2 DR) alternates rockfall (+ shape on you, 2-tick fuse, %d dmg) and a toxic gas line (1 tick, %d + %d poison)." % [int(m.ability_every), int(m.ability_every_super), int(m.rock_dmg), int(m.gas_dmg), int(m.gas_poison)]
 	var extra := []
-	if m.get("evade_unless_surprise", false): extra.append("Slips every hit that is not a Surprise (close a door behind you or circle tall grass).")
+	if m.get("evade_unless_surprise", false): extra.append("Slips melee hits that are not a Surprise (close a door or circle tall grass). Magic always hits; it slips only the first bow shot.")
 	if m.get("revive", false): extra.append("Rises again once with half HP, 2 ticks after dying - unless it was the last enemy standing.")
 	if m.has("drain"): extra.append("Heals %d when its bite gets through." % int(m.drain))
 	if m.has("drain_over"): extra.append("Heals by the damage its bite deals beyond %d." % int(m.drain_over))
