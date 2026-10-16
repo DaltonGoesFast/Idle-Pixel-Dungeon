@@ -1,6 +1,8 @@
 # Changelog
 
 ## Unreleased
+
+## 0.40.0
 - The "next attack is a SURPRISE" status line only shows when a foe you can hit right now (adjacent, or a clear Spirit Bow shot) has lost sight of you, not whenever any foe is out of sight (+tests).
 - Eleven more vanilla potions and scrolls drop as unknowns: Invisibility, Haste, Levitation, Frost, Paralytic Gas, Liquid Flame, Recharging, Lullaby, Retribution, Terror and Transmutation. Three potions hurt you when drunk blind, so identifying matters more (+tests).
 - Camp item details show artifact stats at their current level, what each level adds, and the level / Desk cap / won-fight progress; the compare window lists artifact stats too (+tests).
