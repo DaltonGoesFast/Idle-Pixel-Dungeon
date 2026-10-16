@@ -161,7 +161,7 @@ func hero_stats(c: String) -> Dictionary:
 	var dmg := int(wd.dmg) + wl * (int(wd.tier) + 1) / 2          # upgrades: +((tier+1)/2) per level
 	if wd.has("dmg_per_levels"): dmg += int(h.level) / int(wd.dmg_per_levels)
 	var dr := int(ad.get("dr", 0)) + al
-	var barrier := int(def.base_barrier) + int(def.heirloom_barrier) + int(ad.get("barrier", 0)) + al
+	var barrier := int(def.base_barrier) + int(def.heirloom_barrier) + int(ad.get("barrier", 0))
 	# Strength gate: each missing point costs 2 damage / 1 DR (SPD-like penalty, deterministic)
 	var str_short := maxi(0, int(wd.get("str", 10)) - int(h.str))
 	dmg = maxi(1, dmg - 2 * str_short)
@@ -215,6 +215,8 @@ func hero_stats(c: String) -> Dictionary:
 		if s.has("bolt"):
 			s.bolt.dmg += int(sub.get("bolt_add", 0))
 			if sub.get("bolt_pierce", false): s.bolt.pierce = true
+	# SPD-like cap (DECISIONS #147): encounter Barrier never exceeds half of max HP
+	s.barrier_max = mini(int(s.barrier_max), int(s.ht) / 2)
 	return s
 
 # ---------------------------------------------------------------- talents (SPD-style tiers, DECISIONS #66)
@@ -577,7 +579,9 @@ func can_upgrade_facility(id: String) -> String:
 
 func upgrade_facility(id: String) -> bool:
 	if can_upgrade_facility(id) != "": return false
+	var id_old := identify_seconds()
 	pay(facility_upgrade_cost(id)); facilities[id].level += 1
+	if id == "enchanter": rescale_identify(id_old, identify_seconds())
 	say("%s upgraded to level %d." % [DB.facilities[id].name, facilities[id].level]); touch(); return true
 
 func apply_sou(id: String) -> bool:
@@ -866,6 +870,31 @@ func enqueue_identify(uid: int) -> bool:
 	id_queue.append({"uid": uid, "ready_at": start + identify_seconds()})
 	touch(); return true
 
+## Every unknown item not already queued, in stash order (Enchanter "Queue all", DECISIONS #145).
+func identify_candidates() -> Array:
+	return gear.filter(func(g): return not g.known and not id_queue.any(func(q): return int(q.uid) == int(g.uid)))
+
+## Queues every candidate. The queue has no size limit (items identify one after another), so this queues them all.
+## Returns how many were queued.
+func enqueue_identify_all() -> int:
+	var n := 0
+	for g in identify_candidates():
+		if enqueue_identify(int(g.uid)): n += 1
+	return n
+
+## Enchanter upgrade: identifications still running finish sooner. Each remaining time (to its absolute ready_at,
+## which already counts the items ahead of it) is scaled by new/old, so the chained queue keeps its order and an
+## item that was 50% done stays 50% done. Items already due are left for tick_identify. ready_at is absolute
+## (now() includes time_offset), so this holds across save/load and offline time.
+func rescale_identify(old_secs: float, new_secs: float) -> void:
+	if old_secs <= 0.0 or is_equal_approx(old_secs, new_secs): return
+	tick_identify()
+	var t := now(); var k := new_secs / old_secs
+	for q in id_queue:
+		var left := float(q.ready_at) - t
+		if left > 0.0: q.ready_at = t + left * k
+	touch()
+
 ## Finishes any identifications whose time has passed. Returns identified uids.
 func tick_identify() -> Array:
 	var done := []
@@ -928,6 +957,21 @@ func collect_patrol(c: String) -> Dictionary:
 	return y
 
 # ---------------------------------------------------------------- expeditions
+## Most rations / torches an expedition may pack: the Guild's `pack_cap` for its level (DECISIONS #144).
+func guild_pack_cap(lvl := -1) -> int:
+	var caps: Array = DB.facilities.guild.get("pack_cap", [10])
+	if lvl < 0: lvl = facility_level("guild")
+	return int(caps[clampi(lvl - 1, 0, caps.size() - 1)])
+
+## Pack limit for one supply, before the stash count: belt size for potions, 1 Passage, the Guild cap for
+## rations/torches, 10 for anything else.
+func supply_cap(k: String) -> int:
+	match k:
+		"potion_healing": return belt_size()
+		"scroll_passage": return 1
+		"ration", "torch": return guild_pack_cap()
+	return 10
+
 func belt_size() -> int:
 	return facility_level("alchemy") + 1
 
@@ -947,8 +991,7 @@ func start_run(c: String, loadout: Dictionary, biome := "sewers", seed := -1) ->
 		say("The Camp cook spares you a ration and a torch.", "positive")
 	var sup := {}
 	for k in SUPPLY_KEYS:
-		var n := mini(int(loadout.get(k, 0)), mat(k))
-		if k == "potion_healing": n = mini(n, belt_size())
+		var n := mini(mini(int(loadout.get(k, 0)), mat(k)), supply_cap(k))
 		sup[k] = n; add_mat(k, -n)
 	var s := hero_stats(c)
 	var f0 := int(DB.biomes[biome].floors[0])

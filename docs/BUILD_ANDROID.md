@@ -14,13 +14,12 @@
 3. Project > Export > Android > Export Project (debug) or run `tools/build.sh`.
 
 ## Preset notes (`export_presets.cfg`)
-- arm64-v8a only, `screen/immersive_mode=true`, `edge_to_edge=true`, orientation **sensor** (project setting `display/window/handheld/orientation=6`).
-- Gradle build **on** (still the official engine template — `custom_template/*` stays empty; see DECISIONS.md #2 and #135). Needed so the `apk_install` editor plugin can add `REQUEST_INSTALL_PACKAGES` for the in-game updater.
+- **Preset (`export_presets.cfg`):** `preset.0` (`Android`), arm64-v8a only, `screen/immersive_mode=true`, `edge_to_edge=true`, orientation **sensor** (project setting `display/window/handheld/orientation=6`). Gradle build **on** (`gradle_build/use_gradle_build=true` — still the official engine template; `custom_template/*` stays empty; see DECISIONS.md #2, #135, #140). `tools/build.sh` unpacks `android_source.zip` into `android/build/` and writes `android/.build_version` (`4.7.2.stable`) and `android/build/.gdignore` when needed.
 - `include_filter="data/*.json"` is required: JSON isn't a Godot resource and is otherwise left out of the pack.
 - Bump `version/code` (integer, must increase) and `version/name` for every release. Keep the iOS preset's `application/short_version` and `application/version` in step with those (see `docs/BUILD_IOS.md`).
 
 ## Installing
-Sideload: copy the APK to the phone and open it (allow "install unknown apps"), or `adb install -r builds/spd-tactics-vX.apk`. Builds are signed with the same debug key, so updates install over each other. A release build needs a real keystore (Project > Export > Release keystore) and `--export-release`.
+Sideload: copy the APK to the phone and open it (allow "install unknown apps"), or `adb install -r builds/spd-tactics-vX.apk`. Updates only install over each other when they are signed with the same key. `tools/verify_apk.sh` fails any APK whose certificate differs from `tools/release_cert.sha256`, the certificate of the published releases (DECISIONS #141). Releases v0.27.0+ use the Godot-generated debug key (`c18cebfa…`). The box's `~/Android/debug.keystore` (`73a874e9…`) only matches v0.26.0. A release build needs a real keystore (Project > Export > Release keystore) and `--export-release`.
 
 From a build that already has the updater: Camp / Settings → Update downloads the latest GitHub release APK and opens Android's Install screen. SPD Tactics needs "Install unknown apps" allowed for that flow.
 

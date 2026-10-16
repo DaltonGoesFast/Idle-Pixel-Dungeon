@@ -144,6 +144,11 @@ static func room_pool(run: Dictionary) -> Array:
 		_:
 			return DB.rooms + own
 
+## True for the 10x10 / 12x12 maps (anything wider or taller than the classic 8x8).
+static func is_large_room(room: Array) -> bool:
+	if room.is_empty(): return false
+	return room.size() > Combat.SIZE or String(room[0]).length() > Combat.SIZE
+
 ## Digit spawn slots (1-8) in a room map. Boss marker B counts as one slot.
 static func room_slot_count(room: Array) -> int:
 	var n := 0
@@ -180,8 +185,10 @@ static func _room_ch(room: Array, x: int, y: int) -> String:
 static func _room_open(ch: String) -> bool:
 	return ch != "#" and ch != "_"
 
-## Repeat the encounter's own mobs until every spawn slot is filled (large rooms only grow this way).
+## Repeat the encounter's own mobs until every spawn slot is filled. Only rooms larger than 8x8
+## grow this way; an 8x8 keeps the rolled encounter as is (a lone crab stays one crab, DECISIONS #137).
 static func fill_mobs(mobs: Array, room: Array) -> Array:
+	if not is_large_room(room): return mobs
 	var need := room_slot_count(room)
 	if need <= mobs.size() or mobs.is_empty(): return mobs
 	var out: Array = mobs.duplicate()
@@ -198,8 +205,8 @@ static func new_combat(gs, ev: Dictionary) -> Combat:
 	c.setup(ev.room, gs.hero_stats(run.hero), int(run.hp), ev.mobs, darkness(run), biome(run).get("traps", []))
 	run.fighting_goo = "goo" in ev.mobs
 	if run.fighting_goo: _weaken_goo(gs, c)
-	if int(run.get("shield_next", 0)) > 0:   # Potion of Shielding
-		c.hero.barrier = int(c.hero.barrier) + int(run.shield_next); run.shield_next = 0
+	if int(run.get("shield_next", 0)) > 0:   # Potion of Shielding (SPD-like cap: Barrier <= max HP)
+		c.hero.barrier = mini(int(c.hero.ht), int(c.hero.barrier) + int(run.shield_next)); run.shield_next = 0
 		c._log("Your shield shimmers: +Barrier.")
 	return c
 

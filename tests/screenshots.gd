@@ -168,6 +168,9 @@ func _ready() -> void:
 			GameState.start_run("huntress", {}, "sewers", 9); main.show_delve(); main.delve.running = false
 			main.start_combat(Delve.combat_event(GameState.run, Delve.rng_for(GameState.run, 4), ["crab", "rat"]), func(_r): pass)
 			for i in 2: main.screen._do_bot()])
+		plan.append([sz, "combat_bag", func():
+			for id in ["mace", "leather_armor", "ring_wealth"]: GameState.run.pack_gear.append({"uid": 9100 + GameState.run.pack_gear.size(), "id": id, "lvl": 0, "cracked": false, "known": false, "owned": false})
+			main.screen.bag_open = true; main.screen._refresh()])
 		plan.append([sz, "prison", func():
 			GameState.run.biome = "prison"; GameState.run.floor = 7
 			main.start_combat({"kind": "combat", "room": DB.biome_rooms.prison[0], "mobs": ["guard", "dm100", "skeleton"]}, func(_r): pass)

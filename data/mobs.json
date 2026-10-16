@@ -194,9 +194,9 @@
   "sprite": "bat",
   "fw": 15,
   "fh": 15,
-  "drain": 2,
-  "spd": "HT 30, dmg 5-18, DR 0-4, speed 2x, heals on hit",
-  "tuned": "HT 24, dmg 11->5 (it attacks twice per tick), heals 2 on a hit that gets through"
+  "drain_over": 2,
+  "spd": "HT 30, dmg 5-18, DR 0-4, speed 2x, heals (damage dealt - 4) on hit",
+  "tuned": "HT 24, dmg 11->6 (it attacks twice per tick), heals (damage dealt - 2) like SPD's (dealt - 4)"
  },
  "brute": {
   "name": "Gnoll Brute",

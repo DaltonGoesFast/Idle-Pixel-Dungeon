@@ -266,17 +266,31 @@ static func icon_row(id: String, text: String, scale := 1.0) -> HBoxContainer:
 
 ## Compact resource chip for wrapping rows: icon vertically centred, number right after it (DECISIONS #76).
 ## `icon_px` overrides the default item-icon size (passed through to icon()).
+## A one-line label for flow rows and chip strips. A wrapping Label inside an HFlowContainer (or a non-expanding
+## HBox slot) gets a minimum width of ~0, wraps after every letter, and stretches its card tall (DECISIONS #146).
+static func chip_label(text: String, scale := 0.85, color := Color.WHITE) -> Label:
+	var l := label(text, scale, color)
+	l.autowrap_mode = TextServer.AUTOWRAP_OFF
+	l.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	return l
+
+## Labels that will collapse to one letter per line: wrapping, and in a parent that gives them no width of their own.
+static func collapsing_labels(root: Node) -> Array:
+	var out := []
+	for l in root.find_children("*", "Label", true, false):
+		if l.autowrap_mode == TextServer.AUTOWRAP_OFF or not l.is_visible_in_tree() or l.text.strip_edges().length() < 2: continue
+		var p := l.get_parent()
+		if p is HFlowContainer or (p is HBoxContainer and not (l.size_flags_horizontal & Control.SIZE_EXPAND)):
+			out.append(l)
+	return out
+
 static func res_chip(id: String, text: String, scale := 0.85, icon_px := -1) -> HBoxContainer:
 	var h := HBoxContainer.new()
 	h.add_theme_constant_override("separation", maxi(2, px_scale))
 	h.alignment = BoxContainer.ALIGNMENT_BEGIN
 	var ic := icon(id, icon_px); ic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	h.add_child(ic)
-	var l := label(text, scale)
-	l.autowrap_mode = TextServer.AUTOWRAP_OFF
-	l.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-	l.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	var l := label(text, scale); l.autowrap_mode = TextServer.AUTOWRAP_OFF; l.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	h.add_child(l)
 	return h
 

@@ -8,6 +8,8 @@ const REPO := "DaltonGoesFast/spd-tactics-builds"
 const API_URL := "https://api.github.com/repos/%s/releases/latest" % REPO
 const USER_AGENT := "SPD-Tactics-Updater"
 const UPDATE_DIR := "user://updates"
+const CHECK_TIMEOUT := 20.0      # the releases/latest JSON is small; don't sit on "Checking…" for minutes
+const DOWNLOAD_TIMEOUT := 600.0  # the APK / zip is tens of MB
 
 enum State { IDLE, CHECKING, READY, DOWNLOADING, DONE, ERROR }
 
@@ -26,7 +28,7 @@ var _poll_left := 0.0
 
 func _ready() -> void:
 	_http = HTTPRequest.new()
-	_http.timeout = 600
+	_http.timeout = DOWNLOAD_TIMEOUT
 	_http.max_redirects = 8
 	_http.use_threads = true
 	add_child(_http)
@@ -68,23 +70,25 @@ static func local_version() -> String:
 	return normalize_version(String(ProjectSettings.get_setting("application/config/version", "0")))
 
 ## Pick the release asset for this platform. Returns {name, url} or {}.
-static func pick_asset(assets: Array, version: String, suffix: String) -> Dictionary:
-	if suffix == "":
+## `assets` comes straight from the API JSON, so anything that is not an Array of
+## {name: String, browser_download_url: String} is skipped instead of raising a script error.
+static func pick_asset(assets, version: String, suffix: String) -> Dictionary:
+	if suffix == "" or typeof(assets) != TYPE_ARRAY:
 		return {}
 	var want := "spd-tactics-v%s%s" % [normalize_version(version), suffix]
+	var fallback := {}
 	for a in assets:
 		if typeof(a) != TYPE_DICTIONARY:
 			continue
-		var name := String(a.get("name", ""))
+		var name = a.get("name", "")
+		var url = a.get("browser_download_url", "")
+		if typeof(name) != TYPE_STRING or typeof(url) != TYPE_STRING or url == "":
+			continue
 		if name == want:
-			return {"name": name, "url": String(a.get("browser_download_url", ""))}
-	for a in assets:
-		if typeof(a) != TYPE_DICTIONARY:
-			continue
-		var name := String(a.get("name", ""))
-		if name.ends_with(suffix) and name.begins_with("spd-tactics"):
-			return {"name": name, "url": String(a.get("browser_download_url", ""))}
-	return {}
+			return {"name": name, "url": url}
+		if fallback.is_empty() and name.ends_with(suffix) and name.begins_with("spd-tactics"):
+			fallback = {"name": name, "url": url}
+	return fallback
 
 func has_update() -> bool:
 	return state == State.READY or state == State.DOWNLOADING or (state == State.DONE and remote_version != "")
@@ -97,6 +101,7 @@ func check_now() -> void:
 		return
 	_mode = "check"
 	_set_state(State.CHECKING, "Checking…")
+	_http.timeout = CHECK_TIMEOUT
 	var err := _http.request(API_URL, ["User-Agent: %s" % USER_AGENT, "Accept: application/vnd.github+json"])
 	if err != OK:
 		_set_state(State.ERROR, "No network")
@@ -120,6 +125,7 @@ func _begin_download() -> void:
 	if FileAccess.file_exists(local_path):
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(local_path))
 	_http.download_file = local_path
+	_http.timeout = DOWNLOAD_TIMEOUT
 	_mode = "download"
 	progress = 0.0
 	_poll_left = 0.0
@@ -154,14 +160,24 @@ func _on_http(result: int, code: int, _headers: PackedStringArray, body: PackedB
 		_finish_download(result, code)
 
 func _finish_check(result: int, code: int, body: PackedByteArray) -> void:
-	if result != HTTPRequest.RESULT_SUCCESS or code != 200:
+	if result != HTTPRequest.RESULT_SUCCESS:
 		_set_state(State.ERROR, "No network")
 		return
-	var parsed = JSON.parse_string(body.get_string_from_utf8())
+	if code != 200:
+		_set_state(State.ERROR, "Check failed (HTTP %d)" % code)
+		return
+	# Every bad body must land in ERROR: a script error here would leave the state on CHECKING,
+	# and check_now() refuses to run again while CHECKING (stuck until the app restarts).
+	var json := JSON.new()
+	var parsed = json.data if json.parse(body.get_string_from_utf8()) == OK else null
 	if typeof(parsed) != TYPE_DICTIONARY:
-		_set_state(State.ERROR, "No network")
+		_set_state(State.ERROR, "Bad reply from GitHub")
 		return
-	var tag := String(parsed.get("tag_name", ""))
+	var tag_v = parsed.get("tag_name", "")
+	if typeof(tag_v) != TYPE_STRING:
+		_set_state(State.ERROR, "Bad reply from GitHub")
+		return
+	var tag: String = tag_v
 	var ver := normalize_version(tag)
 	if ver == "":
 		_set_state(State.ERROR, "No matching file")

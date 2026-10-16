@@ -17,7 +17,10 @@ func _ready() -> void:
 	ss.path = "user://test_save.json"
 	gs.new_game()
 	test_rules(gs)
+	test_barrier_spd(gs)
+	test_bat_drain(gs)
 	test_status_pane_layout(gs)
+	test_combat_bag_fits(gs)
 	test_balance(gs)
 	test_boss(gs)
 	test_traps(gs)
@@ -50,6 +53,12 @@ func _ready() -> void:
 	test_food_sources(gs)
 	test_facility_cap(gs)
 	test_crate_slot(gs)
+	test_max_all_supplies(gs)
+	test_guild_pack_cap(gs)
+	test_identify_queue_all(gs)
+	test_blind_shots(gs)
+	await test_guided_surprise_tip(gs)
+	test_no_collapsing_labels(gs)
 	await test_delve_chips(gs)
 	test_owed_sou(gs)
 	await test_icon_sizes(gs)
@@ -72,6 +81,9 @@ func _ready() -> void:
 	test_talents(gs)
 	test_backpack(gs)
 	test_updater()
+	test_export_presets()
+	test_build_script_android_template()
+	test_release_cert_pin()
 	await test_touch_scroll()
 	await test_tip_fit()
 	print("TESTS: %d passed, %d failed -> %s" % [passes, fails, "PASS" if fails == 0 else "FAIL"])
@@ -242,6 +254,7 @@ func test_fullrun(gs) -> void:
 			for c in gs.heroes: gs.heroes[c].unlocked = true
 			gs.add_mat("potion_healing", 2); gs.add_mat("ration", 4); gs.add_mat("torch", 6); gs.facilities.alchemy.level = 3
 			_kit_tier2(gs, cls)
+			gs.facilities.guild.level = 3   # late-game pack cap 10 (DECISIONS #144)
 			var r := RunSim.play(gs, cls, {"ration": 6, "torch": 8, "potion_healing": 4}, 2000 + seed, true, "prison")
 			if r.result == "extract" and r.biome == "prison": wins += 1
 			else: deaths.append("f%d" % r.floor)
@@ -407,6 +420,7 @@ func test_city(gs) -> void:
 			var hh: Dictionary = gs.heroes[cls]
 			hh.level = 12; hh.str = 16; hh.mask = true; hh.subclass = DB.heroes[cls].subclasses.keys()[0]
 			hh.armor = gs.add_gear("scale_armor", true, 1); hh.weapon = gs.add_gear("longsword", true, 1)
+			gs.facilities.guild.level = 3   # late-game pack cap 10 (DECISIONS #144)
 			var rr := RunSim.play(gs, cls, {"ration": 8, "torch": 9, "potion_healing": 5}, 5000 + seed, true, "city")
 			if rr.result == "extract" and rr.biome == "city": cw += 1
 			else: ends.append("f%d L%d" % [rr.floor, rr.level])
@@ -496,6 +510,7 @@ func test_cavesrun(gs) -> void:
 			h.armor = gs.add_gear("mail_armor", true, 1)
 			if cls in ["warrior", "huntress"]: h.weapon = gs.add_gear("mace", true, 1)
 			elif cls == "rogue": h.weapon = gs.add_gear("dagger", true, 3)
+			gs.facilities.guild.level = 3   # late-game pack cap 10 (DECISIONS #144)
 			var r := RunSim.play(gs, cls, {"ration": 8, "torch": 9, "potion_healing": 5}, 3000 + seed, true, "caves")
 			if r.result == "extract" and r.biome == "caves": wins += 1
 			else: ends.append("f%d L%d" % [r.floor, r.level])
@@ -941,6 +956,21 @@ func test_rooms_surprise(gs) -> void:
 	check(Delve.fill_mobs(["rat", "snake"], small).size() == 2, "8x8 fill keeps encounter length")
 	var need := Delve.room_slot_count(big)
 	check(Delve.fill_mobs(["rat", "snake"], big).size() == need and need >= 2, "12x12 fill repeats the set")
+	# 8x8 rooms never grow an encounter, whatever their slot count (a lone crab stays one crab, DECISIONS #137)
+	var grew := 0
+	for rm8 in DB.rooms + DB.biome_rooms.get("sewers", []):
+		if Delve.fill_mobs(["crab"], rm8).size() != 1 or Delve.fill_mobs(["statue"], rm8).size() != 1: grew += 1
+	check(grew == 0, "8x8 rooms keep single-mob encounters single")
+	var rng8 := RandomNumberGenerator.new(); rng8.seed = 137
+	var crab_ok := true
+	for i in 30:
+		var ev8: Dictionary = Delve.combat_event({"biome": "sewers", "floor": 2}, rng8, ["crab"])
+		if ev8.mobs.size() != 1: crab_ok = false
+	check(crab_ok, "Sewers crab encounter spawns one crab")
+	# a large room with more slots than mobs still repeats the set
+	var big4 := ["##########", "#H.......#", "#........#", "#....1...#", "#........#", "#...2....#", "#........#", "#.....3..#", "#.4......#", "##########"]
+	check(Delve.is_large_room(big4) and not Delve.is_large_room(small), "10x10 is large, 8x8 is not")
+	check(Delve.fill_mobs(["rat"], big4) == ["rat", "rat", "rat", "rat"], "large room fills every slot")
 	# snake fights only roll rooms with a door
 	var rng := RandomNumberGenerator.new(); rng.randomize()
 	for i in 20:
@@ -1703,6 +1733,75 @@ func test_updater() -> void:
 	check(zip.get("name") == "spd-tactics-v0.29.0-windows.zip", "picks Windows zip asset")
 	check(Updater.pick_asset(assets, "0.29.0", "").is_empty(), "unsupported platform picks nothing")
 	check(Updater.local_version() != "", "local version comes from project settings")
+	# bad or odd API replies never raise and never leave the updater stuck on CHECKING (DECISIONS #138)
+	var saved_state: int = Updater.state; var saved_text: String = Updater.status_text
+	var stuck := 0
+	for body in ['{"tag_name":"v0.29.0","assets":null}', '{"tag_name":"v0.29.0","assets":"x"}', '{"tag_name":"v0.29.0","assets":{"a":1}}',
+			'{"tag_name":null,"assets":[]}', '{"tag_name":29}', '[]', 'not json', '', '{"message":"API rate limit exceeded"}']:
+		Updater.state = Updater.State.CHECKING
+		Updater._finish_check(HTTPRequest.RESULT_SUCCESS, 200, String(body).to_utf8_buffer())
+		if Updater.state == Updater.State.CHECKING: stuck += 1
+	check(stuck == 0, "malformed release JSON ends in an error state, not Checking")
+	Updater.state = Updater.State.CHECKING
+	Updater._finish_check(HTTPRequest.RESULT_SUCCESS, 403, PackedByteArray())
+	check(Updater.state == Updater.State.ERROR and Updater.status_text.contains("403"), "HTTP error code is reported, not shown as No network")
+	Updater.state = Updater.State.CHECKING
+	Updater._finish_check(HTTPRequest.RESULT_CANT_RESOLVE, 0, PackedByteArray())
+	check(Updater.state == Updater.State.ERROR and Updater.status_text == "No network", "no network ends the check")
+	check(Updater.pick_asset(null, "0.29.0", ".apk").is_empty() and Updater.pick_asset("x", "0.29.0", ".apk").is_empty(), "non-array assets pick nothing")
+	check(Updater.pick_asset([5, {"name": null}, {"name": "spd-tactics-v0.29.0.apk", "browser_download_url": null}], "0.29.0", ".apk").is_empty(), "assets with null name/url are skipped")
+	check(Updater.CHECK_TIMEOUT <= 30.0 and Updater.DOWNLOAD_TIMEOUT >= 300.0, "short timeout for the check, long one for the download")
+	Updater.state = saved_state; Updater.status_text = saved_text
+
+## DECISIONS #136: iOS export preset must not inject a second ITSAppUsesNonExemptEncryption into Info.plist,
+## and Android/iOS/project.godot versions stay in lockstep.
+func test_export_presets() -> void:
+	print("[export presets]")
+	var cfg := ConfigFile.new()
+	check(cfg.load("res://export_presets.cfg") == OK, "export_presets.cfg loads")
+	var pver := String(ProjectSettings.get_setting("application/config/version", ""))
+	var found_android := false; var found_ios := false
+	for s in cfg.get_sections():
+		if s.ends_with(".options"): continue
+		var plat := String(cfg.get_value(s, "platform", ""))
+		var opt := s + ".options"
+		if plat == "Android":
+			found_android = true
+			check(String(cfg.get_value(opt, "version/name", "")) == pver, "Android version/name matches project.godot (%s)" % pver)
+			check(bool(cfg.get_value(opt, "gradle_build/use_gradle_build", false)), "Android uses Gradle build (required by addons/apk_install)")
+		elif plat == "iOS":
+			found_ios = true
+			check(String(cfg.get_value(opt, "application/short_version", "")) == pver, "iOS short_version matches project.godot (%s)" % pver)
+			check(String(cfg.get_value(opt, "application/version", "")) == str(cfg.get_value("preset.0.options", "version/code", "")), "iOS CFBundleVersion matches Android version/code")
+			var extra := String(cfg.get_value(opt, "application/additional_plist_content", ""))
+			check(not extra.contains("ITSAppUsesNonExemptEncryption"), "iOS additional_plist_content does not duplicate ITSAppUsesNonExemptEncryption (Godot 4.6+ writes it from app_store_compliance/uses_non_exempt_encryption)")
+	check(found_android and found_ios, "both Android and iOS presets exist")
+
+## DECISIONS #140: Godot's Gradle export checks res://android/.build_version before running Gradle;
+## tools/build.sh must write it alongside android/build when unpacking android_source.zip.
+func test_build_script_android_template() -> void:
+	print("[build.sh android template]")
+	var f := FileAccess.open("res://tools/build.sh", FileAccess.READ)
+	check(f != null, "tools/build.sh exists")
+	var sh := f.get_as_text() if f else ""
+	check(sh.contains("android/.build_version"), "build.sh ensures android/.build_version exists for Gradle export")
+	check(sh.contains("android/build/.gdignore"), "build.sh writes android/build/.gdignore so Godot does not import the Gradle tree")
+
+## DECISIONS #141: verify_apk.sh pins the release signing certificate so in-place updates keep working.
+func test_release_cert_pin() -> void:
+	print("[release cert pin]")
+	var f := FileAccess.open("res://tools/release_cert.sha256", FileAccess.READ)
+	check(f != null, "tools/release_cert.sha256 exists")
+	if f == null: return
+	var digest := ""
+	for line in f.get_as_text().split("\n"):
+		var l := String(line).strip_edges()
+		if l != "" and not l.begins_with("#"): digest = l; break
+	var hex := RegEx.create_from_string("^[0-9a-f]{64}$")
+	check(hex.search(digest) != null, "release cert pin is one lowercase SHA-256 (%s)" % digest)
+	var v := FileAccess.open("res://tools/verify_apk.sh", FileAccess.READ)
+	var sh := v.get_as_text() if v else ""
+	check(sh.contains("release_cert.sha256") and sh.contains("SIGNING KEY MISMATCH") and sh.contains("ALLOW_NEW_SIGNING_KEY"), "verify_apk.sh fails on a different signing certificate (with an explicit override)")
 
 ## Log lines carry SPD colours; key moments are logged; the alarm sound is never played.
 func test_log_and_sounds(gs) -> void:
@@ -1862,6 +1961,236 @@ func _slot_texts(slot: Control) -> Array:
 	var t := []
 	for l in slot.find_children("*", "Label", true, false): t.append(String(l.text))
 	return t
+
+## DECISIONS #142: Expedition Supplies header "Max all" fills every row to its own max and is off once they all are.
+func _btn_named(root: Node, nm: String) -> Button:
+	for b in (root.win_layer if root.win_layer else root).find_children(nm, "Button", true, false):
+		if not b.is_queued_for_deletion(): return b
+	return null
+
+func test_max_all_supplies(gs) -> void:
+	print("[max all supplies]")
+	gs.new_game()
+	gs.mats.ration = 14; gs.mats.torch = 3; gs.mats.potion_healing = 9; gs.mats.scroll_passage = 0
+	gs.facilities.guild.level = 3   # pack cap 10 (DECISIONS #144)
+	var cs = load("res://scripts/ui/camp_screen.gd").new(); add_child(cs)
+	var caps: Dictionary = cs.supply_max()
+	check(caps.ration == 10 and caps.torch == 3 and caps.potion_healing == gs.belt_size() and caps.scroll_passage == 0, "supply max = stash capped per row (%s)" % [caps])
+	cs.open_page("Delve")
+	var b := _btn_named(cs, "MaxAll")
+	check(b != null and not b.disabled, "Supplies header has an enabled Max all button")
+	if b: b.pressed.emit()
+	check(cs.loadout.ration == 10 and cs.loadout.torch == 3 and cs.loadout.potion_healing == gs.belt_size() and cs.loadout.scroll_passage == 0, "Max all sets every supply to its max (%s)" % [cs.loadout])
+	var b2 := _btn_named(cs, "MaxAll")
+	check(b2 != null and b2.disabled and cs.supplies_all_max(), "Max all is disabled when everything is already at max (%s %s %s)" % [b2 != null and b2.disabled, cs.loadout, cs.supply_max()])
+	cs.loadout.torch = 1; cs.close_page(); cs.open_page("Delve")
+	var b3 := _btn_named(cs, "MaxAll")
+	check(b3 != null and not b3.disabled, "lowering one supply re-enables Max all")
+	cs.close_page(); cs.queue_free()
+
+## DECISIONS #144: rations/torches per expedition are capped by Guild level (3/6/10); the Supplies rows, Max all and
+## start_run all use GameState.supply_cap.
+func test_guild_pack_cap(gs) -> void:
+	print("[guild pack cap]")
+	gs.new_game(); gs.mats.ration = 20; gs.mats.torch = 20
+	var want := [3, 6, 10]
+	for lvl in [1, 2, 3]:
+		gs.facilities.guild.level = lvl
+		check(gs.supply_cap("ration") == want[lvl - 1] and gs.supply_cap("torch") == want[lvl - 1], "Guild Lv%d packs up to %d rations/torches" % [lvl, want[lvl - 1]])
+	check(gs.supply_cap("potion_healing") == gs.belt_size() and gs.supply_cap("scroll_passage") == 1, "potion and Passage caps unchanged")
+	gs.facilities.guild.level = 1
+	var cs = load("res://scripts/ui/camp_screen.gd").new(); add_child(cs)
+	cs.open_page("Delve")
+	check(cs.supply_max().ration == 3 and cs.supply_max().torch == 3, "Supplies rows show max 3 at Guild Lv1")
+	var hint = cs.win_layer.find_child("GuildCapHint", true, false)
+	check(hint != null and String(hint.text).contains("Upgrade Guild") and String(hint.text).contains("Lv2: 6"), "Supplies shows the Guild cap and how to raise it (%s)" % (hint.text if hint else "none"))
+	cs.max_all_supplies()
+	check(cs.loadout.ration == 3 and cs.loadout.torch == 3, "Max all stops at the Guild cap")
+	cs.close_page(); gs.facilities.guild.level = 3; cs.open_page("Delve")
+	check(cs.win_layer.find_child("GuildCapHint", true, false) == null, "no upgrade hint at Guild max level")
+	cs.close_page(); cs.queue_free()
+	gs.facilities.guild.level = 1
+	check(gs.start_run("warrior", {"ration": 10, "torch": 10}, "sewers", 3), "run starts")
+	check(int(gs.run.supplies.ration) == 3 and int(gs.run.supplies.torch) == 3 and gs.mat("ration") == 17, "start_run packs no more than the cap; the rest stays in the stash")
+	gs.end_run("abandon")
+
+## DECISIONS #145: Enchanter "Queue all", and an Enchanter upgrade shortens identifications already running.
+func test_identify_queue_all(gs) -> void:
+	print("[identify queue all]")
+	gs.new_game(); gs.time_offset = 0.0
+	var a: int = gs.add_gear("ring_wealth", false); var b: int = gs.add_gear("ring_evasion", false); var c: int = gs.add_gear("ring_might", false)
+	gs.enqueue_identify(a)
+	check(gs.identify_candidates().size() == 2, "candidates skip known and already-queued items")
+	var cs = load("res://scripts/ui/camp_screen.gd").new(); add_child(cs)
+	cs.open_page("Enchanter")
+	var qa = null
+	for n in cs.win_layer.find_children("QueueAll", "Button", true, false): qa = n
+	check(qa != null and not qa.disabled, "Queue all is enabled with unknown items")
+	if qa: qa.pressed.emit()
+	check(gs.id_queue.size() == 3 and gs.identify_candidates().is_empty(), "Queue all queues every unknown item (%d queued)" % gs.id_queue.size())
+	qa = null
+	for n in cs.win_layer.find_children("QueueAll", "Button", true, false): qa = n
+	check(qa != null and qa.disabled, "Queue all is disabled when nothing is left to queue")
+	cs.close_page(); cs.queue_free()
+	check(gs.enqueue_identify_all() == 0, "Queue all with nothing to queue is a no-op")
+	# Upgrade mid-identification: 600 s each at Lv1, chained a=600 b=1200 c=1800. After 300 s, upgrade to Lv2 (420 s).
+	var s1: float = gs.identify_seconds()
+	gs.time_offset += 300.0
+	var t0: float = gs.now()
+	var left0 := []
+	for q in gs.id_queue: left0.append(float(q.ready_at) - t0)
+	gs.mats.gold = 10000; gs.facilities.enchanter.cap = 3
+	var cost: Dictionary = gs.facility_upgrade_cost("enchanter"); for k in cost: gs.mats[k] = int(cost[k]) + 100
+	check(gs.upgrade_facility("enchanter"), "Enchanter upgrades")
+	var k: float = gs.identify_seconds() / s1
+	var ok := true
+	for i in gs.id_queue.size():
+		ok = ok and absf((float(gs.id_queue[i].ready_at) - t0) - left0[i] * k) < 0.5
+	check(ok and k < 1.0, "upgrade scales every remaining time by new/old (%.2f): %s -> %s" % [k, left0, gs.id_queue.map(func(q): return snappedf(float(q.ready_at) - t0, 0.1))])
+	# save/load keeps the rescaled timers; offline time then finishes them on schedule
+	var d: Dictionary = JSON.parse_string(JSON.stringify(gs.to_dict()))
+	gs.from_dict(d)
+	check(absf(float(gs.id_queue[0].ready_at) - (t0 + left0[0] * k)) < 0.5, "rescaled timer survives save/load")
+	gs.time_offset += left0[0] * k + 1.0
+	var done: Array = gs.tick_identify()
+	check(done.size() == 1 and int(done[0]) == a, "after offline time the first item is done exactly at its shortened time")
+	# an item already due is not pushed back by an upgrade
+	gs.time_offset += 100000.0
+	gs.facilities.enchanter.cap = 3
+	cost = gs.facility_upgrade_cost("enchanter"); for k2 in cost: gs.mats[k2] = int(cost[k2]) + 100
+	gs.upgrade_facility("enchanter")
+	check(gs.id_queue.is_empty() and gs.gear_by_uid(c).known, "items that finished offline are identified, not rescaled")
+	gs.time_offset = 0.0
+
+## DECISIONS #149: bows/wands aim at tiles (SPD Ballistica); shots pass tall grass, stop at bodies, walls, closed doors.
+func test_blind_shots(gs) -> void:
+	print("[blind shots]")
+	var room := ["########", "#H.\"\"..#", "#......#", "#......#", "#......#", "#......#", "#.....1#", "########"]
+	var hu: Dictionary = gs.hero_stats("huntress")
+	var c := Combat.new(); c.setup(room, hu, int(hu.ht), ["rat"])
+	var rat = c.enemies()[0]; rat.next = 999.0
+	c._place(rat, Vector2i(4, 1))   # hidden in the second grass tile
+	check(not c.sees(c.hero.pos, rat.pos), "the rat in tall grass is out of sight")
+	check(c.can_bolt(Vector2i(4, 1)) and c.can_bolt(Vector2i(6, 4)), "the bow can aim at any tile in range, seen or not")
+	check(not c.can_bolt(Vector2i(0, 0)) and not c.can_bolt(c.hero.pos), "walls and the hero's own tile are not aims")
+	var hp0 := int(rat.hp)
+	check(c.hero_tap(Vector2i(4, 1)), "tapping an unseen tile shoots (time passes)")
+	check(int(rat.hp) < hp0, "the arrow flies through tall grass and hits the hidden rat (%d -> %d)" % [hp0, rat.hp])
+	var log_n := c.log_lines.size()
+	check(c.hero_tap(Vector2i(2, 4)), "a shot at an empty tile still takes the turn")
+	check("\n".join(c.log_lines.slice(log_n)).contains("hits nothing"), "an empty tile wastes the shot")
+	# bodies block: a rat in front takes the arrow aimed past it
+	var c2 := Combat.new(); c2.setup(room, hu, int(hu.ht), ["rat", "rat"])
+	var a = c2.enemies()[0]; var b = c2.enemies()[1]; a.next = 999.0; b.next = 999.0
+	c2._place(a, Vector2i(3, 1)); c2._place(b, Vector2i(5, 1))
+	check(c2.bolt_victim(Vector2i(5, 1)) == a, "the first body on the line takes the shot")
+	# a closed door stops shots
+	var room3 := ["########", "#H.+...#", "#####..#", "#......#", "#......#", "#......#", "#.....1#", "########"]
+	var c3 := Combat.new(); c3.setup(room3, hu, int(hu.ht), ["rat"])
+	check(c3.bolt_impact(Vector2i(5, 1)) == Vector2i(2, 1), "a closed door stops the arrow in front of it")
+	# wand bolts fly past the aimed tile until they hit something
+	var ms: Dictionary = gs.hero_stats("mage")
+	var c4 := Combat.new(); c4.setup(room, ms, int(ms.ht), ["rat"])
+	var r4 = c4.enemies()[0]; r4.next = 999.0; c4._place(r4, Vector2i(5, 1))
+	check(c4.bolt_victim(Vector2i(3, 1)) == r4, "a wand bolt aimed short of a hidden foe keeps going and hits it")
+	# last-known position survives save/load; the bot takes a blind shot there
+	var c5 := Combat.new(); c5.setup(room, hu, int(hu.ht), ["rat"])
+	var r5 = c5.enemies()[0]; r5.next = 999.0
+	c5._place(r5, Vector2i(2, 3)); c5._note_sightings()
+	c5._place(r5, Vector2i(4, 1))   # slips into the grass
+	var d: Dictionary = JSON.parse_string(JSON.stringify(c5.to_dict())); var c6 := Combat.new(); c6.from_dict(d)
+	var r6 = c6.enemies()[0]
+	check(r6.has("last_seen") and int(r6.last_seen[0]) == 2 and int(r6.last_seen[1]) == 3, "last-seen position survives save/load")
+	r6.last_seen = [4, 1]
+	var sug: Dictionary = CombatBot.suggest(c6)
+	check(sug.get("mode", "") == "bolt" and sug.get("pos") == Vector2i(4, 1), "Auto Battle shoots where an unseen foe was last seen (%s)" % [sug])
+
+## DECISIONS #139: the guided first fight is not covered by the Surprise tip.
+func test_guided_surprise_tip(gs) -> void:
+	print("[guided surprise tip]")
+	gs.new_game(); gs.settings.tutorial = true; gs.tutorial_done = ["welcome", "delve_bar"]
+	gs.start_run("warrior", {"ration": 2, "torch": 2}, "sewers", 7)
+	var main = load("res://scenes/main.tscn").instantiate()
+	add_child(main)
+	await get_tree().process_frame
+	main.tips.queue.clear()
+	# rat behind a wall and a closed door: out of sight at the start, so a Surprise is "ready"
+	var room := ["########", "#H.#...#", "#..#...#", "#..+..1#", "#..#...#", "#..#...#", "#..#...#", "########"]
+	main.start_combat({"kind": "combat", "room": room, "mobs": ["rat"]}, func(_r): pass)
+	await get_tree().process_frame
+	var s = main.screen
+	check(s.guide == 1 and s.combat.surprise_ready(), "guided fight starts with a foe out of sight")
+	var ids: Array = main.tips.queue.map(func(t): return t.id)
+	check(not ("surprise" in ids), "Surprise tip does not open over the guided first fight (%s)" % [ids])
+	check(not ids.is_empty() and ids[0] == "first_fight", "first fight tip comes first (%s)" % [ids])
+	# a later, unguided fight still teaches Surprise
+	main.tips.queue.clear(); gs.tutorial_done.append("first_fight"); gs.tutorial_done.append("guided_fight")
+	main.start_combat({"kind": "combat", "room": room, "mobs": ["rat"]}, func(_r): pass)
+	await get_tree().process_frame
+	check(main.screen.guide == 0 and main.tips.queue.any(func(t): return t.id == "surprise"), "Surprise tip still shows in a later fight")
+	main.tips.queue.clear(); gs.settings.tutorial = false
+	main.queue_free()
+	await get_tree().process_frame
+
+## DECISIONS #143: the in-combat Bag is a modal window inside the viewport on the Fold cover and inner screens.
+func test_combat_bag_fits(gs) -> void:
+	print("[combat bag fits]")
+	gs.new_game(); gs.heroes.huntress.unlocked = true
+	gs.start_run("huntress", {"ration": 2, "torch": 2}, "sewers", 5)
+	for id in ["ring_wealth", "mace", "leather_armor", "wand_magic_missile"]: gs.run.pack_gear.append({"uid": 9000 + gs.run.pack_gear.size(), "id": id, "lvl": 0, "cracked": false, "known": false, "owned": false})
+	var ev := Delve.combat_event(gs.run, Delve.rng_for(gs.run, 1), ["rat"])
+	for vs in [Vector2(968, 2376), Vector2(1856, 2160)]:
+		var cs = load("res://scripts/ui/combat_screen.gd").new()
+		cs.setup(ev, func(_r): pass); add_child(cs); cs.size = vs
+		cs.apply_layout(vs.y > vs.x, vs)
+		cs.bag_open = true; cs._refresh()
+		var pc: Control = cs.bag_layer.find_child("BagPanel", true, false) if cs.bag_layer else null
+		var r: Rect2 = cs.bag_rect(vs)
+		check(pc != null and Rect2(Vector2.ZERO, vs).encloses(Rect2(pc.position, pc.size)) and pc.size == r.size, "%s: Bag window inside the viewport (%s)" % [vs, Rect2(pc.position, pc.size) if pc else null])
+		check(pc != null and pc.get_combined_minimum_size().x <= r.size.x + 0.5 and pc.get_combined_minimum_size().y <= r.size.y + 0.5, "%s: Bag content does not force the window larger (min %s)" % [vs, pc.get_combined_minimum_size() if pc else null])
+		check(pc != null and pc.find_child("BagClose", true, false) != null and cs.bag_layer.find_children("*", "ScrollContainer", true, false).size() > 0, "%s: Bag has a close button and scrolls inside" % vs)
+		cs.bag_open = false; cs._refresh()
+		check(cs.bag_layer == null, "%s: closing the Bag removes the window" % vs)
+		cs.queue_free()
+	gs.end_run("abandon")
+
+## DECISIONS #146: no wrapping Label sits where it gets no width (one letter per line, stretching its window):
+## the Guild patrol card with curios, the camp side dock, and every Camp page; the patrol card stays a sane height.
+func test_no_collapsing_labels(gs) -> void:
+	print("[collapsing labels]")
+	gs.new_game()
+	for c in gs.heroes: gs.heroes[c].unlocked = true
+	gs.mats.gold = 2000; gs.facilities.guild.level = 3
+	for c in gs.heroes: gs.heroes[c].cleared.append("sewers")
+	for c in ["huntress", "mage"]:
+		if gs.can_patrol(c, "sewers") == "": gs.start_patrol(c, "sewers")
+	gs.time_offset += 5.0 * 3600.0
+	check(int(gs.patrol_preview("huntress").get("_curios", 0)) >= 1, "the patrol has curios to show")
+	for vs in [Vector2(968, 2376), Vector2(1856, 2160)]:
+		var cs = load("res://scripts/ui/camp_screen.gd").new(); add_child(cs); cs.size = vs
+		var bad := []
+		for pg in cs.PAGE_ORDER:
+			cs.open_page(pg)
+			if pg == "Guild": cs._patrol_list(cs.pages["Guild"])
+			for l in UIKit.collapsing_labels(cs.win_layer): bad.append("%s: '%s'" % [pg, l.text])
+			cs.close_page()
+		for l in UIKit.collapsing_labels(cs): bad.append("camp: '%s'" % l.text)
+		check(bad.is_empty(), "%s: no wrapping label without width %s" % [vs, bad])
+		var v := VBoxContainer.new(); v.size = Vector2(vs.x * 0.4, 0); add_child(v)
+		cs._patrol_list(v)
+		var cur = null
+		for l in v.find_children("*", "Label", true, false): if String(l.text).contains("curio"): cur = l
+		check(cur != null and cur.get_minimum_size().y < UIKit.font_size * 2.0 and cur.get_minimum_size().x > UIKit.font_size * 2.0, "%s: the curios label is one line (min %s)" % [vs, cur.get_minimum_size() if cur else null])
+		v.queue_free(); cs.queue_free()
+	# combat screen (status, buttons, victory results card) and the delve screen's extract summary
+	gs.time_offset = 0.0
+	if gs.can_start_run("warrior") == "" and gs.start_run("warrior", {"ration": 2, "torch": 2}, "sewers", 4):
+		var ev := Delve.combat_event(gs.run, Delve.rng_for(gs.run, 1), ["rat"])
+		var cb = load("res://scripts/ui/combat_screen.gd").new(); cb.setup(ev, func(_r): pass); add_child(cb)
+		cb.combat.loot = 5; cb.combat.xp = 1; cb.combat.kills = 1; cb.combat.over = true; cb.combat.won = true; cb._act(func(): pass)
+		var bad2 := UIKit.collapsing_labels(cb).map(func(l): return l.text)
+		check(bad2.is_empty(), "combat screen + victory card: no wrapping label without width %s" % [bad2])
+		cb.queue_free(); gs.end_run("abandon")
 
 func test_crate_slot(gs) -> void:
 	print("[crate slot]")
@@ -2069,4 +2398,39 @@ func test_status_pane_layout(_gs) -> void:
 			check(Rect2(L.level).end.x <= hp.position.x, "%s: level badge clear of the bars" % tag)
 			var isz: Vector2 = StatusPane.icon_size(Vector2(14, 14), a.size.y)
 			check(isz.y <= a.size.y and isz.y >= a.size.y * 0.5, "%s: supply icon fits the bar height" % tag)
+
+
+func test_barrier_spd(gs) -> void:
+	print("[barrier spd]")
+	gs.new_game()
+	var w: Dictionary = gs.hero_stats("warrior"); var m: Dictionary = gs.hero_stats("mage")
+	check(int(w.barrier_max) == 8 and int(m.barrier_max) == 4, "starting Barrier: warrior 8 (seal-like), others 4 (was 10 / 5) (%d / %d)" % [w.barrier_max, m.barrier_max])
+	var uid: int = gs.add_gear("cloth_armor", true, 3); gs.heroes.mage.armor = uid
+	check(int(gs.hero_stats("mage").barrier_max) == int(m.barrier_max) and int(gs.hero_stats("mage").dr) == int(m.dr) + 3, "armor upgrades add DR, not Barrier")
+	gs.heroes.warrior.armor = gs.add_gear("plate_armor", true, 0); gs.heroes.warrior.str = 18
+	check(int(gs.hero_stats("warrior").barrier_max) <= int(gs.hero_stats("warrior").ht) / 2, "Barrier is capped at half of max HP")
+	var c := Combat.new(); var hs: Dictionary = gs.hero_stats("warrior"); c.setup(DB.boss_rooms[0], hs, hs.ht, ["rat"])
+	c.hero.barrier = 20
+	for i in 4: c._decay_barrier(1.0)
+	check(int(c.hero.barrier) == 17, "Barrier decays like SPD: min(1, shield/20) per turn")
+	c.hero.barrier = 5; c.hero.bar_partial = 0.0
+	for i in 4: c._decay_barrier(1.0)
+	check(int(c.hero.barrier) == 4, "small Barrier decays slowly (5/20 per turn)")
+	gs.heroes.mage.unlocked = true; gs.start_run("mage", {}, "sewers", 2); gs.run.shield_next = 999
+	var cc = Delve.new_combat(gs, Delve.combat_event(gs.run, Delve.rng_for(gs.run, 1), ["rat"]))
+	check(int(cc.hero.barrier) <= int(cc.hero.ht), "Shielding never stacks Barrier above max HP")
+	gs.end_run("abandon")
+
+
+func test_bat_drain(gs) -> void:
+	print("[bat drain]")
+	gs.new_game()
+	var hs: Dictionary = gs.hero_stats("warrior")
+	for case in [[0, 4], [4, 0]]:   # hero DR 0: bat deals 6 -> heals 4; hero DR 4: deals 2 -> heals 0
+		var c := Combat.new(); c.setup(DB.boss_rooms[0], hs, hs.ht, ["bat"])
+		var b: Dictionary = c.enemies()[0]; b.hp = 10
+		c.hero.dr = case[0]; c.hero.barrier = 0
+		c._place(c.hero, Vector2i(3, 2)); c._place(b, Vector2i(3, 3))
+		c._mob_act(b)
+		check(int(b.hp) == 10 + case[1], "bat heals dealt-2 like SPD's dealt-4 (DR %d -> +%d, got %d)" % [case[0], case[1], int(b.hp) - 10])
 

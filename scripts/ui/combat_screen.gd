@@ -29,6 +29,7 @@ var _applied := false
 var _summary := {}
 ## Guided first fight (v0.11.0, DECISIONS #63): 0 = off, 1 move, 2 attack, 3 finish, 4 done
 var bag_open := false
+var bag_layer: Control
 var bag_host: VBoxContainer
 var guide := 0
 var guide_label: Label
@@ -138,7 +139,7 @@ func _refresh() -> void:
 		"danger": combat.enemies().filter(func(e): return e.hp > 0).size(), "minis": minis})
 	var line := "DR %d  Dmg %d   t=%.1f" % [h.dr, h.dmg, combat.time]
 	if not h.bolt.is_empty():
-		if h.bolt.get("infinite", false): line += "\nTap any enemy in sight to shoot %s (%d dmg)" % [h.bolt.name, h.bolt.dmg]
+		if h.bolt.get("infinite", false): line += "\nTap any tile in range to shoot %s (%d dmg; it passes tall grass)" % [h.bolt.name, h.bolt.dmg]
 		else: line += "\nStaff charges %d/%d (%s, %d dmg, ignores DR)" % [h.charges, h.bolt.charges, h.bolt.name, h.bolt.dmg]
 	if combat.hidden(): line += "\nHIDDEN in shadows - enemies can't find you"
 	if int(h.get("poison", 0)) > 0: line += "\nPOISONED: -1 HP per turn for %d turns" % int(h.poison)
@@ -149,7 +150,9 @@ func _refresh() -> void:
 	status.visible = not finished
 	_guide_update()
 	if main and not finished:
-		if combat.surprise_ready(): main.tip("surprise")
+		# Don't pop the Surprise modal over the guided first fight (steps 1-3): an unseen foe in tall grass makes
+		# surprise_ready() true from turn 0, which hid the step banner and froze _process until Next (DECISIONS #139).
+		if combat.surprise_ready() and (guide == 0 or guide >= 4): main.tip("surprise")
 		if not combat.danger.is_empty(): main.tip("telegraph")
 		if combat.traps.values().any(func(t): return not t.hidden): main.tip("trap")
 	UIKit.clear(buttons)
@@ -168,19 +171,50 @@ func _refresh() -> void:
 	_btn("Potion (%d)" % (potions - potions_used), _drink, potions - potions_used > 0 and h.hp < h.ht)
 	if Delve.scroll_passage_count(GameState) > 0:
 		_btn("Scroll of Passage", _use_passage)
-	_btn("Bag", func(): bag_open = not bag_open; _refresh())
+	_btn("Bag", func(): bag_open = not bag_open; set_meta("bag_scroll", 0); _refresh())
 	_btn("Hint", _hint)
 	_btn("Auto: ON" if auto else "Auto", func(): auto = not auto; _refresh())
 	_refresh_log()
 	_refresh_bag()
 
 ## In-combat Bag: swap weapon/armor/ring/wand from the backpack; costs the hero's turn (1 tick).
+## Opens as a modal window clamped to the viewport (DECISIONS #143): it used to be appended under the
+## buttons in the side column, which ran off the bottom on the Fold cover and off the right on the inner screen.
+const BAG_MARGIN := 0.02
+## The bag panel's rect for a viewport of size vs: centred, at most 36 font sizes wide, inside a 2% margin.
+static func bag_rect(vs: Vector2) -> Rect2:
+	var m := (vs * BAG_MARGIN).floor()
+	var w := minf(vs.x - 2.0 * m.x, UIKit.font_size * 36.0); var h := vs.y - 2.0 * m.y
+	return Rect2(((vs - Vector2(w, h)) / 2.0).floor(), Vector2(w, h).floor())
+
 func _refresh_bag() -> void:
-	if bag_host == null:
-		bag_host = UIKit.vbox(); side.add_child(bag_host); side.move_child(bag_host, buttons.get_index() + 1)
-	UIKit.clear(bag_host)
+	if bag_layer and is_instance_valid(bag_layer):
+		var sc0: ScrollContainer = bag_layer.get_meta("sc")
+		set_meta("bag_scroll", sc0.scroll_vertical)
+		bag_layer.queue_free()
+	bag_layer = null
 	if not bag_open or finished or GameState.run.is_empty(): return
-	HeroPanels.backpack(bag_host, _refresh, true, _equip_in_combat)
+	var close := func(): bag_open = false; _refresh()
+	bag_layer = Control.new(); bag_layer.name = "BagLayer"; bag_layer.set_anchors_and_offsets_preset(PRESET_FULL_RECT); add_child(bag_layer)
+	var dim := ColorRect.new(); dim.color = Color(0, 0, 0, 0.6); dim.set_anchors_and_offsets_preset(PRESET_FULL_RECT); bag_layer.add_child(dim)
+	dim.gui_input.connect(func(e: InputEvent):
+		if (e is InputEventMouseButton and e.button_index == MOUSE_BUTTON_LEFT and e.pressed) or (e is InputEventScreenTouch and e.pressed):
+			dim.accept_event(); close.call())
+	var pc := PanelContainer.new(); pc.name = "BagPanel"; pc.clip_contents = true; bag_layer.add_child(pc)
+	var r := bag_rect(size if size.x > 0 and size.y > 0 else get_viewport_rect().size)
+	pc.position = r.position; pc.size = r.size; pc.custom_minimum_size = r.size
+	var v := UIKit.vbox(pc)
+	var tr := UIKit.hbox(v)
+	var ic := UIKit.pixel(UIKit.spd_icon("backpack"), 1); ic.size_flags_vertical = SIZE_SHRINK_CENTER; tr.add_child(ic)
+	var tl := UIKit.header("Bag"); tl.size_flags_horizontal = SIZE_EXPAND_FILL; tr.add_child(tl)
+	var x := UIKit.button("X", close); x.name = "BagClose"; UIKit.secondary(x); x.custom_minimum_size = Vector2.ONE * UIKit.btn_height()
+	x.size_flags_horizontal = SIZE_SHRINK_END; tr.add_child(x)
+	var sc := ScrollContainer.new(); sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	sc.size_flags_vertical = SIZE_EXPAND_FILL; v.add_child(sc); bag_layer.set_meta("sc", sc)
+	var body := UIKit.vbox(sc); body.size_flags_horizontal = SIZE_EXPAND_FILL
+	HeroPanels.backpack(body, _refresh, true, _equip_in_combat)
+	var keep := int(get_meta("bag_scroll", 0))
+	(func(): if is_instance_valid(sc): sc.scroll_vertical = keep).call_deferred()
 
 func _equip_in_combat() -> void:
 	bag_open = false
@@ -198,7 +232,7 @@ func _guide_update() -> void:
 		if guide < 4:
 			guide = 4
 			if not ("guided_fight" in GameState.tutorial_done): GameState.tutorial_done.append("guided_fight")
-		guide_label.text = "Tutorial complete! Fights are won by positioning: fight in doorways, step off red tiles, and use your class ability." if combat.won else "You fell - that's part of learning. Gear cracks, but the Camp keeps everything you banked."
+		guide_label.text = "Tutorial complete! Positioning wins fights: close a door behind you or circle tall grass for a Surprise attack, step off red tiles, and use your class ability." if combat.won else "You fell - that's part of learning. Gear cracks, but the Camp keeps everything you banked."
 		return
 	if guide <= 2 and (combat.kills > 0 or foes.any(func(e): return e.hp < e.ht)): guide = 3
 	if guide == 1 and not adj.is_empty(): guide = 2

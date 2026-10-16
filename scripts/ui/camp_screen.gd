@@ -21,7 +21,6 @@ var open_name := ""          # page shown in the window ("" = hub)
 var win_layer: Control       # page window
 var info_layer: Control      # item info popup (on top of the window)
 var _update_btn: Button      # Camp header Update control (Android / Windows)
-const MAX_SUPPLY := 10
 const PAGE_ORDER := ["Delve", "Heroes", "Stash", "Forge", "Alchemy", "Enchanter", "Guild", "Journal", "Settings"]
 const TAB_ORDER := PAGE_ORDER   # kept for older tests/tools
 const PAGE_ICONS := {"Delve": "enter", "Heroes": "rankings", "Stash": "backpack_lrg", "Forge": "challenge", "Alchemy": "alchemy",
@@ -413,11 +412,15 @@ func _page_delve() -> void:
 	hv.add_child(UIKit.label("%s  ->  %s" % [DB.heroes[chosen_hero].name, b.name], 1.0, Color("ffd27a")))
 	hv.add_child(UIKit.label("Floors %d-%d, boss: %s. Recommended: Lv %d, Strength %d." % [b.floors[0], b.floors[1], DB.mobs.get(b.get("boss", ""), {}).get("name", "?"), int(b.get("rec_level", 1)), b.str_gate], 0.8, Color("bdb3a0")))
 	hv.add_child(UIKit.label("Extract at a boss campfire or with a Scroll of Passage. Dying loses the pack.", 0.75, Color("9a9488")))
-	v.add_child(UIKit.header("Supplies"))
-	for k in ["ration", "torch", "potion_healing", "scroll_passage", "elixir_starter"]:
+	var caps := supply_max()
+	for k in SUPPLY_KEYS: loadout[k] = clampi(int(loadout.get(k, 0)), 0, int(caps[k]))
+	var sh := UIKit.hbox(v)
+	var shl := UIKit.header("Supplies"); shl.size_flags_horizontal = SIZE_EXPAND_FILL; sh.add_child(shl)
+	var mall := UIKit.button("Max all", func(): max_all_supplies(); _fill_window(), not supplies_all_max())
+	mall.name = "MaxAll"; mall.autowrap_mode = TextServer.AUTOWRAP_OFF; mall.custom_minimum_size.x = UIKit.font_size * 5; mall.size_flags_horizontal = 0; mall.size_flags_vertical = SIZE_SHRINK_CENTER; UIKit.secondary(mall); sh.add_child(mall)
+	for k in SUPPLY_KEYS:
 		var have := GameState.mat(k)
-		var cap := GameState.belt_size() if k == "potion_healing" else (1 if k == "scroll_passage" else MAX_SUPPLY)
-		loadout[k] = clampi(int(loadout[k]), 0, mini(have, cap))
+		var cap := int(caps[k])
 		if k == "elixir_starter" and have == 0: continue
 		var row := UIKit.hbox(v)
 		var r := UIKit.icon_row(k, "%s  x%d" % [DB.mat_name(k), loadout[k]], 0.9)
@@ -429,12 +432,37 @@ func _page_delve() -> void:
 		UIKit.secondary(minus); UIKit.secondary(plus)
 		for pm in [minus, plus]: pm.add_theme_font_size_override("font_size", UIKit.font_px(UIKit.font_size * 1.5))
 		row.add_child(minus); row.add_child(plus)
+	var gl := GameState.facility_level("guild")
+	if gl < int(DB.facilities.guild.max):
+		var gh := UIKit.label("Rations and torches: pack cap %d at Guild Lv%d. Upgrade Guild to raise (Lv%d: %d)." % [GameState.guild_pack_cap(), gl, gl + 1, GameState.guild_pack_cap(gl + 1)], 0.7, Color("9a9488"))
+		gh.name = "GuildCapHint"; gh.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART; v.add_child(gh)
 	var floors := int(b.floors[1]) - int(b.floors[0]) + 1
-	if loadout.torch < floors - 2: v.add_child(UIKit.label("Tip: about one torch per floor (%d floors)." % floors, 0.75, Color("ffb060")))
+	if loadout.torch < mini(floors - 2, int(caps.torch)): v.add_child(UIKit.label("Tip: about one torch per floor (%d floors)." % floors, 0.75, Color("ffb060")))
 	if GameState.mat("elixir_starter") > 0 and GameState.heroes[chosen_hero].level < 3:
 		v.add_child(UIKit.button("Drink Starter Elixir (boost to Lv3)", func(): GameState.use_elixir(chosen_hero)))
 	var go := UIKit.action("Descend into the %s" % b.name, _start, GameState.can_start_run(chosen_hero))
 	go.custom_minimum_size.y = UIKit.btn_height() * 1.3; _foot().add_child(go)
+
+const SUPPLY_KEYS := ["ration", "torch", "potion_healing", "scroll_passage", "elixir_starter"]
+## Most of each supply the pack can take: the stash count, capped by GameState.supply_cap (belt size for potions,
+## 1 Passage, the Guild-level cap for rations and torches).
+func supply_max() -> Dictionary:
+	var out := {}
+	for k in SUPPLY_KEYS:
+		var cap := GameState.supply_cap(k)
+		out[k] = mini(GameState.mat(k), cap)
+	return out
+
+## Supplies header "Max all": every row to its max (disabled once they all are).
+func max_all_supplies() -> void:
+	var caps := supply_max()
+	for k in SUPPLY_KEYS: loadout[k] = int(caps[k])
+
+func supplies_all_max() -> bool:
+	var caps := supply_max()
+	for k in SUPPLY_KEYS:
+		if int(loadout.get(k, 0)) < int(caps[k]): return false
+	return true
 
 func _start() -> void:
 	if GameState.start_run(chosen_hero, loadout, chosen_biome):
@@ -948,9 +976,13 @@ func _identify_section(v: VBoxContainer) -> void:
 		var pb := ProgressBar.new(); pb.max_value = 1.0; pb.step = 0.0; pb.show_percentage = false
 		pb.value = clampf(1.0 - left / maxf(1.0, GameState.identify_seconds()), 0.0, 1.0); pb.custom_minimum_size.y = UIKit.font_size * 0.5
 		cv.add_child(pb)
-	var unk := GameState.gear.filter(func(g): return not g.known and not GameState.id_queue.any(func(q): return q.uid == g.uid))
-	if not unk.is_empty():
-		v.add_child(UIKit.header("Unknown items"))
+	var unk := GameState.identify_candidates()
+	var uh := UIKit.hbox(v)
+	var uhl := UIKit.header("Unknown items"); uhl.size_flags_horizontal = SIZE_EXPAND_FILL; uh.add_child(uhl)
+	var qa := UIKit.button("Queue all", func(): GameState.enqueue_identify_all(); _fill_window(), not unk.is_empty())
+	qa.name = "QueueAll"; qa.autowrap_mode = TextServer.AUTOWRAP_OFF; qa.custom_minimum_size.x = UIKit.font_size * 5.5; qa.size_flags_horizontal = 0; qa.size_flags_vertical = SIZE_SHRINK_CENTER; UIKit.secondary(qa); uh.add_child(qa)
+	if unk.is_empty(): v.add_child(UIKit.label("No unknown items to queue.", 0.8, Color("9a9488")))
+	else:
 		var ug := slot_grid(v)
 		for g in unk:
 			ug.add_child(item_slot(gear_icon(g), "", "?", func(): info(gear_icon(g), GameState.gear_name(g), gear_lines(g), [["Queue for identification", func(): GameState.enqueue_identify(g.uid), ""]], "NONE"), Color.WHITE, "", g))
@@ -995,7 +1027,7 @@ func _patrol_list(v: Control) -> void:
 			var yf := HFlowContainer.new(); cv.add_child(yf)
 			for k in y:
 				if not String(k).begins_with("_") and int(y[k]) > 0: yf.add_child(UIKit.res_chip(k, str(y[k]), 0.8))
-			if y._curios > 0: yf.add_child(UIKit.label("+%d curios" % y._curios, 0.8))
+			if y._curios > 0: yf.add_child(UIKit.chip_label("+%d curio%s" % [y._curios, "" if int(y._curios) == 1 else "s"], 0.8))
 			cv.add_child(UIKit.button("Recall & collect", func(): GameState.collect_patrol(c)))
 
 # ------------------------------------------------------------ Journal (meta-progression + codex)

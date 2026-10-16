@@ -41,11 +41,13 @@ var trap_pool: Array = ["worn_dart", "gripping", "teleport"]
 var kills := 0                  # meta stats reported in the fight result
 var traps_found := 0
 var trap_ids_seen: Array = []   # codex: trap types revealed or triggered
+var dmg_in := 0                 # post-DR damage + chip taken by the hero (for balance telemetry)
+var absorbed_total := 0         # how much of dmg_in was absorbed by Barrier
 
 ## room_rows: Array[String] of equal length (8/10/12); hs: GameState.hero_stats(); mob_ids fill slots 1..8 (B = boss).
 func setup(room_rows: Array, hs: Dictionary, hp: int, mob_ids: Array, darkness := false, pool := []) -> void:
 	terrain.clear(); units.clear(); danger.clear(); log_lines.clear(); events.clear(); traps.clear()
-	kills = 0; traps_found = 0; trap_ids_seen = []
+	kills = 0; traps_found = 0; trap_ids_seen = []; dmg_in = 0; absorbed_total = 0
 	if not pool.is_empty(): trap_pool = pool
 	time = 0.0; loot = 0; fallen_loot = 0; xp = 0; over = false; won = false; boss_killed = false; _uid = 0
 	h = room_rows.size(); w = String(room_rows[0]).length() if h > 0 else SIZE
@@ -83,6 +85,7 @@ func setup(room_rows: Array, hs: Dictionary, hp: int, mob_ids: Array, darkness :
 		var p: Vector2i = slots.get(i, _free_tile_near(Vector2i(w - 2, h - 2)))
 		spawn(mob_ids[i], p)
 	_log("A fight! Barrier %d, HP %d/%d%s." % [hero.barrier, hero.hp, hero.ht, " (darkness: no Barrier)" if darkness else ""])
+	_note_sightings()
 
 # ------------------------------------------------------------------ persistence
 ## Serialise to JSON-safe data (Vector2i -> [x, y]) so a fight survives the app being killed.
@@ -223,15 +226,57 @@ func has_ranged() -> bool:
 func hidden() -> bool:
 	return float(hero.hidden_until) > time
 
+## Blind targeting (DECISIONS #149): bows and wands aim at a tile, not a unit, like SPD Ballistica. Any tile in range
+## (not a wall) is a valid aim, seen or not. The shot follows the line and hits the first unit on it (STOP_CHARS);
+## walls and closed doors stop it (STOP_SOLID); tall grass blocks sight but not shots. Arrows stop at the aimed tile
+## (PROJECTILE); wand bolts fly on past it to BOLT_RANGE (MAGIC_BOLT). An empty path wastes the shot.
 func can_bolt(target: Vector2i) -> bool:
-	if not has_ranged(): return false
-	var u = unit_at(target)
-	if u == null or u == hero: return false
+	if not has_ranged() or not in_bounds(target) or target == hero.pos: return false
 	var d := cheb(hero.pos, target)
-	if d > BOLT_RANGE or d < 1: return false
+	if d > BOLT_RANGE or d < 1 or tile(target) == T.WALL: return false
 	# Spirit Bow: no point-blank shot (SPD); wands may zap adjacent
-	if hero.bolt.get("infinite", false) and d <= 1: return false
-	return sees(hero.pos, target)
+	if hero.bolt.get("infinite", false):
+		if d <= 1: return false
+		var v = bolt_victim(target)
+		if v != null and cheb(v.pos, hero.pos) <= 1: return false   # the arrow would be a point-blank shot
+	return true
+
+func _solid(p: Vector2i) -> bool:
+	return not in_bounds(p) or tile(p) == T.WALL or door_closed(p)
+
+## Where a shot aimed at target lands: the first unit on the line, else the last open tile before a wall/closed
+## door, else the aimed tile (arrows) or the end of range (wand bolts).
+func bolt_impact(target: Vector2i) -> Vector2i:
+	var a: Vector2i = hero.pos
+	var far := target
+	var magic: bool = not hero.bolt.get("infinite", false)
+	if magic:
+		var d := maxi(1, cheb(a, target)); var k := int(ceil(float(BOLT_RANGE) / d))
+		far = a + (target - a) * k
+	var pts := _line(a, far)
+	var last := a
+	for i in range(1, pts.size()):
+		var p: Vector2i = pts[i]
+		if cheb(a, p) > BOLT_RANGE or _solid(p): return last
+		var u = unit_at(p)
+		if u != null and u != hero: return p
+		last = p
+		if not magic and p == target: return p
+	return last
+
+## The unit a shot aimed at target would hit (or null).
+func bolt_victim(target: Vector2i):
+	var u = unit_at(bolt_impact(target))
+	return u if u != hero else null
+
+## Hero sight (for the bot and the UI): an enemy the hero can see right now.
+func hero_sees(m: Dictionary) -> bool:
+	return sees(hero.pos, m.pos)
+
+## Remember where the hero last saw each enemy (m.last_seen = [x, y]); called whenever it is the hero's turn.
+func _note_sightings() -> void:
+	for e in enemies():
+		if hero_sees(e): e.last_seen = [e.pos.x, e.pos.y]; e.blind_shots = 0
 
 ## SPD surprisedBy: cloaked, or the foe lost sight (seen_hero), or they cannot see you right now.
 func surprise_against(m: Dictionary) -> bool:
@@ -263,7 +308,7 @@ func hit_hero(raw: int, src: String, pierce := false) -> void:
 	var dmg := raw if pierce else maxi(0, raw - int(hero.dr))
 	if dmg == 0:
 		if hero.barrier > 0:
-			hero.barrier -= 1
+			hero.barrier -= 1; dmg_in += 1; absorbed_total += 1
 			_log("%s's hit is blocked (chip: -1 Barrier)." % src)
 			_ev({"t": "hit", "uid": hero.uid, "amount": 1, "kind": "chip", "pos": hero.pos})
 		else:
@@ -271,7 +316,7 @@ func hit_hero(raw: int, src: String, pierce := false) -> void:
 			_ev({"t": "hit", "uid": hero.uid, "amount": 0, "kind": "block", "pos": hero.pos})
 		return
 	var absorbed := mini(dmg, int(hero.barrier))
-	hero.barrier -= absorbed
+	hero.barrier -= absorbed; dmg_in += dmg; absorbed_total += absorbed
 	hero.hp -= dmg - absorbed
 	_log("%s hits for %d (%d Barrier, %d HP)." % [src, dmg, absorbed, dmg - absorbed])
 	_ev({"t": "hit", "uid": hero.uid, "amount": dmg, "kind": "hp" if dmg > absorbed else "barrier", "pos": hero.pos})
@@ -499,7 +544,8 @@ func _burn(p: Vector2i) -> void:
 func hero_tap(p: Vector2i, mode := "") -> bool:
 	if over: return false
 	var u = unit_at(p)
-	if mode == "bolt" or (cheb(p, hero.pos) > 1 and u != null and u != hero):
+	# distant enemy, or (Spirit Bow) any distant tile: shoot; wands need Bolt mode for an empty tile
+	if mode == "bolt" or (cheb(p, hero.pos) > 1 and ((u != null and u != hero) or hero.bolt.get("infinite", false))):
 		return hero_bolt(p)
 	if cheb(p, hero.pos) != 1: return false
 	if u != null and u != hero:
@@ -541,13 +587,23 @@ func _melee_perks() -> void:
 
 func hero_bolt(p: Vector2i) -> bool:
 	if not can_bolt(p): return false
-	var u = unit_at(p)
 	var magic: bool = hero.bolt.get("magic", true)
 	if not hero.bolt.get("infinite", false): hero.charges -= 1
+	var at := bolt_impact(p)
+	var u = bolt_victim(p)
 	_log("%s fires %s." % [hero.name, hero.bolt.name])
-	_ev({"t": "bolt", "from": hero.pos, "to": p, "magic": magic})
-	var sur := surprise_against(u) and not magic
+	_ev({"t": "bolt", "from": hero.pos, "to": at, "magic": magic})
+	var sur: bool = u != null and surprise_against(u) and not magic
+	for e in enemies():   # a blind shot at where an unseen foe was last seen (CombatBot caps these)
+		if not hero_sees(e) and e.has("last_seen") and Vector2i(int(e.last_seen[0]), int(e.last_seen[1])) == p:
+			e.blind_shots = int(e.get("blind_shots", 0)) + 1
 	_break_cloak()
+	if u == null:
+		_log("The shot hits nothing.")
+		if hero.bolt.get("burns_grass", false) and tile(at) == T.GRASS: _burn(at)
+		_end_hero_turn(1.0)
+		return true
+	p = at
 	var hp_before := int(u.hp)
 	hit_mob(u, int(hero.bolt.dmg), sur, magic or hero.bolt.get("pierce", false))
 	if hero.get("perk", "") == "soul_heal" and magic and hero.hp > 0 and hero.hp < hero.ht:
@@ -625,8 +681,18 @@ func hero_heal(amount: int) -> void:
 	_ev({"t": "heal", "uid": hero.uid, "amount": amount, "pos": hero.pos})
 	_end_hero_turn(1.0)
 
+## SPD Barrier decay (Barrier.act): each turn loses min(1, shield/20) of a point (DECISIONS #134).
+const BARRIER_DECAY_DIV := 20.0
+func _decay_barrier(cost: float) -> void:
+	if int(hero.barrier) <= 0: hero.bar_partial = 0.0; return
+	var p := float(hero.get("bar_partial", 0.0)) + minf(1.0, float(hero.barrier) / BARRIER_DECAY_DIV) * cost
+	while p >= 1.0 and int(hero.barrier) > 0:
+		hero.barrier -= 1; p -= 1.0
+	hero.bar_partial = p
+
 func _end_hero_turn(cost: float) -> void:
 	hero.next += cost
+	_decay_barrier(cost)
 	if hero.get("perk", "") == "grass_heal" and (tile(hero.pos) == T.GRASS or trampled.has(hero.pos)) and hero.hp < hero.ht: hero.hp += 1
 	_tick_poison(hero)
 	if not over: run_until_hero()
@@ -652,6 +718,7 @@ func run_until_hero() -> void:
 			best.next += best.delay
 	time = hero.next
 	_recharge()
+	_note_sightings()
 
 func _recharge() -> void:
 	if hero.bolt.is_empty(): return
@@ -763,9 +830,11 @@ func _mob_act(m: Dictionary) -> void:
 		var hp_before: int = hero.hp + hero.barrier
 		hit_hero(int(m.dmg), m.name)
 		var dealt: int = hp_before - (hero.hp + hero.barrier)
-		if m.has("drain") and dealt > 0 and m.hp < m.ht:
-			var heal_n := mini(int(m.drain), int(m.ht) - int(m.hp)); m.hp += heal_n
-			_ev({"t": "heal", "uid": m.uid, "amount": heal_n, "pos": m.pos}); _log("%s drinks your blood (+%d)." % [m.name, heal_n])
+		# SPD Bat.attackProc: heals (damage dealt - 4); our bat hits at half damage twice as often, so -2 (DECISIONS #148)
+		var heal := dealt - int(m.drain_over) if m.has("drain_over") else (int(m.get("drain", 0)) if dealt > 0 else 0)
+		if heal > 0 and m.hp < m.ht:
+			var h := mini(heal, int(m.ht) - int(m.hp)); m.hp += h
+			_ev({"t": "heal", "uid": m.uid, "amount": h, "pos": m.pos}); _log("%s drinks your blood (+%d)." % [m.name, h])
 		if m.has("bite_poison") and dealt > 0 and not over:
 			hero.poison = int(hero.get("poison", 0)) + int(m.bite_poison); _log("The bite is venomous!"); _ev({"t": "sfx", "name": "debuff"})
 		if m.get("ability", "") == "steal" and int(m.get("stolen", 0)) == 0 and not over:

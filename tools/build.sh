@@ -7,16 +7,24 @@ cd "$(dirname "$0")/.."
 # Override with GODOT=/path/to/Godot_v4.7.2-stable_win64.exe when `godot` is not on PATH.
 GODOT_BIN="${GODOT:-godot}"
 
-# Gradle Android export needs res://android/build from the 4.7.2 export templates (gitignored).
+# Gradle Android export needs res://android/build and res://android/.build_version from the
+# 4.7.2 export templates (both gitignored). Without .build_version, Godot's export plugin stops
+# with "Missing build version file" before Gradle even starts (DECISIONS #140).
+ANDROID_TEMPLATE_VERSION="4.7.2.stable"
 ensure_android_template() {
-  if [ -d android/build ]; then return; fi
+  if [ -d android/build ] && [ -f android/.build_version ]; then return; fi
+  if [ -d android/build ]; then
+    printf '%s\n' "$ANDROID_TEMPLATE_VERSION" > android/.build_version
+    touch android/build/.gdignore
+    return
+  fi
   local zip="${GODOT_ANDROID_SOURCE:-}"
   if [ -z "$zip" ]; then
     local d
     for d in \
-      "${HOME}/.local/share/godot/export_templates/4.7.2.stable" \
-      "${HOME}/Library/Application Support/Godot/export_templates/4.7.2.stable" \
-      "${APPDATA:-}/Godot/export_templates/4.7.2.stable"; do
+      "${HOME}/.local/share/godot/export_templates/${ANDROID_TEMPLATE_VERSION}" \
+      "${HOME}/Library/Application Support/Godot/export_templates/${ANDROID_TEMPLATE_VERSION}" \
+      "${APPDATA:-}/Godot/export_templates/${ANDROID_TEMPLATE_VERSION}"; do
       if [ -f "$d/android_source.zip" ]; then zip="$d/android_source.zip"; break; fi
     done
   fi
@@ -26,6 +34,8 @@ ensure_android_template() {
   fi
   mkdir -p android/build
   unzip -q "$zip" -d android/build
+  printf '%s\n' "$ANDROID_TEMPLATE_VERSION" > android/.build_version
+  touch android/build/.gdignore
   echo "Installed Android build template into android/build from $zip"
 }
 
