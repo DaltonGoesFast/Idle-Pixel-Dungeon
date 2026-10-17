@@ -59,12 +59,16 @@ Priority: **P1** fix before a public build, **P2** next polish pass, **P3** nice
 | 32 | ~~Camp campfire was seven orange bars; needs SPD flame particles, sparks, smoke, flicker and a night light pool~~ **Done** (#179) | overnight 2026-10-16 | P2 | M |
 | 33 | ~~Encounter foes stacked on one spot and popped in~~ **Done**: one column each, two rows, run in (#179) | overnight 2026-10-16 | P2 | S |
 | 35 | ~~Special rooms had no scene of their own on the delve (just a floating icon)~~ **Done** (#180) | overnight 2026-10-16 | P2 | M |
-| 34 | ~~SPD water edge stitching~~ **Done** for room water: Piranha Pool and the wells stitch SPD WATER tiles over the scrolling water (#180). Corridor puddles still not added | overnight 2026-10-16 | P3 | M |
+| 34 | ~~SPD water edge stitching~~ **Done** for room water: Piranha Pool and the wells stitch SPD WATER tiles over the scrolling water (#180); corridor puddles too (#182) | overnight 2026-10-16 | P3 | M |
 | 36 | ~~Camp sky flickered (twinkling stars, drifting clouds, firelight and darkness quads reaching above the horizon)~~ **Done**: static sky (#181) | user 2026-10-17 | P1 | S |
 | 37 | ~~Grass drawn over barrels and NPCs; camp grass sheared at the tile seam when swaying~~ **Done** (#181) | user + Bugbot 2026-10-17 | P1 | S |
 | 38 | ~~Delve grass top read as a muddy olive smudge (sewer moss deco beside the clumps)~~ **Done** (#181) | user 2026-10-17 | P2 | S |
 | 39 | ~~Delve grass stopped swaying; foe attack frames cut off at 0.3 s; no hit feedback~~ **Done**: sway, SPD attack length, white hit flash (#181) | Bugbot + user 2026-10-17 | P2 | S |
 | 40 | ~~Later biomes' corridors had no props of their own~~ **Done**: SPD region deco / statue per biome (#181) | user 2026-10-17 | P3 | S |
+| 41 | ~~Delve wall and door tops cut off; floor ended in a hard edge at the void~~ **Done**: SPD wall/door/bookshelf overhang tiles, CHASM_FLOOR / CHASM_WATER bottom edge (#182) | user 2026-10-17 | P1 | M |
+| 42 | ~~Foes vanished instantly when a fight ended; no reaction when the hero struck; foes overlapped in the wrong order~~ **Done**: SPD die frames and fade, hit flash and knockback, back-to-front drawing (#182) | user 2026-10-17 | P2 | S |
+| 43 | ~~Gnoll camp gnolls overlapped; not every corridor screen had a biome prop; Prison walls had unlit sconces~~ **Done** (#182) | user 2026-10-17 | P2 | S |
+| 44 | Combat grid (`grid_view.gd`) still mirrors sprites with a negative source width, which made the gnoll's last die frame vanish in the delve; check whether any combat frames are affected (combat screen, out of scope for scene polish) | fix4 2026-10-17 | P3 | S |
 
 ## Code / docs hygiene (no player impact)
 | # | Item | Source | Pri | Effort |
