@@ -134,14 +134,14 @@ func _lm(p: Vector2, strength := 1.0) -> Color:
 	var v := 1.0 - _la * d * strength
 	return Color(v, v, v)
 
-func _sprite(spr: String, fw: int, fh: int, frame: int, row: int, feet: Vector2, k: float, flip := false) -> void:
+func _sprite(spr: String, fw: int, fh: int, frame: int, row: int, feet: Vector2, k: float, flip := false, shadow := true) -> void:
 	var tx := _t("res://assets/sprites/%s.png" % spr)
 	var cols := maxi(1, tx.get_width() / fw)
 	var src := Rect2((frame % cols) * fw, (frame / cols + row) * fh, fw, fh)
 	var sz := Vector2(fw, fh) * k
 	var pos := (feet - Vector2(sz.x / 2.0, sz.y)).floor()
 	if flip: src = Rect2(src.position.x + fw, src.position.y, -fw, fh)
-	draw_texture_rect_region(_t("res://assets/ui/shadow.png"), Rect2((Vector2(pos.x + sz.x * 0.15, feet.y - k * 2)).floor(), Vector2(sz.x * 0.7, k * 3).floor()), Rect2(0, 0, 6, 6), Color(1, 1, 1, 0.5))
+	if shadow: draw_texture_rect_region(_t("res://assets/ui/shadow.png"), Rect2((Vector2(pos.x + sz.x * 0.15, feet.y - k * 2)).floor(), Vector2(sz.x * 0.7, k * 3).floor()), Rect2(0, 0, 6, 6), Color(1, 1, 1, 0.5))
 	draw_texture_rect_region(tx, Rect2(pos, sz), src, _lm(feet - Vector2(0, sz.y * 0.5)))
 
 ## Tall grass clumps on the near floor row, seeded per column (never where an encounter stands).
@@ -163,7 +163,7 @@ func _draw() -> void:
 	var hero_col := base
 	var ev := encounter()
 	var stop_col := hero_col + 2         # where an encounter's door/enemies stand
-	var busy_from := stop_col - 1; var busy_to := stop_col + 4
+	var busy_from := stop_col - 1; var busy_to := stop_col + 5
 	if ev.is_empty(): busy_to = busy_from - 1
 	var grass_cells := []
 	for i in range(-int(hero_x / cs) - 2, cols):
@@ -233,7 +233,8 @@ func _draw() -> void:
 					var afl: Array = a.frames; fr = int(afl[mini(int(ph * float(a.fps)), afl.size() - 1)])
 				lunge = -sin(ph / 0.3 * PI) * cs * 0.25
 			_sprite(spr, int(m.fw), int(m.fh), fr, 0, Vector2(colx + dx + lunge, fy).floor(), sk(boss), true)
-	if not ev.is_empty() and ev.kind == "special" and ev.get("special", {}).has("icon"):
+	if not ev.is_empty() and ev.kind == "special": _room_scene(String(ev.special.get("id", "")), ox + (stop_col - hero_col) * cs, y0, cs, k, biome)
+	if not ev.is_empty() and ev.kind == "special" and ev.get("special", {}).has("icon") and not ROOM_SCENES.has(String(ev.special.get("id", ""))):
 		var ir := UIKit.item_rect(DB.icon_index(ev.special.icon)); var isz := ir.size * k
 		var dc := Vector2(floorf(ox + (stop_col - hero_col) * cs + cs / 2.0), y0 + 0.5 * cs + roundf(sin(t * 3.0)) * k)
 		SceneFX.glow(self, dc, cs * 0.8, Color(1, 0.95, 0.6, 0.18))
@@ -269,6 +270,93 @@ func _draw() -> void:
 	# border
 	draw_rect(Rect2(Vector2.ZERO, size), Color(0, 0, 0, 0.9), false, maxf(2.0, k))
 
+## Special-room scenes (DECISIONS #180): each room is built on the corridor floor ahead of its door from SPD's own
+## tiles. Ops are [kind, what, dx, row]: "t" level tile (biome sheet), "f" terrain_features.png, "w" animated water,
+## "i" item sprite, "m" mob sprite (idle anim, facing the hero), "fire"/"spark" SPD-style particles (what = colour).
+## "r" SPD raised terrain (base tile in the cell, overhang tile in the cell above; DungeonTileSheet RAISED_* and
+## *_OVERHANG): "grass" 122/234, "grass2" 125/237, "pot" 120/232, "barricade" 121/233. "f" props are bottom-aligned in their cell.
+## dx is in tiles from the door column, row 2 = far floor row, 3 = near floor row (fractions allowed for sprites).
+const ROOM_SCENES := {
+	"piranha": [["w", 0, 0, 2], ["w", 0, 1, 2], ["w", 0, 2, 2], ["w", 0, 0, 3], ["w", 0, 1, 3], ["w", 0, 2, 3], ["m", "piranha", 0.5, 3.6], ["m", "piranha", 1.8, 2.7]],
+	"sacrificial_fire": [["t", 20, 1, 2], ["fire", "", 1.5, 2.75], ["f", 216, 0, 3], ["f", 217, 2, 3]],
+	"statue": [["t", 20, 1, 2], ["m", "statue", 1.5, 2.85], ["f", 216, 2, 3]],
+	"barricade": [["r", "barricade", 0, 3], ["r", "barricade", 1, 3], ["f", 216, 2, 3]],
+	"garden": [["t", 2, 0, 2], ["t", 2, 1, 2], ["t", 2, 2, 2], ["t", 2, 0, 3], ["t", 2, 1, 3], ["r", "grass", 0, 3], ["r", "grass2", 1, 3], ["f", 115, 1, 2], ["f", 113, 2, 2], ["f", 112, 2, 3], ["i", "SEED_SUNGRASS", 0, 2]],
+	"trapped_hall": [["f", 0, 0, 2], ["f", 18, 1, 3], ["f", 33, 2, 2], ["f", 68, 3, 3]],
+	"odd_wall": [["f", 216, 1, 3], ["f", 217, 2, 3], ["spark", "c8c8ff", 1.5, 1.5]],
+	"cell_block": [["f", 153, 0, 2], ["f", 154, 1, 2], ["m", "thief", 0.6, 2.8], ["i", "IRON_KEY", 2, 3]],
+	"armory": [["f", 137, 0, 2], ["i", "SWORD", 1, 2], ["i", "ARMOR_MAIL", 2, 2], ["i", "MACE", 1, 3], ["f", 138, 3, 2]],
+	"crystal_vein": [["f", 210, 0, 2], ["f", 211, 1, 2], ["f", 210, 2, 3], ["spark", "8ad8ff", 1.0, 2.5]],
+	"vault": [["t", 4, 0, 2], ["t", 4, 1, 2], ["t", 4, 0, 3], ["t", 4, 1, 3], ["i", "CRYSTAL_CHEST", 0.5, 2.5], ["spark", "a0e8ff", 0.5, 2.4]],
+	"library": [["t", 50, 1, 1], ["t", 50, 2, 1], ["t", 50, 3, 1], ["i", "SCROLL_KAUNAN", 1, 2], ["i", "SCROLL_ISAZ", 2, 3]],
+	"well_health": [["w", 0, 1, 2], ["t", 18, 1, 2], ["spark", "ff7070", 1.5, 2.4]],
+	"well_awareness": [["w", 0, 1, 2], ["t", 18, 1, 2], ["spark", "80c8ff", 1.5, 2.4]],
+	"laboratory": [["r", "pot", 1, 3], ["i", "POTION_CRIMSON", 2, 2], ["i", "POTION_AZURE", 2, 3], ["i", "SEED_ROTBERRY", 0, 3], ["spark", "c0ff80", 1.5, 2.3]],
+	"treasury": [["f", 216, 0, 2], ["f", 218, 1, 2], ["i", "GOLD", 1, 3], ["i", "GOLD", 2, 2], ["f", 217, 3, 3]],
+	"shrine": [["t", 20, 1, 2], ["i", "ARTIFACT_CHALICE1", 1, 1.85], ["spark", "ffd27a", 1.5, 2.2]],
+	"larder": [["f", 137, 0, 2], ["f", 138, 1, 2], ["i", "RATION", 1, 3], ["i", "PASTY", 2, 3]],
+	"trap_vault": [["f", 0, 0, 2], ["f", 34, 0, 3], ["f", 65, 2, 3], ["t", 4, 1, 2], ["i", "CRYSTAL_CHEST", 1, 2], ["spark", "a0e8ff", 1.5, 2.4]],
+	"prisoner": [["f", 153, 1, 2], ["f", 154, 2, 2], ["m", "guard", 0.5, 3.8], ["i", "IRON_KEY", 3, 3]],
+	"abandoned_shop": [["f", 169, 1, 2], ["f", 170, 2, 2], ["i", "RATION", 1, 1.8], ["i", "TORCH", 2, 1.8], ["i", "POTION_GOLDEN", 1.5, 3], ["f", 138, 0, 3]],
+	"gnoll_camp": [["t", 3, 1, 3], ["fire", "", 1.5, 3.7], ["m", "gnoll", 0.6, 2.9], ["m", "gnoll", 2.4, 2.9], ["m", "gnoll", 2.6, 3.9], ["i", "TORCH", 0, 3]],
+}
+
+const RAISED_KINDS := {"grass": [122, 234, 0.5], "grass2": [125, 237, 0.5], "pot": [120, 232, 1.0], "barricade": [121, 233, 1.0]}
+var _feat_drop := {}
+## Pixels of empty space under a terrain_features cell, so the prop can stand on the cell's bottom edge.
+func _drop(feats: Texture2D, fi: int) -> int:
+	if not _feat_drop.has(fi):
+		var img: Image = feats.get_image()
+		if img.is_compressed(): img.decompress()
+		var u := img.get_region(Rect2i((fi % 16) * 16, (fi / 16) * 16, 16, 16)).get_used_rect()
+		_feat_drop[fi] = 0 if u.size == Vector2i.ZERO else maxi(0, 15 - u.end.y)
+	return int(_feat_drop[fi])
+
+func _room_scene(id: String, x0: float, y0: float, cs: float, k: float, biome: Dictionary) -> void:
+	if not ROOM_SCENES.has(id): return
+	var tiles := _t("res://assets/tiles/%s.png" % biome.tile)
+	var feats := _t("res://assets/tiles/terrain_features.png")
+	var water := _t("res://assets/tiles/%s.png" % biome.get("water", "water0"))
+	var items := _t("res://assets/sprites/items.png")
+	var wo := Vector2(fposmod(t * 3.0, 16.0), fposmod(t * 2.0, 16.0)).floor()   # SPD water drifts slowly
+	var mi := 0
+	for op in ROOM_SCENES[id]:
+		var dx := float(op[2]); var row := float(op[3])
+		var tl := Vector2(floorf(x0 + dx * cs), floorf(y0 + row * cs))
+		match String(op[0]):
+			"t":
+				var ti := int(op[1]); draw_texture_rect_region(tiles, Rect2(tl, Vector2(cs, cs)), Rect2((ti % 16) * 16, (ti / 16) * 16, 16, 16), _lm(tl + Vector2(cs, cs) / 2.0))
+			"f":
+				var fi := int(op[1])
+				draw_texture_rect_region(feats, Rect2(tl + Vector2(0, _drop(feats, fi) * k), Vector2(cs, cs)), Rect2((fi % 16) * 16, (fi / 16) * 16, 16, 16), _lm(tl + Vector2(cs, cs) / 2.0))
+			"r":
+				var rk: Array = RAISED_KINDS[String(op[1])]
+				var rm := _lm(tl + Vector2(cs, cs) / 2.0, float(rk[2]))
+				draw_texture_rect_region(_grass_tex(tiles, int(rk[0])), Rect2(tl, Vector2(cs, cs)), Rect2(0, 0, 16, 16), rm)
+				var oi := int(rk[1]); draw_texture_rect_region(tiles, Rect2(tl - Vector2(0, cs), Vector2(cs, cs)), Rect2((oi % 16) * 16, (oi / 16) * 16, 16, 16), rm)
+			"w":
+				draw_texture_rect_region(water, Rect2(tl, Vector2(cs, cs)), Rect2(wo, Vector2(16, 16)), _lm(tl + Vector2(cs, cs) / 2.0))
+			"i":
+				var ir := UIKit.item_rect(DB.icon_index(String(op[1]))); var isz := ir.size * k
+				var c := tl + Vector2(cs, cs) / 2.0
+				draw_texture_rect_region(items, Rect2((c - isz / 2.0).floor(), isz), ir, _lm(c))
+			"m":
+				var mid := String(op[1])
+				var m: Dictionary = DB.mobs.get(mid, {"sprite": mid, "fw": 16, "fh": 16})
+				var bob := roundf(sin(t * 3.0 + mi)) * k if mid == "piranha" else 0.0
+				# piranhas: SPD's submerged idle, with one leaping out of the water every few seconds
+				var fr := _frame(String(m.sprite), "idle", mi * 0.41)
+				if mid == "piranha" and fposmod(t + mi * 1.7, 3.4) < 0.45: fr = _frame("piranha", "attack", mi)
+				_sprite(String(m.sprite), int(m.fw), int(m.fh), fr, 0, Vector2(floorf(x0 + dx * cs), floorf(y0 + row * cs + bob)), sk(), true, mid != "piranha")
+				mi += 1
+			"fire":
+				var fp := Vector2(floorf(x0 + dx * cs), floorf(y0 + row * cs))
+				SceneFX.glow(self, fp - Vector2(0, 3 * k), cs * 1.8 * SceneFX.flicker(t), Color(1.0, 0.55, 0.2, 0.25))
+				SceneFX.fire(self, fp, k, t, 7.0)
+			"spark":
+				var sp := Vector2(x0 + dx * cs, y0 + row * cs)
+				SceneFX.glow(self, sp, cs * 0.9, Color(op[1], 0.22))
+				SceneFX.twinkle(self, sp, k, t, cs * 0.6, Color(op[1]))
 ## The high-grass base tile with its baked stone floor keyed out (flood from the border over floor tile 0/1
 ## colours), so the darkened ground shows through between the blades. Cached per biome sheet.
 var _grass_cache := {}
@@ -279,7 +367,7 @@ func _grass_tex(tiles: Texture2D, idx: int) -> Texture2D:
 	if src.is_compressed(): src.decompress()
 	var img := src.get_region(Rect2i((idx % 16) * 16, (idx / 16) * 16, 16, 16)); img.convert(Image.FORMAT_RGBA8)
 	var cols := {}
-	for b in [0, 1]:
+	for b in [0, 1, 4, 10]:   # stone and plank floors (the pot and barricade sit on planks)
 		for y in 16:
 			for x in 16: cols[src.get_pixel((b % 16) * 16 + x, (b / 16) * 16 + y).to_html()] = true
 	var st := []

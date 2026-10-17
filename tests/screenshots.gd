@@ -5,7 +5,7 @@ extends Node
 var main
 var f := 0
 var out := "/workspace/builds/shots"
-const SIZES := {"cover": Vector2i(484, 1188), "inner": Vector2i(928, 1080)}
+var SIZES := {"cover": Vector2i(484, 1188), "inner": Vector2i(928, 1080)}   # SHOT_PC=1 adds a 1280x800 PC window
 ## The window at SIZES is a 0.5x stretch of the 968x2376 viewport, which drops 1-px pixel-font columns
 ## ("i", ":", ".") that are fine on device. Render at 2x and downsample (SHOT_NATIVE=1 keeps the 2x image) (DECISIONS #112).
 const RENDER_SCALE := 2
@@ -14,6 +14,7 @@ var plan := []
 func _ready() -> void:
 	if OS.has_environment("SHOT_DIR"): out = OS.get_environment("SHOT_DIR")
 	DirAccess.make_dir_recursive_absolute(out)
+	if OS.has_environment("SHOT_PC"): SIZES["pc"] = Vector2i(1280, 800)
 	SaveSystem.autosave = false; SaveSystem.path = "user://shots.json"
 	GameState.new_game()
 	GameState.settings.tutorial = false
@@ -126,6 +127,10 @@ func _ready() -> void:
 			_clear_pops()
 			main.delve.running = false
 			main.delve.pending = {"kind": "special", "special": DB.specials[0]}; main.delve._show_card()])
+		if OS.has_environment("ROOM_SHOTS"):   # every special room's delve scene (DECISIONS #180)
+			for sp in DB.specials:
+				plan.append([sz, "room_" + String(sp.id), func():
+					_fresh_warrior_run(); main.show_delve(); _clear_pops(); main.delve.running = false; main.delve.pending = {"kind": "special", "special": sp}; main.delve._show_card()])
 		plan.append([sz, "delve_auto", func():
 			_clear_pops()
 			main.delve.pending = {}; GameState.settings.full_auto = true

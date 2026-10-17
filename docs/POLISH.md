@@ -67,6 +67,7 @@ Priority: **P1** fix before a public build, **P2** next polish pass, **P3** nice
 | 43 | ~~Camp campfire was seven orange bars; needs SPD flame particles, sparks, smoke, flicker and a night light pool~~ **Done** (#179) | overnight 2026-10-16 | P2 | M |
 | 44 | ~~Encounter foes stacked on one spot and popped in~~ **Done**: one column each, two rows, run in (#179) | overnight 2026-10-16 | P2 | S |
 | 45 | Animated water puddles in the Sewers corridor (needs SPD water edge stitching) | overnight 2026-10-16 | P3 | M |
+| 46 | ~~Special rooms had no scene of their own on the delve (just a floating icon)~~ **Done** (#180) | overnight 2026-10-16 | P2 | M |
 
 ## Code / docs hygiene (no player impact)
 | # | Item | Source | Pri | Effort |
