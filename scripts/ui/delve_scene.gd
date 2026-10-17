@@ -228,12 +228,12 @@ func _top_tile(wall: Dictionary, cx: int) -> int:
 	var side := (1 if int(wall.get(cx + 1, 80)) in DOORS else 0) + (2 if int(wall.get(cx - 1, 80)) in DOORS else 0)
 	match w:
 		92, 108:   # SPD LibraryRoom: shelves stand against the room wall, so the cell above is that wall's top,
-			# WALL_INTERNAL_WOODEN 176 (stitchInternalWallTile): black with a wooden edge where the run of shelves
-			# ends (+1 right, +8 left) and where a door is below-beside (+2, +4). WALL_OVERHANG_WOODEN is only for a
-			# floor cell above a shelf, which the corridor never has.
-			var sh := func(c2: int) -> bool: return int(wall.get(c2, 80)) in [92, 108]
-			return 176 + (0 if sh.call(cx + 1) else 1) + (2 if int(wall.get(cx + 1, 80)) in DOORS else 0) \
-				+ (4 if int(wall.get(cx - 1, 80)) in DOORS else 0) + (0 if sh.call(cx - 1) else 8)
+			# WALL_INTERNAL_WOODEN 176 (stitchInternalWallTile). Its left/right neighbours are wall tops too (every
+			# wall, shelf or plain, is wall-stitchable), so +1 / +8 never apply. The +2 / +4 door-below posts are
+			# left off as well: in SPD another wall row sits above, but here the row above is the void, so a post
+			# at either end of the shelf run would poke up into it. WALL_OVERHANG_WOODEN is only for a floor cell
+			# above a shelf, which the corridor never has.
+			return 176
 		112, 114: return 224
 		113: return 225
 		115: return 226
@@ -595,7 +595,7 @@ func _grass_tex(tiles: Texture2D, idx: int) -> Texture2D:
 	_grass_cache[key] = tx
 	return tx
 
-## SPD Specks poured over a well (Speck.java): HEALING (0) is a green plus that rises 20 px/s for 1 s and fades in its
+## SPD Specks poured over a well (Speck.java): HEALING (0) is a red plus that rises 20 px/s for 1 s and fades in its
 ## second half, one every 0.5 s; QUESTION (3) is a "?" that grows and shrinks in place over 0.8 s, one every 0.3 s.
 ## Positions are seeded per speck, scales are whole art pixels, so nothing shimmers between frames.
 var _speck_tex: Texture2D

@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Scene nits (DECISIONS #186): library shelves no longer have a wooden post sticking up into the dark at either end. The Dwarf King's carpet is darker, so his red danger tiles stand out on it. Prison torch light stays inside the battle arena, City smoke drifts as faint haze instead of dark squares, and the battle hit flash is SPD's quick white blink (0.05 s).
 - Scene polish (DECISIONS #185): boss arenas look like SPD's boss rooms (Goo's sewer drains, Tengu's prison torches, DM-300's pylons, the Dwarf King's throne dais and red carpet, Yog's stained-glass windows and candles). Library bookshelves have SPD's slim wooden top instead of a heavy band, wells pour SPD's healing crosses or question marks, the delve campfire no longer sits on a dark square, faint wind motes drift over chasms in battle, and fireflies blink over the camp clearing (below the horizon, so the sky stays static). Tall grass no longer stands in front of the hero resting at the campfire.
 
 ## 0.43.0
