@@ -274,8 +274,10 @@ func _process(_d: float) -> void:
 
 
 ## The staged "+3 gold" pop of delve_walk lives 1.1 s, longer than the next shots take, so clear it (DECISIONS #113).
+## The delve_death corpses would also linger over the next scenes, so they go too.
 func _clear_pops() -> void:
-	if main.delve != null and main.delve.scene != null: main.delve.scene.pops.clear(); main.delve.scene.glow = 0.0
+	if main.delve != null and main.delve.scene != null:
+		main.delve.scene.pops.clear(); main.delve.scene.glow = 0.0; main.delve.scene._dying = {}
 
 
 ## A delve corridor walk in another biome (tile sheet, wall deco, region props).
