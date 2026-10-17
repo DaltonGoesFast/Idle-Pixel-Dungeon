@@ -950,6 +950,14 @@ func test_doors_grass(gs) -> void:
 	check(gv.terrain_visual(door) == 113 and gv.wall_visual(above) == 225, "occupied door: SPD open door + open overhang")
 	c.hero.pos = Vector2i(4, 4)
 	check(gv.terrain_visual(door) == 112, "door closes again when vacated")
+	# remains hold the door open (DECISIONS #176) and are drawn as SPD bones on it until someone passes through
+	check(gv.remains_visual(door) == -1, "an empty shut door shows no remains")
+	var dm: Dictionary = c.enemies()[0]; var dm_from: Vector2i = dm.pos
+	dm.pos = door; c._kill(dm, false)
+	check(gv.terrain_visual(door) == 113 and gv.remains_visual(door) == DB.icon_index("BONES"), "a death in the doorway: open door with SPD bones on it")
+	c._place(c.hero, door); c._place(c.hero, Vector2i(4, 4))
+	check(gv.terrain_visual(door) == 112 and gv.remains_visual(door) == -1, "after someone passes through: shut door, no bones")
+	dm.hp = int(dm.ht); dm.pos = dm_from
 	# sideways door (wall above and below)
 	for y in Combat.SIZE: c.terrain[y][6] = Combat.T.WALL
 	c.terrain[6][6] = Combat.T.DOOR

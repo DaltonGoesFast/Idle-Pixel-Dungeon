@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- A door held open by the remains of something that died in it now shows SPD bones on the open door, so you can see why it is open. The bones go when someone passes through and the door shuts again (+test).
 
 ## 0.42.0
 - The Enchanter's Desk description now says artifacts repair from Lv2, like rings and wands. It still said Lv3 after DECISIONS #170 moved artifact repair to Lv2, so the Desk window told players to save for a level they don't need (+test).
