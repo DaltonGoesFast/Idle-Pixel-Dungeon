@@ -40,7 +40,7 @@ var _door_was := {}      # last-frame occupancy for door tween
 # SPD DungeonTileSheet indices (xy(x,y) = (x-1) + 16*(y-1))
 const S_FLOOR := 0; const S_FLOOR_ALT1 := 6; const S_FLOOR_ALT2 := 12
 const S_CHASM := 24; const S_WATER := 32
-const S_RAISED_WALL := 80; const S_RAISED_WALL_DOOR := 88; const S_RAISED_WALL_ALT := 96
+const S_RAISED_WALL := 80; const S_RAISED_WALL_DECO := 84; const S_RAISED_WALL_DOOR := 88; const S_RAISED_WALL_ALT := 96; const S_RAISED_WALL_DECO_ALT := 100
 const S_RAISED_DOOR := 112; const S_RAISED_DOOR_OPEN := 113; const S_RAISED_DOOR_SIDE := 116
 const S_SHORT_GRASS := 2; const S_SHORT_GRASS_ALT := 8
 const S_DOOR_OVERHANG_OPEN := 225; const S_DOOR_SIDE_OVERHANG_OPEN := 208; const S_DOOR_SIDE_OVERHANG_CLOSED := 212
@@ -261,7 +261,8 @@ func terrain_visual(c: Vector2i) -> int:
 	var v: int = variance.get(c, 50)
 	match t:
 		Combat.T.FLOOR, Combat.T.GRASS:
-			if combat != null and combat.trampled.has(c): return S_SHORT_GRASS_ALT if v < 50 else S_SHORT_GRASS
+			# SPD HIGH_GRASS stands on the GRASS ground tile (keyed blades over short grass, not bare floor)
+			if t == Combat.T.GRASS or (combat != null and combat.trampled.has(c)): return S_SHORT_GRASS_ALT if v < 50 else S_SHORT_GRASS
 			if v < 5: return S_FLOOR_ALT2
 			if v < 52: return S_FLOOR_ALT1
 			return S_FLOOR
@@ -286,10 +287,19 @@ func terrain_visual(c: Vector2i) -> int:
 			var below := c + Vector2i(0, 1)
 			if _is_wall(below) or below.y > _ah(): return -1
 			var r := S_RAISED_WALL_DOOR if _is_door(below) else (S_RAISED_WALL_ALT if v < 50 else S_RAISED_WALL)
+			if r != S_RAISED_WALL_DOOR and wall_deco(c): r = S_RAISED_WALL_DECO_ALT if v < 50 else S_RAISED_WALL_DECO
 			if not _is_wall(c + Vector2i(1, 0)): r += 1
 			if not _is_wall(c + Vector2i(-1, 0)): r += 2
 			return r
 	return -1
+
+## SPD WALL_DECO on a raised wall face (drain, torch sconce, ore vein, recess, stained glass): about one face in
+## nine, seeded per cell like SPD's tile variance. Visual only; the arena's terrain has no deco walls of its own.
+func wall_deco(c: Vector2i) -> bool:
+	if c.x < 0 or c.x >= _aw() or c.y < -1 or c.y >= _ah(): return false   # only faces the player can see
+	return absi(hash(c) ^ 0x5bd1e995) % 9 == 0
+
+func biome() -> String: return tileset.trim_prefix("tiles_")
 
 ## Raised grass sits on the floor (RAISED_HIGH_GRASS).
 func grass_visual(c: Vector2i) -> int:
@@ -359,6 +369,7 @@ func _draw() -> void:
 	var ps := cs / 16.0
 	var lo := -2; var hi_x := _aw() + 1; var hi_y := _ah() + 1
 	# 1. ground layer
+	var deco_faces := []; var wet := []
 	for y in range(lo, hi_y + 1):
 		for x in range(lo, hi_x + 1):
 			var c := Vector2i(x, y)
@@ -369,6 +380,8 @@ func _draw() -> void:
 				draw_texture_rect_region(water, r, Rect2(Vector2(x * 16, y * 16) + off, Vector2(16, 16)))
 			var v := terrain_visual(c)
 			if v >= 0: _tile(r, v)
+			if v == S_RAISED_WALL_DECO or v == S_RAISED_WALL_DECO_ALT: deco_faces.append([r, v])
+			if t == Combat.T.WATER: wet.append(r)
 			elif t == Combat.T.WALL and _is_wall(c + Vector2i(0, 1)): _tile(r, S_WALL_INTERNAL + 15)  # solid fill under wall tops
 			if t == Combat.T.GRASS:
 				# blades + overhang share one offset; floor strip (bottom 6 art px) stays put
@@ -435,6 +448,14 @@ func _draw() -> void:
 		for x in range(lo, hi_x + 1):
 			var wv := wall_visual(Vector2i(x, y))
 			if wv >= 0: _tile(cell_rect(Vector2(x, y)), wv)
+	# 5b. SPD region visuals: drips from drains, Prison wall torches, cave ore sparkles, City smoke, Halls embers.
+	# Drawn under the fog, so out-of-sight walls dim like everything else.
+	var bio := biome()
+	for df in deco_faces:
+		var fr: Rect2 = df[0]
+		SceneFX.wall_visual(self, anim_t, bio, fr, int(df[1]), ps)
+	if bio == "halls":
+		for wr in wet: SceneFX.halls_stream(self, anim_t, wr, ps)
 	# 6. fog of war + torchlight: smooth per-corner blend (SPD FogOfWar texture is bilinear)
 	if lighting and lr < 50.0:
 		var ctr := hero_disp + Vector2(0.5, 0.5)
