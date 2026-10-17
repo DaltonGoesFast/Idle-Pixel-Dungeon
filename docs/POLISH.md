@@ -76,9 +76,11 @@ Priority: **P1** fix before a public build, **P2** next polish pass, **P3** nice
 | 52 | ~~Delve wall and door tops cut off; floor ended in a hard edge at the void~~ **Done**: SPD wall/door/bookshelf overhang tiles, CHASM_FLOOR / CHASM_WATER bottom edge (#182) | user 2026-10-17 | P1 | M |
 | 53 | ~~Foes vanished instantly when a fight ended; no reaction when the hero struck; foes overlapped in the wrong order~~ **Done**: SPD die frames and fade, hit flash and knockback, back-to-front drawing (#182) | user 2026-10-17 | P2 | S |
 | 54 | ~~Gnoll camp gnolls overlapped; not every corridor screen had a biome prop; Prison walls had unlit sconces~~ **Done** (#182) | user 2026-10-17 | P2 | S |
-| 55 | Combat grid (`grid_view.gd`) still mirrors sprites with a negative source width, which made the gnoll's last die frame vanish in the delve; check whether any combat frames are affected (combat screen, out of scope for scene polish) | fix4 2026-10-17 | P3 | S |
+| 55 | ~~Combat grid sprite mirroring~~ **Done**: the grid mirrored through `draw_set_transform`, which never dropped frames; it now uses the same destination-rect flip as the delve (#183) | fix4 2026-10-17 | P3 | S |
 | 56 | Delve boss campfire: the SPD embers tile is drawn raw, a hard dark square on the corridor floor that the fire's warm light does not tint; key out its baked floor like the camp does (`_masked`) or draw it on the biome's own floor | report 4dee067 | P3 | S |
 | 57 | Delve wells (Health / Awareness) read as a small empty frame at phone size; the sparkle is the only cue. Consider SPD's well with a brighter water tint | report 4dee067 | P3 | S |
+| 58 | ~~Battle grid had no biome wall decorations or wall light, bolts were plain lines, hit flash was a dim tint, corpses drew over living foes~~ **Done** (#183) | user 2026-10-17 | P2 | M |
+| 59 | Battle: a mob zap's projectile and its hit land in the same frame. Holding the hit visuals until the bolt arrives would need the combat events to carry a delay | fix5 2026-10-17 | P3 | S |
 
 ## Code / docs hygiene (no player impact)
 | # | Item | Source | Pri | Effort |

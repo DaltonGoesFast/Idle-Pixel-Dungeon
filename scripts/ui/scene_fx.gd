@@ -115,3 +115,65 @@ static func twinkle(ci: CanvasItem, c: Vector2, k: float, t: float, r: float, co
 static func firelit(p: Vector2, fire: Vector2, rad: float, flk: float, amt := 0.35) -> Color:
 	var w := clampf(1.0 - p.distance_to(fire) / rad, 0.0, 1.0) * amt * (0.75 + (flk - 1.0) * 6.0)
 	return Color.WHITE.lerp(Color(1.0, 0.72, 0.45), clampf(w, 0.0, 1.0))
+
+## SPD region wall visuals on WALL_DECO cells (SewerLevel.Sink, PrisonLevel.Torch, CavesLevel.Vein,
+## CityLevel.Smoke), stateless: each particle is a function of time and its slot. Drawn after the darkness pass.
+static func wall_visual(ci: CanvasItem, t: float, biome: String, rc: Rect2, tid: int, k: float) -> void:
+	var c := rc.get_center(); var sd := int(rc.position.x / maxf(1.0, k))
+	match biome:
+		"sewers":   # drips from the drain: 2px WaterParticles falling (acc 50) for 0.4 s
+			for i in 4:
+				var ph := _frac(t / 0.4 + float(i) / 4.0)
+				var cyc := floorf(t / 0.4 + float(i) / 4.0)
+				var x := c.x + (_rnd(i + int(cyc) * 5, sd) * 4.0 - 2.0) * k
+				var y := c.y + (3.0 + 4.0 * ph * ph) * k
+				var col := Color("b6ccc2").lerp(Color("3b6653"), _rnd(i, sd + 1)); col.a = 0.5 * (1.0 - ph * 0.5)
+				ci.draw_rect(Rect2(Vector2(x, y).floor(), Vector2(2, 2) * k), col)
+		"prison":   # wall torch: FlameParticle pour + Halo(12, 0xFFFFCC, 0.4); the sconce is lit by its own flame
+			var fl := flicker(t + float(sd))
+			ci.draw_texture_rect_region(load("res://assets/tiles/tiles_prison.png"), rc, Rect2((tid % 16) * 16, (tid / 16) * 16, 16, 16), Color(1, 0.95, 0.85, 0.8))
+			glow(ci, c + Vector2(0, k), 12.0 * k * fl * 1.8, Color(1.0, 1.0, 0.8, 0.3))
+			fire(ci, c + Vector2(0, 3.0 * k), k, t + float(sd) * 0.37, 2.0, false, 0.45)
+		"caves":   # ore vein: white sparkles that swell and shrink over 0.5 s, about one a second
+			for i in 2:
+				var ph := _frac(t + float(i) * 0.5 + _rnd(sd, i))
+				if ph > 0.5: continue
+				var cyc := floorf(t + float(i) * 0.5 + _rnd(sd, i))
+				var p := rc.position + Vector2(_rnd(int(cyc) + i, sd), _rnd(int(cyc) + i, sd + 7)) * rc.size
+				var am := (ph * 4.0) if ph < 0.25 else (2.0 - ph * 4.0)
+				var sz := maxf(1.0, roundf(am * 2.0)) * k
+				ci.draw_rect(Rect2((p - Vector2(sz, sz) / 2.0).floor(), Vector2(sz, sz)), Color(1, 1, 1, clampf(am, 0.0, 1.0)))
+		"city":   # smoke: black puffs drifting up from the recess, never above a quarter opacity
+			for i in 6:
+				var ph := _frac(t / 2.0 + float(i) / 6.0)
+				var x := c.x + (_rnd(i, sd) * 12.0 - 6.0 + ph * 2.0) * k
+				var y := c.y + (_rnd(i, sd + 3) * 12.0 - 4.0 - ph * 9.0) * k
+				var am := (1.0 - ph) * 5.0 if ph > 0.8 else ph * 0.25
+				var sz := floorf(3.0 + ph * 3.0) * k
+				ci.draw_rect(Rect2(Vector2(x, y).floor(), Vector2(sz, sz)), Color(0, 0, 0, clampf(am, 0.0, 0.25)))
+
+## SPD HallsLevel.Stream FireParticle: 0xEE7722, launched up at 40 px/s against +80 gravity, shrinking, ~0.5/s.
+static func halls_stream(ci: CanvasItem, t: float, rc: Rect2, k: float) -> void:
+	var sd := int(rc.position.x / maxf(1.0, k)) + int(rc.position.y)
+	var per := 2.0 + _rnd(sd, 3)
+	var ph := fposmod(t + _rnd(sd, 4) * per, per)
+	if ph > 1.0: return
+	var cyc := floorf((t + _rnd(sd, 4) * per) / per)
+	var p := rc.position + Vector2(_rnd(int(cyc), sd), _rnd(int(cyc), sd + 1)) * rc.size
+	var y := p.y + (-40.0 * ph + 40.0 * ph * ph) * k
+	var sz := maxf(1.0, roundf(4.0 * (1.0 - ph))) * k
+	var col := Color("ee7722"); col.a = (ph * 5.0) if ph < 0.2 else 1.0
+	ci.draw_rect(Rect2(Vector2(p.x - sz / 2.0, y - sz / 2.0).floor(), Vector2(sz, sz)), col)
+
+## SPD CityLevel.GreenFlame: ElmoParticle (0x22EE66, 0.6 s, size 4 shrinking, rising with acc -40).
+static func green_flame(ci: CanvasItem, t: float, p: Vector2, k: float, sd: int) -> void:
+	glow(ci, p, 10.0 * k, Color(0.2, 1.0, 0.45, 0.16))
+	for i in 6:
+		var ph := _frac(t / 0.6 + float(i) / 6.0)
+		var cyc := floorf(t / 0.6 + float(i) / 6.0)
+		var x := p.x + (_rnd(int(cyc) * 3 + i, sd) * 4.0 - 2.0) * k
+		var y := p.y + (_rnd(int(cyc) * 3 + i, sd + 1) * 4.0 - 2.0 - 7.2 * ph * ph) * k
+		var sz := maxf(1.0, roundf(4.0 * (1.0 - ph))) * k
+		var am := (1.0 - ph) * 5.0 if ph > 0.8 else 1.0
+		var col := Color("22ee66"); col.a = clampf(am, 0.0, 1.0)
+		ci.draw_rect(Rect2(Vector2(x - sz / 2.0, y - sz / 2.0).floor(), Vector2(sz, sz)), col)
