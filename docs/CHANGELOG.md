@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- The Enchanter's Desk description now says artifacts repair from Lv2, like rings and wands. It still said Lv3 after DECISIONS #170 moved artifact repair to Lv2, so the Desk window told players to save for a level they don't need (+test).
 - Stash and Forge gear slots name who has each piece equipped. A worn item shows the hero's name on a colored plate (Warrior, Mage, Rogue, Huntress), shortened only when the slot is too narrow. The Forge keeps its green border for "you can afford this" and its red border for cracked gear. A ring type worn by two heroes shows both faces (+test).
 - Enchanter's Desk splits into Scribe, Identify, and Attune tabs, the same section buttons the Forge and Guild use, so the queue and the gear are not one long scroll. Identify shows how many items are still unknown, and Attune shows cracked rings, wands and artifacts (+test).
 
