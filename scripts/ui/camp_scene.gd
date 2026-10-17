@@ -184,11 +184,11 @@ func _draw() -> void:
 	var r := RandomNumberGenerator.new(); r.seed = 7
 	for i in 40:
 		var p := Vector2(r.randf() * size.x, r.randf() * sky_h * 0.9)
-		var tw := 0.5 + 0.5 * sin(t * 2.0 + i)
-		draw_rect(Rect2(p.floor(), Vector2(kk, kk)), Color(1, 1, 0.9, 0.35 + 0.5 * tw))
+		# static sky (DECISIONS #181): each star keeps one brightness, nothing in the sky changes with time
+		draw_rect(Rect2(p.floor(), Vector2(kk, kk)), Color(1, 1, 0.9, 0.35 + 0.5 * r.randf()))
 	for i in 3:
 		var cl: Rect2 = [Rect2(88, 0, 49, 20), Rect2(88, 20, 49, 22), Rect2(88, 42, 50, 18)][i]
-		var cx: float = fmod(t * (6.0 + i * 3.0) * kk / 3.0 + i * size.x / 2.5, size.x + cl.size.x * kk) - cl.size.x * kk
+		var cx: float = fmod(size.x * 0.06 + i * size.x / 2.5, size.x + cl.size.x * kk) - cl.size.x * kk   # fixed, no drift
 		draw_texture_rect_region(surface, Rect2(Vector2(cx, minf(4 * kk + i * 9 * kk, sky_h - cl.size.y * kk * 0.75)).floor(), cl.size * kk * 0.75), cl, Color(1, 1, 1, 0.55))
 	# ground: grass with alternates, a stone path to the fire, tall grass along the horizon
 	var cols := int(ceil(size.x / cs)) + 1
@@ -203,10 +203,12 @@ func _draw() -> void:
 			var ctr := rc.get_center()
 			var path := absf(ctr.x - fire.x) < cs * 0.6 and ctr.y > fire.y
 			_tile(rc, (0 if h % 3 else 6) if path else (2 if h % 4 else 8))
+	var props := _prop_rects(cs)   # barrels: base cell + the cell its top reaches into
 	# horizon: a row of SPD raised high grass (DECISIONS #179) whose tops reach up into the sky
 	var grass := []   # [rect, kind, sway]: drawn after the night pass so the blades are not darkened twice
 	for x in cols:
-		grass.append([Rect2(ox + x * cs, sky_h, cs, cs), 0 if (x * 7) % 3 else 1, 0.0])
+		var hr := Rect2(ox + x * cs, sky_h, cs, cs)
+		if not _hits_prop(hr, cs, props): grass.append([hr, 0 if (x * 7) % 3 else 1, 0.0])
 	# scenery (DECISIONS #179): SPD grass tufts and tall grass sway around the clearing, barrels by the Guild
 	# and the Forge, all from the sewers tile sheet; kept off the path and the NPC spots
 	for y in rows:
@@ -218,15 +220,17 @@ func _draw() -> void:
 			# the clump covers its cell and the cell above (overhang) and is drawn over the NPCs: keep both clear
 			var span := Rect2(rc2.position - Vector2(0, cs), Vector2(cs, cs * 2.0))
 			if SPOTS.any(func(sp): return spot_rect(sp).merge(label_rect(sp)).grow(cs * 0.3).intersects(span)): continue
+			if _hits_prop(rc2, cs, props): continue
 			if h2 % 9 == 0:   # tall grass clump: SPD raised high grass, top half in the cell above
 				grass.append([rc2, h2 & 1, roundf(sin(t * 1.6 + x * 0.9 + y)) * kk])
 	_scenery(kk, cs, fire)
 	# campfire: SPD embers tile under a FlameParticle fire with sparks and smoke, and a flickering warm glow
 	var fr := Rect2((fire - Vector2(cs, cs) / 2.0).floor(), Vector2(cs, cs))
 	var flk := SceneFX.flicker(t)
-	SceneFX.glow(self, fire, cs * 2.6 * flk, Color(1.0, 0.55, 0.2, 0.22))
+	var ground := Rect2(0, sky_h, size.x, size.y - sky_h)   # firelight and fire particles stay off the sky
+	SceneFX.glow(self, fire, cs * 2.6 * flk, Color(1.0, 0.55, 0.2, 0.22), ground)
 	_tile(fr, 3, _masked(3, [0, 1, 2, 6, 8], false))   # SPD embers with the stone floor keyed out: specks on the grass
-	SceneFX.fire(self, fire + Vector2(0, kk * 4), kk, t, 14.0, true, 2.2)
+	SceneFX.fire(self, fire + Vector2(0, kk * 4), kk, t, 14.0, true, 2.2, sky_h)
 	# the selected hero rests by the fire (idle frame 0)
 	var hs := _sprite(hero)
 	var hz := Vector2(12, 15) * kk * 2.0
@@ -257,9 +261,9 @@ func _draw() -> void:
 				draw_texture_rect_region(_sprite(s[1]), sr, Rect2(frame * fw, 0, fw, s[3]), SceneFX.firelit(sr.get_center(), fire, frad, flk))
 	# night: the clearing darkens away from the fire, the sky stays readable (DECISIONS #179)
 	SceneFX.darkness(self, Rect2(0, sky_h, size.x, size.y - sky_h), fire, minf(size.x, size.y - sky_h) * 0.62 * flk, 0.5)
-	SceneFX.glow(self, fire, cs * 1.2 * flk, Color(1.0, 0.7, 0.3, 0.12))
+	SceneFX.glow(self, fire, cs * 1.2 * flk, Color(1.0, 0.7, 0.3, 0.12), ground)
 	# grass blades over the darkened ground, lit at half the night's strength (the floor keeps the full darkening)
-	var lrad := minf(size.x, size.y - sky_h) * 0.62 * flk
+	var lrad := minf(size.x, size.y - sky_h) * 0.62   # unflickered: the horizon tops sit in the sky and stay static
 	for g in grass:
 		var gc: Vector2 = (g[0] as Rect2).get_center()
 		var d := clampf((gc.distance_to(fire) / lrad - 0.3) / 0.65, 0.0, 1.0)
@@ -284,15 +288,32 @@ func _draw() -> void:
 			draw_circle(bp, kk * 3.5, Color("ff5a2a")); draw_string(font, bp + Vector2(-fs * 0.18, fs * 0.33), "!", HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color.WHITE)
 
 ## Props from the SPD sewers sheet: barrels (raised, transparent) beside the Guild and the Forge.
-func _scenery(kk: float, cs: float, _fire: Vector2) -> void:
+## [cell rect, raised kind]; the barrel's top is drawn in the cell above.
+func _barrels(cs: float) -> Array:
+	var kk := k(); var out := []
 	for sp in SPOTS:
 		var sr := spot_rect(sp)
 		match sp[0]:
 			"Guild":
-				_raised(Rect2(Vector2(sr.position.x - cs * 1.9 - kk * 2, sr.end.y - cs * 0.9).floor(), Vector2(cs, cs)), 3)
-				_raised(Rect2(Vector2(sr.position.x - cs - kk * 2, sr.end.y - cs).floor(), Vector2(cs, cs)), 2)
+				out.append([Rect2(Vector2(sr.position.x - cs * 1.9 - kk * 2, sr.end.y - cs * 0.9).floor(), Vector2(cs, cs)), 3])
+				out.append([Rect2(Vector2(sr.position.x - cs - kk * 2, sr.end.y - cs).floor(), Vector2(cs, cs)), 2])
 			"Forge":
-				_raised(Rect2(Vector2(sr.position.x - cs - kk * 2, sr.end.y - cs).floor(), Vector2(cs, cs)), 2)
+				out.append([Rect2(Vector2(sr.position.x - cs - kk * 2, sr.end.y - cs).floor(), Vector2(cs, cs)), 2])
+	return out
+
+func _scenery(_kk: float, cs: float, _fire: Vector2) -> void:
+	for b in _barrels(cs): _raised(b[0], b[1])
+
+## Every prop's full footprint (its cell plus the overhang cell above), for keeping grass off props.
+func _prop_rects(cs: float) -> Array:
+	var out := []
+	for b in _barrels(cs): out.append((b[0] as Rect2).grow_individual(0, cs, 0, 0))
+	return out
+
+## A grass clump spans its cell and the cell above (overhang): true if that touches any prop footprint.
+func _hits_prop(rc: Rect2, cs: float, props: Array) -> bool:
+	var span := Rect2(rc.position - Vector2(0, cs), Vector2(cs, cs * 2.0)).grow(-1.0)
+	return props.any(func(p): return (p as Rect2).intersects(span))
 
 ## Badge rule: a facility upgrade is affordable, or an identification is finished.
 func _has_news(page: String) -> bool:

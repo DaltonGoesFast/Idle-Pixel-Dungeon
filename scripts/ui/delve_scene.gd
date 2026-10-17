@@ -182,7 +182,7 @@ func _draw() -> void:
 			if row == 1 and not ev.is_empty(): idx = _encounter_wall(ev, cx - stop_col, idx)
 			draw_texture_rect_region(tiles, rc, Rect2((idx % 16) * 16, (idx / 16) * 16, 16, 16))
 		# bones on the far floor row (seeded per column, kept clear of the encounter)
-		if not busy and cx > hero_col + 1 and _h(cx, 5) % 17 == 0:
+		if not busy and cx > hero_col + 1 and _h(cx, 5) % 17 == 0 and not _grass_at(cx):   # never under a grass top
 			var ir := UIKit.item_rect(DB.icon_index("BONES"))
 			var isz := ir.size * k
 			draw_texture_rect_region(_t("res://assets/sprites/items.png"), Rect2((Vector2(x, y0 + 2 * cs) + (Vector2(cs, cs) - isz) / 2.0).floor(), isz), ir, Color(1, 1, 1, 0.85))

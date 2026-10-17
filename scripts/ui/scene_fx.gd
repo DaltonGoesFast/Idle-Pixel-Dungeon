@@ -50,12 +50,20 @@ static func darkness(ci: CanvasItem, area: Rect2, c: Vector2, rad: float, alpha:
 	ci.draw_rect(Rect2(a.position.x, y0, x0 - a.position.x, y1 - y0), dark)
 	ci.draw_rect(Rect2(x1, y0, a.end.x - x1, y1 - y0), dark)
 
-static func glow(ci: CanvasItem, c: Vector2, rad: float, col: Color) -> void:
-	ci.draw_texture_rect(glow_tex(), Rect2(c - Vector2.ONE * rad, Vector2.ONE * rad * 2.0), false, col)
+## Tinted glow; with a `clip` rect it is cut to that rect by texture region (the camp keeps it off the sky).
+static func glow(ci: CanvasItem, c: Vector2, rad: float, col: Color, clip := Rect2()) -> void:
+	var gr := Rect2(c - Vector2.ONE * rad, Vector2.ONE * rad * 2.0)
+	if not clip.has_area():
+		ci.draw_texture_rect(glow_tex(), gr, false, col); return
+	var cl := gr.intersection(clip)
+	if not cl.has_area(): return
+	var ts := Vector2(glow_tex().get_width(), glow_tex().get_height())
+	ci.draw_texture_rect_region(glow_tex(), cl, Rect2((cl.position - gr.position) / gr.size * ts, cl.size / gr.size * ts), col)
 
 ## SPD FlameParticle (0xEE7722 fading, shrinking, rising) + sparks + SmokeParticle, at base `p` (fire centre on
 ## the ground), pixel size `k`. `w` is the fire width in source pixels.
-static func fire(ci: CanvasItem, p: Vector2, k: float, t: float, w := 8.0, smoke := true, hs := 1.0) -> void:
+## Particles above `top` (screen y) are skipped, so smoke and sparks never cross into a static sky.
+static func fire(ci: CanvasItem, p: Vector2, k: float, t: float, w := 8.0, smoke := true, hs := 1.0, top := -INF) -> void:
 	# smoke first (behind the flames): grey puffs rising slowly and drifting
 	if smoke:
 		for i in 6:
@@ -63,6 +71,7 @@ static func fire(ci: CanvasItem, p: Vector2, k: float, t: float, w := 8.0, smoke
 			var x := p.x + (_rnd(i, 1) - 0.5) * w * 0.6 * k + sin(t * 0.8 + i) * 2.0 * k + ph * 5.0 * k
 			var y := p.y - (8.0 + ph * 26.0) * k * hs
 			var s := floorf(2.0 + ph * 3.0) * k
+			if y < top: continue
 			ci.draw_rect(Rect2(Vector2(x, y).floor(), Vector2(s, s)), Color(0.35, 0.33, 0.33, 0.28 * (1.0 - ph)))
 	for i in 22:
 		var life := 0.55 + 0.35 * _rnd(i, 2); var ph := _frac(t / life + _rnd(i, 3))
@@ -71,11 +80,13 @@ static func fire(ci: CanvasItem, p: Vector2, k: float, t: float, w := 8.0, smoke
 		var s := maxf(1.0, floorf(3.0 * hs * (1.0 - ph) + 0.5)) * k
 		var c: Color = Color("ffe680").lerp(Color("ee7722"), clampf(ph * 1.8, 0, 1)).lerp(Color("aa2200"), clampf(ph * 2.0 - 1.0, 0, 1))
 		c.a = 1.0 - ph * ph
+		if y - s / 2.0 < top: continue
 		ci.draw_rect(Rect2(Vector2(x - s / 2.0, y - s / 2.0).floor(), Vector2(s, s)), c)
 	for i in 5:   # sparks: single pixels that fly higher and wobble
 		var life := 1.4; var ph := _frac(t / life + _rnd(i, 6))
 		var x := p.x + (_rnd(i, 7) - 0.5) * w * k + sin(t * 4.0 + i * 2.0) * 3.0 * k * ph
 		var y := p.y - (4.0 + ph * 24.0) * k * hs
+		if y < top: continue
 		ci.draw_rect(Rect2(Vector2(x, y).floor(), Vector2(k, k)), Color(1.0, 0.75, 0.3, 1.0 - ph))
 
 ## Small radial burst of pixel sparks (item pickup), `age` 0..1.
