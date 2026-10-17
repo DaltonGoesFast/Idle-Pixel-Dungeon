@@ -108,6 +108,7 @@ func _anim_done(spr: String, a: String, t: float) -> bool:
 ## Feed model events into visual effects.
 func play_events(evs: Array) -> void:
 	var fired := {}   # uid -> true: one beam per caster per batch (an Evil Eye beam resolves tile by tile)
+	_batch_blasts = evs.filter(func(e): return e.t == "blast")   # this batch's resolving tiles, for the beam's far end
 	for e in evs:
 		match e.t:
 			"hit":
@@ -170,6 +171,8 @@ func _shot(kind: String, from: Vector2, to: Vector2, col := Color.WHITE) -> void
 	var mid := (from + to) / 2.0 + Vector2(-(to - from).y, (to - from).x).normalized() * (_rng.randf() - 0.5) * 0.6
 	shots.append({"kind": kind, "from": from, "to": to, "t": 0.0, "dur": dur, "col": col, "mid": mid})
 
+var _batch_blasts := []   # blast events of the batch play_events is reading
+
 ## A telegraphed zap resolving on `p`: draw what fired it, from the caster (SPD DM100 Lightning, Shaman / Warlock
 ## MagicMissile, Evil Eye DeathRay, Bright Fist LightRay). Combat resolves the damage; this only reads it.
 ## The blast event names its caster, so a telegraph made and resolved inside one step still draws; older danger
@@ -191,7 +194,7 @@ func _zap_visual(p: Vector2i, fired: Dictionary, ev := {}) -> void:
 			"dm100": _shot("lightning", from, Vector2(p))
 			"eye":
 				var far := Vector2(p)   # the beam runs to the far end of the line it lit up
-				for d2 in _danger_prev:
+				for d2 in _danger_prev + _batch_blasts:
 					if int(d2.get("uid", 0)) == int(m.uid) and Vector2(d2.pos).distance_to(from) > far.distance_to(from): far = Vector2(d2.pos)
 				_shot("deathray", from, far)
 			"fist_bright": _shot("lightray", from, Vector2(p))
