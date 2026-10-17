@@ -192,7 +192,7 @@ func _draw() -> void:
 			match row:
 				0, 4: idx = 144
 				1: idx = 80 if _h(cx, 1) % 7 else 96
-				_: idx = 1 if _h(cx * 3 + row, 2) % 11 == 0 and not near_grass else 0   # no moss deco by the grass
+				_: idx = 1 if _h(cx * 3 + row, 2) % 11 == 0 and not near_grass and not busy else 0   # no moss deco by the grass
 			if row == 1 and _h(cx, 3) % 23 == 0 and not busy: idx = DOOR_CLOSED   # side rooms pass by, shut
 			if row == 2 and _deco_at(cx) and not busy and not near_grass and _h(cx, 3) % 23 != 0: deco_cells.append([rc, cx])
 			# grass clump: SPD short-grass floor (GRASS 2) under the keyed blades, drawn after the light
