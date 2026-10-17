@@ -112,13 +112,14 @@ func _draw() -> void:
 	for i in 3:
 		var cl: Rect2 = [Rect2(88, 0, 49, 20), Rect2(88, 20, 49, 22), Rect2(88, 42, 50, 18)][i]
 		var cx: float = fmod(t * (6.0 + i * 3.0) * kk / 3.0 + i * size.x / 2.5, size.x + cl.size.x * kk) - cl.size.x * kk
-		draw_texture_rect_region(surface, Rect2(Vector2(cx, 4 * kk + i * 9 * kk).floor(), cl.size * kk * 0.75), cl, Color(1, 1, 1, 0.55))
+		draw_texture_rect_region(surface, Rect2(Vector2(cx, minf(4 * kk + i * 9 * kk, sky_h - cl.size.y * kk * 0.75)).floor(), cl.size * kk * 0.75), cl, Color(1, 1, 1, 0.55))
 	# ground: grass with alternates, a stone path to the fire, tall grass along the horizon
 	var cols := int(ceil(size.x / cs)) + 1
 	var rows := int(ceil((size.y - sky_h) / cs)) + 1
 	var ox := floorf((size.x - cols * cs) / 2.0)
 	var fire := Vector2(size.x * 0.5, ground_y(FIRE_Y))
 	draw_rect(Rect2(0, sky_h, size.x, size.y - sky_h), Color("2f4a22"))
+	draw_rect(Rect2(0, sky_h, size.x, cs), Color("2b3157"))   # sky shows through the horizon grass
 	for y in rows:
 		for x in cols:
 			var rc := Rect2(ox + x * cs, sky_h + y * cs, cs, cs)
@@ -145,7 +146,7 @@ func _draw() -> void:
 	var flk := SceneFX.flicker(t)
 	SceneFX.glow(self, fire, cs * 2.6 * flk, Color(1.0, 0.55, 0.2, 0.22))
 	_tile(fr, 3)
-	SceneFX.fire(self, fire + Vector2(0, kk * 4), kk, t, 12.0, true, 1.6)
+	SceneFX.fire(self, fire + Vector2(0, kk * 4), kk, t, 14.0, true, 2.2)
 	# the selected hero rests by the fire (idle frame 0)
 	var hs := _sprite(hero)
 	var hz := Vector2(12, 15) * kk * 2.0
@@ -173,7 +174,7 @@ func _draw() -> void:
 				var frame: int = fl[int((t + s[4] * 3.0) * float(an[0])) % fl.size()]
 				draw_texture_rect_region(_sprite(s[1]), sr, Rect2(frame * fw, 0, fw, s[3]))
 	# night: the clearing darkens away from the fire, the sky stays readable (DECISIONS #179)
-	SceneFX.darkness(self, Rect2(0, sky_h, size.x, size.y - sky_h), fire, minf(size.x, size.y - sky_h) * 0.62 * flk, 0.5)
+	SceneFX.darkness(self, Rect2(0, sky_h + cs, size.x, size.y - sky_h - cs), fire, minf(size.x, size.y - sky_h) * 0.62 * flk, 0.5)
 	SceneFX.glow(self, fire, cs * 1.2 * flk, Color(1.0, 0.7, 0.3, 0.12))
 	for s in SPOTS:
 		var sr := spot_rect(s)
