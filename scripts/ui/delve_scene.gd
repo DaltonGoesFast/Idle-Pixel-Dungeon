@@ -192,7 +192,7 @@ func _draw() -> void:
 			match row:
 				0, 4: idx = 144
 				1: idx = 80 if _h(cx, 1) % 7 else 96
-				_: idx = 1 if _h(cx * 3 + row, 2) % 11 == 0 and not near_grass else 0   # no moss deco by the grass
+				_: idx = 1 if _h(cx * 3 + row, 2) % 11 == 0 and not near_grass and not busy else 0   # no moss deco by the grass
 			if row == 1 and _h(cx, 3) % 23 == 0 and not busy: idx = DOOR_CLOSED   # side rooms pass by, shut
 			if row == 2 and _deco_at(cx) and not busy and not near_grass and _h(cx, 3) % 23 != 0: deco_cells.append([rc, cx])
 			# grass clump: SPD short-grass floor (GRASS 2) under the keyed blades, drawn after the light
@@ -306,14 +306,14 @@ func _draw() -> void:
 ## *_OVERHANG): "grass" 122/234, "grass2" 125/237, "pot" 120/232, "barricade" 121/233. "f" props are bottom-aligned in their cell.
 ## dx is in tiles from the door column, row 2 = far floor row, 3 = near floor row (fractions allowed for sprites).
 const ROOM_SCENES := {
-	"piranha": [["w", 0, 0, 2], ["w", 0, 1, 2], ["w", 0, 2, 2], ["w", 0, 0, 3], ["w", 0, 1, 3], ["w", 0, 2, 3], ["m", "piranha", 0.5, 3.6], ["m", "piranha", 1.8, 2.7]],
+	"piranha": [["w", 0, 0, 2], ["w", 0, 1, 2], ["w", 0, 2, 2], ["w", 0, 0, 3], ["w", 0, 1, 3], ["w", 0, 2, 3], ["m", "piranha", 0.5, 3.6], ["m", "piranha", 2.0, 3.1]],
 	"sacrificial_fire": [["t", 20, 1, 2], ["fire", "", 1.5, 2.75], ["f", 216, 0, 3], ["f", 217, 2, 3]],
 	"statue": [["t", 20, 1, 2], ["m", "statue", 1.5, 2.85], ["f", 216, 2, 3]],
 	"barricade": [["r", "barricade", 0, 3], ["r", "barricade", 1, 3], ["f", 216, 2, 3]],
 	"garden": [["t", 2, 0, 2], ["t", 2, 1, 2], ["t", 2, 2, 2], ["t", 2, 0, 3], ["t", 2, 1, 3], ["r", "grass", 0, 3], ["r", "grass2", 1, 3], ["f", 115, 1, 2], ["f", 113, 2, 2], ["f", 112, 2, 3], ["i", "SEED_SUNGRASS", 0, 2]],
 	"trapped_hall": [["f", 0, 0, 2], ["f", 18, 1, 3], ["f", 33, 2, 2], ["f", 68, 3, 3]],
 	"odd_wall": [["f", 216, 1, 3], ["f", 217, 2, 3], ["spark", "c8c8ff", 1.5, 1.5]],
-	"cell_block": [["f", 153, 0, 2], ["f", 154, 1, 2], ["m", "thief", 0.6, 2.8], ["i", "IRON_KEY", 2, 3]],
+	"cell_block": [["m", "thief", 0.5, 2.85], ["f", 153, 0, 2], ["f", 154, 1, 2], ["i", "IRON_KEY", 2, 3]],
 	"armory": [["f", 137, 0, 2], ["i", "SWORD", 1, 2], ["i", "ARMOR_MAIL", 2, 2], ["i", "MACE", 1, 3], ["f", 138, 3, 2]],
 	"crystal_vein": [["f", 210, 0, 2], ["f", 211, 1, 2], ["f", 210, 2, 3], ["spark", "8ad8ff", 1.0, 2.5]],
 	"vault": [["t", 4, 0, 2], ["t", 4, 1, 2], ["t", 4, 0, 3], ["t", 4, 1, 3], ["i", "CRYSTAL_CHEST", 0.5, 2.5], ["spark", "a0e8ff", 0.5, 2.4]],
@@ -327,7 +327,7 @@ const ROOM_SCENES := {
 	"trap_vault": [["f", 0, 0, 2], ["f", 34, 0, 3], ["f", 65, 2, 3], ["t", 4, 1, 2], ["i", "CRYSTAL_CHEST", 1, 2], ["spark", "a0e8ff", 1.5, 2.4]],
 	"prisoner": [["f", 153, 1, 2], ["f", 154, 2, 2], ["m", "guard", 0.5, 3.8], ["i", "IRON_KEY", 3, 3]],
 	"abandoned_shop": [["f", 169, 1, 2], ["f", 170, 2, 2], ["i", "RATION", 1, 1.8], ["i", "TORCH", 2, 1.8], ["i", "POTION_GOLDEN", 1.5, 3], ["f", 138, 0, 3]],
-	"gnoll_camp": [["t", 3, 1, 3], ["fire", "", 1.5, 3.7], ["m", "gnoll", 0.6, 2.9], ["m", "gnoll", 2.4, 2.9], ["m", "gnoll", 2.6, 3.9], ["i", "TORCH", 0, 3]],
+	"gnoll_camp": [["t", 3, 1, 3], ["fire", "", 1.5, 3.7], ["m", "gnoll", 1.0, 2.95], ["m", "gnoll", 2.5, 2.95], ["m", "gnoll", 2.6, 3.95], ["i", "TORCH", 0, 3]],
 }
 
 const RAISED_KINDS := {"grass": [122, 234, 0.5], "grass2": [125, 237, 0.5], "pot": [120, 232, 1.0], "barricade": [121, 233, 1.0]}
@@ -349,6 +349,9 @@ func _room_scene(id: String, x0: float, y0: float, cs: float, k: float, biome: D
 	var items := _t("res://assets/sprites/items.png")
 	var wo := Vector2(fposmod(t * 3.0, 16.0), fposmod(t * 2.0, 16.0)).floor()   # SPD water drifts slowly
 	var mi := 0
+	var wet := {}   # water cells, for SPD's edge stitching
+	for op in ROOM_SCENES[id]:
+		if String(op[0]) == "w": wet[Vector2i(int(op[2]), int(op[3]))] = true
 	for op in ROOM_SCENES[id]:
 		var dx := float(op[2]); var row := float(op[3])
 		var tl := Vector2(floorf(x0 + dx * cs), floorf(y0 + row * cs))
@@ -363,8 +366,12 @@ func _room_scene(id: String, x0: float, y0: float, cs: float, k: float, biome: D
 				var rm := _lm(tl + Vector2(cs, cs) / 2.0, float(rk[2]))
 				draw_texture_rect_region(_grass_tex(tiles, int(rk[0])), Rect2(tl, Vector2(cs, cs)), Rect2(0, 0, 16, 16), rm)
 				var oi := int(rk[1]); draw_texture_rect_region(tiles, Rect2(tl - Vector2(0, cs), Vector2(cs, cs)), Rect2((oi % 16) * 16, (oi / 16) * 16, 16, 16), rm)
-			"w":
-				draw_texture_rect_region(water, Rect2(tl, Vector2(cs, cs)), Rect2(wo, Vector2(16, 16)), _lm(tl + Vector2(cs, cs) / 2.0))
+			"w":   # SPD water: the scrolling water texture, then the stitch tile (ground edges) over it
+				var wc := Vector2i(int(op[2]), int(op[3])); var lm := _lm(tl + Vector2(cs, cs) / 2.0)
+				_water_cell(water, tl, k, wo + Vector2(wc * 16), lm)
+				var wi := WATER + (0 if wet.has(wc + Vector2i.UP) or wc.y <= 2 else 1) + (0 if wet.has(wc + Vector2i.RIGHT) else 2) \
+					+ (0 if wet.has(wc + Vector2i.DOWN) else 4) + (0 if wet.has(wc + Vector2i.LEFT) else 8)
+				draw_texture_rect_region(tiles, Rect2(tl, Vector2(cs, cs)), Rect2((wi % 16) * 16, (wi / 16) * 16, 16, 16), lm)
 			"i":
 				var ir := UIKit.item_rect(DB.icon_index(String(op[1]))); var isz := ir.size * k
 				var c := tl + Vector2(cs, cs) / 2.0
@@ -386,6 +393,22 @@ func _room_scene(id: String, x0: float, y0: float, cs: float, k: float, biome: D
 				var sp := Vector2(x0 + dx * cs, y0 + row * cs)
 				SceneFX.glow(self, sp, cs * 0.9, Color(op[1], 0.22))
 				SceneFX.twinkle(self, sp, k, t, cs * 0.6, Color(op[1]))
+## SPD DungeonTileSheet water: WATER = xy(1,3) = 32, then +1 ground above, +2 right, +4 below, +8 left
+## (stitchWaterTile). Those tiles are transparent where the water shows.
+const WATER := 32
+
+## One 16x16 cell of the 32x32 water texture at source offset `o` (wrapped), so neighbouring cells and the
+## drift stay continuous; drawn as up to four pieces instead of relying on texture repeat.
+func _water_cell(water: Texture2D, tl: Vector2, k: float, o: Vector2, mod: Color) -> void:
+	var ox := int(fposmod(o.x, 32.0)); var oy := int(fposmod(o.y, 32.0))
+	var xs := [[ox, mini(16, 32 - ox), 0]]
+	if 32 - ox < 16: xs.append([0, 16 - (32 - ox), 32 - ox])
+	var ys := [[oy, mini(16, 32 - oy), 0]]
+	if 32 - oy < 16: ys.append([0, 16 - (32 - oy), 32 - oy])
+	for xp in xs:
+		for yp in ys:
+			draw_texture_rect_region(water, Rect2(tl + Vector2(xp[2], yp[2]) * k, Vector2(xp[1], yp[1]) * k), Rect2(xp[0], yp[0], xp[1], yp[1]), mod)
+
 ## The high-grass base tile with its baked stone floor keyed out (flood from the border over floor tile 0/1
 ## colours), so the darkened ground shows through between the blades. Cached per biome sheet.
 var _grass_cache := {}
