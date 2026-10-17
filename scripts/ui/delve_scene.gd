@@ -188,6 +188,11 @@ func _puddle(cx: int, row: int) -> bool:
 	if row == 2 and _deco_at(cx): return false
 	return true
 
+## Only a near-row puddle spills over the floor's edge into the void. A two-row pool already touches the wall, so it
+## keeps a rim at the bottom; otherwise it read as a wall-to-edge channel (DECISIONS #182).
+func _puddle_spills(cx: int) -> bool:
+	return _puddle(cx, 3) and _h(floori(cx / 11.0), 34) % 3 == 0
+
 func _grass_at(cx: int) -> bool:
 	if _deco_at(cx - 1) or _deco_at(cx) or _deco_at(cx + 1): return false   # props keep their columns clear
 	if _puddle(cx, 3): return false
@@ -283,7 +288,7 @@ func _draw() -> void:
 					_tile_at(tiles, rc, _top_tile(wall, cx)); continue
 				1: idx = _face_tile(wall, cx)
 				4:   # the floor's edge dropping into the void below (SPD CHASM_FLOOR / CHASM_WATER)
-					if not busy and _puddle(cx, 3):
+					if not busy and _puddle_spills(cx):
 						_water_cell(water, rc.position, k, wo + Vector2(cx * 16, 64), Color.WHITE); _tile_at(tiles, rc, CHASM_WATER)
 					else: _tile_at(tiles, rc, CHASM_FLOOR)
 					continue
@@ -293,7 +298,7 @@ func _draw() -> void:
 			# grass clump: SPD short-grass floor (GRASS 2) under the keyed blades, drawn after the light
 			if row == 3 and not busy and _grass_at(cx): idx = 2; grass_cells.append([rc, cx & 1, cx])
 			if not busy and _puddle(cx, row):   # SPD water: scrolling texture, then the stitch tile over it
-				var wet := func(c2: int, r2: int) -> bool: return r2 <= 1 or r2 >= 4 or (_puddle(c2, r2) and not (c2 >= busy_from and c2 <= busy_to))
+				var wet := func(c2: int, r2: int) -> bool: return r2 <= 1 or (r2 >= 4 and _puddle_spills(c2)) or (_puddle(c2, r2) and not (c2 >= busy_from and c2 <= busy_to))
 				_water_cell(water, rc.position, k, wo + Vector2(cx * 16, row * 16), Color.WHITE)
 				idx = WATER + (0 if wet.call(cx, row - 1) else 1) + (0 if wet.call(cx + 1, row) else 2) + (0 if wet.call(cx, row + 1) else 4) + (0 if wet.call(cx - 1, row) else 8)
 				wet_cells.append(rc)
