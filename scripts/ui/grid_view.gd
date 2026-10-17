@@ -337,10 +337,10 @@ func terrain_visual(c: Vector2i) -> int:
 	return -1
 
 ## SPD WALL_DECO on a raised wall face (drain, torch sconce, ore vein, recess, stained glass): about one face in
-## nine, seeded per cell like SPD's tile variance. Visual only; the arena's terrain has no deco walls of its own.
+## six, from the room-seeded tile variance. Visual only; the arena's terrain has no deco walls of its own.
 func wall_deco(c: Vector2i) -> bool:
 	if c.x < 0 or c.x >= _aw() or c.y < -1 or c.y >= _ah(): return false   # only faces the player can see
-	return absi(hash(c) ^ 0x5bd1e995) % 9 == 0
+	return int(variance.get(c, 50)) % 6 == 1
 
 func biome() -> String: return tileset.trim_prefix("tiles_")
 
