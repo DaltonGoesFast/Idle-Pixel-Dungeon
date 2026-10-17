@@ -17,6 +17,7 @@ var rings := []             # search pulses [{pos, r, t}]
 var anim_t := 0.0
 var disp := {}          # uid -> Vector2 (cell-space display position)
 var flash := {}         # uid -> seconds remaining
+const FLASH_S := 0.05   # SPD CharSprite.FLASH_INTERVAL: full white for 0.05 s, then back
 var floaters := []      # [{pos: Vector2 (cell space), text, color, t}]
 var blasts := []        # [{pos, t}]
 var hint_cell := Vector2i(-1, -1)
@@ -117,7 +118,7 @@ func play_events(evs: Array) -> void:
 	for e in evs:
 		match e.t:
 			"hit":
-				flash[e.uid] = 0.18
+				flash[e.uid] = FLASH_S
 				var col := Color("ff5050")
 				var txt := str(e.amount)
 				match e.kind:
@@ -235,7 +236,7 @@ func _process(d: float) -> void:
 	for dd in dying: dd.t += d
 	dying = dying.filter(func(dd): return dd.t < 1.6)
 	for k in flash.keys():
-		flash[k] -= d
+		flash[k] -= minf(d, FLASH_S * 0.5)   # a slow frame still shows the flash at least once
 		if flash[k] <= 0: flash.erase(k)
 	for k in lunge.keys():
 		lunge[k].t += d
@@ -524,8 +525,8 @@ func _draw() -> void:
 		if u.get("charging", false): mod = Color(1.6, 0.6, 0.6)
 		if u.has("hero") and combat.hidden(): mod.a = 0.45
 		if not u.has("hero") and lighting and p.distance_to(hero_disp) > lr: mod = mod * Color(0.55, 0.55, 0.6)
-		# SPD CharSprite.flash(): the struck sprite turns white for a moment and fades back
-		var fl := clampf(float(flash.get(u.uid, 0.0)) / 0.18, 0.0, 1.0)
+		# SPD CharSprite.flash(): the struck sprite is drawn fully white for FLASH_INTERVAL, with no fade
+		var fl := 1.0 if float(flash.get(u.uid, 0.0)) > 0.0 else 0.0
 		var top := _draw_sprite(u.sprite, u.fw, u.fh, fr + int(u.get("row", 0)) * 1000, p, st.flip, scale, mod, fl)
 		_health_bar(u, top, scale)
 		_status_icons(u, top, scale)
@@ -548,7 +549,7 @@ func _draw() -> void:
 	var bio := biome()
 	for df in deco_faces:
 		var fr: Rect2 = df[0]
-		SceneFX.wall_visual(self, anim_t, bio, fr, int(df[1]), ps)
+		SceneFX.wall_visual(self, anim_t, bio, fr, int(df[1]), ps, Rect2(origin(), Vector2(_aw(), _ah()) * cs))   # halo stays off the black above
 	if bio == "halls":
 		for wr in wet: SceneFX.halls_stream(self, anim_t, wr, ps)
 	_chasm_wind(cs, ps)
@@ -731,6 +732,23 @@ func _pylon(c: Vector2i) -> bool:
 func _plain_top_face(c: Vector2i, v: int) -> bool:
 	return c.y == 0 and c.x >= 1 and c.x < _aw() - 1 and v in [S_RAISED_WALL, S_RAISED_WALL_ALT]
 
+## The King's carpet and dais with only their red cloth darkened (pixels where red clearly leads green and blue,
+## times 0.5), so the red danger tiles read on top of it; the gold trim, the throne and the floor margins keep
+## SPD's colours. Built once from city_boss.png and cached.
+func _carpet_tex() -> Texture2D:
+	if _ctex.has("carpet"): return _ctex["carpet"]
+	var img: Image = _ct("city_boss").get_image()
+	if img.is_compressed(): img.decompress()
+	img = img.duplicate(); img.convert(Image.FORMAT_RGBA8)
+	for y in img.get_height():
+		for x in img.get_width():
+			var c := img.get_pixel(x, y)
+			if c.a > 0.0 and c.r > c.g + 0.15 and c.r > c.b + 0.15 and c.g < 0.15:
+				img.set_pixel(x, y, Color(c.r * 0.5, c.g * 0.5, c.b * 0.5, c.a))
+	_ctex["carpet"] = ImageTexture.create_from_image(img)
+	return _ctex["carpet"]
+
+
 func _boss_ground(c: Vector2i, r: Rect2, v: int) -> void:
 	var t := _t(c)
 	match _boss:
@@ -739,12 +757,12 @@ func _boss_ground(c: Vector2i, r: Rect2, v: int) -> void:
 			var corner := (c.x == 1 or c.x == _aw() - 2) and (c.y == 1 or c.y == _ah() - 2)
 			if corner and t == Combat.T.FLOOR:
 				draw_texture_rect_region(_keyed("halls_special", Vector2i(2 + (c.x + c.y) % 6, 5), [Vector2i(3, 1), Vector2i(5, 4)]), r, Rect2(0, 0, 16, 16))
-		"king":
+		"king":   # the red cloth is drawn darker (_carpet_tex) so the red danger tiles still stand out on it
 			var mid := _aw() / 2 - 1
 			if _dais_ok() and absi(c.x - mid) <= 1 and c.y >= 1 and c.y <= 3:   # DK's throne: 3x3 at the top
-				_ctile(r, "city_boss", Vector2i(2 + c.x - mid, 12 + c.y))
+				draw_texture_rect_region(_carpet_tex(), r, Rect2(Vector2i(2 + c.x - mid, 12 + c.y) * 16, Vector2(16, 16)))
 			elif c.x == mid and c.y >= (4 if _dais_ok() else 1) and c.y < _ah() - 1 and t == Combat.T.FLOOR:   # carpet runner
-				_ctile(r, "city_boss", Vector2i(0, 15 if c.y == _ah() - 2 else 14))
+				draw_texture_rect_region(_carpet_tex(), r, Rect2(Vector2i(0, 15 if c.y == _ah() - 2 else 14) * 16, Vector2(16, 16)))
 		"dm300":
 			if _pylon(c): _ctile(r, "caves_boss", Vector2i(5, 4))   # the pylon's floor pad
 

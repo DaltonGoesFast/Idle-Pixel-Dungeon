@@ -118,7 +118,8 @@ static func firelit(p: Vector2, fire: Vector2, rad: float, flk: float, amt := 0.
 
 ## SPD region wall visuals on WALL_DECO cells (SewerLevel.Sink, PrisonLevel.Torch, CavesLevel.Vein,
 ## CityLevel.Smoke), stateless: each particle is a function of time and its slot. Drawn after the darkness pass.
-static func wall_visual(ci: CanvasItem, t: float, biome: String, rc: Rect2, tid: int, k: float) -> void:
+## `clip` (optional) keeps the Prison torch halo and flames inside the scene area (the battle arena's cells).
+static func wall_visual(ci: CanvasItem, t: float, biome: String, rc: Rect2, tid: int, k: float, clip := Rect2()) -> void:
 	var c := rc.get_center(); var sd := int(rc.position.x / maxf(1.0, k))
 	match biome:
 		"sewers":   # drips from the drain: 2px WaterParticles falling (acc 50) for 0.4 s
@@ -132,8 +133,8 @@ static func wall_visual(ci: CanvasItem, t: float, biome: String, rc: Rect2, tid:
 		"prison":   # wall torch: FlameParticle pour + Halo(12, 0xFFFFCC, 0.4); the sconce is lit by its own flame
 			var fl := flicker(t + float(sd))
 			ci.draw_texture_rect_region(load("res://assets/tiles/tiles_prison.png"), rc, Rect2((tid % 16) * 16, (tid / 16) * 16, 16, 16), Color(1, 0.95, 0.85, 0.8))
-			glow(ci, c + Vector2(0, k), 12.0 * k * fl * 1.8, Color(1.0, 1.0, 0.8, 0.3))
-			fire(ci, c + Vector2(0, 3.0 * k), k, t + float(sd) * 0.37, 2.0, false, 0.45)
+			glow(ci, c + Vector2(0, k), 12.0 * k * fl * 1.8, Color(1.0, 1.0, 0.8, 0.3), clip)
+			fire(ci, c + Vector2(0, 3.0 * k), k, t + float(sd) * 0.37, 2.0, false, 0.45, clip.position.y if clip.has_area() else -INF)
 		"caves":   # ore vein: white sparkles that swell and shrink over 0.5 s, about one a second
 			for i in 2:
 				var ph := _frac(t + float(i) * 0.5 + _rnd(sd, i))
@@ -143,14 +144,18 @@ static func wall_visual(ci: CanvasItem, t: float, biome: String, rc: Rect2, tid:
 				var am := (ph * 4.0) if ph < 0.25 else (2.0 - ph * 4.0)
 				var sz := maxf(1.0, roundf(am * 2.0)) * k
 				ci.draw_rect(Rect2((p - Vector2(sz, sz) / 2.0).floor(), Vector2(sz, sz)), Color(1, 1, 1, clampf(am, 0.0, 1.0)))
-		"city":   # smoke: black puffs drifting up from the recess, never above a quarter opacity
-			for i in 6:
-				var ph := _frac(t / 2.0 + float(i) / 6.0)
-				var x := c.x + (_rnd(i, sd) * 12.0 - 6.0 + ph * 2.0) * k
-				var y := c.y + (_rnd(i, sd + 3) * 12.0 - 4.0 - ph * 9.0) * k
-				var am := (1.0 - ph) * 5.0 if ph > 0.8 else ph * 0.25
+		"city":   # CityLevel.Smoke: a SmokeParticle every 0.2 s (10 alive) from a 12x12 box, 2 s life, drifting
+			# (-2..4, -3..-6) px/s, growing 3 -> 6 px; alpha fades in to 0.2 over the first fifth, then falls from
+			# 0.2 to 0, so the big late puffs are the faintest and the overlap reads as haze, not dark squares
+			for i in 10:
+				var ph := _frac(t / 2.0 + float(i) / 10.0)
+				var sq := i + int(floorf(t / 2.0 + float(i) / 10.0)) * 11
+				var age := ph * 2.0
+				var x := c.x + (_rnd(sq, sd) * 12.0 - 6.0 + (_rnd(sq, sd + 5) * 6.0 - 2.0) * age) * k
+				var y := c.y + (_rnd(sq, sd + 3) * 12.0 - 4.0 - (3.0 + _rnd(sq, sd + 9) * 3.0) * age) * k
+				var am := ph if ph < 0.2 else (1.0 - ph) * 0.25
 				var sz := floorf(3.0 + ph * 3.0) * k
-				ci.draw_rect(Rect2(Vector2(x, y).floor(), Vector2(sz, sz)), Color(0, 0, 0, clampf(am, 0.0, 0.25)))
+				ci.draw_rect(Rect2(Vector2(x, y).floor(), Vector2(sz, sz)), Color(0, 0, 0, am))
 
 ## SPD HallsLevel.Stream FireParticle: 0xEE7722, launched up at 40 px/s against +80 gravity, shrinking, ~0.5/s.
 static func halls_stream(ci: CanvasItem, t: float, rc: Rect2, k: float) -> void:
