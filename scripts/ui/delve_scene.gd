@@ -183,14 +183,14 @@ func _draw() -> void:
 				SceneFX.glow(self, fp - Vector2(0, 3 * k), cs * 2.2 * SceneFX.flicker(t), Color(1.0, 0.55, 0.2, 0.25))
 				draw_texture_rect_region(tiles, Rect2(fp - Vector2(cs / 2.0, cs * 0.7), Vector2(cs, cs)), Rect2(3 * 16, 0, 16, 16))
 				SceneFX.fire(self, fp, k, t, 7.0)
-	# encounter ahead: each foe on its own column, alternating floor rows, facing the hero; they run in on arrival
+	# encounter ahead: each foe on its own whole column, alternating floor rows, facing the hero; they run in on arrival
 	if not ev.is_empty() and ev.kind == "combat":
 		var ids: Array = ev.get("mobs", [])
 		var boss: bool = ev.get("boss", false)
 		for j in ids.size():
 			var m: Dictionary = DB.mobs[ids[j]]
 			var spr := String(m.sprite)
-			var colx := floorf(ox + (stop_col - hero_col + (j / 2) * 1.0 + (j % 2) * 0.5) * cs + cs / 2.0)
+			var colx := floorf(ox + (stop_col - hero_col + j) * cs + cs / 2.0)
 			var fy := y0 + (3.85 if j % 2 == 0 else 2.95) * cs
 			var dx := (1.0 - ease) * cs * 3.0
 			var anim := "run" if arrive < 1.0 else "idle"
