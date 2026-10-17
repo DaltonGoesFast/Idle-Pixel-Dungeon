@@ -2976,6 +2976,9 @@ func test_trinket_upgrades(gs) -> void:
 	check(gs.can_repair(au).begins_with("needs Enchanter's Desk Lv2"), "artifact repair needs Desk Lv2")
 	gs.facilities.enchanter.level = 2
 	check(gs.repair(au) and not gs.gear_by_uid(au).cracked, "Desk Lv2 repairs an artifact")
+	# the Desk's description must quote the same repair level (it said "artifacts from Lv3" after #170)
+	var desk_desc: String = DB.facilities.enchanter.desc
+	check(desk_desc.contains("artifacts from Lv%d" % gs.trinket_repair_level("artifact")) and not desk_desc.contains("Lv3"), "the Desk description says artifacts repair at Lv%d" % gs.trinket_repair_level("artifact"))
 	gs.heroes.warrior.artifact = old_a
 	# staff wand
 	gs.heroes.mage.wand = "wand_magic_missile"; gs.heroes.mage.wand_lvl = 0; gs.heroes.mage.wand_cracked = false
