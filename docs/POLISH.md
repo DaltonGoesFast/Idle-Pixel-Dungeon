@@ -88,6 +88,8 @@ Priority: **P1** fix before a public build, **P2** next polish pass, **P3** nice
 | 63 | Delve rooms (garden, trapped hall, shop) on the Fold inner screen: the room cards cover the lower third of the scene, so floor art there is never seen. Layout, not scene art | fix6 2026-10-17 | P3 | S |
 | 64 | Goo's own SPD arena art (`sewer_boss`, tan pipes) clashes with the grey sewer sheet the grid uses, so Goo gets sewer drains instead of SPD's arched pipes and has no water channel | fix6 2026-10-17 | P3 | M |
 | 65 | DM-300 pylon pad (SPD caves_boss 5,4) is low-contrast under the fog at phone size; the pylons themselves read fine | fix6 2026-10-17 | P3 | S |
+| 66 | ~~Library shelf post poked up into the void at the end of a shelf run; King's danger tiles were low-contrast on the red carpet~~ **Done** (#186) | playtest 2026-10-17 | P3 | S |
+| 67 | ~~Prison torch glow spilled into the black above the battle arena; City smoke read as dark squares in stills; battle hit flash lasted 0.18 s vs SPD's 0.05 s~~ **Done** (#186) | playtest 2026-10-17 | P3 | S |
 
 ## Code / docs hygiene (no player impact)
 | # | Item | Source | Pri | Effort |
