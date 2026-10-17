@@ -597,7 +597,7 @@ The stash marked a worn item with that hero's initial (W, M, R, H) in the corner
 ## 175. Vendor materials bar and Upgrade fold
 Forge and Guild already showed a live materials strip inside the scrolling facility header (#97); Alchemy and the Desk had none, and every vendor opened with the full level-slot card. All four vendor windows now pin that strip under the title (outside the scroller): Forge keeps iron ore / dark gold / gold / resin / Scrolls of Upgrade; Guild keeps gold / dew / seeds / ore; Alchemy shows seeds / dew / gold / Scrolls; Enchanter shows resin / gold / Scrolls. The facility level block (slots, Unlock, next-level cost) collapses behind a full-width Upgrade tab that shows `Lv n / max`, the blocking `(cap n)` note, and `!` when an upgrade is affordable. It starts closed; open/closed is remembered per facility for the session (`fac_open`), so Unlock and level-up rebuilds leave it open. Craft, brew, scribe and supplies stay in the scroll under the fold. Covered by `test_vendor_mats_fold` (and `test_facility_cap` opens the fold first).
 
-## 176. Facility levels are slots: Scrolls unlock, materials fill
+## 178. Facility levels are slots: Scrolls unlock, materials fill
 Recorded from 2a078e4 and 0476bd6, which shipped without an entry. The old header showed "Lv x / y (cap z)" over a bar, with "Raise cap: N Scrolls" and "Upgrade" in the footer, and it read as one upgrade with two costs. Now a facility shows one box per level up to its max (3):
 - **Filled**: a numbered gold box. Filled boxes are the current level.
 - **Open**: a green "+". The slot is unlocked but not filled yet.
