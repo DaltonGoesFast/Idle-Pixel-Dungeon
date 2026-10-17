@@ -41,6 +41,13 @@ Priority: **P1** fix before a public build, **P2** next polish pass, **P3** nice
 |---|---|---|---|---|
 | 18 | Cover-screen Guild/Expedition windows keep a large empty gap above the footer (footer-anchored action, DECISIONS #124) | report b1a4afa | P2 | S |
 | 19 | Camp UI windows rework (the plan you have Cursor writing) | chat | P2 | L |
+| 31 | Wide camp dock (a9883a7): on the Fold inner a patrolling card's title "Warrior   0.7h / 4h" wraps to two lines beside Recall. Shorten it ("0.7/4h") or let Recall shrink | report 2a078e4 | P3 | S |
+| 32 | Wide camp dock: with Delve moved up, the inner patrol list shows about 1.3 cards (it was about 2.8), so 3-4 patrols scroll inside a short box. Consider a one-line card (name, time, Recall) with the loot behind a tap | report 2a078e4 | P3 | S |
+| 33 | Facility slots at 1.8 font heights (0476bd6): the Locked Scroll icon is small and dimmed to 45%, and the Open "+" is much smaller than the Filled numbers. Use a bigger plus and a less-dimmed icon | report 2a078e4 | P3 | S |
+| 34 | Unlock row: `cost_row` expands (DECISIONS #168), so "have N" is pushed to the far right beside Unlock, away from the Scroll cost it qualifies. Keep the chip next to the cost | report 2a078e4 | P3 | S |
+| 35 | "Scrolls only unlock a slot, they don't raise the level" now lives only in the Unlock tooltip, and touch screens never show tooltips. The Filled/Open/Locked words carry it for now. A first-Scroll tip could say it once | report 2a078e4 | P3 | S |
+| 36 | Scroll of Upgrade has no description in the stash item window (`_materials.scroll_upgrade` has no `desc`). It should say that it unlocks one facility slot | report 2a078e4 | P2 | S |
+| 37 | The camp scene's "!" badge fires only when a facility can Upgrade, never when you hold enough Scrolls to Unlock a slot, so nothing points at a first Goo Scroll | report 2a078e4 | P2 | S |
 
 ## Rooms and maps
 | # | Item | Source | Pri | Effort |
@@ -57,6 +64,7 @@ Priority: **P1** fix before a public build, **P2** next polish pass, **P3** nice
 | 25 | 4x "non-equal opposite anchors" warnings in `test_tip_fit` | report 4dd90ed | P3 | S |
 | 26 | `export_plugin.gd.uid` untracked; TestFlight `mktemp` leftover | report 4dd90ed | P3 | S |
 | 27 | Combat Bag rect on fold/unfold while open relies on `apply_layout -> _refresh` (untested on device) | report 4dd90ed | P2 | S |
+| 38 | `GameState.facility_title` (the "(cap N)" header text) is only used by `test_facility_cap` since the slot header; drop it, or test the slot row instead | report 2a078e4 | P3 | S |
 
 ## Deferred until the combat rework lands
 These are content or tuning, not polish, but they wait on the same thing:
