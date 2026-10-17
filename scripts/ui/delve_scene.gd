@@ -11,7 +11,10 @@ const ROWS := 5                  # wall top, wall face, floor, floor, wall top
 ## SPD DungeonTileSheet raised doors: closed, open, locked, crystal.
 const DOOR_CLOSED := 112; const DOOR_OPEN := 113; const DOOR_LOCKED := 114; const DOOR_CRYSTAL := 115
 ## SPD DungeonTileSheet floor features (DECISIONS #179): exit stairs, tall grass (raised overlay), grass.
-const EXIT := 17; const GRASS := 2; const HIGH_GRASS := [66, 67]
+const EXIT := 17
+## SPD raised high grass: base tile in its cell, overhang in the cell above (DungeonTileSheet RAISED_HIGH_GRASS(_ALT)
+## 122/125, HIGH_GRASS_OVERHANG(_ALT) 234/237).
+const HIGH_GRASS := [122, 125]; const HIGH_GRASS_TOP := [234, 237]
 const SPRITE_K := 1.5            # characters ~1.5x the tile scale (rounded to a whole multiple: pixel-perfect)
 var host                         # DelveScreen (for `pending`, `running`)
 var scroll := 0.0                # in tiles
@@ -164,7 +167,7 @@ func _draw() -> void:
 				1: idx = 80 if _h(cx, 1) % 7 else 96
 				_: idx = 1 if _h(cx * 3 + row, 2) % 11 == 0 else 0
 			if row == 1 and _h(cx, 3) % 23 == 0 and not busy: idx = DOOR_CLOSED   # side rooms pass by, shut
-			if row == 3 and not busy and _grass_at(cx): idx = GRASS; grass_cells.append(rc)
+			if row == 3 and not busy and _grass_at(cx): idx = HIGH_GRASS[cx & 1]; grass_cells.append([rc, cx & 1])
 			if row == 1 and not ev.is_empty(): idx = _encounter_wall(ev, cx - stop_col, idx)
 			draw_texture_rect_region(tiles, rc, Rect2((idx % 16) * 16, (idx / 16) * 16, 16, 16))
 		# bones on the far floor row (seeded per column, kept clear of the encounter)
@@ -172,6 +175,10 @@ func _draw() -> void:
 			var ir := UIKit.item_rect(DB.icon_index("BONES"))
 			var isz := ir.size * k
 			draw_texture_rect_region(_t("res://assets/sprites/items.png"), Rect2((Vector2(x, y0 + 2 * cs) + (Vector2(cs, cs) - isz) / 2.0).floor(), isz), ir, Color(1, 1, 1, 0.85))
+	# high grass tops in the cell above their base, behind the characters (SPD's raised layer)
+	for g in grass_cells:
+		var gr: Rect2 = g[0]; var gi: int = HIGH_GRASS_TOP[g[1]]
+		draw_texture_rect_region(tiles, Rect2(gr.position - Vector2(0, cs), gr.size), Rect2((gi % 16) * 16, (gi / 16) * 16, 16, 16))
 	var arrive := clampf(_ev_t / 0.45, 0.0, 1.0); var ease := 1.0 - pow(1.0 - arrive, 3.0)
 	if not ev.is_empty():
 		var ex := floorf(ox + (stop_col - hero_col) * cs)
@@ -206,12 +213,6 @@ func _draw() -> void:
 	var hf := _frame(String(hs.sprite), "run") if moving else _frame(String(hs.sprite), "idle")
 	var hfeet := Vector2(hero_x + cs / 2.0, y0 + 3.8 * cs).floor()
 	_sprite(hs.sprite, int(hs.fw), int(hs.fh), hf, int(hs.row), hfeet, sk())
-	# tall grass is drawn over characters (SPD's raised high-grass layer), swaying a pixel in the wind
-	for gi in grass_cells.size():
-		var gr: Rect2 = grass_cells[gi]
-		var sway := roundf(sin(t * 2.0 + gr.position.x * 0.05)) * k
-		var gidx: int = HIGH_GRASS[int(gr.position.x / cs) & 1]
-		draw_texture_rect_region(tiles, Rect2(gr.position + Vector2(sway, cs * 0.5), Vector2(cs, cs * 0.5)), Rect2((gidx % 16) * 16, (gidx / 16) * 16 + 8, 16, 8))
 	# torchlight: the whole scene darkens away from the hero; a lit torch widens the pool and warms it
 	var dk := Delve.darkness(r)
 	var lit := float(r.get("torch", 0)) > 0 and not dk
