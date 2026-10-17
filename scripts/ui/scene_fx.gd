@@ -81,3 +81,14 @@ static func sparkle(ci: CanvasItem, c: Vector2, k: float, age: float, col := Col
 		var pc := c + Vector2(cos(ang), sin(ang)) * r
 		var cc := col; cc.a = 1.0 - age
 		ci.draw_rect(Rect2(pc.floor(), Vector2(k, k)), cc)
+
+## Magic sparkle (SPD Speck.LIGHT-like): pixels that blink in and out around `c` within radius `r`.
+static func twinkle(ci: CanvasItem, c: Vector2, k: float, t: float, r: float, col: Color) -> void:
+	for i in 7:
+		var life := 1.1 + 0.5 * _rnd(i, 8); var ph := _frac(t / life + _rnd(i, 9))
+		var sd := floorf(t / life + _rnd(i, 9))
+		var p := c + Vector2(_rnd(i + int(sd) * 7, 10) - 0.5, _rnd(i + int(sd) * 7, 11) - 0.5) * 2.0 * r - Vector2(0, ph * 4.0 * k)
+		var a := sin(ph * PI)
+		var cc := col; cc.a = a
+		ci.draw_rect(Rect2(p.floor(), Vector2(k, k)), cc)
+		if a > 0.7: ci.draw_rect(Rect2((p - Vector2(k, 0)).floor(), Vector2(k * 3, k)), Color(cc.r, cc.g, cc.b, a * 0.5)); ci.draw_rect(Rect2((p - Vector2(0, k)).floor(), Vector2(k, k * 3)), Color(cc.r, cc.g, cc.b, a * 0.5))
