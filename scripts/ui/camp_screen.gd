@@ -211,8 +211,9 @@ func close_page() -> void:
 	open_name = ""; _close_info()
 	if win_layer: win_layer.queue_free(); win_layer = null
 
-## A dimmed overlay with a centred SPD window: title row (icon, name, close), a scrolling body, and a footer
-## under the scroller for the page's main action (hidden until a page uses it, see _foot).
+## A dimmed overlay with a centred SPD window: title row (icon, name, close), an optional pinned materials
+## strip (vendor pages), a scrolling body, and a footer under the scroller for the page's main action
+## (hidden until a page uses it, see _foot).
 func _make_window(title: String, icon_name: String, close_cb: Callable, w_frac := 0.96, h_frac := 0.92) -> Array:
 	var layer := Control.new(); layer.set_anchors_and_offsets_preset(PRESET_FULL_RECT); add_child(layer)
 	var dim := ColorRect.new(); dim.color = Color(0, 0, 0, 0.6); dim.set_anchors_and_offsets_preset(PRESET_FULL_RECT); layer.add_child(dim)
@@ -245,6 +246,9 @@ func _make_window(title: String, icon_name: String, close_cb: Callable, w_frac :
 	var tl := UIKit.header(title); tl.size_flags_horizontal = SIZE_EXPAND_FILL; tr.add_child(tl)
 	var x := UIKit.button("X", close_cb); UIKit.secondary(x); x.custom_minimum_size = Vector2.ONE * UIKit.btn_height()
 	x.size_flags_horizontal = SIZE_SHRINK_END; tr.add_child(x)
+	# Vendor pages fill this; stays above the scroller so materials stay put while the shop scrolls.
+	var mats_host := VBoxContainer.new(); mats_host.name = "MatsHost"; mats_host.visible = false; v.add_child(mats_host)
+	layer.set_meta("mats_host", mats_host)
 	var sc := ScrollContainer.new(); sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	sc.size_flags_vertical = SIZE_EXPAND_FILL; v.add_child(sc)
 	var body := UIKit.vbox(sc); body.size_flags_horizontal = SIZE_EXPAND_FILL
@@ -299,9 +303,10 @@ func _foot() -> VBoxContainer:
 	f.visible = true
 	return f
 
-## Section buttons at the top of a window (Stash, Forge, Guild). Returns the selected key.
+## Section buttons at the top of a window (Stash, Forge, Enchanter, Guild). Returns the selected key.
 ## opts: [[key, label], ...]; the choice is kept per page while the app runs.
 var section := {}
+var fac_open := {}       # facility id -> Upgrade fold open (kept while the app runs)
 var top_next := false   # the next window rebuild starts scrolled to the top (a section switch)
 func _switcher(v: Control, page: String, opts: Array) -> String:
 	var cur: String = section.get(page, opts[0][0])
@@ -381,14 +386,33 @@ func qty_picker(max_n: int, cost_fn: Callable, verb: String, act: Callable, why0
 	box.set_meta("set_n", upd); box.set_meta("n", n); box.set_meta("button", act_btn); box.set_meta("cost_host", cost_host)
 	return box
 
-## Live materials strip (Forge / Guild headers): icon + amount for each material the facility uses.
-const FAC_MATS := {"blacksmith": ["iron_ore", "dark_gold", "gold", "arcane_resin", "scroll_upgrade"], "guild": ["gold", "dew", "seeds", "iron_ore"]}
+## Live materials strip pinned under the vendor title: icon + amount for each material the facility uses.
+const FAC_MATS := {
+	"blacksmith": ["iron_ore", "dark_gold", "gold", "arcane_resin", "scroll_upgrade"],
+	"alchemy": ["seeds", "dew", "gold", "scroll_upgrade"],
+	"enchanter": ["arcane_resin", "gold", "scroll_upgrade"],
+	"guild": ["gold", "dew", "seeds", "iron_ore"],
+}
 func mats_header(id: String) -> HFlowContainer:
 	var f := HFlowContainer.new(); f.add_theme_constant_override("h_separation", int(UIKit.font_size * 0.8))
 	f.name = "MatsHeader"
 	for k in FAC_MATS.get(id, []):
-		f.add_child(UIKit.res_chip(k, "%d" % GameState.mat(k), 0.9))
+		var chip := UIKit.res_chip(k, "%d" % GameState.mat(k), 0.9)
+		chip.name = "Mat_%s" % k
+		chip.set_meta("mat", k)
+		f.add_child(chip)
 	return f
+
+## Pin the facility's materials bar under the window title (outside the scroller).
+func _pin_mats(id: String) -> void:
+	if win_layer == null or not is_instance_valid(win_layer): return
+	var host: VBoxContainer = win_layer.get_meta("mats_host")
+	UIKit.clear(host)
+	if not FAC_MATS.has(id):
+		host.visible = false
+		return
+	host.visible = true
+	var mc := UIKit.card(); host.add_child(mc); mc.add_child(mats_header(id))
 
 ## Cost as resource chips; amounts you can't afford are red.
 ## Expands so it stays one row beside a label in an HBox (a bare flow stacks one chip per line, DECISIONS #168).
@@ -540,6 +564,111 @@ func item_slot(id: String, br: String, tl: String, cb: Callable, tint := Color.W
 		if b.get_meta("held"): return
 		Sfx.play("click"); cb.call())
 	return b
+
+## Who is wearing a piece. Bright plate, dark text, so it stays readable on the sprite.
+## Full class name when the slot is wide enough; a short form only when it would not fit (DECISIONS #174).
+const HERO_MARK := {
+	"warrior": Color("ff8a3d"), "mage": Color("7ec8ff"), "rogue": Color("e0b0ff"), "huntress": Color("e6ef6a")}
+const MARK_INK := Color("1a120c")
+const OWNER_NAMES := {
+	"warrior": ["Warrior", "War", "W"], "mage": ["Mage", "M"],
+	"rogue": ["Rogue", "Rog", "R"], "huntress": ["Huntress", "Hunt", "H"]}
+## Gear grids use fewer, wider columns than material grids so "Huntress" fits on a phone.
+const GEAR_CELL := 3.7
+
+func _owner_font() -> Font:
+	if UIKit.pixel_font == null: UIKit.make_theme(maxi(UIKit.font_size, 16))
+	return UIKit.pixel_font
+
+## Longest hero name that fits in `width` pixels at the slot's label size.
+func _owner_text(hero_id: String, width: float) -> String:
+	var names: Array = OWNER_NAMES.get(hero_id, [hero_id])
+	var sz := UIKit.font_px(UIKit.font_size * 0.8)
+	for n in names:
+		if _owner_font().get_string_size(String(n), HORIZONTAL_ALIGNMENT_LEFT, -1, sz).x <= width: return String(n)
+	return String(names[-1])
+
+## Width one gear column actually gets: the same estimate slot_grid uses to pick a column count.
+func _gear_slot_width() -> float:
+	var w := minf(get_viewport_rect().size.x * 0.96, UIKit.font_size * 36.0) - UIKit.font_size * 2.0
+	var cols := maxi(3, int(w / (UIKit.font_size * GEAR_CELL)))
+	return w / float(cols)
+
+func _hero_frame(hero_id: String) -> String:
+	if not HERO_MARK.has(hero_id): return ""
+	return HERO_MARK[hero_id].to_html(false)
+
+## Pull the sprite and any bottom-right count up so the name plate does not cover them.
+func _lift_for_owner_bar(slot: Control, bar_h: float) -> void:
+	for c in slot.get_children():
+		if c is PixelIcon:
+			c.offset_bottom = minf(c.offset_bottom, -bar_h)
+		elif c is Label and c.anchor_top >= 0.99 and c.anchor_bottom >= 0.99:
+			c.offset_top -= bar_h
+			c.offset_bottom -= bar_h
+
+## Colored plate naming who wears this slot. One hero gets their name; several (one ring type
+## worn by more than one hero) get a face each, with the names in the tooltip.
+func _owner_bar(slot: Control, heroes: Array) -> void:
+	var ids: Array = []
+	for c in heroes:
+		var id := String(c)
+		if id != "" and not (id in ids): ids.append(id)
+	if ids.is_empty(): return
+	var bar_h := float(UIKit.font_px(UIKit.font_size * 0.8)) + 4.0
+	_lift_for_owner_bar(slot, bar_h)
+	var bar := Panel.new()
+	bar.name = "OwnerBar"
+	bar.mouse_filter = MOUSE_FILTER_IGNORE
+	bar.clip_contents = true
+	bar.set_anchors_and_offsets_preset(PRESET_BOTTOM_WIDE)
+	bar.offset_top = -bar_h
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = HERO_MARK.get(ids[0], Color("c9a96e")) if ids.size() == 1 else Color("241c16")
+	sb.set_content_margin_all(0)
+	bar.add_theme_stylebox_override("panel", sb)
+	slot.add_child(bar)
+	var names: PackedStringArray = []
+	for id in ids: names.append(String(DB.heroes[id].name))
+	var tip := "Equipped by " + ", ".join(names)
+	slot.tooltip_text = tip if String(slot.tooltip_text) == "" else String(slot.tooltip_text) + "\n" + tip
+	if ids.size() == 1:
+		var budget := maxf(slot.custom_minimum_size.x, _gear_slot_width()) - 6.0
+		var lab := UIKit.label(_owner_text(ids[0], budget), 0.8, MARK_INK)
+		lab.name = "OwnerName"
+		lab.add_theme_font_override("font", _owner_font())
+		lab.autowrap_mode = TextServer.AUTOWRAP_OFF
+		lab.clip_text = true
+		lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		lab.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		lab.mouse_filter = MOUSE_FILTER_IGNORE
+		lab.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
+		bar.add_child(lab)
+		return
+	var row := HBoxContainer.new()
+	row.name = "OwnerFaces"
+	row.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.mouse_filter = MOUSE_FILTER_IGNORE
+	row.add_theme_constant_override("separation", 2)
+	bar.add_child(row)
+	for id in ids:
+		var chip := ColorRect.new()
+		chip.color = HERO_MARK.get(id, Color.WHITE)
+		chip.custom_minimum_size = Vector2(HERO_FRAME.x + 2, bar_h)
+		chip.size_flags_vertical = SIZE_EXPAND_FILL
+		chip.mouse_filter = MOUSE_FILTER_IGNORE
+		row.add_child(chip)
+		var face := UIKit.pixel(_hero_tex(id), 1)
+		face.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
+		face.mouse_filter = MOUSE_FILTER_IGNORE
+		chip.add_child(face)
+
+func _mark_worn(slot: Button, uid: int) -> Button:
+	slot.set_meta("uid", uid)
+	var who := GameState.equipped_by(uid)
+	if who != "": _owner_bar(slot, [who])
+	return slot
 
 const SLOT_OF := {"weapon": "weapon", "armor": "armor", "ring": "ring", "artifact": "artifact"}
 ## Stat lines for a comparison: [label, value] pairs.
@@ -696,13 +825,14 @@ func _page_stash() -> void:
 		if list.is_empty(): continue
 		list.sort_custom(_stash_gear_less)
 		v.add_child(UIKit.label("%s (%d)" % [cat[1], list.size()], 0.95, Color("ffd27a")))
-		var gg := slot_grid(v)
+		var gg := slot_grid(v, GEAR_CELL)
 		for g in list:
 			var who := GameState.equipped_by(g.uid)
 			var bdg := UIKit.gear_badge(g)
 			if bdg == "": bdg = "NONE"
-			gg.add_child(item_slot(gear_icon(g), DB.heroes[who].name.substr(0, 1) if who != "" else "", "+%d" % g.lvl if g.lvl > 0 and g.known else "",
-				func(): info(gear_icon(g), GameState.gear_name(g), gear_lines(g), [], bdg), Color(1, 0.55, 0.5) if g.get("cracked", false) else Color.WHITE, "c9a96e" if who != "" else "", g))
+			var slot := item_slot(gear_icon(g), "", "+%d" % g.lvl if g.lvl > 0 and g.known else "",
+				func(): info(gear_icon(g), GameState.gear_name(g), gear_lines(g), [], bdg), Color(1, 0.55, 0.5) if g.get("cracked", false) else Color.WHITE, _hero_frame(who), g)
+			gg.add_child(_mark_worn(slot, int(g.uid)))
 
 # ------------------------------------------------------------ Facilities
 const NEXT_TEXT := {"blacksmith": "Gear upgrade cap +%d", "alchemy": "Potion belt %d slots", "enchanter": "Faster identification, ring/wand cap +%d", "guild": "Patrols up to %dh"}
@@ -715,11 +845,23 @@ func _preview(id: String, lvl: int) -> String:
 		"enchanter": return NEXT_TEXT[id] % maxi(0, lvl - 1)
 		_: return NEXT_TEXT[id] % lvl
 
+## Collapsed Upgrade tab at the top of the scroll: expands the facility slots, Unlock, and level-up cost.
 func _facility_header(v: VBoxContainer, id: String) -> void:
 	var f: Dictionary = GameState.facilities[id]
 	var d: Dictionary = DB.facilities[id]
-	if FAC_MATS.has(id):
-		var mc := UIKit.card(); v.add_child(mc); mc.add_child(mats_header(id))
+	var cap: int = GameState.facility_cap(id)
+	var lvl := int(f.level); var mx := int(d.max)
+	var open: bool = bool(fac_open.get(id, false))
+	var label := "Upgrade   Lv %d / %d" % [lvl, mx]
+	if lvl >= cap and cap < mx: label += "  (cap %d)" % cap
+	if GameState.can_upgrade_facility(id) == "": label += " !"
+	var fold := UIKit.button(label, func(): fac_open[id] = not bool(fac_open.get(id, false)); _fill_window())
+	fold.name = "FacilityFold"
+	fold.size_flags_horizontal = SIZE_EXPAND_FILL
+	fold.autowrap_mode = TextServer.AUTOWRAP_OFF
+	if not open: UIKit.secondary(fold)
+	v.add_child(fold)
+	if not open: return
 	var card := UIKit.card(); v.add_child(card)
 	var col := UIKit.vbox(card)
 	var row := UIKit.hbox(col)
@@ -731,9 +873,7 @@ func _facility_header(v: VBoxContainer, id: String) -> void:
 		var at2 := AtlasTexture.new(); at2.atlas = load("res://assets/tiles/tiles_sewers.png"); at2.region = Rect2(0, 64, 16, 16)
 		var tp := UIKit.pixel(at2, int(kk)); tp.size_flags_vertical = SIZE_SHRINK_CENTER; row.add_child(tp)
 	var cv := UIKit.vbox(row); cv.size_flags_horizontal = SIZE_EXPAND_FILL
-	var cap: int = GameState.facility_cap(id)
-	var lvl := int(f.level); var mx := int(d.max)
-	cv.add_child(UIKit.label("%s   Lv %d / %d" % [d.name, lvl, mx], 1.0, Color("ffd27a")))
+	cv.add_child(UIKit.label(d.name, 1.0, Color("ffd27a")))
 	# Small slot row: filled = level, open = ready to upgrade, locked = needs a Scroll of Upgrade.
 	col.add_child(_facility_slots(lvl, cap, mx))
 	_facility_unlock(col, id)
@@ -968,16 +1108,21 @@ func _ring_forge_section(v: VBoxContainer) -> void:
 		v.add_child(UIKit.label("No rings to break down.", 0.8, Color("9a9488")))
 		return
 	ids.sort()
-	var g2 := slot_grid(v)
+	var g2 := slot_grid(v, GEAR_CELL)
 	for id in ids:
 		var rid := String(id)
 		var list: Array = GameState.rings_of(rid)
 		var one: Dictionary = list[0] if list.size() == 1 else {}
 		var frame := "6bff6b" if GameState.ring_extras_of(rid).size() > 0 else ""
 		var bdg := "NONE"
+		var wearers: Array = []
 		for g in list:
-			if g.known: bdg = UIKit.gear_badge(g); break
-		g2.add_child(item_slot(rid, str(list.size()) if list.size() > 1 else "", "", func(): _open_ring_stack(rid), Color.WHITE, frame, one, bdg))
+			if g.known and bdg == "NONE": bdg = UIKit.gear_badge(g)
+			var who := GameState.equipped_by(int(g.uid))
+			if who != "" and not (who in wearers): wearers.append(who)
+		var slot := item_slot(rid, str(list.size()) if list.size() > 1 else "", "", func(): _open_ring_stack(rid), Color.WHITE, frame, one, bdg)
+		g2.add_child(slot)
+		_owner_bar(slot, wearers)
 
 var alch_sel := ""
 const UNKNOWN_BREW := "Unidentified. Brewing reveals what it is."
@@ -1069,6 +1214,7 @@ func _alchemy_pot(v: VBoxContainer) -> void:
 		rr.add_child(b)
 
 func _page_facility(page: String, id: String) -> void:
+	_pin_mats(id)
 	var v := _p(page)
 	_facility_header(v, id)
 	if id == "alchemy": _alchemy_pot(v); return
@@ -1079,8 +1225,21 @@ func _page_facility(page: String, id: String) -> void:
 		elif sec == "rings": _ring_forge_section(v)
 		else: _forge_upgrade_section(v)
 		return
+	if id == "enchanter":
+		var waiting := GameState.id_queue.size() + GameState.identify_candidates().size()
+		var cracked := 0
+		var hw: Dictionary = GameState.heroes.mage
+		if String(hw.get("wand", "")) != "" and hw.get("wand_cracked", false): cracked += 1
+		for g in GameState.gear:
+			if g.get("cracked", false) and g.known and GameState.is_trinket(g): cracked += 1
+		var desk := _switcher(v, page, [["scribe", "Scribe"],
+			["identify", "Identify" + (" (%d)" % waiting if waiting else "")],
+			["attune", "Attune" + (" (%d cracked)" % cracked if cracked else "")]])
+		if desk == "identify": _identify_section(v)
+		elif desk == "attune": _attune_section(v)
+		else: _recipe_slots(v, id, "Recipes (tap for details)")
+		return
 	_recipe_slots(v, id, "Recipes (tap for details)")
-	if id == "enchanter": _identify_section(v); _attune_section(v)
 
 func _forge_upgrade_section(v: VBoxContainer) -> void:
 	v.add_child(UIKit.header("Upgrade & repair (cap +%d)" % GameState.forge_cap()))
@@ -1092,7 +1251,7 @@ func _forge_upgrade_section(v: VBoxContainer) -> void:
 	v.add_child(ra)
 	if GameState.can_patch_up() == "":
 		var pu := UIKit.button("Patch up (free) - can't afford any repair", func(): GameState.patch_up()); pu.name = "PatchUp"; v.add_child(pu)
-	var g2 := slot_grid(v)
+	var g2 := slot_grid(v, GEAR_CELL)
 	for g in GameState.gear:
 		var t: String = DB.item(g.id).type
 		var cracked: bool = g.get("cracked", false)
@@ -1102,8 +1261,10 @@ func _forge_upgrade_section(v: VBoxContainer) -> void:
 		var cost: Dictionary = GameState.repair_cost(g.uid) if cracked else GameState.item_upgrade_cost(g.uid)
 		var why: String = GameState.can_repair(g.uid) if cracked else GameState.can_upgrade_item(g.uid)
 		var uid: int = int(g.uid)
-		g2.add_child(item_slot(gear_icon(g), "", "+%d" % g.lvl if g.lvl > 0 and g.known else "", func(): _open_gear_forge(uid),
-			Color(1, 0.55, 0.5) if cracked else Color.WHITE, "6bff6b" if why == "" else "", g))
+		# Green still means "you can afford this". Who wears it is the name plate, not the border.
+		var slot := item_slot(gear_icon(g), "", "+%d" % g.lvl if g.lvl > 0 and g.known else "", func(): _open_gear_forge(uid),
+			Color(1, 0.55, 0.5) if cracked else Color.WHITE, "6bff6b" if why == "" else "", g)
+		g2.add_child(_mark_worn(slot, uid))
 	if g2.get_child_count() == 0: v.add_child(UIKit.label("No weapons or armor yet. Craft some first.", 0.8, Color("9a9488")))
 
 ## Rings, wands and artifacts level and repair here (DECISIONS #158).
@@ -1122,15 +1283,16 @@ func _attune_section(v: VBoxContainer) -> void:
 		var lv := UIKit.label(nm, 0.85); lv.size_flags_horizontal = SIZE_EXPAND_FILL; row.add_child(lv)
 		v.add_child(cost_row(cost))   # own line: beside the name it stacked and clipped (DECISIONS #168)
 		var b := UIKit.action("Repair" if cr else "Upgrade", func(): (GameState.repair_staff_wand() if cr else GameState.upgrade_staff_wand()), why); b.name = "StaffWand"; v.add_child(b)
-	var g2 := slot_grid(v)
+	var g2 := slot_grid(v, GEAR_CELL)
 	for g in GameState.gear:
 		if not GameState.is_trinket(g) or not g.known: continue
 		var cracked: bool = g.get("cracked", false)
 		if DB.item(g.id).type == "artifact" and not cracked: continue
 		var why2: String = GameState.can_repair(g.uid) if cracked else GameState.can_upgrade_item(g.uid)
 		var uid: int = int(g.uid)
-		g2.add_child(item_slot(gear_icon(g), "", "+%d" % g.lvl if g.lvl > 0 else "", func(): _open_gear_forge(uid),
-			Color(1, 0.55, 0.5) if cracked else Color.WHITE, "6bff6b" if why2 == "" else "", g))
+		var slot := item_slot(gear_icon(g), "", "+%d" % g.lvl if g.lvl > 0 else "", func(): _open_gear_forge(uid),
+			Color(1, 0.55, 0.5) if cracked else Color.WHITE, "6bff6b" if why2 == "" else "", g)
+		g2.add_child(_mark_worn(slot, uid))
 
 func _identify_section(v: VBoxContainer) -> void:
 	v.add_child(UIKit.header("Identifying (%d min each)" % int(GameState.identify_seconds() / 60)))
@@ -1160,6 +1322,7 @@ func _identify_section(v: VBoxContainer) -> void:
 		t.timeout.connect(func(): if open_name == "Enchanter" and info_layer == null: _fill_window())
 
 func _page_guild() -> void:
+	_pin_mats("guild")
 	var v := _p("Guild")
 	_facility_header(v, "guild")
 	var out := GameState.heroes.values().filter(func(h): return not h.patrol.is_empty()).size()

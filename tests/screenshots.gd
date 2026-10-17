@@ -88,7 +88,7 @@ func _ready() -> void:
 			main.show_camp(); main.screen.alch_sel = "transmute_toxic"; main.screen.open_page("Alchemy")])
 		plan.append([sz, "camp_enchanter", func():
 			var u: int = GameState.add_gear("ring_wealth", false); GameState.add_gear("ring_evasion", false); GameState.enqueue_identify(u)
-			main.show_camp(); main.screen.open_page("Enchanter")])
+			main.show_camp(); main.screen.section["Enchanter"] = "identify"; main.screen.open_page("Enchanter")])
 		plan.append([sz, "camp_guild", func():
 			GameState.add_mat("gold", 200); GameState.facilities.guild.level = 2
 			main.show_camp(); main.screen.open_page("Guild")])

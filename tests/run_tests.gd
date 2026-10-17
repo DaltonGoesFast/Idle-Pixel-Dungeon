@@ -58,10 +58,12 @@ func _ready() -> void:
 	test_goo_spiral(gs)
 	test_food_sources(gs)
 	test_facility_cap(gs)
+	test_vendor_mats_fold(gs)
 	test_camp_sou_budget(gs)
 	test_crate_slot(gs)
 	test_max_all_supplies(gs)
 	test_guild_pack_cap(gs)
+	test_enchanter_tabs(gs)
 	test_identify_queue_all(gs)
 	test_blind_shots(gs)
 	test_vanilla_wands(gs)
@@ -87,6 +89,7 @@ func _ready() -> void:
 	test_log_and_sounds(gs)
 	test_ring_contexts(gs)
 	test_item_badges(gs)
+	test_equipped_owner_marks(gs)
 	test_forge_bulk(gs)
 	test_break_rings(gs)
 	test_all_icons(gs)
@@ -1518,6 +1521,84 @@ func test_item_badges(gs) -> void:
 	check(pd_w.get_node_or_null("StrReq") != null and pd_w.get_node("StrReq").text == ":10" and pd_c.get_node_or_null("StrReq") == null, "paperdoll weapon slot shows :10 and class item slot does not")
 	sw_slot.free(); sw_ok.free(); rg_slot.free(); pd_w.free(); pd_c.free(); cs.free()
 
+## DECISIONS #174: worn gear on the Stash and Forge is labeled with the hero, not a one-letter corner mark.
+func _slot_uid(root: Node, uid: int) -> Button:
+	for b in root.find_children("*", "Button", true, false):
+		if b.has_meta("uid") and int(b.get_meta("uid")) == uid and not b.is_queued_for_deletion(): return b
+	return null
+
+func test_equipped_owner_marks(gs) -> void:
+	print("[equipped marks]")
+	gs.new_game()
+	var fs0 := UIKit.font_size
+	UIKit.make_theme(20)
+	var spare: int = gs.add_gear("shortsword", true)
+	var armor: int = int(gs.heroes.warrior.armor)
+	gs.gear_by_uid(armor).cracked = true
+	var rw: int = gs.add_gear("ring_might", true)
+	var rm: int = gs.add_gear("ring_might", true)
+	check(gs.equip("warrior", rw) and gs.equip("mage", rm), "warrior and mage can both wear Ring of Might")
+	gs.mats.iron_ore = 40; gs.mats.gold = 500
+	var cs = load("res://scripts/ui/camp_screen.gd").new(); add_child(cs)
+	# cover-width columns are wide enough for every class name; a narrower slot shortens
+	var w := minf(484.0 * 0.96, UIKit.font_size * 36.0) - UIKit.font_size * 2.0
+	var cols := maxi(3, int(w / (UIKit.font_size * cs.GEAR_CELL)))
+	var budget := w / float(cols) - 6.0
+	check(cs._owner_text("huntress", budget) == "Huntress", "a phone-width gear slot fits Huntress (budget %.0f, %d cols)" % [budget, cols])
+	check(cs._owner_text("warrior", budget) == "Warrior" and cs._owner_text("rogue", budget) == "Rogue" and cs._owner_text("mage", budget) == "Mage", "the other three names fit too")
+	check(cs._owner_text("huntress", 64) == "Hunt" and cs._owner_text("warrior", 40) == "War", "narrow slots shorten Huntress and Warrior")
+	check(cs._owner_text("mage", 20) == "M" and cs._owner_text("rogue", 20) == "R", "a tiny slot falls back to the initial")
+	for hero in ["warrior", "mage", "rogue", "huntress"]:
+		for width in [20.0, 40.0, 64.0, budget]:
+			var shown: String = cs._owner_text(hero, width)
+			var px: float = cs._owner_font().get_string_size(shown, HORIZONTAL_ALIGNMENT_LEFT, -1, UIKit.font_px(UIKit.font_size * 0.8)).x
+			check(px <= width + 0.5, "%s at %.0fpx reads %s (%.0fpx wide)" % [hero, width, shown, px])
+	cs.section["Stash"] = "gear"
+	cs.open_page("Stash")
+	var bars: Array = cs.win_layer.find_children("OwnerBar", "Panel", true, false)
+	var worn := 0
+	for g in gs.gear:
+		if gs.equipped_by(int(g.uid)) != "": worn += 1
+	check(bars.size() == worn, "stash marks every worn piece and no spare (%d bars, %d worn)" % [bars.size(), worn])
+	var spare_slot: Button = _slot_uid(cs.win_layer, spare)
+	check(spare_slot != null and spare_slot.get_node_or_null("OwnerBar") == null, "an unworn sword has no owner plate")
+	var wpn: Button = _slot_uid(cs.win_layer, int(gs.heroes.warrior.weapon))
+	var wname := ""
+	if wpn: wname = String(wpn.get_node("OwnerBar/OwnerName").text)
+	check(wpn != null and wname.begins_with("War") and String(wpn.tooltip_text) == "Equipped by Warrior", "warrior's weapon is labeled (%s)" % wname)
+	var frame: StyleBoxFlat = wpn.get_theme_stylebox("normal") if wpn else null
+	check(frame != null and frame.border_color.is_equal_approx(cs.HERO_MARK["warrior"]), "stash border uses the warrior color")
+	var cols_used := {}
+	for bar in bars:
+		var plate := bar.get_theme_stylebox("panel") as StyleBoxFlat
+		if plate: cols_used[plate.bg_color.to_html()] = true
+	check(cols_used.size() == 4, "the four heroes use four different colors (%d)" % cols_used.size())
+	var arm: Button = _slot_uid(cs.win_layer, armor)
+	var arm_frame: StyleBoxFlat = arm.get_theme_stylebox("normal") if arm else null
+	check(arm != null and arm.get_node_or_null("OwnerBar") != null and arm_frame != null and arm_frame.border_color.is_equal_approx(Color("ff5040")), "cracked armor stays red and still names who wears it")
+	cs.section["Forge"] = "upgrade"
+	cs.open_page("Forge")
+	var forge_spare: Button = _slot_uid(cs.win_layer, spare)
+	var forge_wpn: Button = _slot_uid(cs.win_layer, int(gs.heroes.warrior.weapon))
+	var forge_arm: Button = _slot_uid(cs.win_layer, armor)
+	var spare_frame: StyleBoxFlat = forge_spare.get_theme_stylebox("normal") if forge_spare else null
+	var wpn_frame: StyleBoxFlat = forge_wpn.get_theme_stylebox("normal") if forge_wpn else null
+	var arm_f: StyleBoxFlat = forge_arm.get_theme_stylebox("normal") if forge_arm else null
+	check(forge_spare != null and forge_spare.get_node_or_null("OwnerBar") == null and spare_frame != null and spare_frame.border_color.is_equal_approx(Color("6bff6b")), "forge: an unworn sword you can afford stays green, with no name")
+	check(forge_wpn != null and forge_wpn.get_node_or_null("OwnerBar/OwnerName") != null and String(forge_wpn.get_node("OwnerBar/OwnerName").text).begins_with("War") and wpn_frame != null and wpn_frame.border_color.is_equal_approx(Color("6bff6b")), "forge: a worn sword keeps the green border and gains a name")
+	check(forge_arm != null and forge_arm.get_node_or_null("OwnerBar") != null and arm_f != null and arm_f.border_color.is_equal_approx(Color("ff5040")), "forge: cracked worn armor stays red and names the warrior")
+	cs.section["Forge"] = "rings"
+	cs.open_page("Forge")
+	var shared: Button = null
+	for b in cs.win_layer.find_children("*", "Button", true, false):
+		if String(b.tooltip_text).contains("Warrior") and String(b.tooltip_text).contains("Mage"): shared = b; break
+	check(shared != null and shared.get_node_or_null("OwnerBar/OwnerFaces") != null and shared.get_node("OwnerBar/OwnerFaces").get_child_count() == 2, "a ring worn by two heroes shows both faces")
+	cs.section["Enchanter"] = "attune"
+	cs.open_page("Enchanter")
+	check(_slot_uid(cs.win_layer, rw) != null and _slot_uid(cs.win_layer, rw).get_node_or_null("OwnerBar/OwnerName") != null, "attune names who wears a ring")
+	cs.queue_free()
+	UIKit.make_theme(fs0)
+
 func _glyph_rgb(sheet: Image, name: String) -> Vector3:
 	var sub := sheet.get_region(Rect2i(UIKit.badge_rect(name)))
 	var acc := Vector3.ZERO
@@ -2125,6 +2206,9 @@ func test_facility_cap(gs) -> void:
 	gs.mats.scroll_upgrade = 4; gs.mats.arcane_resin = 0; gs.mats.gold = 0
 	var camp = load("res://scripts/ui/camp_screen.gd").new(); add_child(camp)
 	camp.open_page("Enchanter")
+	var fold0 = camp.win_layer.find_child("FacilityFold", true, false)
+	check(fold0 != null and camp.win_layer.find_child("FacilitySlots", true, false) == null, "Upgrade fold starts collapsed")
+	fold0.pressed.emit()
 	var blob := _node_text(camp.win_layer)
 	check(not blob.contains("Raise cap") and not blob.contains("Fill a slot"), "the old banners are gone")
 	check(blob.contains("Filled") and blob.contains("Open") and blob.contains("Locked"), "slots are labeled filled, open, and locked")
@@ -2134,6 +2218,7 @@ func test_facility_cap(gs) -> void:
 	check(fill != null and fill.text == "Upgrade" and fill.disabled and blob.contains("Arcane Resin"), "Upgrade stays shut until the materials are there")
 	unlock.pressed.emit()
 	check(gs.facility_cap("enchanter") == 3 and gs.mat("scroll_upgrade") == 0, "Unlock slot spends the scrolls and opens one slot")
+	check(camp.fac_open.get("enchanter", false) and camp.win_layer.find_child("FacilitySlots", true, false) != null, "fold stays open after Unlock rebuilds the window")
 	check(camp.win_layer.find_child("UnlockSlot", true, false) == null, "no unlock row once every slot is unlocked")
 	var row = camp.win_layer.find_child("FacilitySlots", true, false)
 	var states: Array = []
@@ -2151,6 +2236,41 @@ func test_facility_cap(gs) -> void:
 	check(u2 != null and u2.disabled and _node_text(camp.win_layer).contains("Unlock a slot first"), "with no open slot, Upgrade says to unlock first and the scroll row stays visible")
 	camp.queue_free()
 
+## DECISIONS #175: every vendor pins a materials bar under the title; facility upgrade is a collapsed fold.
+func test_vendor_mats_fold(gs) -> void:
+	print("[vendor mats fold]")
+	gs.new_game()
+	gs.mats.gold = 10; gs.mats.seeds = 3; gs.mats.dew = 1; gs.mats.iron_ore = 2
+	gs.mats.dark_gold = 1; gs.mats.arcane_resin = 4; gs.mats.scroll_upgrade = 1
+	var cs = load("res://scripts/ui/camp_screen.gd").new(); add_child(cs)
+	var want := {
+		"Forge": ["iron_ore", "dark_gold", "gold", "arcane_resin", "scroll_upgrade"],
+		"Alchemy": ["seeds", "dew", "gold", "scroll_upgrade"],
+		"Enchanter": ["arcane_resin", "gold", "scroll_upgrade"],
+		"Guild": ["gold", "dew", "seeds", "iron_ore"],
+	}
+	for page in ["Forge", "Alchemy", "Enchanter", "Guild"]:
+		cs.open_page(page)
+		var host: VBoxContainer = cs.win_layer.get_meta("mats_host")
+		var sc: ScrollContainer = cs.win_layer.get_meta("sc")
+		var mh = cs.win_layer.find_child("MatsHeader", true, false)
+		check(mh != null and host.visible, "%s has a materials bar" % page)
+		check(host.get_parent() == sc.get_parent() and mh.get_index() >= 0 and not sc.is_ancestor_of(mh), "%s materials bar is pinned outside the scroller" % page)
+		var order: Array = []
+		for c in mh.get_children(): order.append(str(c.get_meta("mat")))
+		check(order == want[page], "%s materials order %s (want %s)" % [page, order, want[page]])
+		var fold = cs.win_layer.find_child("FacilityFold", true, false)
+		check(fold != null and String(fold.text).begins_with("Upgrade") and cs.win_layer.find_child("FacilitySlots", true, false) == null, "%s Upgrade fold starts collapsed" % page)
+		var shop_btn := "Craft" if page == "Forge" else ("Scribe" if page == "Enchanter" else ("Supplies" if page == "Guild" else ""))
+		var shop_ok: bool = (_btn_starts(cs, shop_btn) != null) if shop_btn != "" else (_node_text(cs.win_layer).contains("Recipes"))
+		check(shop_ok, "%s shop stays visible while the Upgrade fold is collapsed" % page)
+		fold.pressed.emit()
+		check(cs.fac_open.get(cs.FAC_PAGE[page], false) and cs.win_layer.find_child("FacilitySlots", true, false) != null, "%s fold expands the facility slots" % page)
+		var shop_still: bool = (_btn_starts(cs, shop_btn) != null) if shop_btn != "" else (_node_text(cs.win_layer).contains("Recipes"))
+		check(shop_still, "%s shop stays visible while the Upgrade fold is open" % page)
+		cs.close_page()
+	cs.queue_free()
+
 ## DECISIONS #115: the Guild ration crate slot is told apart from the single Ration slot by its pack size.
 func _slot_texts(slot: Control) -> Array:
 	var t := []
@@ -2161,6 +2281,11 @@ func _slot_texts(slot: Control) -> Array:
 func _btn_named(root: Node, nm: String) -> Button:
 	for b in (root.win_layer if root.win_layer else root).find_children(nm, "Button", true, false):
 		if not b.is_queued_for_deletion(): return b
+	return null
+
+func _btn_starts(root: Node, prefix: String) -> Button:
+	for b in (root.win_layer if root.win_layer else root).find_children("*", "Button", true, false):
+		if not b.is_queued_for_deletion() and String(b.text).begins_with(prefix): return b
 	return null
 
 func test_max_all_supplies(gs) -> void:
@@ -2209,6 +2334,27 @@ func test_guild_pack_cap(gs) -> void:
 	check(int(gs.run.supplies.ration) == 3 and int(gs.run.supplies.torch) == 3 and gs.mat("ration") == 17, "start_run packs no more than the cap; the rest stays in the stash")
 	gs.end_run("abandon")
 
+## DECISIONS #173: Scribe, Identify and Attune are separate tabs. The choice sticks, and only the open tab is built.
+func test_enchanter_tabs(gs) -> void:
+	print("[enchanter tabs]")
+	gs.new_game()
+	gs.add_gear("ring_wealth", false)
+	var cs = load("res://scripts/ui/camp_screen.gd").new(); add_child(cs)
+	cs.open_page("Enchanter")
+	var blob := _node_text(cs.win_layer)
+	check(_btn_starts(cs, "Scribe") != null and _btn_starts(cs, "Identify") != null and _btn_starts(cs, "Attune") != null, "Enchanter has Scribe, Identify and Attune tabs")
+	check(blob.contains("Recipes (tap for details)") and not blob.contains("Identifying (") and not blob.contains("Attune rings"), "Scribe opens first")
+	var idb := _btn_starts(cs, "Identify")
+	if idb: idb.pressed.emit()
+	blob = _node_text(cs.win_layer)
+	check(blob.contains("Identifying (") and cs.win_layer.find_child("QueueAll", true, false) != null and not blob.contains("Recipes (tap for details)"), "Identify shows the queue and hides the scribe")
+	check(cs.section.get("Enchanter", "") == "identify", "the Identify choice is remembered")
+	var atb := _btn_starts(cs, "Attune")
+	if atb: atb.pressed.emit()
+	blob = _node_text(cs.win_layer)
+	check(blob.contains("Attune rings") and not blob.contains("Identifying (") and not blob.contains("Recipes (tap for details)"), "Attune shows rings, wands and artifacts")
+	cs.close_page(); cs.queue_free()
+
 ## DECISIONS #145: Enchanter "Queue all", and an Enchanter upgrade shortens identifications already running.
 func test_identify_queue_all(gs) -> void:
 	print("[identify queue all]")
@@ -2217,6 +2363,7 @@ func test_identify_queue_all(gs) -> void:
 	gs.enqueue_identify(a)
 	check(gs.identify_candidates().size() == 2, "candidates skip known and already-queued items")
 	var cs = load("res://scripts/ui/camp_screen.gd").new(); add_child(cs)
+	cs.section["Enchanter"] = "identify"
 	cs.open_page("Enchanter")
 	var qa = null
 	for n in cs.win_layer.find_children("QueueAll", "Button", true, false): qa = n
@@ -2235,6 +2382,7 @@ func test_identify_queue_all(gs) -> void:
 	check(prog.size() == 3 and prog[0] > 0.45 and prog[0] < 0.85 and prog[1] > 0.2 and prog[1] < prog[0] and prog[2] > 0.1 and prog[2] < prog[1],
 		"every queued item fills across its whole wait, not only the active one (%.2f %.2f %.2f)" % [prog[0] if prog.size() > 0 else -1, prog[1] if prog.size() > 1 else -1, prog[2] if prog.size() > 2 else -1])
 	var cs2 = load("res://scripts/ui/camp_screen.gd").new(); add_child(cs2)
+	cs2.section["Enchanter"] = "identify"
 	cs2.open_page("Enchanter")
 	var bars: Array = cs2.win_layer.find_children("IdentifyBar", "ProgressBar", true, false)
 	var shown := bars.size() == 3
@@ -2495,8 +2643,12 @@ func test_no_stacked_cost_rows(gs) -> void:
 		var cs = load("res://scripts/ui/camp_screen.gd").new(); add_child(cs); cs.size = vs
 		var bad := []
 		cs.section["Forge"] = "upgrade"
+		cs.section["Enchanter"] = "attune"
 		for pg in cs.PAGE_ORDER:
 			cs.open_page(pg)
+			if cs.FAC_PAGE.has(pg):
+				cs.fac_open[cs.FAC_PAGE[pg]] = true
+				cs._fill_window()
 			for f in UIKit.collapsing_flows(cs.win_layer): bad.append("%s: %s" % [pg, f.get_parent().get_class()])
 			cs.close_page()
 		cs.open_page("Forge")
