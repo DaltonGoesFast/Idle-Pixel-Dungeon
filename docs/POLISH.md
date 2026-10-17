@@ -78,10 +78,16 @@ Priority: **P1** fix before a public build, **P2** next polish pass, **P3** nice
 | 53 | ~~Foes vanished instantly when a fight ended; no reaction when the hero struck; foes overlapped in the wrong order~~ **Done**: SPD die frames and fade, hit flash and knockback, back-to-front drawing (#182) | user 2026-10-17 | P2 | S |
 | 54 | ~~Gnoll camp gnolls overlapped; not every corridor screen had a biome prop; Prison walls had unlit sconces~~ **Done** (#182) | user 2026-10-17 | P2 | S |
 | 55 | ~~Combat grid sprite mirroring~~ **Done**: the grid mirrored through `draw_set_transform`, which never dropped frames; it now uses the same destination-rect flip as the delve (#183) | fix4 2026-10-17 | P3 | S |
-| 56 | Delve boss campfire: the SPD embers tile is drawn raw, a hard dark square on the corridor floor that the fire's warm light does not tint; key out its baked floor like the camp does (`_masked`) or draw it on the biome's own floor | report 4dee067 | P3 | S |
-| 57 | Delve wells (Health / Awareness) read as a small empty frame at phone size; the sparkle is the only cue. Consider SPD's well with a brighter water tint | report 4dee067 | P3 | S |
+| 56 | ~~Delve boss campfire: the SPD embers tile was drawn raw, a hard dark square on the corridor floor~~ **Done** (#185): drawn from the biome's own grass-sheet embers on transparency | report 4dee067 | P3 | S |
+| 57 | ~~Delve wells (Health / Awareness) read as a small empty frame at phone size~~ **Done** (#185): SPD's well Specks (red healing crosses rising, blue question marks pulsing) | report 4dee067 | P3 | S |
 | 58 | ~~Battle grid had no biome wall decorations or wall light, bolts were plain lines, hit flash was a dim tint, corpses drew over living foes~~ **Done** (#183) | user 2026-10-17 | P2 | M |
 | 59 | Battle: a mob zap's projectile and its hit land in the same frame. Holding the hit visuals until the bolt arrives would need the combat events to carry a delay | fix5 2026-10-17 | P3 | S |
+| 60 | ~~Boss arenas looked like plain biome rooms~~ **Done** (#185): Goo drains, Tengu torches, DM-300 pylons and pad, King's throne dais and carpet, Yog's stained-glass windows and candles | user 2026-10-17 | P2 | M |
+| 61 | ~~Library bookshelf top was a heavy brown/black/brown band~~ **Done** (#185): SPD's `WALL_INTERNAL_WOODEN` top with stitched side posts | user 2026-10-17 | P3 | S |
+| 62 | ~~Camp: a tall grass clump could stand in front of the resting hero; the clearing had no idle life~~ **Done** (#185): clumps skip the hero, fireflies below the horizon | fix6 2026-10-17 | P3 | S |
+| 63 | Delve rooms (garden, trapped hall, shop) on the Fold inner screen: the room cards cover the lower third of the scene, so floor art there is never seen. Layout, not scene art | fix6 2026-10-17 | P3 | S |
+| 64 | Goo's own SPD arena art (`sewer_boss`, tan pipes) clashes with the grey sewer sheet the grid uses, so Goo gets sewer drains instead of SPD's arched pipes and has no water channel | fix6 2026-10-17 | P3 | M |
+| 65 | DM-300 pylon pad (SPD caves_boss 5,4) is low-contrast under the fog at phone size; the pylons themselves read fine | fix6 2026-10-17 | P3 | S |
 
 ## Code / docs hygiene (no player impact)
 | # | Item | Source | Pri | Effort |
