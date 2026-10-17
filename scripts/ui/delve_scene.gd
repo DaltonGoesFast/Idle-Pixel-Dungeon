@@ -15,6 +15,11 @@ const EXIT := 17
 ## SPD raised high grass: base tile in its cell, overhang in the cell above (DungeonTileSheet RAISED_HIGH_GRASS(_ALT)
 ## 122/125, HIGH_GRASS_OVERHANG(_ALT) 234/237).
 const HIGH_GRASS := [122, 125]; const HIGH_GRASS_TOP := [234, 237]
+## Biome props along the far wall (DECISIONS #181), SPD raised tile + overhang drawn on the wall above:
+## RAISED_REGION_DECO 130 / REGION_DECO_OVERHANG 242 (sewers barrel, prison cage, city plinth, halls tombstone)
+## and RAISED_STATUE 128 / STATUE_OVERHANG 240. Caves' region deco is a wall chunk, so caves use the statue.
+const REGION_DECO := {"sewers": [[130, 242]], "prison": [[130, 242], [128, 240]], "caves": [[128, 240]],
+	"city": [[130, 242], [128, 240]], "halls": [[130, 242], [128, 240]]}
 const SPRITE_K := 1.5            # characters ~1.5x the tile scale (rounded to a whole multiple: pixel-perfect)
 var host                         # DelveScreen (for `pending`, `running`)
 var scroll := 0.0                # in tiles
@@ -27,6 +32,7 @@ var _anims := {}
 var _tex := {}
 var _redraw_t := 0.0
 var glow := 0.0
+var hit_flash := 0.0              # hero white flash when a foe's lunge lands (0..1)
 var _snd_t := {}
 
 func _pickup(idx: int, n: int, snd: String) -> void:
@@ -91,6 +97,7 @@ func _process(delta: float) -> void:
 	for p in pops: p.age += delta
 	pops = pops.filter(func(p): return p.age < 1.1)
 	glow = maxf(0.0, glow - delta * 2.5)
+	hit_flash = maxf(0.0, hit_flash - delta * 8.0)
 	queue_redraw()   # 60 fps: the draw is now ~40 quads (DECISIONS #99)
 
 ## The wall face at the encounter (DECISIONS #179): a door card shows its two doors, closed or locked if that door
@@ -134,7 +141,7 @@ func _lm(p: Vector2, strength := 1.0) -> Color:
 	var v := 1.0 - _la * d * strength
 	return Color(v, v, v)
 
-func _sprite(spr: String, fw: int, fh: int, frame: int, row: int, feet: Vector2, k: float, flip := false, shadow := true) -> void:
+func _sprite(spr: String, fw: int, fh: int, frame: int, row: int, feet: Vector2, k: float, flip := false, shadow := true, flash := 0.0) -> void:
 	var tx := _t("res://assets/sprites/%s.png" % spr)
 	var cols := maxi(1, tx.get_width() / fw)
 	var src := Rect2((frame % cols) * fw, (frame / cols + row) * fh, fw, fh)
@@ -143,10 +150,17 @@ func _sprite(spr: String, fw: int, fh: int, frame: int, row: int, feet: Vector2,
 	if flip: src = Rect2(src.position.x + fw, src.position.y, -fw, fh)
 	if shadow: draw_texture_rect_region(_t("res://assets/ui/shadow.png"), Rect2((Vector2(pos.x + sz.x * 0.15, feet.y - k * 2)).floor(), Vector2(sz.x * 0.7, k * 3).floor()), Rect2(0, 0, 6, 6), Color(1, 1, 1, 0.5))
 	draw_texture_rect_region(tx, Rect2(pos, sz), src, _lm(feet - Vector2(0, sz.y * 0.5)))
+	if flash > 0.0:   # white flash: the same frame again, overbright (modulate > 1 saturates to white), fading
+		var f := 1.0 + 4.0 * flash
+		draw_texture_rect_region(tx, Rect2(pos, sz), src, Color(f, f, f, flash))
 
 ## Tall grass clumps on the near floor row, seeded per column (never where an encounter stands).
 func _grass_at(cx: int) -> bool:
 	return _h(cx, 11) % 9 == 0 or (_h(cx - 1, 11) % 9 == 0 and _h(cx, 12) % 2 == 0)
+
+## A biome prop on the far floor row at this column (seeded; the caller keeps it off grass, doors, encounters).
+func _deco_at(cx: int) -> bool:
+	return _h(cx, 21) % 9 == 0
 
 func _draw() -> void:
 	var r := _run()
@@ -166,23 +180,27 @@ func _draw() -> void:
 	var busy_from := stop_col - 1; var busy_to := stop_col + 5
 	if ev.is_empty(): busy_to = busy_from - 1
 	var grass_cells := []
+	var deco_cells := []
 	for i in range(-int(hero_x / cs) - 2, cols):
 		var cx := hero_col + i
 		var x := floorf(ox + i * cs)
 		var busy := cx >= busy_from and cx <= busy_to
+		var near_grass := _grass_at(cx - 1) or _grass_at(cx) or _grass_at(cx + 1)
 		for row in ROWS:
 			var rc := Rect2(x, y0 + row * cs, cs, cs)
 			var idx := 0
 			match row:
 				0, 4: idx = 144
 				1: idx = 80 if _h(cx, 1) % 7 else 96
-				_: idx = 1 if _h(cx * 3 + row, 2) % 11 == 0 else 0
+				_: idx = 1 if _h(cx * 3 + row, 2) % 11 == 0 and not near_grass else 0   # no moss deco by the grass
 			if row == 1 and _h(cx, 3) % 23 == 0 and not busy: idx = DOOR_CLOSED   # side rooms pass by, shut
-			if row == 3 and not busy and _grass_at(cx): idx = 0; grass_cells.append([rc, cx & 1])   # blades drawn after the light
+			if row == 2 and _deco_at(cx) and not busy and not near_grass and _h(cx, 3) % 23 != 0: deco_cells.append([rc, cx])
+			# grass clump: SPD short-grass floor (GRASS 2) under the keyed blades, drawn after the light
+			if row == 3 and not busy and _grass_at(cx): idx = 2; grass_cells.append([rc, cx & 1, cx])
 			if row == 1 and not ev.is_empty(): idx = _encounter_wall(ev, cx - stop_col, idx)
 			draw_texture_rect_region(tiles, rc, Rect2((idx % 16) * 16, (idx / 16) * 16, 16, 16))
 		# bones on the far floor row (seeded per column, kept clear of the encounter)
-		if not busy and cx > hero_col + 1 and _h(cx, 5) % 17 == 0:
+		if not busy and cx > hero_col + 1 and _h(cx, 5) % 17 == 0 and not _grass_at(cx) and not _deco_at(cx):   # never under a prop
 			var ir := UIKit.item_rect(DB.icon_index("BONES"))
 			var isz := ir.size * k
 			draw_texture_rect_region(_t("res://assets/sprites/items.png"), Rect2((Vector2(x, y0 + 2 * cs) + (Vector2(cs, cs) - isz) / 2.0).floor(), isz), ir, Color(1, 1, 1, 0.85))
@@ -196,11 +214,18 @@ func _draw() -> void:
 	if lit: SceneFX.glow(self, hc, rad * 0.55, Color(1.0, 0.7, 0.35, 0.10))
 	# SPD raised high grass: base tile (122/125) in its cell, overhang (234/237) in the cell above, behind the
 	# characters; blades lit at half the floor's darkness so they read over the dark ground
+	var decos: Array = REGION_DECO.get(String(r.biome), REGION_DECO.sewers)
+	for d in deco_cells:   # props: floor keyed out of the base, overhang on the wall, lit once like the sprites
+		var dr: Rect2 = d[0]; var pr: Array = decos[_h(int(d[1]), 22) % decos.size()]
+		var lm := _lm(dr.get_center())
+		draw_texture_rect_region(_grass_tex(tiles, pr[0]), dr, Rect2(0, 0, 16, 16), lm)
+		draw_texture_rect_region(tiles, Rect2(dr.position - Vector2(0, cs), dr.size), Rect2((pr[1] % 16) * 16, (pr[1] / 16) * 16, 16, 16), lm)
 	for g in grass_cells:
 		var gr: Rect2 = g[0]; var gb: int = HIGH_GRASS[g[1]]; var gi: int = HIGH_GRASS_TOP[g[1]]
-		var m := _lm(gr.get_center(), 0.5)
-		draw_texture_rect_region(_grass_tex(tiles, gb), gr, Rect2(0, 0, 16, 16), m)
-		draw_texture_rect_region(tiles, Rect2(gr.position - Vector2(0, cs), gr.size), Rect2((gi % 16) * 16, (gi / 16) * 16, 16, 16), m)
+		# one-pixel wind sway applied to base and overhang together; tips lit lighter so they stay crisp green
+		var sw := roundf(sin(t * 1.6 + float(g[2]) * 0.9)) * k
+		draw_texture_rect_region(_grass_tex(tiles, gb), Rect2(gr.position + Vector2(sw, 0), gr.size), Rect2(0, 0, 16, 16), _lm(gr.get_center(), 0.5))
+		draw_texture_rect_region(tiles, Rect2(gr.position + Vector2(sw, -cs), gr.size), Rect2((gi % 16) * 16, (gi / 16) * 16, 16, 16), _lm(gr.get_center(), 0.3))
 	var arrive := clampf(_ev_t / 0.45, 0.0, 1.0); var ease := 1.0 - pow(1.0 - arrive, 3.0)
 	if not ev.is_empty():
 		var ex := floorf(ox + (stop_col - hero_col) * cs)
@@ -225,13 +250,17 @@ func _draw() -> void:
 			var anim := "run" if arrive < 1.0 else "idle"
 			var fr := _frame(spr, anim, j * 0.37)
 			# menace: every ~2.6 s one foe plays its SPD attack frames with a short lunge toward the hero
+			# the window is the SPD attack animation's own length (frames / fps), so every frame plays once
 			var ph := fposmod(_ev_t - 0.6 - j * 0.9, 2.6 + ids.size() * 0.4)
 			var lunge := 0.0
-			if arrive >= 1.0 and ph < 0.3:
-				var a: Dictionary = _anims.get(spr, {}).get("attack", {})
+			var a: Dictionary = _anims.get(spr, {}).get("attack", {})
+			var win := clampf(float(a.frames.size()) / float(a.fps), 0.2, 0.8) if not a.is_empty() else 0.3
+			if arrive >= 1.0 and ph < win:
 				if not a.is_empty():
 					var afl: Array = a.frames; fr = int(afl[mini(int(ph * float(a.fps)), afl.size() - 1)])
-				lunge = -sin(ph / 0.3 * PI) * cs * 0.25
+				lunge = -sin(ph / win * PI) * cs * 0.25
+				# SPD CharSprite.flash(): the hero blinks white for a moment as the blow lands (lunge peak)
+				if absf(ph - win * 0.5) < 0.06: hit_flash = 1.0
 			_sprite(spr, int(m.fw), int(m.fh), fr, 0, Vector2(colx + dx + lunge, fy).floor(), sk(boss), true)
 	if not ev.is_empty() and ev.kind == "special": _room_scene(String(ev.special.get("id", "")), ox + (stop_col - hero_col) * cs, y0, cs, k, biome)
 	if not ev.is_empty() and ev.kind == "special" and ev.get("special", {}).has("icon") and not ROOM_SCENES.has(String(ev.special.get("id", ""))):
@@ -244,7 +273,7 @@ func _draw() -> void:
 	var hs: Dictionary = _hs
 	var hf := _frame(String(hs.sprite), "run") if moving else _frame(String(hs.sprite), "idle")
 	var hfeet := Vector2(hero_x + cs / 2.0, y0 + 3.8 * cs).floor()
-	_sprite(hs.sprite, int(hs.fw), int(hs.fh), hf, int(hs.row), hfeet, sk())
+	_sprite(hs.sprite, int(hs.fw), int(hs.fh), hf, int(hs.row), hfeet, sk(), false, true, hit_flash)
 	# parallax dust: far layer drifts at 0.3x the scroll, near at 1.4x
 	for layer in [[0.3, 0.25, 9], [1.4, 0.5, 6]]:
 		for n in int(layer[2]):

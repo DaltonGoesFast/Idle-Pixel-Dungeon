@@ -119,6 +119,8 @@ func _ready() -> void:
 			GameState.heroes.warrior.armor = GameState.add_gear("scale_armor")   # armor tier row must show
 			main.delve.pending = {}; main.delve.running = true; main.delve._show_card()
 			main.delve.scene.scroll = main.delve.scene.target - 0.6; main.delve.scene.pops.append({"idx": DB.icon_index("gold"), "age": 0.2, "n": 3}); main.delve.scene.glow = 0.8])
+		for b in [["prison", 7], ["caves", 12], ["city", 17], ["halls", 22]]:   # biome corridor art (DECISIONS #181)
+			plan.append([sz, "delve_" + b[0], _biome_walk.bind(b[0], b[1])])
 		plan.append([sz, "delve_enemy", func():
 			_clear_pops()
 			main.delve.running = false
@@ -252,6 +254,14 @@ func _process(_d: float) -> void:
 ## The staged "+3 gold" pop of delve_walk lives 1.1 s, longer than the next shots take, so clear it (DECISIONS #113).
 func _clear_pops() -> void:
 	if main.delve != null and main.delve.scene != null: main.delve.scene.pops.clear(); main.delve.scene.glow = 0.0
+
+
+## A delve corridor walk in another biome (tile sheet, wall deco, region props).
+func _biome_walk(biome: String, fl: int) -> void:
+	_fresh_warrior_run(); main.show_delve(); _clear_pops()
+	GameState.run.biome = biome; GameState.run.floor = fl
+	main.delve.pending = {}; main.delve.running = true; main.delve._show_card()
+	main.delve.scene.scroll = main.delve.scene.target - 0.6
 
 
 ## Delve shots always start from a clean Warrior run on Sewers 1 (no state leaking from boss/biome shots).
