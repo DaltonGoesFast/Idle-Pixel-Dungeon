@@ -155,8 +155,25 @@ func _sprite(spr: String, fw: int, fh: int, frame: int, row: int, feet: Vector2,
 		draw_texture_rect_region(tx, Rect2(pos, sz), src, Color(f, f, f, flash))
 
 ## Tall grass clumps on the near floor row, seeded per column (never where an encounter stands).
+## Corridor puddles (DECISIONS #182): at most one per 11-column block, 2-3 columns wide on one or both floor
+## rows, a corner dropped on the big ones; never under a prop. Drawn as SPD stitched water (see _water_cell).
+func _puddle(cx: int, row: int) -> bool:
+	if row < 2 or row > 3: return false
+	var b := floori(cx / 11.0)
+	if _h(b, 31) % 5 >= 3: return false
+	var s0 := b * 11 + 2 + _h(b, 32) % 5; var w := 2 + _h(b, 33) % 2
+	if cx < s0 or cx >= s0 + w: return false
+	var v := _h(b, 34) % 3
+	if (v == 0 and row == 2) or (v == 2 and row == 3): return false
+	if v == 1 and w == 3:   # drop one corner so the big ones are not rectangles
+		var cn := _h(b, 35) % 4
+		if cx == s0 + (0 if cn % 2 == 0 else w - 1) and row == (2 if cn < 2 else 3): return false
+	if row == 2 and _deco_at(cx): return false
+	return true
+
 func _grass_at(cx: int) -> bool:
 	if _deco_at(cx - 1) or _deco_at(cx) or _deco_at(cx + 1): return false   # props keep their columns clear
+	if _puddle(cx, 3): return false
 	return _h(cx, 11) % 9 == 0 or (_h(cx - 1, 11) % 9 == 0 and _h(cx, 12) % 2 == 0)
 
 ## A biome prop on the far floor row: exactly one per 7-column block at a seeded spot, so every screen of
@@ -194,6 +211,9 @@ func _draw() -> void:
 	if ev.is_empty(): busy_to = busy_from - 1
 	var grass_cells := []
 	var deco_cells := []
+	var wet_cells := []
+	var water := _t("res://assets/tiles/%s.png" % biome.get("water", "water0"))
+	var wo := Vector2(fposmod(t * 3.0, 32.0), fposmod(t * 2.0, 32.0)).floor()   # SPD water drifts slowly
 	var wall_fx := []   # SPD wall-deco cells that carry their region's visual (drip, torch, sparkle, smoke)
 	for i in range(-int(hero_x / cs) - 2, cols):
 		var cx := hero_col + i
@@ -213,9 +233,14 @@ func _draw() -> void:
 			# grass clump: SPD short-grass floor (GRASS 2) under the keyed blades, drawn after the light
 			if row == 3 and not busy and _grass_at(cx): idx = 2; grass_cells.append([rc, cx & 1, cx])
 			if row == 1 and not ev.is_empty(): idx = _encounter_wall(ev, cx - stop_col, idx)
+			if not busy and _puddle(cx, row):   # SPD water: scrolling texture, then the stitch tile over it
+				var wet := func(c2: int, r2: int) -> bool: return r2 <= 1 or r2 >= 4 or (_puddle(c2, r2) and not (c2 >= busy_from and c2 <= busy_to))
+				_water_cell(water, rc.position, k, wo + Vector2(cx * 16, row * 16), Color.WHITE)
+				idx = WATER + (0 if wet.call(cx, row - 1) else 1) + (0 if wet.call(cx + 1, row) else 2) + (0 if wet.call(cx, row + 1) else 4) + (0 if wet.call(cx - 1, row) else 8)
+				wet_cells.append(rc)
 			draw_texture_rect_region(tiles, rc, Rect2((idx % 16) * 16, (idx / 16) * 16, 16, 16))
 		# bones on the far floor row (seeded per column, kept clear of the encounter)
-		if not busy and cx > hero_col + 1 and _h(cx, 5) % 17 == 0 and not _grass_at(cx) and not _deco_at(cx):   # never under a prop
+		if not busy and cx > hero_col + 1 and _h(cx, 5) % 17 == 0 and not _grass_at(cx) and not _deco_at(cx) and not _puddle(cx, 2):   # never under a prop or in water
 			var ir := UIKit.item_rect(DB.icon_index("BONES"))
 			var isz := ir.size * k
 			draw_texture_rect_region(_t("res://assets/sprites/items.png"), Rect2((Vector2(x, y0 + 2 * cs) + (Vector2(cs, cs) - isz) / 2.0).floor(), isz), ir, Color(1, 1, 1, 0.85))
@@ -236,6 +261,8 @@ func _draw() -> void:
 		draw_texture_rect_region(_grass_tex(tiles, pr[0]), dr, Rect2(0, 0, 16, 16), lm)
 		draw_texture_rect_region(tiles, Rect2(dr.position - Vector2(0, cs), dr.size), Rect2((pr[1] % 16) * 16, (pr[1] / 16) * 16, 16, 16), lm)
 	for wr in wall_fx: _wall_visual(String(r.biome), wr[0], int(wr[1]), k)
+	if String(r.biome) == "halls":   # SPD HallsLevel.Stream: embers rise from the water and fall back
+		for wc in wet_cells: _halls_stream(wc, k)
 	if String(r.biome) == "city":   # SPD CityLevel GreenFlame over the region-deco plinths
 		for d in deco_cells:
 			if decos[_h(int(d[1]), 22) % decos.size()][0] == 130: _green_flame((d[0] as Rect2).get_center() - Vector2(0, cs * 0.55), k, int(d[1]))
@@ -447,6 +474,19 @@ func _wall_visual(biome: String, rc: Rect2, tid: int, k: float) -> void:
 				var am := (1.0 - ph) * 5.0 if ph > 0.8 else ph * 0.25
 				var sz := floorf(3.0 + ph * 3.0) * k
 				draw_rect(Rect2(Vector2(x, y).floor(), Vector2(sz, sz)), Color(0, 0, 0, clampf(am, 0.0, 0.25)))
+
+## SPD HallsLevel.Stream FireParticle: 0xEE7722, launched up at 40 px/s against +80 gravity, shrinking, ~0.5/s.
+func _halls_stream(rc: Rect2, k: float) -> void:
+	var sd := int(rc.position.x / maxf(1.0, k)) + int(rc.position.y)
+	var per := 2.0 + SceneFX._rnd(sd, 3)
+	var ph := fposmod(t + SceneFX._rnd(sd, 4) * per, per)
+	if ph > 1.0: return
+	var cyc := floorf((t + SceneFX._rnd(sd, 4) * per) / per)
+	var p := rc.position + Vector2(SceneFX._rnd(int(cyc), sd), SceneFX._rnd(int(cyc), sd + 1)) * rc.size
+	var y := p.y + (-40.0 * ph + 40.0 * ph * ph) * k
+	var sz := maxf(1.0, roundf(4.0 * (1.0 - ph))) * k
+	var col := Color("ee7722"); col.a = (ph * 5.0) if ph < 0.2 else 1.0
+	draw_rect(Rect2(Vector2(p.x - sz / 2.0, y - sz / 2.0).floor(), Vector2(sz, sz)), col)
 
 ## SPD CityLevel.GreenFlame: ElmoParticle (0x22EE66, 0.6 s, size 4 shrinking, rising with acc -40).
 func _green_flame(p: Vector2, k: float, sd: int) -> void:
