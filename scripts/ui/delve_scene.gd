@@ -220,17 +220,17 @@ func _face_tile(wall: Dictionary, cx: int) -> int:
 	return w + (1 if int(wall.get(cx + 1, 80)) in DOORS else 0) + (2 if int(wall.get(cx - 1, 80)) in DOORS else 0)
 
 ## The cell above the wall row is void, so SPD's walls layer draws the wall's top there (DungeonWallsTilemap):
-## WALL_OVERHANG 208 (+1 open down-right, +2 open down-left, i.e. a door beside it), or over a door its lintel:
+## WALL_OVERHANG 192 (+1 open down-right, +2 open down-left, i.e. a door beside it), or over a door its lintel:
 ## DOOR_OVERHANG 224 (closed and locked), DOOR_OVERHANG_OPEN 225, DOOR_OVERHANG_CRYSTAL 226.
 func _top_tile(wall: Dictionary, cx: int) -> int:
 	var w: int = wall.get(cx, 80)
 	var side := (1 if int(wall.get(cx + 1, 80)) in DOORS else 0) + (2 if int(wall.get(cx - 1, 80)) in DOORS else 0)
 	match w:
-		92, 108: return 216 + side   # WALL_OVERHANG_WOODEN over a raised bookshelf
+		92, 108: return 200 + side   # WALL_OVERHANG_WOODEN over a raised bookshelf
 		112, 114: return 224
 		113: return 225
 		115: return 226
-	return 208 + (1 if int(wall.get(cx + 1, 80)) in DOORS else 0) + (2 if int(wall.get(cx - 1, 80)) in DOORS else 0)
+	return 192 + side   # WALL_OVERHANG (208+ is DOOR_SIDEWAYS_OVERHANG: door-frame caps, not a wall top)
 
 const CHASM_FLOOR := 25; const CHASM_WATER := 28   # DungeonTileSheet CHASM + 1 / + 4
 
