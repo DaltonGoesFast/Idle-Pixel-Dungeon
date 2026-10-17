@@ -293,6 +293,17 @@ func _t(c: Vector2i) -> int:
 
 func _is_wall(c: Vector2i) -> bool: return _t(c) == Combat.T.WALL
 func _is_door(c: Vector2i) -> bool: return _t(c) == Combat.T.DOOR
+## Item sprite drawn on a door cell held open by remains (SPD Heap on an open door): BONES, else -1.
+## Remains clear once someone passes through, and the door then shuts (DECISIONS #176), so the bones go too.
+func remains_visual(c: Vector2i) -> int:
+	if combat == null or not _is_door(c) or not combat.remains.has(c): return -1
+	return DB.icon_index("BONES")
+
+var _items: Texture2D
+func _items_tex() -> Texture2D:
+	if _items == null: _items = load("res://assets/sprites/items.png")
+	return _items
+
 func _door_open(c: Vector2i) -> bool:
 	if combat == null or not _is_door(c): return false
 	var occ := not combat.door_closed(c)
@@ -505,7 +516,16 @@ func _draw() -> void:
 		for x in range(lo, hi_x + 1):
 			var wv := wall_visual(Vector2i(x, y))
 			if wv >= 0: _tile(cell_rect(Vector2(x, y)), wv)
-	# 5b. SPD region visuals: drips from drains, Prison wall torches, cave ore sparkles, City smoke, Halls embers.
+	# 5b. remains holding a door open (DECISIONS #176, #184): SPD draws the heap on the open door. Drawn after the
+	# walls layer so a sideways door's frame does not hide it, and only once the doorway is empty and the death
+	# animation there has faded, so it never covers a character
+	for k in combat.remains:
+		var bi := remains_visual(k)
+		if bi < 0 or combat.unit_at(k) != null or dying.any(func(dd): return Vector2(dd.pos).round() == Vector2(k)): continue
+		var br := UIKit.item_rect(bi); var bsz := br.size * scale
+		var cr := cell_rect(Vector2(k))
+		draw_texture_rect_region(_items_tex(), Rect2((cr.position + (cr.size - bsz) / 2.0).floor(), bsz), br)
+	# 5c. SPD region visuals: drips from drains, Prison wall torches, cave ore sparkles, City smoke, Halls embers.
 	# Drawn under the fog, so out-of-sight walls dim like everything else.
 	var bio := biome()
 	for df in deco_faces:

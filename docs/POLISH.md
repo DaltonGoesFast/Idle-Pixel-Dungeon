@@ -15,6 +15,7 @@ Priority: **P1** fix before a public build, **P2** next polish pass, **P3** nice
 | 6 | Next-fight effects from potions/scrolls (Lullaby, Haste, Frost, Invisibility, ...) apply silently at fight start; show a banner or status icon | #51 | P2 | S |
 | 7 | Mob abilities ignore bodies (`sees` / `in_view`) while hero shots stop at the first body; visible as zaps passing through allies | report 4dd90ed | P2 | M |
 | 7a | Enemy inspect should show its SPD target cell (where it last saw you) and a "?" over a mob that has lost track (SPD `showLost`); `m.aim`, `m.state` and the `lost` event are already there | DECISIONS #176 | P2 | S |
+| 7b | ~~A door held open by remains (#176) looked open for no reason once the death animation faded~~ **Done**: SPD bones on the open door until someone passes through (DECISIONS #184) | report 4dee067 | P2 | S |
 
 ## Camp: Forge, Enchanter, stash item details
 | # | Item | Source | Pri | Effort |
