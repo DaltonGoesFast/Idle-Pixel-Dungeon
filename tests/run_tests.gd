@@ -88,6 +88,7 @@ func _ready() -> void:
 	test_log_and_sounds(gs)
 	test_ring_contexts(gs)
 	test_item_badges(gs)
+	test_equipped_owner_marks(gs)
 	test_forge_bulk(gs)
 	test_break_rings(gs)
 	test_all_icons(gs)
@@ -1518,6 +1519,84 @@ func test_item_badges(gs) -> void:
 	var pd_c: Button = Paperdoll._slot("warrior", "class", "camp", func(): pass)
 	check(pd_w.get_node_or_null("StrReq") != null and pd_w.get_node("StrReq").text == ":10" and pd_c.get_node_or_null("StrReq") == null, "paperdoll weapon slot shows :10 and class item slot does not")
 	sw_slot.free(); sw_ok.free(); rg_slot.free(); pd_w.free(); pd_c.free(); cs.free()
+
+## DECISIONS #174: worn gear on the Stash and Forge is labeled with the hero, not a one-letter corner mark.
+func _slot_uid(root: Node, uid: int) -> Button:
+	for b in root.find_children("*", "Button", true, false):
+		if b.has_meta("uid") and int(b.get_meta("uid")) == uid and not b.is_queued_for_deletion(): return b
+	return null
+
+func test_equipped_owner_marks(gs) -> void:
+	print("[equipped marks]")
+	gs.new_game()
+	var fs0 := UIKit.font_size
+	UIKit.make_theme(20)
+	var spare: int = gs.add_gear("shortsword", true)
+	var armor: int = int(gs.heroes.warrior.armor)
+	gs.gear_by_uid(armor).cracked = true
+	var rw: int = gs.add_gear("ring_might", true)
+	var rm: int = gs.add_gear("ring_might", true)
+	check(gs.equip("warrior", rw) and gs.equip("mage", rm), "warrior and mage can both wear Ring of Might")
+	gs.mats.iron_ore = 40; gs.mats.gold = 500
+	var cs = load("res://scripts/ui/camp_screen.gd").new(); add_child(cs)
+	# cover-width columns are wide enough for every class name; a narrower slot shortens
+	var w := minf(484.0 * 0.96, UIKit.font_size * 36.0) - UIKit.font_size * 2.0
+	var cols := maxi(3, int(w / (UIKit.font_size * cs.GEAR_CELL)))
+	var budget := w / float(cols) - 6.0
+	check(cs._owner_text("huntress", budget) == "Huntress", "a phone-width gear slot fits Huntress (budget %.0f, %d cols)" % [budget, cols])
+	check(cs._owner_text("warrior", budget) == "Warrior" and cs._owner_text("rogue", budget) == "Rogue" and cs._owner_text("mage", budget) == "Mage", "the other three names fit too")
+	check(cs._owner_text("huntress", 64) == "Hunt" and cs._owner_text("warrior", 40) == "War", "narrow slots shorten Huntress and Warrior")
+	check(cs._owner_text("mage", 20) == "M" and cs._owner_text("rogue", 20) == "R", "a tiny slot falls back to the initial")
+	for hero in ["warrior", "mage", "rogue", "huntress"]:
+		for width in [20.0, 40.0, 64.0, budget]:
+			var shown: String = cs._owner_text(hero, width)
+			var px: float = cs._owner_font().get_string_size(shown, HORIZONTAL_ALIGNMENT_LEFT, -1, UIKit.font_px(UIKit.font_size * 0.8)).x
+			check(px <= width + 0.5, "%s at %.0fpx reads %s (%.0fpx wide)" % [hero, width, shown, px])
+	cs.section["Stash"] = "gear"
+	cs.open_page("Stash")
+	var bars: Array = cs.win_layer.find_children("OwnerBar", "Panel", true, false)
+	var worn := 0
+	for g in gs.gear:
+		if gs.equipped_by(int(g.uid)) != "": worn += 1
+	check(bars.size() == worn, "stash marks every worn piece and no spare (%d bars, %d worn)" % [bars.size(), worn])
+	var spare_slot: Button = _slot_uid(cs.win_layer, spare)
+	check(spare_slot != null and spare_slot.get_node_or_null("OwnerBar") == null, "an unworn sword has no owner plate")
+	var wpn: Button = _slot_uid(cs.win_layer, int(gs.heroes.warrior.weapon))
+	var wname := ""
+	if wpn: wname = String(wpn.get_node("OwnerBar/OwnerName").text)
+	check(wpn != null and wname.begins_with("War") and String(wpn.tooltip_text) == "Equipped by Warrior", "warrior's weapon is labeled (%s)" % wname)
+	var frame: StyleBoxFlat = wpn.get_theme_stylebox("normal") if wpn else null
+	check(frame != null and frame.border_color.is_equal_approx(cs.HERO_MARK["warrior"]), "stash border uses the warrior color")
+	var cols_used := {}
+	for bar in bars:
+		var plate := bar.get_theme_stylebox("panel") as StyleBoxFlat
+		if plate: cols_used[plate.bg_color.to_html()] = true
+	check(cols_used.size() == 4, "the four heroes use four different colors (%d)" % cols_used.size())
+	var arm: Button = _slot_uid(cs.win_layer, armor)
+	var arm_frame: StyleBoxFlat = arm.get_theme_stylebox("normal") if arm else null
+	check(arm != null and arm.get_node_or_null("OwnerBar") != null and arm_frame != null and arm_frame.border_color.is_equal_approx(Color("ff5040")), "cracked armor stays red and still names who wears it")
+	cs.section["Forge"] = "upgrade"
+	cs.open_page("Forge")
+	var forge_spare: Button = _slot_uid(cs.win_layer, spare)
+	var forge_wpn: Button = _slot_uid(cs.win_layer, int(gs.heroes.warrior.weapon))
+	var forge_arm: Button = _slot_uid(cs.win_layer, armor)
+	var spare_frame: StyleBoxFlat = forge_spare.get_theme_stylebox("normal") if forge_spare else null
+	var wpn_frame: StyleBoxFlat = forge_wpn.get_theme_stylebox("normal") if forge_wpn else null
+	var arm_f: StyleBoxFlat = forge_arm.get_theme_stylebox("normal") if forge_arm else null
+	check(forge_spare != null and forge_spare.get_node_or_null("OwnerBar") == null and spare_frame != null and spare_frame.border_color.is_equal_approx(Color("6bff6b")), "forge: an unworn sword you can afford stays green, with no name")
+	check(forge_wpn != null and forge_wpn.get_node_or_null("OwnerBar/OwnerName") != null and String(forge_wpn.get_node("OwnerBar/OwnerName").text).begins_with("War") and wpn_frame != null and wpn_frame.border_color.is_equal_approx(Color("6bff6b")), "forge: a worn sword keeps the green border and gains a name")
+	check(forge_arm != null and forge_arm.get_node_or_null("OwnerBar") != null and arm_f != null and arm_f.border_color.is_equal_approx(Color("ff5040")), "forge: cracked worn armor stays red and names the warrior")
+	cs.section["Forge"] = "rings"
+	cs.open_page("Forge")
+	var shared: Button = null
+	for b in cs.win_layer.find_children("*", "Button", true, false):
+		if String(b.tooltip_text).contains("Warrior") and String(b.tooltip_text).contains("Mage"): shared = b; break
+	check(shared != null and shared.get_node_or_null("OwnerBar/OwnerFaces") != null and shared.get_node("OwnerBar/OwnerFaces").get_child_count() == 2, "a ring worn by two heroes shows both faces")
+	cs.section["Enchanter"] = "attune"
+	cs.open_page("Enchanter")
+	check(_slot_uid(cs.win_layer, rw) != null and _slot_uid(cs.win_layer, rw).get_node_or_null("OwnerBar/OwnerName") != null, "attune names who wears a ring")
+	cs.queue_free()
+	UIKit.make_theme(fs0)
 
 func _glyph_rgb(sheet: Image, name: String) -> Vector3:
 	var sub := sheet.get_region(Rect2i(UIKit.badge_rect(name)))
