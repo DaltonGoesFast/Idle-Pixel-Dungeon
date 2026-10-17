@@ -110,7 +110,10 @@ func _encounter_wall(ev: Dictionary, dx: int, idx: int) -> int:
 			if dx == 0: return DOOR_LOCKED if d.get("a", {}).has("cost") else DOOR_CLOSED
 			if dx == 2: return DOOR_LOCKED if d.get("b", {}).has("cost") else DOOR_CLOSED
 			if dx == 1: return 80
-		"special": if dx == 0: return DOOR_CLOSED
+		"special":
+			if dx == 0: return DOOR_CLOSED
+			for op in ROOM_SCENES.get(String(ev.special.get("id", "")), []):   # room tiles set into the wall (bookshelves)
+				if String(op[0]) == "t" and float(op[3]) == 1.0 and int(op[2]) == dx: return int(op[1])
 	return idx
 
 ## Whole-pixel scale: tiles are 16 px at an integer multiple.
@@ -194,7 +197,7 @@ func _wall_tile(cx: int) -> int:
 const DOORS := [112, 113, 114, 115]
 func _face_tile(wall: Dictionary, cx: int) -> int:
 	var w: int = wall.get(cx, 80)
-	if w in DOORS or w < 80 or w >= 112: return w
+	if w in DOORS or w < 80 or w >= 112 or w in [92, 108]: return w
 	return w + (1 if int(wall.get(cx + 1, 80)) in DOORS else 0) + (2 if int(wall.get(cx - 1, 80)) in DOORS else 0)
 
 ## The cell above the wall row is void, so SPD's walls layer draws the wall's top there (DungeonWallsTilemap):
@@ -202,7 +205,9 @@ func _face_tile(wall: Dictionary, cx: int) -> int:
 ## DOOR_OVERHANG 224 (closed and locked), DOOR_OVERHANG_OPEN 225, DOOR_OVERHANG_CRYSTAL 226.
 func _top_tile(wall: Dictionary, cx: int) -> int:
 	var w: int = wall.get(cx, 80)
+	var side := (1 if int(wall.get(cx + 1, 80)) in DOORS else 0) + (2 if int(wall.get(cx - 1, 80)) in DOORS else 0)
 	match w:
+		92, 108: return 216 + side   # WALL_OVERHANG_WOODEN over a raised bookshelf
 		112, 114: return 224
 		113: return 225
 		115: return 226
@@ -441,8 +446,6 @@ func _room_scene(id: String, x0: float, y0: float, cs: float, k: float, biome: D
 		match String(op[0]):
 			"t":
 				var ti := int(op[1]); draw_texture_rect_region(tiles, Rect2(tl, Vector2(cs, cs)), Rect2((ti % 16) * 16, (ti / 16) * 16, 16, 16), _lm(tl + Vector2(cs, cs) / 2.0))
-				if row == 1.0 and ti in [92, 108]:   # raised bookshelf: its WALL_OVERHANG_WOODEN top in the void above
-					draw_texture_rect_region(tiles, Rect2(tl - Vector2(0, cs), Vector2(cs, cs)), Rect2((216 % 16) * 16, (216 / 16) * 16, 16, 16), _lm(tl + Vector2(cs, cs) / 2.0))
 			"f":
 				var fi := int(op[1])
 				draw_texture_rect_region(feats, Rect2(tl + Vector2(0, _drop(feats, fi) * k), Vector2(cs, cs)), Rect2((fi % 16) * 16, (fi / 16) * 16, 16, 16), _lm(tl + Vector2(cs, cs) / 2.0))
