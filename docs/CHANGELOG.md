@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Scene polish (DECISIONS #185): boss arenas look like SPD's boss rooms (Goo's sewer drains, Tengu's prison torches, DM-300's pylons, the Dwarf King's throne dais and red carpet, Yog's stained-glass windows and candles). Library bookshelves have SPD's slim wooden top instead of a heavy band, wells pour SPD's healing crosses or question marks, the delve campfire no longer sits on a dark square, faint wind motes drift over chasms in battle, and fireflies blink over the camp clearing (below the horizon, so the sky stays static). Tall grass no longer stands in front of the hero resting at the campfire.
 
 ## 0.43.0
 - A door held open by the remains of something that died in it now shows SPD bones on the open door, so you can see why it is open. The bones go when someone passes through and the door shuts again (+test).

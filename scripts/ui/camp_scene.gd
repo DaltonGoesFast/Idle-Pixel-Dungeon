@@ -203,6 +203,8 @@ func _draw() -> void:
 			var ctr := rc.get_center()
 			var path := absf(ctr.x - fire.x) < cs * 0.6 and ctr.y > fire.y
 			_tile(rc, (0 if h % 3 else 6) if path else (2 if h % 4 else 8))
+	var hz := Vector2(12, 15) * kk * 2.0
+	var hero_r := Rect2(Vector2(fire.x + cs * 0.9, fire.y + kk * 6 - hz.y).floor(), hz)   # the resting hero
 	var props := _prop_rects(cs)   # barrels: base cell + the cell its top reaches into
 	# horizon: a row of SPD raised high grass (DECISIONS #179) whose tops reach up into the sky
 	var grass := []   # [rect, kind, sway]: drawn after the night pass so the blades are not darkened twice
@@ -220,7 +222,7 @@ func _draw() -> void:
 			# the clump covers its cell and the cell above (overhang) and is drawn over the NPCs: keep both clear
 			var span := Rect2(rc2.position - Vector2(0, cs), Vector2(cs, cs * 2.0))
 			if SPOTS.any(func(sp): return spot_rect(sp).merge(label_rect(sp)).grow(cs * 0.3).intersects(span)): continue
-			if _hits_prop(rc2, cs, props): continue
+			if _hits_prop(rc2, cs, props) or hero_r.grow(cs * 0.3).intersects(span): continue   # never over the hero
 			if h2 % 9 == 0:   # tall grass clump: SPD raised high grass, top half in the cell above
 				grass.append([rc2, h2 & 1, roundf(sin(t * 1.6 + x * 0.9 + y)) * kk])
 	_scenery(kk, cs, fire)
@@ -233,15 +235,13 @@ func _draw() -> void:
 	SceneFX.fire(self, fire + Vector2(0, kk * 4), kk, t, 14.0, true, 2.2, sky_h)
 	# the selected hero rests by the fire (idle frame 0)
 	var hs := _sprite(hero)
-	var hz := Vector2(12, 15) * kk * 2.0
 	if hero_anim.get("_for", "") != hero:   # hero idle from data/anims.json (generated from the SPD *Sprite.java)
 		var all: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://data/anims.json"))
 		hero_anim = all.get(hero, {}).get("idle", {"fps": 1, "frames": [0]}); hero_anim._for = hero
 	var hfl: Array = hero_anim.frames; var hf := int(hfl[int(t * float(hero_anim.fps)) % hfl.size()])
 	var cols_h := int(hs.get_width() / 12)
 	var frad := minf(size.x, size.y - sky_h) * 0.75   # firelight reach: warm amber flicker on nearby sprites
-	var hr := Rect2(Vector2(fire.x + cs * 0.9, fire.y + kk * 6 - hz.y).floor(), hz)
-	draw_texture_rect_region(hs, hr, Rect2((hf % cols_h) * 12, (hf / cols_h + GameState.armor_tier(hero)) * 15, 12, 15), SceneFX.firelit(hr.get_center(), fire, frad, flk))
+	draw_texture_rect_region(hs, hero_r, Rect2((hf % cols_h) * 12, (hf / cols_h + GameState.armor_tier(hero)) * 15, 12, 15), SceneFX.firelit(hero_r.get_center(), fire, frad, flk))
 	# facilities
 	var font := get_theme_default_font()
 	var fs := UIKit.font_px(UIKit.font_size * 0.85)
@@ -262,6 +262,7 @@ func _draw() -> void:
 	# night: the clearing darkens away from the fire, the sky stays readable (DECISIONS #179)
 	SceneFX.darkness(self, Rect2(0, sky_h, size.x, size.y - sky_h), fire, minf(size.x, size.y - sky_h) * 0.62 * flk, 0.5)
 	SceneFX.glow(self, fire, cs * 1.2 * flk, Color(1.0, 0.7, 0.3, 0.12), ground)
+	_fireflies(kk, cs, sky_h)
 	# grass blades over the darkened ground, lit at half the night's strength (the floor keeps the full darkening)
 	var lrad := minf(size.x, size.y - sky_h) * 0.62   # unflickered: the horizon tops sit in the sky and stay static
 	for g in grass:
@@ -327,3 +328,20 @@ func _gui_input(e: InputEvent) -> void:
 	var page := spot_at(e.position)
 	if page == "": return
 	hot = page; Sfx.play("click"); picked.emit(page); accept_event()
+
+
+## Night idle life: a few fireflies over the clearing, one art pixel of SPD's torch-halo yellow (0xFFFFCC) with a
+## faint halo, wandering slowly and blinking. They stay below the horizon grass, so the static sky never changes.
+func _fireflies(kk: float, cs: float, sky_h: float) -> void:
+	var ground := Rect2(0, sky_h + cs * 1.5, size.x, size.y - sky_h - cs * 1.5)
+	if not ground.has_area(): return
+	for i in 8:
+		var a := float(i) * 2.399
+		var blink := sin(t * (0.7 + 0.13 * i) + a * 3.0)
+		if blink <= 0.0: continue
+		var al := blink
+		var p := ground.position + Vector2((0.5 + 0.45 * sin(t * 0.11 + a * 5.0) * cos(t * 0.07 + a)) * ground.size.x,
+			(0.5 + 0.42 * sin(t * 0.09 + a * 7.0)) * ground.size.y)
+		p = (p / kk).floor() * kk
+		SceneFX.glow(self, p + Vector2(kk, kk) / 2.0, kk * 4.0, Color(1.0, 1.0, 0.8, 0.18 * al), ground)
+		draw_rect(Rect2(p, Vector2(kk, kk)), Color(1.0, 1.0, 0.8, 0.9 * al))

@@ -38,6 +38,8 @@ var shots := []          # SPD projectiles [{kind, from, to, t, dur, col, mid}]:
 var _danger_prev := []   # last frame's telegraphed tiles, to know who fired a resolving zap (visual only)
 var effects: Texture2D   # SPD effects/effects.png (Lightning, DeathRay, LightRay strips)
 var _door_was := {}      # last-frame occupancy for door tween
+var _boss := ""          # boss sprite of this arena ("" = none): picks SPD boss-room dressing, visual only (DECISIONS #185)
+var _ctex := {}          # SPD custom boss tiles (environment/custom_tiles) and the DM-300 pylon sprite
 
 # SPD DungeonTileSheet indices (xy(x,y) = (x-1) + 16*(y-1))
 const S_FLOOR := 0; const S_FLOOR_ALT1 := 6; const S_FLOOR_ALT2 := 12
@@ -75,6 +77,9 @@ func set_combat(c: Combat) -> void:
 		var f := FileAccess.open("res://data/anims.json", FileAccess.READ)
 		if f: anims = JSON.parse_string(f.get_as_text())
 	ustate.clear(); dying.clear(); variance.clear(); door_tween.clear(); _door_was.clear(); shots.clear(); _danger_prev = []
+	_boss = ""
+	for u in c.units:
+		if u.get("boss", false): _boss = String(u.get("sprite", ""))
 	var rng := RandomNumberGenerator.new(); rng.seed = hash(str(c.terrain))
 	for y in range(-2, c.h + 2):
 		for x in range(-2, c.w + 2): variance[Vector2i(x, y)] = rng.randi() % 100
@@ -356,6 +361,9 @@ func terrain_visual(c: Vector2i) -> int:
 ## six, from the room-seeded tile variance. Visual only; the arena's terrain has no deco walls of its own.
 func wall_deco(c: Vector2i) -> bool:
 	if c.x < 0 or c.x >= _aw() or c.y < -1 or c.y >= _ah(): return false   # only faces the player can see
+	# Goo's sewer: a drain (with its drips) on every third top-wall face; Tengu's prison: a torch there instead
+	if _boss in ["goo", "tengu"] and c.y == 0: return c.x % 3 == 1
+	if _boss == "yog" and c.y == 0: return false    # stained glass instead
 	return int(variance.get(c, 50)) % 6 == 1
 
 func biome() -> String: return tileset.trim_prefix("tiles_")
@@ -381,7 +389,7 @@ func wall_visual(c: Vector2i) -> int:
 		if not _is_wall(c + Vector2i(-1, 1)): r += 4
 		if not _is_wall(c + Vector2i(-1, 0)): r += 8
 		return r
-	if _is_wall(below):
+	if _is_wall(below) and not _pylon(below):
 		var o := S_WALL_OVERHANG
 		if _is_door(c): o = S_DOOR_SIDE_OVERHANG_OPEN if _door_open(c) else S_DOOR_SIDE_OVERHANG_CLOSED
 		if not _is_wall(c + Vector2i(1, 1)): o += 1
@@ -438,7 +446,9 @@ func _draw() -> void:
 				var off := Vector2(anim_t * 3.0, anim_t * 1.5)   # SPD water texture scroll
 				draw_texture_rect_region(water, r, Rect2(Vector2(x * 16, y * 16) + off, Vector2(16, 16)))
 			var v := terrain_visual(c)
+			if _pylon(c): v = S_FLOOR   # DM-300's pylons stand on the floor; the wall under them only blocks
 			if v >= 0: _tile(r, v)
+			if _boss != "": _boss_ground(c, r, v)
 			if v - v % 4 == S_RAISED_WALL_DECO or v - v % 4 == S_RAISED_WALL_DECO_ALT: deco_faces.append([r, v])   # stitched sides (+1/+2) too
 			if t == Combat.T.WATER: wet.append(r)
 			elif t == Combat.T.WALL and _is_wall(c + Vector2i(0, 1)): _tile(r, S_WALL_INTERNAL + 15)  # solid fill under wall tops
@@ -487,10 +497,18 @@ func _draw() -> void:
 	# dying and living characters share one back-to-front pass by their feet (SPD z-order)
 	var actors := []
 	for dd in dying: actors.append({"y": float(dd.pos.y), "dd": dd})
+	if _boss == "dm300":
+		for py in range(1, _ah() - 1):
+			for px in range(1, _aw() - 1):
+				if _pylon(Vector2i(px, py)): actors.append({"y": float(py), "pylon": Vector2i(px, py)})
 	for u in order:
 		if u.hp > 0: actors.append({"y": float(disp.get(u.uid, Vector2(u.pos)).y), "u": u})
 	actors.sort_custom(func(a, b): return a.y < b.y)
 	for ac in actors:
+		if ac.has("pylon"):   # SPD PylonSprite, inactive frame (10x20), bottom-centred on its cell
+			var pr := cell_rect(Vector2(ac.pylon)); var pz := Vector2(10, 20) * scale
+			draw_texture_rect_region(_ct("pylon", "sprites"), Rect2(Vector2(pr.get_center().x - pz.x / 2.0, pr.end.y - pz.y - scale).floor(), pz), Rect2(0, 0, 10, 20))
+			continue
 		if ac.has("dd"):
 			var dd: Dictionary = ac.dd
 			var dk: float = 1.0 if dd.t < 0.8 else 1.0 - (dd.t - 0.8) / 0.8
@@ -533,6 +551,7 @@ func _draw() -> void:
 		SceneFX.wall_visual(self, anim_t, bio, fr, int(df[1]), ps)
 	if bio == "halls":
 		for wr in wet: SceneFX.halls_stream(self, anim_t, wr, ps)
+	_chasm_wind(cs, ps)
 	# 6. fog of war + torchlight: smooth per-corner blend (SPD FogOfWar texture is bilinear)
 	if lighting and lr < 50.0:
 		var ctr := hero_disp + Vector2(0.5, 0.5)
@@ -685,3 +704,102 @@ func _draw_shot(sh: Dictionary, cs: float, ps: float) -> void:
 			draw_set_transform(a.floor(), (b - a).angle())
 			draw_texture_rect_region(effects, Rect2(0, -h / 2.0, a.distance_to(b) + cs * 0.5, h), src)
 			draw_set_transform(Vector2.ZERO)
+
+# ---- SPD boss-room dressing (DECISIONS #185) ----
+# Boss arenas keep their combat layout; only the art changes, from SPD's own custom boss tiles:
+# Goo: sewer drains (WALL_DECO, dripping) along the top wall. Tengu: prison torches (WALL_DECO) there.
+# DM-300: the inner pillars become CavesBossLevel pylons (PylonSprite, inactive) on their floor pads.
+# King of Dwarves: CityBossLevel's 3x3 throne dais at the top of the hall and its entrance carpet running down
+# to the far wall (city_boss.png), both walkable floor art like SPD's. Yog-Dzewa: HallsBossLevel stained-glass
+# windows along the top wall and candle clusters (baked floor keyed out) in the corners.
+func _ct(n: String, dir := "tiles") -> Texture2D:
+	var key := dir + "/" + n
+	if not _ctex.has(key): _ctex[key] = load("res://assets/%s/%s.png" % [dir, n])
+	return _ctex[key]
+
+func _ctile(r: Rect2, n: String, t: Vector2i) -> void:
+	draw_texture_rect_region(_ct(n), r, Rect2(t * 16, Vector2(16, 16)))
+
+## A DM-300 pylon cell: an inner pillar (a wall with no wall beside it) in DM-300's arena.
+func _pylon(c: Vector2i) -> bool:
+	if _boss != "dm300" or c.x < 1 or c.y < 1 or c.x >= _aw() - 1 or c.y >= _ah() - 1 or not _is_wall(c): return false
+	for d in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+		if _is_wall(c + d): return false
+	return true
+
+## A plain top-wall face (no door, no stitched side, no deco) that a boss room may dress.
+func _plain_top_face(c: Vector2i, v: int) -> bool:
+	return c.y == 0 and c.x >= 1 and c.x < _aw() - 1 and v in [S_RAISED_WALL, S_RAISED_WALL_ALT]
+
+func _boss_ground(c: Vector2i, r: Rect2, v: int) -> void:
+	var t := _t(c)
+	match _boss:
+		"yog":
+			if _plain_top_face(c, v): _ctile(r, "halls_special", Vector2i(c.x % 2, 6))
+			var corner := (c.x == 1 or c.x == _aw() - 2) and (c.y == 1 or c.y == _ah() - 2)
+			if corner and t == Combat.T.FLOOR:
+				draw_texture_rect_region(_keyed("halls_special", Vector2i(2 + (c.x + c.y) % 6, 5), [Vector2i(3, 1), Vector2i(5, 4)]), r, Rect2(0, 0, 16, 16))
+		"king":
+			var mid := _aw() / 2 - 1
+			if _dais_ok() and absi(c.x - mid) <= 1 and c.y >= 1 and c.y <= 3:   # DK's throne: 3x3 at the top
+				_ctile(r, "city_boss", Vector2i(2 + c.x - mid, 12 + c.y))
+			elif c.x == mid and c.y >= (4 if _dais_ok() else 1) and c.y < _ah() - 1 and t == Combat.T.FLOOR:   # carpet runner
+				_ctile(r, "city_boss", Vector2i(0, 15 if c.y == _ah() - 2 else 14))
+		"dm300":
+			if _pylon(c): _ctile(r, "caves_boss", Vector2i(5, 4))   # the pylon's floor pad
+
+## The throne dais only goes down where all nine cells are open floor.
+func _dais_ok() -> bool:
+	var mid := _aw() / 2 - 1
+	for y in range(1, 4):
+		for x in range(mid - 1, mid + 2):
+			if _t(Vector2i(x, y)) != Combat.T.FLOOR: return false
+	return true
+
+## A custom tile with its baked floor keyed out: pixels in the colours of the `bg` tiles that connect to the
+## border go transparent, so the arena's own floor shows round the props (the camp's _masked, DECISIONS #179).
+func _keyed(n: String, t: Vector2i, bg: Array) -> Texture2D:
+	var key := "%s|%s" % [n, t]
+	if _ctex.has(key): return _ctex[key]
+	var src: Image = _ct(n).get_image()
+	if src.is_compressed(): src.decompress()
+	var img := src.get_region(Rect2i(t * 16, Vector2i(16, 16))); img.convert(Image.FORMAT_RGBA8)
+	var cols := {}
+	for b in bg:
+		for y in 16:
+			for x in 16: cols[src.get_pixel(b.x * 16 + x, b.y * 16 + y).to_html()] = true
+	var st := []
+	for i in 16: st.append_array([Vector2i(i, 0), Vector2i(i, 15), Vector2i(0, i), Vector2i(15, i)])
+	var seen := {}
+	while not st.is_empty():
+		var p: Vector2i = st.pop_back()
+		if seen.has(p) or p.x < 0 or p.y < 0 or p.x > 15 or p.y > 15: continue
+		seen[p] = true
+		if cols.has(img.get_pixel(p.x, p.y).to_html()):
+			img.set_pixel(p.x, p.y, Color(0, 0, 0, 0))
+			st.append_array([p + Vector2i.RIGHT, p + Vector2i.LEFT, p + Vector2i.DOWN, p + Vector2i.UP])
+	var tx := ImageTexture.create_from_image(img)
+	_ctex[key] = tx
+	return tx
+
+## SPD WindParticle.Wind over every pit cell the hero can see (Level.addVisuals): one faint white mote per cell
+## every 2.5 s, living 1-2 s, drifting 5 px/s x its size (1-3 px) along one level-wide heading, alpha rising and
+## falling to size x 0.2. Stateless: each mote is seeded by its cell and cycle, sizes are whole art pixels.
+func _chasm_wind(cs: float, ps: float) -> void:
+	var ang := float(variance.get(Vector2i(-2, -2), 0)) / 100.0 * TAU
+	var dir := Vector2(cos(ang), sin(ang))
+	for y in _ah():
+		for x in _aw():
+			var c := Vector2i(x, y)
+			if _t(c) != Combat.T.CHASM or (lighting and not _visible(c)): continue
+			var sd := x * 31 + y * 17
+			var cyc := floorf((anim_t + SceneFX._rnd(sd, 3) * 2.5) / 2.5)
+			var age := anim_t + SceneFX._rnd(sd, 3) * 2.5 - cyc * 2.5
+			var seq := sd * 1000 + int(cyc)
+			var life := 1.0 + SceneFX._rnd(seq, 5)
+			if age > life: continue
+			var sz := 1.0 + floorf(SceneFX._rnd(seq, 7) * 3.0)
+			var p := 1.0 - age / life
+			var a := (p if p < 0.5 else 1.0 - p) * sz * 0.2
+			var at := Vector2(x + SceneFX._rnd(seq, 9), y + SceneFX._rnd(seq, 11)) * cs + dir * 5.0 * sz * (age - life / 2.0) * ps
+			draw_rect(Rect2((origin() + at).floor(), Vector2(sz, sz) * maxf(1.0, floorf(ps))), Color(1, 1, 1, a))
