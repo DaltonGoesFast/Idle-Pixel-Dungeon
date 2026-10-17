@@ -189,6 +189,30 @@ func _wall_tile(cx: int) -> int:
 	if _h(cx, 4) % 6 == 0 and not _side_door(cx) and not _deco_at(cx): return 100 if alt else 84
 	return 96 if alt else 80
 
+## DungeonTileSheet raised-wall stitching for the corridor's wall row (`wall` = column -> row-1 tile):
+## a wall face gets +1 when a door is to its right and +2 when one is to its left (getRaisedWallTile).
+const DOORS := [112, 113, 114, 115]
+func _face_tile(wall: Dictionary, cx: int) -> int:
+	var w: int = wall.get(cx, 80)
+	if w in DOORS or w < 80 or w >= 112: return w
+	return w + (1 if int(wall.get(cx + 1, 80)) in DOORS else 0) + (2 if int(wall.get(cx - 1, 80)) in DOORS else 0)
+
+## The cell above the wall row is void, so SPD's walls layer draws the wall's top there (DungeonWallsTilemap):
+## WALL_OVERHANG 208 (+1 open down-right, +2 open down-left, i.e. a door beside it), or over a door its lintel:
+## DOOR_OVERHANG 224 (closed and locked), DOOR_OVERHANG_OPEN 225, DOOR_OVERHANG_CRYSTAL 226.
+func _top_tile(wall: Dictionary, cx: int) -> int:
+	var w: int = wall.get(cx, 80)
+	match w:
+		112, 114: return 224
+		113: return 225
+		115: return 226
+	return 208 + (1 if int(wall.get(cx + 1, 80)) in DOORS else 0) + (2 if int(wall.get(cx - 1, 80)) in DOORS else 0)
+
+const CHASM_FLOOR := 25; const CHASM_WATER := 28   # DungeonTileSheet CHASM + 1 / + 4
+
+func _tile_at(tiles: Texture2D, rc: Rect2, idx: int) -> void:
+	draw_texture_rect_region(tiles, rc, Rect2((idx % 16) * 16, (idx / 16) * 16, 16, 16))
+
 func _side_door(cx: int) -> bool:
 	return _h(cx, 3) % 23 == 0 and not _deco_at(cx)
 
@@ -215,6 +239,15 @@ func _draw() -> void:
 	var water := _t("res://assets/tiles/%s.png" % biome.get("water", "water0"))
 	var wo := Vector2(fposmod(t * 3.0, 32.0), fposmod(t * 2.0, 32.0)).floor()   # SPD water drifts slowly
 	var wall_fx := []   # SPD wall-deco cells that carry their region's visual (drip, torch, sparkle, smoke)
+	# the wall row first (one extra column each side), so faces and tops can stitch against their neighbours
+	var wall := {}
+	for i in range(-int(hero_x / cs) - 3, cols + 1):
+		var wcx := hero_col + i
+		var wb := wcx >= busy_from and wcx <= busy_to
+		var wi := _wall_tile(wcx)
+		if _side_door(wcx) and not wb: wi = DOOR_CLOSED   # side rooms pass by, shut
+		if not ev.is_empty(): wi = _encounter_wall(ev, wcx - stop_col, wi)
+		wall[wcx] = wi
 	for i in range(-int(hero_x / cs) - 2, cols):
 		var cx := hero_col + i
 		var x := floorf(ox + i * cs)
@@ -224,15 +257,19 @@ func _draw() -> void:
 			var rc := Rect2(x, y0 + row * cs, cs, cs)
 			var idx := 0
 			match row:
-				0, 4: idx = 144
-				1: idx = _wall_tile(cx)
+				0:   # void above the wall: SPD draws the wall's top (WALL_OVERHANG) or the door's lintel here
+					_tile_at(tiles, rc, _top_tile(wall, cx)); continue
+				1: idx = _face_tile(wall, cx)
+				4:   # the floor's edge dropping into the void below (SPD CHASM_FLOOR / CHASM_WATER)
+					if not busy and _puddle(cx, 3):
+						_water_cell(water, rc.position, k, wo + Vector2(cx * 16, 64), Color.WHITE); _tile_at(tiles, rc, CHASM_WATER)
+					else: _tile_at(tiles, rc, CHASM_FLOOR)
+					continue
 				_: idx = 1 if _h(cx * 3 + row, 2) % 11 == 0 and not near_grass and not busy else 0   # no moss deco by the grass
-			if row == 1 and _side_door(cx) and not busy: idx = DOOR_CLOSED   # side rooms pass by, shut
 			if row == 1 and idx in [84, 100] and not busy: wall_fx.append([rc, idx])
 			if row == 2 and _deco_at(cx) and not busy: deco_cells.append([rc, cx])
 			# grass clump: SPD short-grass floor (GRASS 2) under the keyed blades, drawn after the light
 			if row == 3 and not busy and _grass_at(cx): idx = 2; grass_cells.append([rc, cx & 1, cx])
-			if row == 1 and not ev.is_empty(): idx = _encounter_wall(ev, cx - stop_col, idx)
 			if not busy and _puddle(cx, row):   # SPD water: scrolling texture, then the stitch tile over it
 				var wet := func(c2: int, r2: int) -> bool: return r2 <= 1 or r2 >= 4 or (_puddle(c2, r2) and not (c2 >= busy_from and c2 <= busy_to))
 				_water_cell(water, rc.position, k, wo + Vector2(cx * 16, row * 16), Color.WHITE)
@@ -404,6 +441,8 @@ func _room_scene(id: String, x0: float, y0: float, cs: float, k: float, biome: D
 		match String(op[0]):
 			"t":
 				var ti := int(op[1]); draw_texture_rect_region(tiles, Rect2(tl, Vector2(cs, cs)), Rect2((ti % 16) * 16, (ti / 16) * 16, 16, 16), _lm(tl + Vector2(cs, cs) / 2.0))
+				if row == 1.0 and ti in [92, 108]:   # raised bookshelf: its WALL_OVERHANG_WOODEN top in the void above
+					draw_texture_rect_region(tiles, Rect2(tl - Vector2(0, cs), Vector2(cs, cs)), Rect2((216 % 16) * 16, (216 / 16) * 16, 16, 16), _lm(tl + Vector2(cs, cs) / 2.0))
 			"f":
 				var fi := int(op[1])
 				draw_texture_rect_region(feats, Rect2(tl + Vector2(0, _drop(feats, fi) * k), Vector2(cs, cs)), Rect2((fi % 16) * 16, (fi / 16) * 16, 16, 16), _lm(tl + Vector2(cs, cs) / 2.0))
