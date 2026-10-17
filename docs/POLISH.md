@@ -68,7 +68,9 @@ Priority: **P1** fix before a public build, **P2** next polish pass, **P3** nice
 | 41 | ~~Delve wall and door tops cut off; floor ended in a hard edge at the void~~ **Done**: SPD wall/door/bookshelf overhang tiles, CHASM_FLOOR / CHASM_WATER bottom edge (#182) | user 2026-10-17 | P1 | M |
 | 42 | ~~Foes vanished instantly when a fight ended; no reaction when the hero struck; foes overlapped in the wrong order~~ **Done**: SPD die frames and fade, hit flash and knockback, back-to-front drawing (#182) | user 2026-10-17 | P2 | S |
 | 43 | ~~Gnoll camp gnolls overlapped; not every corridor screen had a biome prop; Prison walls had unlit sconces~~ **Done** (#182) | user 2026-10-17 | P2 | S |
-| 44 | Combat grid (`grid_view.gd`) still mirrors sprites with a negative source width, which made the gnoll's last die frame vanish in the delve; check whether any combat frames are affected (combat screen, out of scope for scene polish) | fix4 2026-10-17 | P3 | S |
+| 44 | ~~Combat grid sprite mirroring~~ **Done**: the grid mirrored through `draw_set_transform`, which never dropped frames; it now uses the same destination-rect flip as the delve (#183) | fix4 2026-10-17 | P3 | S |
+| 45 | ~~Battle grid had no biome wall decorations or wall light, bolts were plain lines, hit flash was a dim tint, corpses drew over living foes~~ **Done** (#183) | user 2026-10-17 | P2 | M |
+| 46 | Battle: a mob zap's projectile and its hit land in the same frame. Holding the hit visuals until the bolt arrives would need the combat events to carry a delay | fix5 2026-10-17 | P3 | S |
 
 ## Code / docs hygiene (no player impact)
 | # | Item | Source | Pri | Effort |
