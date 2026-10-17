@@ -1,5 +1,5 @@
 ## GridView: draws the arena (8/10/12) with SPD tiles/sprites (nearest filter, integer scale) and juice:
-## tweened movement, hit flash, floating damage numbers, bolt streaks, pulsing red danger tiles.
+## tweened movement, hit flash, floating damage numbers, SPD projectiles and beams, pulsing red danger tiles.
 ## Emits `tapped(cell)`. Visual state is driven by Combat.drain_events().
 extends Control
 
@@ -18,7 +18,6 @@ var anim_t := 0.0
 var disp := {}          # uid -> Vector2 (cell-space display position)
 var flash := {}         # uid -> seconds remaining
 var floaters := []      # [{pos: Vector2 (cell space), text, color, t}]
-var streaks := []       # [{from, to, t}]
 var blasts := []        # [{pos, t}]
 var hint_cell := Vector2i(-1, -1)
 var mode := ""
@@ -35,6 +34,9 @@ var last_units := {}     # uid -> unit snapshot (for die anims after removal)
 var buff_icons: Texture2D
 var variance := {}       # Vector2i -> 0..99 (SPD tileVariance)
 var door_tween := {}     # Vector2i -> {open: bool, t: float} open/close flash
+var shots := []          # SPD projectiles [{kind, from, to, t, dur, col, mid}]: arrows, MagicMissile, Lightning, beams
+var _danger_prev := []   # last frame's telegraphed tiles, to know who fired a resolving zap (visual only)
+var effects: Texture2D   # SPD effects/effects.png (Lightning, DeathRay, LightRay strips)
 var _door_was := {}      # last-frame occupancy for door tween
 
 # SPD DungeonTileSheet indices (xy(x,y) = (x-1) + 16*(y-1))
@@ -59,6 +61,7 @@ func _ready() -> void:
 	resized.connect(queue_redraw)
 	clip_contents = true
 	buff_icons = load("res://assets/ui/buffs.png")
+	effects = load("res://assets/ui/effects.png")
 
 func sprite(name: String) -> Texture2D:
 	if not tex.has(name): tex[name] = load("res://assets/sprites/%s.png" % name)
@@ -71,7 +74,7 @@ func set_combat(c: Combat) -> void:
 	if anims.is_empty():
 		var f := FileAccess.open("res://data/anims.json", FileAccess.READ)
 		if f: anims = JSON.parse_string(f.get_as_text())
-	ustate.clear(); dying.clear(); variance.clear(); door_tween.clear(); _door_was.clear()
+	ustate.clear(); dying.clear(); variance.clear(); door_tween.clear(); _door_was.clear(); shots.clear(); _danger_prev = []
 	var rng := RandomNumberGenerator.new(); rng.seed = hash(str(c.terrain))
 	for y in range(-2, c.h + 2):
 		for x in range(-2, c.w + 2): variance[Vector2i(x, y)] = rng.randi() % 100
@@ -104,6 +107,7 @@ func _anim_done(spr: String, a: String, t: float) -> bool:
 
 ## Feed model events into visual effects.
 func play_events(evs: Array) -> void:
+	var fired := {}   # uid -> true: one beam per caster per batch (an Evil Eye beam resolves tile by tile)
 	for e in evs:
 		match e.t:
 			"hit":
@@ -134,9 +138,12 @@ func play_events(evs: Array) -> void:
 					dying.append({"sprite": lu.sprite, "fw": lu.fw, "fh": lu.fh, "row": int(lu.get("row", 0)), "pos": disp.get(e.uid, Vector2(e.pos)), "flip": ustate.get(e.uid, {}).get("flip", false), "t": 0.0})
 			"fall": Sfx.play("falling")
 			"bolt":
-				streaks.append({"from": Vector2(e.from), "to": Vector2(e.to), "t": 0.0, "magic": e.get("magic", true)})
+				# SPD: the Spirit Bow looses a spirit arrow (MissileSprite); staffs and wands a MagicMissile
+				_shot("magic" if e.get("magic", true) else "arrow", Vector2(e.from), Vector2(e.to))
 				Sfx.play("zap" if e.get("magic", true) else "atk_spiritbow")
-			"blast": blasts.append({"pos": Vector2(e.pos), "t": 0.0}); Sfx.play("hit_crush")
+			"blast":
+				blasts.append({"pos": Vector2(e.pos), "t": 0.0}); Sfx.play("hit_crush")
+				_zap_visual(Vector2i(e.pos), fired)
 			"telegraph": Sfx.buzz(20)   # no alarm sound (DECISIONS #100)
 			"shock": blasts.append({"pos": Vector2(e.pos), "t": 0.0, "shock": true})
 			"burn": blasts.append({"pos": Vector2(e.pos), "t": 0.0, "fire": true}); Sfx.play("burning")
@@ -155,6 +162,41 @@ func play_events(evs: Array) -> void:
 						lunge[e.uid] = {"dir": (Vector2(e.to) - Vector2(u.pos)).normalized(), "t": 0.0}
 						_play(e.uid, "attack", float(Vector2(e.to).x - Vector2(u.pos).x))
 				Sfx.play("hit_slash", 1.0)
+
+## Flight time like SPD's MissileSprite / MagicMissile (~12 tiles a second), never slower than 0.25 s.
+func _shot(kind: String, from: Vector2, to: Vector2, col := Color.WHITE) -> void:
+	var dur := clampf(from.distance_to(to) / 12.0, 0.08, 0.25)
+	if kind in ["lightning", "deathray", "lightray"]: dur = 0.35   # SPD Lightning / Beam linger and fade
+	var mid := (from + to) / 2.0 + Vector2(-(to - from).y, (to - from).x).normalized() * (_rng.randf() - 0.5) * 0.6
+	shots.append({"kind": kind, "from": from, "to": to, "t": 0.0, "dur": dur, "col": col, "mid": mid})
+
+## A telegraphed zap resolving on `p`: draw what fired it, from the caster (SPD DM100 Lightning, Shaman / Warlock
+## MagicMissile, Evil Eye DeathRay, Bright Fist LightRay). Combat resolves the damage; this only reads it.
+func _zap_visual(p: Vector2i, fired: Dictionary) -> void:
+	for dz in _danger_prev:
+		if Vector2i(dz.pos) != p or int(dz.get("uid", 0)) <= 0: continue
+		var src := String(dz.get("src", ""))
+		if not (src.ends_with("lightning") or src.ends_with("beam")): continue
+		var m = null
+		for u in combat.units:
+			if u.uid == int(dz.uid): m = u
+		if m == null: return
+		var from: Vector2 = disp.get(m.uid, Vector2(m.pos))
+		if fired.has(m.uid): return
+		fired[m.uid] = true
+		_play(m.uid, "zap" if anims.get(String(m.sprite), {}).has("zap") else "attack", float(p.x) - from.x)
+		match String(m.sprite):
+			"dm100": _shot("lightning", from, Vector2(p))
+			"eye":
+				var far := Vector2(p)   # the beam runs to the far end of the line it lit up
+				for d2 in _danger_prev:
+					if int(d2.get("uid", 0)) == int(m.uid) and Vector2(d2.pos).distance_to(from) > far.distance_to(from): far = Vector2(d2.pos)
+				_shot("deathray", from, far)
+			"fist_bright": _shot("lightray", from, Vector2(p))
+			"warlock": _shot("shadow", from, Vector2(p), Color("4b2a63"))
+			"shaman": _shot("magic", from, Vector2(p), Color("ff4d4d") if String(dz.get("debuff", "")) == "weak" else Color("4d7dff"))
+			_: _shot("magic", from, Vector2(p), Color("88ccff"))
+		return
 
 func _process(d: float) -> void:
 	anim_t += d
@@ -190,8 +232,9 @@ func _process(d: float) -> void:
 		if lunge[k].t > 0.16: lunge.erase(k)
 	for f in floaters: f.t += d
 	floaters = floaters.filter(func(f): return f.t < 0.9)
-	for s in streaks: s.t += d
-	streaks = streaks.filter(func(s): return s.t < 0.25)
+	for s in shots: s.t += d
+	shots = shots.filter(func(s): return s.t < s.dur)
+	if combat: _danger_prev = combat.danger.duplicate()
 	for b in blasts: b.t += d
 	blasts = blasts.filter(func(b): return b.t < 0.35)
 	for r in rings: r.t += d
@@ -425,22 +468,31 @@ func _draw() -> void:
 	var scale := floorf(ps) if cs >= 16.0 else ps
 	var order := combat.units.duplicate()
 	order.sort_custom(func(a, b): return float(disp.get(a.uid, Vector2(a.pos)).y) < float(disp.get(b.uid, Vector2(b.pos)).y))
-	for dd in dying:
-		var dk: float = 1.0 if dd.t < 0.8 else 1.0 - (dd.t - 0.8) / 0.8
-		var dfr := _frame(dd.sprite, "die", dd.t)
-		_draw_sprite(dd.sprite, dd.fw, dd.fh, dfr + int(dd.get("row", 0)) * 1000, dd.pos, dd.flip, scale, Color(1, 1, 1, dk))
+	# dying and living characters share one back-to-front pass by their feet (SPD z-order)
+	var actors := []
+	for dd in dying: actors.append({"y": float(dd.pos.y), "dd": dd})
 	for u in order:
-		if u.hp <= 0: continue
+		if u.hp > 0: actors.append({"y": float(disp.get(u.uid, Vector2(u.pos)).y), "u": u})
+	actors.sort_custom(func(a, b): return a.y < b.y)
+	for ac in actors:
+		if ac.has("dd"):
+			var dd: Dictionary = ac.dd
+			var dk: float = 1.0 if dd.t < 0.8 else 1.0 - (dd.t - 0.8) / 0.8
+			var dfr := _frame(dd.sprite, "die", dd.t)
+			_draw_sprite(dd.sprite, dd.fw, dd.fh, dfr + int(dd.get("row", 0)) * 1000, dd.pos, dd.flip, scale, Color(1, 1, 1, dk))
+			continue
+		var u: Dictionary = ac.u
 		var p: Vector2 = disp.get(u.uid, Vector2(u.pos))
 		if lunge.has(u.uid): p += lunge[u.uid].dir * 0.25 * sin(lunge[u.uid].t / 0.16 * PI)
 		var st: Dictionary = ustate.get(u.uid, {"anim": "idle", "t": 0.0, "flip": false})
 		var fr := _frame(u.sprite, st.anim, st.t + (0.0 if st.anim != "idle" else u.uid * 0.37))
 		var mod := Color(1, 1, 1)
-		if flash.has(u.uid): mod = Color(4, 4, 4)
 		if u.get("charging", false): mod = Color(1.6, 0.6, 0.6)
 		if u.has("hero") and combat.hidden(): mod.a = 0.45
 		if not u.has("hero") and lighting and p.distance_to(hero_disp) > lr: mod = mod * Color(0.55, 0.55, 0.6)
-		var top := _draw_sprite(u.sprite, u.fw, u.fh, fr + int(u.get("row", 0)) * 1000, p, st.flip, scale, mod)
+		# SPD CharSprite.flash(): the struck sprite turns white for a moment and fades back
+		var fl := clampf(float(flash.get(u.uid, 0.0)) / 0.18, 0.0, 1.0)
+		var top := _draw_sprite(u.sprite, u.fw, u.fh, fr + int(u.get("row", 0)) * 1000, p, st.flip, scale, mod, fl)
 		_health_bar(u, top, scale)
 		_status_icons(u, top, scale)
 	# 5. walls layer over characters (SPD perspective wall tops / overhangs)
@@ -476,10 +528,7 @@ func _draw() -> void:
 		var qa: float = 1.0 - float(q.t) / float(q.life)
 		var px: float = maxf(2.0, ps) * float(q.s)
 		draw_rect(Rect2((origin() + q.p * cs).floor(), Vector2(px, px)), Color(q.c.r, q.c.g, q.c.b, qa))
-	for s in streaks:
-		var a := cell_rect(s.from).get_center(); var b := cell_rect(s.to).get_center()
-		var sc := Color(0.8, 0.6, 1.0) if s.get("magic", true) else Color(0.9, 0.9, 0.7)
-		draw_line(a, a.lerp(b, clampf(s.t / 0.12, 0, 1)), sc, maxf(3, cs * 0.08))
+	for sh in shots: _draw_shot(sh, cs, ps)
 	for b in blasts:
 		var c := Color(1, 0.6, 0.1, 1.0 - b.t / 0.35) if b.get("fire", false) else Color(1, 0.3, 0.2, 1.0 - b.t / 0.35)
 		if b.get("trap", false): c = Color(1, 0.9, 0.3, 1.0 - b.t / 0.35)
@@ -500,7 +549,7 @@ func _draw() -> void:
 		draw_string(font, p, f.text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, col)
 
 ## Draw one sprite frame bottom-centred in its cell; returns the sprite's top-left (for bars/icons).
-func _draw_sprite(spr: String, fw: int, fh: int, frame: int, p: Vector2, flip: bool, scale: float, mod: Color) -> Vector2:
+func _draw_sprite(spr: String, fw: int, fh: int, frame: int, p: Vector2, flip: bool, scale: float, mod: Color, white := 0.0) -> Vector2:
 	var t := sprite(spr)
 	var cols := maxi(1, t.get_width() / fw)
 	var row := frame / 1000; frame = frame % 1000   # armor-tier row packed by the caller (SPD HeroSprite)
@@ -509,12 +558,12 @@ func _draw_sprite(spr: String, fw: int, fh: int, frame: int, p: Vector2, flip: b
 	var cs := cell_size()
 	var r := cell_rect(p)
 	var pos := (r.position + Vector2((cs - sz.x) / 2.0, cs - sz.y)).floor()
-	if flip:
-		draw_set_transform(Vector2(pos.x * 2.0 + sz.x, 0), 0.0, Vector2(-1, 1))
-		draw_texture_rect_region(t, Rect2(pos, sz), src, mod)
-		draw_set_transform(Vector2.ZERO)
-	else:
-		draw_texture_rect_region(t, Rect2(pos, sz), src, mod)
+	# mirrored through a negative destination width (a negative source width drops some frames, DECISIONS #182)
+	var dst := Rect2(pos.x + sz.x, pos.y, -sz.x, sz.y) if flip else Rect2(pos, sz)
+	draw_texture_rect_region(t, dst, src, mod)
+	if white > 0.0:   # overbright copy of the same frame: modulate > 1 saturates to white
+		var f := 1.0 + 4.0 * white
+		draw_texture_rect_region(t, dst, src, Color(f, f, f, white * mod.a))
 	return pos
 
 ## SPD HealthBar: thin red bg, green hp, pale shield; above the sprite; mobs only when hurt.
@@ -570,3 +619,44 @@ func _gui_input(e: InputEvent) -> void:
 		if cell.x >= 0 and cell.y >= 0 and cell.x < _aw() and cell.y < _ah():
 			tapped.emit(cell)
 		accept_event()
+
+## SPD projectiles in flight (cell space -> screen): the spirit arrow item sprite turned along its path
+## (MissileSprite; the art points up-right), MagicMissile as a bright core pouring particles, Lightning as the
+## effects.png bolt strip bent at a random midpoint, DeathRay / LightRay beams that thin out as they fade.
+func _draw_shot(sh: Dictionary, cs: float, ps: float) -> void:
+	var a := cell_rect(sh.from).get_center(); var b := cell_rect(sh.to).get_center()
+	var k := clampf(float(sh.t) / float(sh.dur), 0.0, 1.0)
+	var px := maxf(1.0, floorf(ps))
+	match String(sh.kind):
+		"arrow":
+			var ir := UIKit.item_rect(24)   # SPD ItemSpriteSheet.SPIRIT_ARROW
+			var sz := ir.size * px
+			draw_set_transform(a.lerp(b, k).floor(), (b - a).angle() + PI / 4.0)
+			draw_texture_rect_region(sprite("items"), Rect2(-sz / 2.0, sz), ir)
+			draw_set_transform(Vector2.ZERO)
+		"magic", "shadow":
+			var col: Color = sh.col
+			var c := a.lerp(b, k)
+			var seed := int(float(sh.t) * 60.0)
+			for i in 8:   # trail: particles left behind along the path, shrinking and fading
+				var q := clampf(k - float(i) * 0.05, 0.0, 1.0)
+				var j := Vector2(SceneFX._rnd(i, seed) - 0.5, SceneFX._rnd(i + 9, seed) - 0.5) * 3.0 * px
+				var tc := col.lerp(Color(0, 0, 0) if sh.kind == "shadow" else Color.WHITE, SceneFX._rnd(i, 3) * 0.6); tc.a = 1.0 - float(i) / 8.0
+				var ts := maxf(1.0, roundf(3.0 - float(i) * 0.3)) * px
+				draw_rect(Rect2((a.lerp(b, q) + j - Vector2(ts, ts) / 2.0).floor(), Vector2(ts, ts)), tc)
+			draw_rect(Rect2((c - Vector2(2, 2) * px).floor(), Vector2(4, 4) * px), col)
+			draw_rect(Rect2((c - Vector2(1, 1) * px).floor(), Vector2(2, 2) * px), Color.WHITE if sh.kind == "magic" else Color("22102e"))
+		"lightning":
+			var m := cell_rect(sh.mid).get_center()
+			for seg in [[a, m], [m, b]]:
+				var p0: Vector2 = seg[0]; var p1: Vector2 = seg[1]
+				draw_set_transform(p0.floor(), (p1 - p0).angle())
+				draw_texture_rect_region(effects, Rect2(0, -4.0 * px, p0.distance_to(p1), 8.0 * px), Rect2(16, 0, 16, 8), Color(1, 1, 1, 1.0 - k))
+				draw_set_transform(Vector2.ZERO)
+		"deathray", "lightray":
+			var h := floorf(8.0 * px * (1.0 - k))
+			if h <= 0.0: return
+			var src := Rect2(16, 16, 16, 8) if sh.kind == "deathray" else Rect2(16, 23, 16, 8)
+			draw_set_transform(a.floor(), (b - a).angle())
+			draw_texture_rect_region(effects, Rect2(0, -h / 2.0, a.distance_to(b) + cs * 0.5, h), src)
+			draw_set_transform(Vector2.ZERO)

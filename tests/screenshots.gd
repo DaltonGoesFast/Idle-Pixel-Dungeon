@@ -229,6 +229,25 @@ func _ready() -> void:
 			var es: Array = cb.enemies(); es[0].pos = Vector2i(5, 6); es[1].pos = Vector2i(4, 2)
 			cb.terrain[2][4] = T.FLOOR
 			main.screen.grid.queue_redraw()])
+		plan.append([sz, "combat_fx", func():
+			# battle visuals frozen mid-flight (DECISIONS #183): DM-100 lightning, a shaman bolt, an Evil Eye ray,
+			# a spirit arrow, a white hit flash on the rat and a gnoll in its die frames
+			GameState.run.biome = "prison"; GameState.run.floor = 7
+			main.start_combat({"kind": "combat", "room": DB.biome_rooms.prison[0], "mobs": ["dm100", "shaman", "eye", "rat"]}, func(_r): pass)
+			var cb = main.screen.combat; var T = cb.T; var g = main.screen.grid
+			for y in range(1, cb.SIZE - 1):
+				for x in range(1, cb.SIZE - 1): cb.terrain[y][x] = T.FLOOR
+			cb.danger.clear()
+			var es: Array = cb.enemies()
+			cb.hero.pos = Vector2i(3, 5); es[0].pos = Vector2i(6, 2); es[1].pos = Vector2i(6, 6); es[2].pos = Vector2i(1, 1); es[3].pos = Vector2i(5, 4)
+			for u in cb.units: g.disp[u.uid] = Vector2(u.pos)
+			g.shots = [{"kind": "lightning", "from": Vector2(6, 2), "to": Vector2(3, 5), "t": 0.05, "dur": 1000.0, "col": Color.WHITE, "mid": Vector2(4.8, 3.2)},
+				{"kind": "magic", "from": Vector2(6, 6), "to": Vector2(3, 5), "t": 500.0, "dur": 1000.0, "col": Color("ff4d4d"), "mid": Vector2.ZERO},
+				{"kind": "deathray", "from": Vector2(1, 1), "to": Vector2(1, 6), "t": 100.0, "dur": 1000.0, "col": Color.WHITE, "mid": Vector2.ZERO},
+				{"kind": "arrow", "from": Vector2(3, 5), "to": Vector2(5, 4), "t": 500.0, "dur": 1000.0, "col": Color.WHITE, "mid": Vector2.ZERO}]
+			g.flash[es[3].uid] = 1000.0
+			g.dying = [{"sprite": "gnoll", "fw": 12, "fh": 15, "row": 0, "pos": Vector2(2, 3), "flip": true, "t": 0.3}]
+			g.queue_redraw()])
 		plan.append([sz, "boss", func():
 			GameState.run.biome = "sewers"; GameState.run.floor = 1
 			main.start_combat({"kind": "combat", "boss": true, "room": DB.boss_rooms[0], "mobs": ["goo"]}, func(_r): pass)
