@@ -573,7 +573,8 @@ const MARK_INK := Color("1a120c")
 const OWNER_NAMES := {
 	"warrior": ["Warrior", "War", "W"], "mage": ["Mage", "M"],
 	"rogue": ["Rogue", "Rog", "R"], "huntress": ["Huntress", "Hunt", "H"]}
-## Gear grids use fewer, wider columns than material grids so "Huntress" fits on a phone.
+## Gear grids use fewer columns than material grids (more room between slots). Each slot keeps its own fixed
+## width (item_slot), so the owner name is fitted to that width, not to the column (DECISIONS #174).
 const GEAR_CELL := 3.7
 
 func _owner_font() -> Font:
@@ -588,11 +589,17 @@ func _owner_text(hero_id: String, width: float) -> String:
 		if _owner_font().get_string_size(String(n), HORIZONTAL_ALIGNMENT_LEFT, -1, sz).x <= width: return String(n)
 	return String(names[-1])
 
-## Width one gear column actually gets: the same estimate slot_grid uses to pick a column count.
-func _gear_slot_width() -> float:
-	var w := minf(get_viewport_rect().size.x * 0.96, UIKit.font_size * 36.0) - UIKit.font_size * 2.0
-	var cols := maxi(3, int(w / (UIKit.font_size * GEAR_CELL)))
-	return w / float(cols)
+## Room the name gets on a slot's plate: the slot's own width (a GridContainer never stretches item_slot past
+## its minimum), less 1 px each side. The column estimate was wider than the slot, so "Huntress" was picked and
+## then clipped on the Fold inner and small windows.
+func _plate_width(slot: Control) -> float:
+	return maxf(slot.custom_minimum_size.x, slot.size.x) - 2.0
+
+## Scale for the hero faces on a shared plate: as tall as the plate allows, but every face still fits across.
+func _face_k(bar_h: float, n: int, slot_w: float) -> int:
+	var k := maxi(1, int((bar_h - 2.0) / HERO_FRAME.y))
+	while k > 1 and n * HERO_FRAME.x * k > slot_w: k -= 1
+	return k
 
 func _hero_frame(hero_id: String) -> String:
 	if not HERO_MARK.has(hero_id): return ""
@@ -633,8 +640,7 @@ func _owner_bar(slot: Control, heroes: Array) -> void:
 	var tip := "Equipped by " + ", ".join(names)
 	slot.tooltip_text = tip if String(slot.tooltip_text) == "" else String(slot.tooltip_text) + "\n" + tip
 	if ids.size() == 1:
-		var budget := maxf(slot.custom_minimum_size.x, _gear_slot_width()) - 6.0
-		var lab := UIKit.label(_owner_text(ids[0], budget), 0.8, MARK_INK)
+		var lab := UIKit.label(_owner_text(ids[0], _plate_width(slot)), 0.8, MARK_INK)
 		lab.name = "OwnerName"
 		lab.add_theme_font_override("font", _owner_font())
 		lab.autowrap_mode = TextServer.AUTOWRAP_OFF
@@ -650,16 +656,24 @@ func _owner_bar(slot: Control, heroes: Array) -> void:
 	row.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
 	row.mouse_filter = MOUSE_FILTER_IGNORE
-	row.add_theme_constant_override("separation", 2)
+	# Faces scale with the plate; at 1x they were a 12x15 speck on a 35-55 px plate. Four wearers on a
+	# small slot squeeze the chips (no gap, face clipped to its chip) instead of running off the slot.
+	var slot_w := _plate_width(slot)
+	var k := _face_k(bar_h, ids.size(), slot_w)
+	var sep := 2 if ids.size() * (HERO_FRAME.x * k + 4) - 2 <= slot_w else 0
+	var chip_w := minf(HERO_FRAME.x * k + 2, floorf((slot_w - sep * (ids.size() - 1)) / ids.size()))
+	row.add_theme_constant_override("separation", sep)
 	bar.add_child(row)
 	for id in ids:
 		var chip := ColorRect.new()
+		chip.name = "Face_%s" % id
+		chip.clip_contents = true
 		chip.color = HERO_MARK.get(id, Color.WHITE)
-		chip.custom_minimum_size = Vector2(HERO_FRAME.x + 2, bar_h)
+		chip.custom_minimum_size = Vector2(chip_w, bar_h)
 		chip.size_flags_vertical = SIZE_EXPAND_FILL
 		chip.mouse_filter = MOUSE_FILTER_IGNORE
 		row.add_child(chip)
-		var face := UIKit.pixel(_hero_tex(id), 1)
+		var face := UIKit.pixel(_hero_tex(id), k)
 		face.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
 		face.mouse_filter = MOUSE_FILTER_IGNORE
 		chip.add_child(face)

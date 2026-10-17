@@ -90,6 +90,7 @@ func _ready() -> void:
 	test_ring_contexts(gs)
 	test_item_badges(gs)
 	test_equipped_owner_marks(gs)
+	test_owner_plate_fit(gs)
 	test_forge_bulk(gs)
 	test_break_rings(gs)
 	test_all_icons(gs)
@@ -1540,11 +1541,9 @@ func test_equipped_owner_marks(gs) -> void:
 	check(gs.equip("warrior", rw) and gs.equip("mage", rm), "warrior and mage can both wear Ring of Might")
 	gs.mats.iron_ore = 40; gs.mats.gold = 500
 	var cs = load("res://scripts/ui/camp_screen.gd").new(); add_child(cs)
-	# cover-width columns are wide enough for every class name; a narrower slot shortens
-	var w := minf(484.0 * 0.96, UIKit.font_size * 36.0) - UIKit.font_size * 2.0
-	var cols := maxi(3, int(w / (UIKit.font_size * cs.GEAR_CELL)))
-	var budget := w / float(cols) - 6.0
-	check(cs._owner_text("huntress", budget) == "Huntress", "a phone-width gear slot fits Huntress (budget %.0f, %d cols)" % [budget, cols])
+	# a plate as wide as the word keeps the full name; a narrower slot shortens (DECISIONS #174)
+	var budget := 80.0
+	check(cs._owner_text("huntress", budget) == "Huntress", "an 80 px plate fits Huntress")
 	check(cs._owner_text("warrior", budget) == "Warrior" and cs._owner_text("rogue", budget) == "Rogue" and cs._owner_text("mage", budget) == "Mage", "the other three names fit too")
 	check(cs._owner_text("huntress", 64) == "Hunt" and cs._owner_text("warrior", 40) == "War", "narrow slots shorten Huntress and Warrior")
 	check(cs._owner_text("mage", 20) == "M" and cs._owner_text("rogue", 20) == "R", "a tiny slot falls back to the initial")
@@ -1598,6 +1597,51 @@ func test_equipped_owner_marks(gs) -> void:
 	check(_slot_uid(cs.win_layer, rw) != null and _slot_uid(cs.win_layer, rw).get_node_or_null("OwnerBar/OwnerName") != null, "attune names who wears a ring")
 	cs.queue_free()
 	UIKit.make_theme(fs0)
+
+## DECISIONS #174: the owner name is fitted to the slot it sits on, so it never clips, at every font size the
+## app picks (14..60: small desktop windows, PC 1280x720 = 30, Fold cover ~37-40, Fold inner = 60). Faces on a
+## shared ring plate scale with the plate instead of staying a 1x speck.
+func test_owner_plate_fit(gs) -> void:
+	print("[owner plate fit]")
+	var fs0 := UIKit.font_size
+	var bad := []
+	var faces_bad := []
+	var full := {}
+	for fs in [14, 20, 24, 30, 37, 40, 46, 60]:
+		UIKit.make_theme(fs)
+		gs.new_game()
+		var shared: Array = []
+		for c in ["warrior", "mage", "rogue", "huntress"]:
+			var u: int = gs.add_gear("ring_might", true)
+			if gs.equip(c, u): shared.append(c)
+		var cs = load("res://scripts/ui/camp_screen.gd").new(); add_child(cs)
+		cs.section["Stash"] = "gear"
+		cs.open_page("Stash")
+		for lab in cs.win_layer.find_children("OwnerName", "Label", true, false):
+			var slot: Control = lab.get_parent().get_parent()
+			var px: float = cs._owner_font().get_string_size(String(lab.text), HORIZONTAL_ALIGNMENT_LEFT, -1, UIKit.font_px(UIKit.font_size * 0.8)).x
+			if px > slot.custom_minimum_size.x: bad.append("fs%d %s %.0f>%.0f" % [fs, lab.text, px, slot.custom_minimum_size.x])
+			if String(lab.text) == "Huntress": full[fs] = true
+		cs.section["Forge"] = "rings"
+		cs.open_page("Forge")
+		var row: Node = cs.win_layer.find_child("OwnerFaces", true, false)
+		if row == null or row.get_child_count() != shared.size():
+			faces_bad.append("fs%d: no shared plate" % fs)
+		else:
+			var slot: Control = row.get_parent().get_parent()
+			var bar_h: float = -(row.get_parent() as Control).offset_top
+			var tot := 0.0
+			for chip in row.get_children():
+				tot += chip.custom_minimum_size.x
+				var face: PixelIcon = chip.get_child(0)
+				var face_h: float = cs.HERO_FRAME.y * face.draw_k()
+				if face_h > bar_h or face_h < (bar_h - 2.0) * 0.5: faces_bad.append("fs%d face %.0f on a %.0f plate" % [fs, face_h, bar_h])
+			if tot + float(row.get_theme_constant("separation")) * (row.get_child_count() - 1) > slot.custom_minimum_size.x: faces_bad.append("fs%d faces %.0f wide on a %.0f slot" % [fs, tot, slot.custom_minimum_size.x])
+		cs.close_page(); cs.queue_free()
+	UIKit.make_theme(fs0)
+	check(bad.is_empty(), "owner names fit their slot at every font size %s" % [bad.slice(0, 6)])
+	check(full.has(30) and full.has(40), "Huntress stays spelled out where it fits (PC 1280x720, a 968-wide cover) %s" % [full.keys()])
+	check(faces_bad.is_empty(), "shared-ring faces fill the plate and fit across the slot %s" % [faces_bad.slice(0, 6)])
 
 func _glyph_rgb(sheet: Image, name: String) -> Vector3:
 	var sub := sheet.get_region(Rect2i(UIKit.badge_rect(name)))
