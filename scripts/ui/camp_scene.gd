@@ -96,10 +96,11 @@ func _masked(idx: int, bg: Array, flood: bool) -> Texture2D:
 ## RAISED_REGION_DECO 130 / REGION_DECO_OVERHANG 242, RAISED_REGION_DECO_ALT 131 / REGION_DECO_ALT_OVERHANG 243
 ## (the sewers' region deco is the barrel). The base's baked floor is keyed out so the camp grass shows through.
 const RAISED := [[122, 234], [125, 237], [130, 242], [131, 243]]
-func _raised(r: Rect2, kind: int, sway := 0.0) -> void:
+func _raised(r: Rect2, kind: int, sway := 0.0, mod := Color.WHITE) -> void:
 	var pr: Array = RAISED[kind]
-	_tile(r, pr[0], _masked(pr[0], [0, 1, 4, 10], true))
-	_tile(Rect2(r.position + Vector2(sway, -r.size.y), r.size), pr[1])
+	draw_texture_rect_region(_masked(pr[0], [0, 1, 4, 10], true), r, Rect2(0, 0, 16, 16), mod)
+	var ti: int = pr[1]
+	draw_texture_rect_region(tiles, Rect2(r.position + Vector2(sway, -r.size.y), r.size), Rect2((ti % 16) * 16, (ti / 16) * 16, 16, 16), mod)
 
 ## Night sky (DECISIONS #179): deep navy at the top to blue-purple at the horizon in 6 flat bands, each
 ## boundary dithered with a 4x4 Bayer pattern, rendered once per size at 1 texel per screen pixel-unit.
@@ -202,8 +203,9 @@ func _draw() -> void:
 			var path := absf(ctr.x - fire.x) < cs * 0.6 and ctr.y > fire.y
 			_tile(rc, (0 if h % 3 else 6) if path else (2 if h % 4 else 8))
 	# horizon: a row of SPD raised high grass (DECISIONS #179) whose tops reach up into the sky
+	var grass := []   # [rect, kind, sway]: drawn after the night pass so the blades are not darkened twice
 	for x in cols:
-		_raised(Rect2(ox + x * cs, sky_h, cs, cs), 0 if (x * 7) % 3 else 1, 0.0)
+		grass.append([Rect2(ox + x * cs, sky_h, cs, cs), 0 if (x * 7) % 3 else 1, 0.0])
 	# scenery (DECISIONS #179): SPD grass tufts and tall grass sway around the clearing, barrels by the Guild
 	# and the Forge, all from the sewers tile sheet; kept off the path and the NPC spots
 	for y in rows:
@@ -214,7 +216,7 @@ func _draw() -> void:
 			if absf(c2.x - fire.x) < cs * 1.6 or y == 0: continue
 			if SPOTS.any(func(sp): return spot_rect(sp).grow(cs * 0.4).merge(spot_rect(sp).grow(cs * 0.4).grow_individual(0, cs, 0, 0)).has_point(c2)): continue
 			if h2 % 9 == 0:   # tall grass clump: SPD raised high grass, top half in the cell above
-				_raised(rc2, h2 & 1, roundf(sin(t * 1.6 + x * 0.9 + y)) * kk)
+				grass.append([rc2, h2 & 1, roundf(sin(t * 1.6 + x * 0.9 + y)) * kk])
 	_scenery(kk, cs, fire)
 	# campfire: SPD embers tile under a FlameParticle fire with sparks and smoke, and a flickering warm glow
 	var fr := Rect2((fire - Vector2(cs, cs) / 2.0).floor(), Vector2(cs, cs))
@@ -251,6 +253,13 @@ func _draw() -> void:
 	# night: the clearing darkens away from the fire, the sky stays readable (DECISIONS #179)
 	SceneFX.darkness(self, Rect2(0, sky_h, size.x, size.y - sky_h), fire, minf(size.x, size.y - sky_h) * 0.62 * flk, 0.5)
 	SceneFX.glow(self, fire, cs * 1.2 * flk, Color(1.0, 0.7, 0.3, 0.12))
+	# grass blades over the darkened ground, lit at half the night's strength (the floor keeps the full darkening)
+	var lrad := minf(size.x, size.y - sky_h) * 0.62 * flk
+	for g in grass:
+		var gc: Vector2 = (g[0] as Rect2).get_center()
+		var d := clampf((gc.distance_to(fire) / lrad - 0.3) / 0.65, 0.0, 1.0)
+		var v := 1.0 - 0.5 * d * 0.5
+		_raised(g[0], g[1], g[2], Color(v, v, v))
 	for s in SPOTS:
 		var sr := spot_rect(s)
 		# name plate: SPD-ish yellow text with a dark backing
