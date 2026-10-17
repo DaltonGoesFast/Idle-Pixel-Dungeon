@@ -23,6 +23,7 @@ var w := SIZE
 var h := SIZE
 var terrain: Array = []
 var units: Array = []
+var remains := {}     # door cells where something died and nobody has passed through since: held open (DECISIONS #176)
 var trampled := {}   # cells whose tall grass was trodden flat (SPD HIGH_GRASS -> GRASS, DECISIONS #81)
 var hero: Dictionary
 var time := 0.0
@@ -48,6 +49,7 @@ var absorbed_total := 0         # how much of dmg_in was absorbed by Barrier
 func setup(room_rows: Array, hs: Dictionary, hp: int, mob_ids: Array, darkness := false, pool := []) -> void:
 	terrain.clear(); units.clear(); danger.clear(); log_lines.clear(); events.clear(); traps.clear()
 	kills = 0; traps_found = 0; trap_ids_seen = []; dmg_in = 0; absorbed_total = 0
+	remains = {}
 	if not pool.is_empty(): trap_pool = pool
 	time = 0.0; loot = 0; fallen_loot = 0; xp = 0; over = false; won = false; boss_killed = false; _uid = 0
 	h = room_rows.size(); w = String(room_rows[0]).length() if h > 0 else SIZE
@@ -104,10 +106,12 @@ func to_dict() -> Dictionary:
 	var tr := []
 	for k in traps: tr.append({"pos": [k.x, k.y], "id": traps[k].id, "hidden": traps[k].hidden})
 	return {"terrain": terrain, "w": w, "h": h, "units": us, "danger": dz, "traps": tr, "trap_pool": trap_pool, "kills": kills, "traps_found": traps_found, "trap_ids_seen": trap_ids_seen, "time": time, "log": Array(log_lines), "loot": loot,
-		"fallen_loot": fallen_loot, "xp": xp, "over": over, "won": won, "boss_killed": boss_killed, "uid": _uid, "trampled": trampled.keys().map(func(k): return [k.x, k.y])}
+		"fallen_loot": fallen_loot, "xp": xp, "over": over, "won": won, "boss_killed": boss_killed, "uid": _uid, "remains": remains.keys().map(func(k): return [k.x, k.y]), "trampled": trampled.keys().map(func(k): return [k.x, k.y])}
 
 func from_dict(d: Dictionary) -> void:
 	trampled = {}
+	remains = {}
+	for p in d.get("remains", []): remains[Vector2i(int(p[0]), int(p[1]))] = true
 	for p in d.get("trampled", []): trampled[Vector2i(int(p[0]), int(p[1]))] = true
 	terrain = []
 	for row in d.terrain: terrain.append(row.map(func(t): return int(t)))
@@ -140,7 +144,9 @@ func _next_uid() -> int:
 func spawn(id: String, p: Vector2i) -> Dictionary:
 	var m: Dictionary = DB.mobs[id].duplicate(true)
 	m.id = id; m.uid = _next_uid(); m.hp = int(m.ht); m.pos = p; m.next = float(m.delay); m.cooldown = 0; m.acts = 0
-	m.charging = false; m.poison = 0; m.seen_hero = true; m.aim = hero.pos
+	# Encounters start alerted (SPD justAlerted/beckon on the fight's noise): HUNTING towards where the hero stands now.
+	# From then on the target cell only updates while the mob can see the hero (DECISIONS #176).
+	m.charging = false; m.poison = 0; m.seen_hero = true; m.aim = hero.pos; m.state = "hunting"
 	units.append(m)
 	return m
 
@@ -176,8 +182,11 @@ func passable(p: Vector2i) -> bool:
 	var t := tile(p)
 	return t != T.WALL and t != T.CHASM
 
+## SPD Door.leave: a door shuts when nothing stands in it and no heap lies on it. Remains of anything that died
+## in the doorway count as a heap and hold it open until some unit passes through it (enters, then leaves);
+## after that it shuts whenever it is empty again (DECISIONS #176).
 func door_closed(p: Vector2i) -> bool:
-	return tile(p) == T.DOOR and unit_at(p) == null
+	return tile(p) == T.DOOR and unit_at(p) == null and not remains.has(p)
 
 ## Terrain that blocks vision (SPD FOV): walls, tall grass, closed doors. Units do not.
 func blocks_sight(p: Vector2i) -> bool:
@@ -418,7 +427,7 @@ func knockback(m: Dictionary, dir: Vector2i) -> void:
 		_log("%s is too heavy to move." % m.name); return
 	if t == T.CHASM:
 		var from: Vector2i = m.pos
-		m.pos = dest
+		_left(m.pos); m.pos = dest
 		_ev({"t": "move", "uid": m.uid, "from": from, "to": dest})
 		_ev({"t": "sfx", "name": "falling"})
 		_log("%s is knocked into the chasm!" % m.name)
@@ -450,7 +459,7 @@ func _artifact_openers(hs: Dictionary) -> void:
 			for d in DIRS:
 				var q: Vector2i = hero.pos + d
 				if passable(q) and unit_at(q) == null and not traps.has(q):
-					_ev({"t": "move", "uid": best.uid, "from": best.pos, "to": q}); best.pos = q
+					_ev({"t": "move", "uid": best.uid, "from": best.pos, "to": q}); _left(best.pos); best.pos = q
 					best.next = float(best.next) + float(hs.get("chain_root", 0.0))
 					_log("Ethereal chains drag %s to you." % best.name); break
 
@@ -481,9 +490,14 @@ func apply_fx(fx: Dictionary) -> void:
 		_log("Retribution!")
 
 ## Move a unit (hero or mob) and fire any trap on the destination tile.
+## A unit leaves cell p. Passing through a door that remains were holding open clears them: it shuts normally
+## from then on (DECISIONS #176). The dead unit never leaves, so remains alone keep the door open.
+func _left(p: Vector2i) -> void:
+	if remains.has(p): remains.erase(p)
+
 func _place(u: Dictionary, dest: Vector2i) -> void:
 	_ev({"t": "move", "uid": u.uid, "from": u.pos, "to": dest})
-	u.pos = dest
+	_left(u.pos); u.pos = dest
 	if u == hero and tile(dest) == T.GRASS and float(hero.get("grass_root", 0.0)) > 0.0:   # Sandals of Nature (DECISIONS #159)
 		for e in enemies():
 			if cheb(e.pos, dest) == 1: e.next = float(e.next) + float(hero.grass_root); _log("Roots grip %s." % e.name)
@@ -513,7 +527,7 @@ func _trigger(p: Vector2i, u: Dictionary) -> void:
 		var far := _farthest_free(hero.pos if not is_hero else _nearest_enemy_pos())
 		_ev({"t": "sfx", "name": "teleport"})
 		_ev({"t": "move", "uid": u.uid, "from": u.pos, "to": far, "blink": true})
-		u.pos = far
+		_left(u.pos); u.pos = far
 
 func _trap_hit(m: Dictionary, dmg: int) -> void:
 	var d := maxi(0, dmg - int(m.dr))
@@ -569,6 +583,7 @@ func _farthest_free(from: Vector2i) -> Vector2i:
 func _kill(m: Dictionary, chasm: bool) -> void:
 	m.hp = 0
 	kills += 1
+	if not chasm and tile(m.pos) == T.DOOR: remains[m.pos] = true
 	var l := int(m.loot) + int(m.get("stolen", 0))
 	xp += int(m.exp)
 	if chasm:
@@ -659,6 +674,7 @@ func hero_tap(p: Vector2i, mode := "") -> bool:
 		var sur := surprise_against(u)
 		_break_cloak()
 		hit_mob(u, _melee_dmg(), sur)
+		reveal_to(u)
 		_melee_perks()
 		_end_hero_turn(float(hero.delay))
 		return true
@@ -671,6 +687,12 @@ func hero_tap(p: Vector2i, mode := "") -> bool:
 		_end_hero_turn(CRIPPLE_MOVE if has_debuff("cripple") else float(hero.get("move_cost", 1.0)))   # Ring of Haste; Cripple costs 2
 		return true
 	return false
+
+## Attacking reveals you (SPD: a struck mob is alerted and hunts the attacker): the target sees you again, so the
+## next swing is not a Surprise unless you break sight again (DECISIONS #177).
+func reveal_to(m: Dictionary) -> void:
+	if m.hp <= 0 or hidden(): return
+	m.seen_hero = true; m.aim = hero.pos; m.state = "hunting"
 
 ## Subclass perks (DECISIONS #61)
 func _melee_dmg() -> int:
@@ -713,6 +735,7 @@ func hero_bolt(p: Vector2i) -> bool:
 	p = at
 	var hp_before := int(u.hp)
 	hit_mob(u, int(hero.bolt.dmg), sur, magic or hero.bolt.get("pierce", false), true)
+	reveal_to(u)
 	if hero.get("perk", "") == "soul_heal" and magic and hero.hp > 0 and hero.hp < hero.ht:
 		var sh := mini(int(hero.ht) - int(hero.hp), maxi(1, (hp_before - maxi(0, int(u.hp))) / 3))
 		hero.hp += sh; _log("Soul siphon: +%d HP." % sh)
@@ -917,8 +940,10 @@ func _mob_act(m: Dictionary) -> void:
 	# SPD: enemySeen / FOV at the start of the turn (door closes behind hero → surprise next swing)
 	var in_view := not hidden() and sees(m.pos, hero.pos)
 	m.seen_hero = in_view
-	if in_view: m.aim = hero.pos
-	elif not m.has("aim"): m.aim = hero.pos
+	# SPD Hunting/Wandering: the target cell tracks the hero only while in FOV; a wandering mob that sees the hero
+	# starts hunting again. Out of sight it keeps the last cell it saw the hero on (DECISIONS #176).
+	if in_view: m.aim = hero.pos; m.state = "hunting"
+	elif not m.has("aim"): m.aim = m.pos; m.state = "wandering"
 	# SPD Goo: regenerates while standing in water (DECISIONS #131)
 	if int(m.get("water_heal", 0)) > 0 and tile(m.pos) == T.WATER and int(m.hp) < int(m.ht):
 		var wh := mini(int(m.water_heal), int(m.ht) - int(m.hp)); m.hp += wh
@@ -972,7 +997,7 @@ func _mob_act(m: Dictionary) -> void:
 				if bp.x >= 0:
 					m.cooldown = int(m.blink_cooldown)
 					_log("%s blinks to your side!" % m.name); _ev({"t": "sfx", "name": "teleport"})
-					_ev({"t": "move", "uid": m.uid, "from": m.pos, "to": bp}); m.pos = bp
+					_ev({"t": "move", "uid": m.uid, "from": m.pos, "to": bp}); _left(m.pos); m.pos = bp
 					return
 			m.cooldown = maxi(0, m.cooldown - 1)
 		"leap":
@@ -1028,8 +1053,7 @@ func _mob_act(m: Dictionary) -> void:
 				return
 			if int(m.hp) * 2 <= int(m.ht) and m.has("enraged_dmg"):
 				m.dmg = int(m.enraged_dmg)
-	if hidden():
-		return  # lost track of the hero: searches in place
+	# (cloaked hero: in_view is false, so the mob walks to where it last saw the hero, like SPD invisibility)
 	if in_view and cheb(m.pos, hero.pos) == 1:
 		_ev({"t": "attack", "uid": m.uid, "to": hero.pos})
 		var hp_before: int = hero.hp + hero.barrier
@@ -1058,14 +1082,50 @@ func _mob_act(m: Dictionary) -> void:
 	# of closing to melee, and reload there (DECISIONS #155)
 	if m.get("holds_range", false) and in_view and _in_shot_range(m) and (m.get("zap_beam", false) or mob_can_shoot(m)):
 		return
+	if not in_view and m.get("state", "hunting") == "wandering":
+		return   # lost the hero: searches where it gave up (SPD wanders to a random cell; we have no RNG)
 	var target: Vector2i = hero.pos if in_view else m.aim
-	# Hunting a last-seen tile: step onto it (path_step only approaches adjacent)
-	if not in_view and cheb(m.pos, target) == 1 and passable(target) and unit_at(target) == null:
-		_place(m, target)
-		return
-	var step = path_step(m.pos, target, false, true)
+	var step = mob_step(m, target)
 	if step != null:
 		_place(m, step)
+	elif not in_view:
+		# SPD handleUnreachableTarget: reached the target cell (or can't get closer) without seeing the hero
+		m.state = "wandering"
+		_log("%s has lost track of you." % m.name); _ev({"t": "lost", "uid": m.uid})
+
+## SPD Mob.getCloser: the next step towards target (the cell itself; an occupied target is approached to adjacent).
+## Full path routes around other characters; if they force a route more than twice as long as the path ignoring
+## them, it assumes the blockage is temporary and waits instead (null). Mobs know every trap.
+func mob_step(m: Dictionary, target: Vector2i):
+	if target == m.pos: return null
+	if cheb(m.pos, target) == 1:
+		return target if passable(target) and unit_at(target) == null and not traps.has(target) else null
+	var full = _mob_path(m.pos, target, true)
+	var free = _mob_path(m.pos, target, false)
+	var path = full
+	if free != null and (full == null or full.size() > 2 * free.size()):
+		path = free
+		if unit_at(path[0]) != null: return null
+	if path == null or path.is_empty(): return null
+	return path[0]
+
+## Shortest 8-way path (BFS, DIRS order breaks ties, so it is predictable) from `from` to target, excluding `from`.
+## A path may end on, or next to, an occupied target. chars: other characters block cells.
+func _mob_path(from: Vector2i, target: Vector2i, chars: bool):
+	var prev := {from: from}
+	var q := [from]
+	while not q.is_empty():
+		var c: Vector2i = q.pop_front()
+		if c == target or (c != from and cheb(c, target) == 1 and unit_at(target) != null):
+			var out := []
+			while c != from: out.push_front(c); c = prev[c]
+			return out
+		for d in DIRS:
+			var n: Vector2i = c + d
+			if prev.has(n) or not passable(n) or traps.has(n): continue
+			if chars and n != target and unit_at(n) != null: continue
+			prev[n] = c; q.append(n)
+	return null
 
 func _in_shot_range(m: Dictionary) -> bool:
 	var d := cheb(m.pos, hero.pos)
@@ -1254,7 +1314,7 @@ func _tengu_hurt(m: Dictionary) -> void:
 		var far := _farthest_free(hero.pos)
 		_log("Tengu vanishes in a puff of smoke!"); _ev({"t": "sfx", "name": "puff"})
 		_ev({"t": "move", "uid": m.uid, "from": m.pos, "to": far, "blink": true})
-		m.pos = far
+		_left(m.pos); m.pos = far
 		danger = danger.filter(func(z): return z.uid != m.uid or z.get("hits_mobs", false))
 
 ## First step of a shortest 8-way path from `from` to a tile adjacent to `to`. null if none.
