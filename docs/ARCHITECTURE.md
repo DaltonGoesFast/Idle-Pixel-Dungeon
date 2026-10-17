@@ -5,6 +5,7 @@
 2. **Rules are pure.** `Combat`, `Delve` and `GameState` methods hold the rules and don't touch nodes, so tests and the `CombatBot` can run thousands of fights headless in under a second.
 3. **UI is a thin view.** Screens read state, call rule methods, and rebuild when `GameState.changed` fires. Screens are built in code (`UIKit` helpers) to keep diffs reviewable and layouts responsive.
 4. **Deterministic combat.** No RNG inside `Combat`. Randomness only picks *content* (which room/encounter/door) via a seeded RNG in `Delve` (`run.seed + floor + salt`), so runs are reproducible.
+5. **SPD enemy AI (DECISIONS #176).** Mobs keep `aim` (SPD target cell) and `state` (`hunting`/`wandering`); `aim` updates only while the mob sees the hero. `Combat.mob_step` is SPD `getCloser` (BFS shortest path around characters and traps, wait when blocked). Doors: `door_closed` is true when the door is empty and no remains (`Combat.remains`, cleared by `_left` when a unit passes through) lie on it; `reveal_to` re-alerts a mob the hero attacks (#177); `blocks_sight`, shots and the grid view all use it.
 
 ## Autoloads (project.godot `[autoload]`)
 | Name | File | Role |

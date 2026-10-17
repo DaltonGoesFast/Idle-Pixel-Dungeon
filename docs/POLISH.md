@@ -14,6 +14,7 @@ Priority: **P1** fix before a public build, **P2** next polish pass, **P3** nice
 | 5 | Thorns / Hourglass / Chains / Sandals trigger only a log line; add a short flash or sfx | #49 | P3 | S |
 | 6 | Next-fight effects from potions/scrolls (Lullaby, Haste, Frost, Invisibility, ...) apply silently at fight start; show a banner or status icon | #51 | P2 | S |
 | 7 | Mob abilities ignore bodies (`sees` / `in_view`) while hero shots stop at the first body; visible as zaps passing through allies | report 4dd90ed | P2 | M |
+| 7a | Enemy inspect should show its SPD target cell (where it last saw you) and a "?" over a mob that has lost track (SPD `showLost`); `m.aim`, `m.state` and the `lost` event are already there | DECISIONS #176 | P2 | S |
 
 ## Camp: Forge, Enchanter, stash item details
 | # | Item | Source | Pri | Effort |

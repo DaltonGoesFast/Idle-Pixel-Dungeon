@@ -4,6 +4,8 @@ Everything here is data-driven (`data/*.json`). Add content by editing JSON; no 
 
 **Vanilla enemy behaviours (DECISIONS #155).** Mob shots (`throw`, `zap`, `web`) need sight (walls, closed doors, tall grass block it) and a body-free line (`Combat.mob_can_shoot`). Mobs with `holds_range` (shaman, warlock, Bright Fist) stay put while they have a clear shot in range instead of walking into melee. Per-mob keys: `zap_water` (damage multiplier if the hero stands in water), `zap_debuffs` (debuff a zap applies, picked by uid), `zap_beam` (Evil Eye: whole line to range 6), `web_range`/`web_cooldown`/`web_root` (Spinner), `bite_cripple` (Scorpio), `disarm_every`/`disarm_t` (Monk), `ability: blink` + `blink_cooldown` (Succubus), `ability: leap` + `leap_range`/`leap_cooldown` (Ripper), `ability: teleport` + `tele_cooldown` (Golem). Hero debuffs live in `hero.debuffs[id] = expiry time`: `weak` (melee x0.67), `vuln` (damage taken x1.33), `root` (a step spends the turn), `cripple` (steps cost 2 ticks).
 
+**Enemy hunting and doors (DECISIONS #176).** Mobs need no data for this: every mob hunts the last cell it saw the hero on, and gives up there if it still cannot see him. Doors (`+`) shut when empty and block sight; a door something died in stays open until any unit passes through it. Circling a blocker loses a chasing mob, and attacking reveals you (DECISIONS #177).
+
 Assets used (all from Shattered Pixel Dungeon, GPL-3.0): hero sprites (warrior, mage), mobs (rat, snake, gnoll, crab, statue, goo, piranha), `tiles_sewers.png`, `items.png` icons, ~30 sound effects, music (`sewers_1`, `sewers_boss`, `theme_1`).
 
 <!-- GENERATED -->

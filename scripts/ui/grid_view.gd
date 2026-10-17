@@ -163,7 +163,7 @@ func _process(d: float) -> void:
 			for x in combat.w:
 				var c := Vector2i(x, y)
 				if combat.tile(c) != Combat.T.DOOR: continue
-				var now := combat.unit_at(c) != null
+				var now := not combat.door_closed(c)
 				if _door_was.get(c, now) != now:
 					door_tween[c] = {"open": now, "t": 0.0}
 				_door_was[c] = now
@@ -247,7 +247,7 @@ func _is_wall(c: Vector2i) -> bool: return _t(c) == Combat.T.WALL
 func _is_door(c: Vector2i) -> bool: return _t(c) == Combat.T.DOOR
 func _door_open(c: Vector2i) -> bool:
 	if combat == null or not _is_door(c): return false
-	var occ := combat.unit_at(c) != null
+	var occ := not combat.door_closed(c)
 	# brief open/close: hold the previous frame for half a move, then settle (tests see settled without _process)
 	if door_tween.has(c) and float(door_tween[c].t) < MOVE_TIME * 0.45:
 		return not bool(door_tween[c].open)

@@ -103,6 +103,10 @@ static func suggest(c: Combat, potions := 0, heal_amount := 10) -> Dictionary:
 		for e in non_snake_adj:
 			if _hits_to_kill(c, e) < _hits_to_kill(c, tgt0): tgt0 = e
 		return {"act": "tap", "pos": tgt0.pos, "mode": "", "why": "attack " + tgt0.name}
+	# 3d. SPD ambush (DECISIONS #177): break sight, let them walk to where they last saw us, strike with a Surprise
+	if adj.is_empty():
+		var amb := _ambush(c, es)
+		if not amb.is_empty(): return amb
 	var snakes := es.filter(func(e): return e.get("evade_unless_surprise", false))
 	var non_snakes := es.filter(func(e): return not e.get("evade_unless_surprise", false))
 	# Clear non-snakes with bolts before committing to a snake door dance
@@ -133,12 +137,9 @@ static func suggest(c: Combat, potions := 0, heal_amount := 10) -> Dictionary:
 	# 4a. blind shot (DECISIONS #149): nothing in sight to shoot and nothing adjacent -> shoot where an unseen foe
 	# was last seen (it is often still in that grass). At most 2 arrows per sighting; wands spend 1 charge only
 	# while keeping one in reserve.
-	if c.has_ranged() and adj.is_empty() and not es.any(func(e): return c.hero_sees(e)):
-		var cap := 2 if h.bolt.get("infinite", false) else (1 if int(h.charges) >= 2 else 0)
-		for e in es:
-			if e.has("last_seen") and int(e.get("blind_shots", 0)) < cap:
-				var ls := Vector2i(int(e.last_seen[0]), int(e.last_seen[1]))
-				if c.can_bolt(ls): return {"act": "tap", "pos": ls, "mode": "bolt", "why": "blind shot where %s was last seen" % e.name}
+	if adj.is_empty():
+		var blind := _blind_shot(c, es)
+		if not blind.is_empty(): return blind
 	# 4b. search once for hidden traps only when every foe is far and slow to close (never vs bosses)
 	if adj.is_empty() and not h.get("searched", false) and es.size() == 1 \
 			and not es[0].get("boss", false) and not es[0].get("fist", false) \
@@ -208,6 +209,11 @@ static func _snake_plan(c: Combat, snakes: Array) -> Dictionary:
 		var step = c.path_step(h.pos, door, true, true, true)
 		if step != null:
 			return {"act": "tap", "pos": step, "mode": "", "why": "reach doorway vs snake"}
+	# No usable door: duck out of sight behind a wall / tall grass. The snake
+	# walks to where it last saw us (SPD Hunting target cell) and arrives unaware -> surprise.
+	var hide := _hide_step(c, sn)
+	if hide.x >= 0:
+		return {"act": "tap", "pos": hide, "mode": "", "why": "break sight on the snake"}
 	# Keep a tile of space until a setup appears
 	if Combat.cheb(sn.pos, h.pos) > 2:
 		var step2 = c.path_step(h.pos, sn.pos, true, true, true)
@@ -221,6 +227,80 @@ static func _snake_plan(c: Combat, snakes: Array) -> Dictionary:
 			if c.passable(p) and c.unit_at(p) == null and not c.is_danger(p):
 				return {"act": "tap", "pos": p, "mode": "", "why": "kite the snake"}
 	return {"act": "wait", "why": "wait for a snake surprise"}
+
+## Blind shot (DECISIONS #149) where an unseen foe was last seen; {} when none applies.
+static func _blind_shot(c: Combat, es: Array) -> Dictionary:
+	var h: Dictionary = c.hero
+	if not c.has_ranged() or es.any(func(e): return c.hero_sees(e)): return {}
+	var cap := 2 if h.bolt.get("infinite", false) else (1 if int(h.charges) >= 2 else 0)
+	for e in es:
+		if e.has("last_seen") and int(e.get("blind_shots", 0)) < cap:
+			var ls := Vector2i(int(e.last_seen[0]), int(e.last_seen[1]))
+			if c.can_bolt(ls): return {"act": "tap", "pos": ls, "mode": "bolt", "why": "blind shot where %s was last seen" % e.name}
+	return {}
+
+const AMBUSH_CAP := 8   # bot turns per fight spent hiding/waiting for a Surprise before it just fights
+
+## SPD ambush for every class (DECISIONS #177): while every foe can see us, step to the nearest cell none of them can
+## see (doors, grass, pillars, corners); while one is still hunting our last-seen cell out of sight, wait for it to
+## walk into reach (it arrives unaware -> Surprise swing or shot). Bounded by AMBUSH_CAP turns per fight, never vs
+## bosses, never while hurt or under a telegraph, so fights fall back to normal play instead of stalling.
+static func _ambush(c: Combat, es: Array) -> Dictionary:
+	var h: Dictionary = c.hero
+	if int(h.get("bot_ambush", 0)) >= AMBUSH_CAP: return {}
+	if es.any(func(e): return e.get("boss", false) or e.get("fist", false) or e.get("stationary", false)): return {}
+	if es.size() > 2: return {}   # vs a crowd, hiding just lets them arrive together (sim: more deaths)
+	if int(h.hp) * 2 < int(h.ht) or c.is_danger(h.pos): return {}
+	# Magic never surprises: a wand with a clear shot just shoots
+	if c.has_ranged() and h.bolt.get("magic", true) and es.any(func(e): return _can_shoot(c, e)): return {}
+	if not _blind_shot(c, es).is_empty(): return {}
+	var unseen := es.filter(func(e): return not c.sees(e.pos, h.pos))
+	if unseen.size() == es.size():
+		# Hidden from all: wait while someone is still coming to our last-seen cell
+		if es.any(func(e): return e.get("state", "hunting") == "hunting" and Combat.cheb(e.pos, h.pos) <= 4):
+			h.bot_ambush = int(h.get("bot_ambush", 0)) + 1
+			return {"act": "wait", "why": "wait in cover for a Surprise"}
+		return {}
+	# Only start an ambush when a Surprise could pay off: some foe within reach of the setup
+	if not es.any(func(e): return Combat.cheb(e.pos, h.pos) <= 4): return {}
+	var hide := _cover_step(c, es)
+	if hide.x < 0: return {}
+	h.bot_ambush = int(h.get("bot_ambush", 0)) + 1
+	return {"act": "tap", "pos": hide, "mode": "", "why": "break sight for a Surprise"}
+
+## First step toward the nearest cell (<= 4 steps) no living foe can see and no foe is next to.
+static func _cover_step(c: Combat, es: Array) -> Vector2i:
+	var h: Dictionary = c.hero
+	var prev := {h.pos: h.pos}; var q := [h.pos]; var depth := {h.pos: 0}
+	while not q.is_empty():
+		var cur: Vector2i = q.pop_front()
+		if cur != h.pos and es.all(func(e): return not c.sees(e.pos, cur) and Combat.cheb(e.pos, cur) > 1):
+			while prev[cur] != h.pos: cur = prev[cur]
+			return cur
+		if int(depth[cur]) >= 4: continue
+		for d in Combat.DIRS:
+			var n: Vector2i = cur + d
+			if prev.has(n) or not c.passable(n) or c.unit_at(n) != null or c.is_danger(n) or c.visible_trap(n): continue
+			if es.any(func(e): return Combat.cheb(e.pos, n) <= 1): continue
+			prev[n] = cur; depth[n] = int(depth[cur]) + 1; q.append(n)
+	return Vector2i(-1, -1)
+
+## First step toward the nearest tile (BFS, up to 6 steps) the snake cannot see. Vector2i(-1,-1) if none.
+static func _hide_step(c: Combat, sn: Dictionary) -> Vector2i:
+	var h: Dictionary = c.hero
+	var prev := {h.pos: h.pos}; var q := [h.pos]; var depth := {h.pos: 0}
+	while not q.is_empty():
+		var cur: Vector2i = q.pop_front()
+		if cur != h.pos and not c.sees(sn.pos, cur) and Combat.cheb(cur, sn.pos) > 1:
+			while prev[cur] != h.pos: cur = prev[cur]
+			return cur
+		if int(depth[cur]) >= 6: continue
+		for d in Combat.DIRS:
+			var n: Vector2i = cur + d
+			if prev.has(n) or not c.passable(n) or c.unit_at(n) != null or c.is_danger(n) or c.visible_trap(n): continue
+			if Combat.cheb(n, sn.pos) <= 1: continue
+			prev[n] = cur; depth[n] = int(depth[cur]) + 1; q.append(n)
+	return Vector2i(-1, -1)
 
 ## Step off a door cell, preferring a tile the closed door will hide from `foe`.
 static func _step_off_door(c: Combat, door: Vector2i, foe: Vector2i) -> Vector2i:
@@ -247,7 +327,7 @@ static func _nearest_door(c: Combat, from: Vector2i) -> Vector2i:
 	for y in c.h:
 		for x in c.w:
 			var p := Vector2i(x, y)
-			if c.tile(p) != Combat.T.DOOR: continue
+			if c.tile(p) != Combat.T.DOOR: continue   # a door held open by remains shuts once we pass through (DECISIONS #176)
 			var d := Combat.cheb(p, from)
 			if d < bd: bd = d; best = p
 	return best
