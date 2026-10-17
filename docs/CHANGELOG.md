@@ -1,6 +1,8 @@
 # Changelog
 
 ## Unreleased
+
+## 0.42.0
 - The Enchanter's Desk description now says artifacts repair from Lv2, like rings and wands. It still said Lv3 after DECISIONS #170 moved artifact repair to Lv2, so the Desk window told players to save for a level they don't need (+test).
 - Every special room now has its own scene on the delve, built from SPD tiles, sprites and particles: piranhas in moving water, sparkling wells, a statue on its pedestal, a chalice on an altar, traps, crystals, bookshelves, a gnoll camp round a fire, and more (DECISIONS #180).
 - Camp and delve scene art (DECISIONS #179): the camp campfire now burns with SPD-style flames, sparks and smoke under a flickering glow, the clearing is lit by the fire at night, and grass tufts sway around it. The delve corridor is pixel-perfect, its doors are shut (or locked when they need a key) and only appear where a door card or special room is, the floor exit is SPD stairs, the stray idle mobs and item props are gone, foes run in and stand apart, tall grass hides the hero's legs, torch light covers the whole scene, and a new floor fades in. Tall grass and barrels use SPD's raised tiles with their tops, the camp sky is a dithered night gradient, waiting foes lunge with their attack frames, and leaving a room dips to dark.
