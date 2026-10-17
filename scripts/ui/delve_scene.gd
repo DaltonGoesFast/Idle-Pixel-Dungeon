@@ -156,11 +156,24 @@ func _sprite(spr: String, fw: int, fh: int, frame: int, row: int, feet: Vector2,
 
 ## Tall grass clumps on the near floor row, seeded per column (never where an encounter stands).
 func _grass_at(cx: int) -> bool:
+	if _deco_at(cx - 1) or _deco_at(cx) or _deco_at(cx + 1): return false   # props keep their columns clear
 	return _h(cx, 11) % 9 == 0 or (_h(cx - 1, 11) % 9 == 0 and _h(cx, 12) % 2 == 0)
 
-## A biome prop on the far floor row at this column (seeded; the caller keeps it off grass, doors, encounters).
+## A biome prop on the far floor row: exactly one per 7-column block at a seeded spot, so every screen of
+## corridor shows at least one (~15 columns are visible). Props win over grass, side doors and wall deco.
 func _deco_at(cx: int) -> bool:
-	return _h(cx, 21) % 9 == 0
+	var b := floori(cx / 7.0)
+	return cx == b * 7 + _h(b, 21) % 7
+
+## SPD raised wall (DungeonTileSheet getRaisedWallTile): RAISED_WALL 80 or its 50% alt 96; WALL_DECO uses
+## RAISED_WALL_DECO 84 / alt 100 (sewers drain, prison torch, caves ore vein, city recess, halls stained glass).
+func _wall_tile(cx: int) -> int:
+	var alt := _h(cx, 1) % 2 == 1
+	if _h(cx, 4) % 6 == 0 and not _side_door(cx) and not _deco_at(cx): return 100 if alt else 84
+	return 96 if alt else 80
+
+func _side_door(cx: int) -> bool:
+	return _h(cx, 3) % 23 == 0 and not _deco_at(cx)
 
 func _draw() -> void:
 	var r := _run()
@@ -181,6 +194,7 @@ func _draw() -> void:
 	if ev.is_empty(): busy_to = busy_from - 1
 	var grass_cells := []
 	var deco_cells := []
+	var wall_fx := []   # SPD wall-deco cells that carry their region's visual (drip, torch, sparkle, smoke)
 	for i in range(-int(hero_x / cs) - 2, cols):
 		var cx := hero_col + i
 		var x := floorf(ox + i * cs)
@@ -191,10 +205,11 @@ func _draw() -> void:
 			var idx := 0
 			match row:
 				0, 4: idx = 144
-				1: idx = 80 if _h(cx, 1) % 7 else 96
+				1: idx = _wall_tile(cx)
 				_: idx = 1 if _h(cx * 3 + row, 2) % 11 == 0 and not near_grass and not busy else 0   # no moss deco by the grass
-			if row == 1 and _h(cx, 3) % 23 == 0 and not busy: idx = DOOR_CLOSED   # side rooms pass by, shut
-			if row == 2 and _deco_at(cx) and not busy and not near_grass and _h(cx, 3) % 23 != 0: deco_cells.append([rc, cx])
+			if row == 1 and _side_door(cx) and not busy: idx = DOOR_CLOSED   # side rooms pass by, shut
+			if row == 1 and idx in [84, 100] and not busy: wall_fx.append([rc, idx])
+			if row == 2 and _deco_at(cx) and not busy: deco_cells.append([rc, cx])
 			# grass clump: SPD short-grass floor (GRASS 2) under the keyed blades, drawn after the light
 			if row == 3 and not busy and _grass_at(cx): idx = 2; grass_cells.append([rc, cx & 1, cx])
 			if row == 1 and not ev.is_empty(): idx = _encounter_wall(ev, cx - stop_col, idx)
@@ -220,6 +235,10 @@ func _draw() -> void:
 		var lm := _lm(dr.get_center())
 		draw_texture_rect_region(_grass_tex(tiles, pr[0]), dr, Rect2(0, 0, 16, 16), lm)
 		draw_texture_rect_region(tiles, Rect2(dr.position - Vector2(0, cs), dr.size), Rect2((pr[1] % 16) * 16, (pr[1] / 16) * 16, 16, 16), lm)
+	for wr in wall_fx: _wall_visual(String(r.biome), wr[0], int(wr[1]), k)
+	if String(r.biome) == "city":   # SPD CityLevel GreenFlame over the region-deco plinths
+		for d in deco_cells:
+			if decos[_h(int(d[1]), 22) % decos.size()][0] == 130: _green_flame((d[0] as Rect2).get_center() - Vector2(0, cs * 0.55), k, int(d[1]))
 	for g in grass_cells:
 		var gr: Rect2 = g[0]; var gb: int = HIGH_GRASS[g[1]]; var gi: int = HIGH_GRASS_TOP[g[1]]
 		# one-pixel wind sway applied to base and overhang together; tips lit lighter so they stay crisp green
@@ -317,7 +336,7 @@ const ROOM_SCENES := {
 	"armory": [["f", 137, 0, 2], ["i", "SWORD", 1, 2], ["i", "ARMOR_MAIL", 2, 2], ["i", "MACE", 1, 3], ["f", 138, 3, 2]],
 	"crystal_vein": [["f", 210, 0, 2], ["f", 211, 1, 2], ["f", 210, 2, 3], ["spark", "8ad8ff", 1.0, 2.5]],
 	"vault": [["t", 4, 0, 2], ["t", 4, 1, 2], ["t", 4, 0, 3], ["t", 4, 1, 3], ["i", "CRYSTAL_CHEST", 0.5, 2.5], ["spark", "a0e8ff", 0.5, 2.4]],
-	"library": [["t", 50, 1, 1], ["t", 50, 2, 1], ["t", 50, 3, 1], ["i", "SCROLL_KAUNAN", 1, 2], ["i", "SCROLL_ISAZ", 2, 3]],
+	"library": [["t", 92, 1, 1], ["t", 108, 2, 1], ["t", 92, 3, 1], ["i", "SCROLL_KAUNAN", 1, 2], ["i", "SCROLL_ISAZ", 2, 3]],
 	"well_health": [["w", 0, 1, 2], ["t", 18, 1, 2], ["spark", "ff7070", 1.5, 2.4]],
 	"well_awareness": [["w", 0, 1, 2], ["t", 18, 1, 2], ["spark", "80c8ff", 1.5, 2.4]],
 	"laboratory": [["r", "pot", 1, 3], ["i", "POTION_CRIMSON", 2, 2], ["i", "POTION_AZURE", 2, 3], ["i", "SEED_ROTBERRY", 0, 3], ["spark", "c0ff80", 1.5, 2.3]],
@@ -327,7 +346,7 @@ const ROOM_SCENES := {
 	"trap_vault": [["f", 0, 0, 2], ["f", 34, 0, 3], ["f", 65, 2, 3], ["t", 4, 1, 2], ["i", "CRYSTAL_CHEST", 1, 2], ["spark", "a0e8ff", 1.5, 2.4]],
 	"prisoner": [["f", 153, 1, 2], ["f", 154, 2, 2], ["m", "guard", 0.5, 3.8], ["i", "IRON_KEY", 3, 3]],
 	"abandoned_shop": [["f", 169, 1, 2], ["f", 170, 2, 2], ["i", "RATION", 1, 1.8], ["i", "TORCH", 2, 1.8], ["i", "POTION_GOLDEN", 1.5, 3], ["f", 138, 0, 3]],
-	"gnoll_camp": [["t", 3, 1, 3], ["fire", "", 1.5, 3.7], ["m", "gnoll", 1.0, 2.95], ["m", "gnoll", 2.5, 2.95], ["m", "gnoll", 2.6, 3.95], ["i", "TORCH", 0, 3]],
+	"gnoll_camp": [["t", 3, 1, 3], ["fire", "", 1.5, 3.7], ["m", "gnoll", 0.9, 2.95], ["m", "gnoll", 2.2, 2.95], ["m", "gnoll", 3.5, 3.95], ["i", "TORCH", 0, 3]],
 }
 
 const RAISED_KINDS := {"grass": [122, 234, 0.5], "grass2": [125, 237, 0.5], "pot": [120, 232, 1.0], "barricade": [121, 233, 1.0]}
@@ -393,6 +412,55 @@ func _room_scene(id: String, x0: float, y0: float, cs: float, k: float, biome: D
 				var sp := Vector2(x0 + dx * cs, y0 + row * cs)
 				SceneFX.glow(self, sp, cs * 0.9, Color(op[1], 0.22))
 				SceneFX.twinkle(self, sp, k, t, cs * 0.6, Color(op[1]))
+## SPD region wall visuals on WALL_DECO cells (SewerLevel.Sink, PrisonLevel.Torch, CavesLevel.Vein,
+## CityLevel.Smoke), stateless: each particle is a function of time and its slot. Drawn after the darkness pass.
+func _wall_visual(biome: String, rc: Rect2, tid: int, k: float) -> void:
+	var c := rc.get_center(); var sd := int(rc.position.x / maxf(1.0, k))
+	match biome:
+		"sewers":   # drips from the drain: 2px WaterParticles falling (acc 50) for 0.4 s
+			for i in 4:
+				var ph := SceneFX._frac(t / 0.4 + float(i) / 4.0)
+				var cyc := floorf(t / 0.4 + float(i) / 4.0)
+				var x := c.x + (SceneFX._rnd(i + int(cyc) * 5, sd) * 4.0 - 2.0) * k
+				var y := c.y + (3.0 + 4.0 * ph * ph) * k
+				var col := Color("b6ccc2").lerp(Color("3b6653"), SceneFX._rnd(i, sd + 1)); col.a = 0.5 * (1.0 - ph * 0.5)
+				draw_rect(Rect2(Vector2(x, y).floor(), Vector2(2, 2) * k), col)
+		"prison":   # wall torch: FlameParticle pour + Halo(12, 0xFFFFCC, 0.4); the sconce is lit by its own flame
+			var fl := SceneFX.flicker(t + float(sd))
+			draw_texture_rect_region(_t("res://assets/tiles/tiles_prison.png"), rc, Rect2((tid % 16) * 16, (tid / 16) * 16, 16, 16), Color(1, 0.95, 0.85, 0.8))
+			SceneFX.glow(self, c + Vector2(0, k), 12.0 * k * fl * 1.8, Color(1.0, 1.0, 0.8, 0.3))
+			SceneFX.fire(self, c + Vector2(0, 3.0 * k), k, t + float(sd) * 0.37, 2.0, false, 0.45)
+		"caves":   # ore vein: white sparkles that swell and shrink over 0.5 s, about one a second
+			for i in 2:
+				var ph := SceneFX._frac(t + float(i) * 0.5 + SceneFX._rnd(sd, i))
+				if ph > 0.5: continue
+				var cyc := floorf(t + float(i) * 0.5 + SceneFX._rnd(sd, i))
+				var p := rc.position + Vector2(SceneFX._rnd(int(cyc) + i, sd), SceneFX._rnd(int(cyc) + i, sd + 7)) * rc.size
+				var am := (ph * 4.0) if ph < 0.25 else (2.0 - ph * 4.0)
+				var sz := maxf(1.0, roundf(am * 2.0)) * k
+				draw_rect(Rect2((p - Vector2(sz, sz) / 2.0).floor(), Vector2(sz, sz)), Color(1, 1, 1, clampf(am, 0.0, 1.0)))
+		"city":   # smoke: black puffs drifting up from the recess, never above a quarter opacity
+			for i in 6:
+				var ph := SceneFX._frac(t / 2.0 + float(i) / 6.0)
+				var x := c.x + (SceneFX._rnd(i, sd) * 12.0 - 6.0 + ph * 2.0) * k
+				var y := c.y + (SceneFX._rnd(i, sd + 3) * 12.0 - 4.0 - ph * 9.0) * k
+				var am := (1.0 - ph) * 5.0 if ph > 0.8 else ph * 0.25
+				var sz := floorf(3.0 + ph * 3.0) * k
+				draw_rect(Rect2(Vector2(x, y).floor(), Vector2(sz, sz)), Color(0, 0, 0, clampf(am, 0.0, 0.25)))
+
+## SPD CityLevel.GreenFlame: ElmoParticle (0x22EE66, 0.6 s, size 4 shrinking, rising with acc -40).
+func _green_flame(p: Vector2, k: float, sd: int) -> void:
+	SceneFX.glow(self, p, 10.0 * k, Color(0.2, 1.0, 0.45, 0.16))
+	for i in 6:
+		var ph := SceneFX._frac(t / 0.6 + float(i) / 6.0)
+		var cyc := floorf(t / 0.6 + float(i) / 6.0)
+		var x := p.x + (SceneFX._rnd(int(cyc) * 3 + i, sd) * 4.0 - 2.0) * k
+		var y := p.y + (SceneFX._rnd(int(cyc) * 3 + i, sd + 1) * 4.0 - 2.0 - 7.2 * ph * ph) * k
+		var sz := maxf(1.0, roundf(4.0 * (1.0 - ph))) * k
+		var am := (1.0 - ph) * 5.0 if ph > 0.8 else 1.0
+		var col := Color("22ee66"); col.a = clampf(am, 0.0, 1.0)
+		draw_rect(Rect2(Vector2(x - sz / 2.0, y - sz / 2.0).floor(), Vector2(sz, sz)), col)
+
 ## SPD DungeonTileSheet water: WATER = xy(1,3) = 32, then +1 ground above, +2 right, +4 below, +8 left
 ## (stitchWaterTile). Those tiles are transparent where the water shows.
 const WATER := 32
