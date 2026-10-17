@@ -551,6 +551,7 @@ func _draw() -> void:
 		SceneFX.wall_visual(self, anim_t, bio, fr, int(df[1]), ps)
 	if bio == "halls":
 		for wr in wet: SceneFX.halls_stream(self, anim_t, wr, ps)
+	_chasm_wind(cs, ps)
 	# 6. fog of war + torchlight: smooth per-corner blend (SPD FogOfWar texture is bilinear)
 	if lighting and lr < 50.0:
 		var ctr := hero_disp + Vector2(0.5, 0.5)
@@ -780,3 +781,25 @@ func _keyed(n: String, t: Vector2i, bg: Array) -> Texture2D:
 	var tx := ImageTexture.create_from_image(img)
 	_ctex[key] = tx
 	return tx
+
+## SPD WindParticle.Wind over every pit cell the hero can see (Level.addVisuals): one faint white mote per cell
+## every 2.5 s, living 1-2 s, drifting 5 px/s x its size (1-3 px) along one level-wide heading, alpha rising and
+## falling to size x 0.2. Stateless: each mote is seeded by its cell and cycle, sizes are whole art pixels.
+func _chasm_wind(cs: float, ps: float) -> void:
+	var ang := float(variance.get(Vector2i(-2, -2), 0)) / 100.0 * TAU
+	var dir := Vector2(cos(ang), sin(ang))
+	for y in _ah():
+		for x in _aw():
+			var c := Vector2i(x, y)
+			if _t(c) != Combat.T.CHASM or (lighting and not _visible(c)): continue
+			var sd := x * 31 + y * 17
+			var cyc := floorf((anim_t + SceneFX._rnd(sd, 3) * 2.5) / 2.5)
+			var age := anim_t + SceneFX._rnd(sd, 3) * 2.5 - cyc * 2.5
+			var seq := sd * 1000 + int(cyc)
+			var life := 1.0 + SceneFX._rnd(seq, 5)
+			if age > life: continue
+			var sz := 1.0 + floorf(SceneFX._rnd(seq, 7) * 3.0)
+			var p := 1.0 - age / life
+			var a := (p if p < 0.5 else 1.0 - p) * sz * 0.2
+			var at := Vector2(x + SceneFX._rnd(seq, 9), y + SceneFX._rnd(seq, 11)) * cs + dir * 5.0 * sz * (age - life / 2.0) * ps
+			draw_rect(Rect2((origin() + at).floor(), Vector2(sz, sz) * maxf(1.0, floorf(ps))), Color(1, 1, 1, a))
