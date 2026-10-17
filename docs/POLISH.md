@@ -77,6 +77,8 @@ Priority: **P1** fix before a public build, **P2** next polish pass, **P3** nice
 | 53 | ~~Foes vanished instantly when a fight ended; no reaction when the hero struck; foes overlapped in the wrong order~~ **Done**: SPD die frames and fade, hit flash and knockback, back-to-front drawing (#182) | user 2026-10-17 | P2 | S |
 | 54 | ~~Gnoll camp gnolls overlapped; not every corridor screen had a biome prop; Prison walls had unlit sconces~~ **Done** (#182) | user 2026-10-17 | P2 | S |
 | 55 | Combat grid (`grid_view.gd`) still mirrors sprites with a negative source width, which made the gnoll's last die frame vanish in the delve; check whether any combat frames are affected (combat screen, out of scope for scene polish) | fix4 2026-10-17 | P3 | S |
+| 56 | Delve boss campfire: the SPD embers tile is drawn raw, a hard dark square on the corridor floor that the fire's warm light does not tint; key out its baked floor like the camp does (`_masked`) or draw it on the biome's own floor | report 4dee067 | P3 | S |
+| 57 | Delve wells (Health / Awareness) read as a small empty frame at phone size; the sparkle is the only cue. Consider SPD's well with a brighter water tint | report 4dee067 | P3 | S |
 
 ## Code / docs hygiene (no player impact)
 | # | Item | Source | Pri | Effort |
