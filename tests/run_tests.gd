@@ -58,6 +58,7 @@ func _ready() -> void:
 	test_goo_spiral(gs)
 	test_food_sources(gs)
 	test_facility_cap(gs)
+	test_vendor_mats_fold(gs)
 	test_camp_sou_budget(gs)
 	test_crate_slot(gs)
 	test_max_all_supplies(gs)
@@ -2205,6 +2206,9 @@ func test_facility_cap(gs) -> void:
 	gs.mats.scroll_upgrade = 4; gs.mats.arcane_resin = 0; gs.mats.gold = 0
 	var camp = load("res://scripts/ui/camp_screen.gd").new(); add_child(camp)
 	camp.open_page("Enchanter")
+	var fold0 = camp.win_layer.find_child("FacilityFold", true, false)
+	check(fold0 != null and camp.win_layer.find_child("FacilitySlots", true, false) == null, "Upgrade fold starts collapsed")
+	fold0.pressed.emit()
 	var blob := _node_text(camp.win_layer)
 	check(not blob.contains("Raise cap") and not blob.contains("Fill a slot"), "the old banners are gone")
 	check(blob.contains("Filled") and blob.contains("Open") and blob.contains("Locked"), "slots are labeled filled, open, and locked")
@@ -2214,6 +2218,7 @@ func test_facility_cap(gs) -> void:
 	check(fill != null and fill.text == "Upgrade" and fill.disabled and blob.contains("Arcane Resin"), "Upgrade stays shut until the materials are there")
 	unlock.pressed.emit()
 	check(gs.facility_cap("enchanter") == 3 and gs.mat("scroll_upgrade") == 0, "Unlock slot spends the scrolls and opens one slot")
+	check(camp.fac_open.get("enchanter", false) and camp.win_layer.find_child("FacilitySlots", true, false) != null, "fold stays open after Unlock rebuilds the window")
 	check(camp.win_layer.find_child("UnlockSlot", true, false) == null, "no unlock row once every slot is unlocked")
 	var row = camp.win_layer.find_child("FacilitySlots", true, false)
 	var states: Array = []
@@ -2230,6 +2235,41 @@ func test_facility_cap(gs) -> void:
 	var u2 = camp.win_layer.find_child("UnlockSlot", true, false)
 	check(u2 != null and u2.disabled and _node_text(camp.win_layer).contains("Unlock a slot first"), "with no open slot, Upgrade says to unlock first and the scroll row stays visible")
 	camp.queue_free()
+
+## DECISIONS #175: every vendor pins a materials bar under the title; facility upgrade is a collapsed fold.
+func test_vendor_mats_fold(gs) -> void:
+	print("[vendor mats fold]")
+	gs.new_game()
+	gs.mats.gold = 10; gs.mats.seeds = 3; gs.mats.dew = 1; gs.mats.iron_ore = 2
+	gs.mats.dark_gold = 1; gs.mats.arcane_resin = 4; gs.mats.scroll_upgrade = 1
+	var cs = load("res://scripts/ui/camp_screen.gd").new(); add_child(cs)
+	var want := {
+		"Forge": ["iron_ore", "dark_gold", "gold", "arcane_resin", "scroll_upgrade"],
+		"Alchemy": ["seeds", "dew", "gold", "scroll_upgrade"],
+		"Enchanter": ["arcane_resin", "gold", "scroll_upgrade"],
+		"Guild": ["gold", "dew", "seeds", "iron_ore"],
+	}
+	for page in ["Forge", "Alchemy", "Enchanter", "Guild"]:
+		cs.open_page(page)
+		var host: VBoxContainer = cs.win_layer.get_meta("mats_host")
+		var sc: ScrollContainer = cs.win_layer.get_meta("sc")
+		var mh = cs.win_layer.find_child("MatsHeader", true, false)
+		check(mh != null and host.visible, "%s has a materials bar" % page)
+		check(host.get_parent() == sc.get_parent() and mh.get_index() >= 0 and not sc.is_ancestor_of(mh), "%s materials bar is pinned outside the scroller" % page)
+		var order: Array = []
+		for c in mh.get_children(): order.append(str(c.get_meta("mat")))
+		check(order == want[page], "%s materials order %s (want %s)" % [page, order, want[page]])
+		var fold = cs.win_layer.find_child("FacilityFold", true, false)
+		check(fold != null and String(fold.text).begins_with("Upgrade") and cs.win_layer.find_child("FacilitySlots", true, false) == null, "%s Upgrade fold starts collapsed" % page)
+		var shop_btn := "Craft" if page == "Forge" else ("Scribe" if page == "Enchanter" else ("Supplies" if page == "Guild" else ""))
+		var shop_ok: bool = (_btn_starts(cs, shop_btn) != null) if shop_btn != "" else (_node_text(cs.win_layer).contains("Recipes"))
+		check(shop_ok, "%s shop stays visible while the Upgrade fold is collapsed" % page)
+		fold.pressed.emit()
+		check(cs.fac_open.get(cs.FAC_PAGE[page], false) and cs.win_layer.find_child("FacilitySlots", true, false) != null, "%s fold expands the facility slots" % page)
+		var shop_still: bool = (_btn_starts(cs, shop_btn) != null) if shop_btn != "" else (_node_text(cs.win_layer).contains("Recipes"))
+		check(shop_still, "%s shop stays visible while the Upgrade fold is open" % page)
+		cs.close_page()
+	cs.queue_free()
 
 ## DECISIONS #115: the Guild ration crate slot is told apart from the single Ration slot by its pack size.
 func _slot_texts(slot: Control) -> Array:
@@ -2606,6 +2646,9 @@ func test_no_stacked_cost_rows(gs) -> void:
 		cs.section["Enchanter"] = "attune"
 		for pg in cs.PAGE_ORDER:
 			cs.open_page(pg)
+			if cs.FAC_PAGE.has(pg):
+				cs.fac_open[cs.FAC_PAGE[pg]] = true
+				cs._fill_window()
 			for f in UIKit.collapsing_flows(cs.win_layer): bad.append("%s: %s" % [pg, f.get_parent().get_class()])
 			cs.close_page()
 		cs.open_page("Forge")

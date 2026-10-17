@@ -211,8 +211,9 @@ func close_page() -> void:
 	open_name = ""; _close_info()
 	if win_layer: win_layer.queue_free(); win_layer = null
 
-## A dimmed overlay with a centred SPD window: title row (icon, name, close), a scrolling body, and a footer
-## under the scroller for the page's main action (hidden until a page uses it, see _foot).
+## A dimmed overlay with a centred SPD window: title row (icon, name, close), an optional pinned materials
+## strip (vendor pages), a scrolling body, and a footer under the scroller for the page's main action
+## (hidden until a page uses it, see _foot).
 func _make_window(title: String, icon_name: String, close_cb: Callable, w_frac := 0.96, h_frac := 0.92) -> Array:
 	var layer := Control.new(); layer.set_anchors_and_offsets_preset(PRESET_FULL_RECT); add_child(layer)
 	var dim := ColorRect.new(); dim.color = Color(0, 0, 0, 0.6); dim.set_anchors_and_offsets_preset(PRESET_FULL_RECT); layer.add_child(dim)
@@ -245,6 +246,9 @@ func _make_window(title: String, icon_name: String, close_cb: Callable, w_frac :
 	var tl := UIKit.header(title); tl.size_flags_horizontal = SIZE_EXPAND_FILL; tr.add_child(tl)
 	var x := UIKit.button("X", close_cb); UIKit.secondary(x); x.custom_minimum_size = Vector2.ONE * UIKit.btn_height()
 	x.size_flags_horizontal = SIZE_SHRINK_END; tr.add_child(x)
+	# Vendor pages fill this; stays above the scroller so materials stay put while the shop scrolls.
+	var mats_host := VBoxContainer.new(); mats_host.name = "MatsHost"; mats_host.visible = false; v.add_child(mats_host)
+	layer.set_meta("mats_host", mats_host)
 	var sc := ScrollContainer.new(); sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	sc.size_flags_vertical = SIZE_EXPAND_FILL; v.add_child(sc)
 	var body := UIKit.vbox(sc); body.size_flags_horizontal = SIZE_EXPAND_FILL
@@ -302,6 +306,7 @@ func _foot() -> VBoxContainer:
 ## Section buttons at the top of a window (Stash, Forge, Enchanter, Guild). Returns the selected key.
 ## opts: [[key, label], ...]; the choice is kept per page while the app runs.
 var section := {}
+var fac_open := {}       # facility id -> Upgrade fold open (kept while the app runs)
 var top_next := false   # the next window rebuild starts scrolled to the top (a section switch)
 func _switcher(v: Control, page: String, opts: Array) -> String:
 	var cur: String = section.get(page, opts[0][0])
@@ -381,14 +386,33 @@ func qty_picker(max_n: int, cost_fn: Callable, verb: String, act: Callable, why0
 	box.set_meta("set_n", upd); box.set_meta("n", n); box.set_meta("button", act_btn); box.set_meta("cost_host", cost_host)
 	return box
 
-## Live materials strip (Forge / Guild headers): icon + amount for each material the facility uses.
-const FAC_MATS := {"blacksmith": ["iron_ore", "dark_gold", "gold", "arcane_resin", "scroll_upgrade"], "guild": ["gold", "dew", "seeds", "iron_ore"]}
+## Live materials strip pinned under the vendor title: icon + amount for each material the facility uses.
+const FAC_MATS := {
+	"blacksmith": ["iron_ore", "dark_gold", "gold", "arcane_resin", "scroll_upgrade"],
+	"alchemy": ["seeds", "dew", "gold", "scroll_upgrade"],
+	"enchanter": ["arcane_resin", "gold", "scroll_upgrade"],
+	"guild": ["gold", "dew", "seeds", "iron_ore"],
+}
 func mats_header(id: String) -> HFlowContainer:
 	var f := HFlowContainer.new(); f.add_theme_constant_override("h_separation", int(UIKit.font_size * 0.8))
 	f.name = "MatsHeader"
 	for k in FAC_MATS.get(id, []):
-		f.add_child(UIKit.res_chip(k, "%d" % GameState.mat(k), 0.9))
+		var chip := UIKit.res_chip(k, "%d" % GameState.mat(k), 0.9)
+		chip.name = "Mat_%s" % k
+		chip.set_meta("mat", k)
+		f.add_child(chip)
 	return f
+
+## Pin the facility's materials bar under the window title (outside the scroller).
+func _pin_mats(id: String) -> void:
+	if win_layer == null or not is_instance_valid(win_layer): return
+	var host: VBoxContainer = win_layer.get_meta("mats_host")
+	UIKit.clear(host)
+	if not FAC_MATS.has(id):
+		host.visible = false
+		return
+	host.visible = true
+	var mc := UIKit.card(); host.add_child(mc); mc.add_child(mats_header(id))
 
 ## Cost as resource chips; amounts you can't afford are red.
 ## Expands so it stays one row beside a label in an HBox (a bare flow stacks one chip per line, DECISIONS #168).
@@ -821,11 +845,23 @@ func _preview(id: String, lvl: int) -> String:
 		"enchanter": return NEXT_TEXT[id] % maxi(0, lvl - 1)
 		_: return NEXT_TEXT[id] % lvl
 
+## Collapsed Upgrade tab at the top of the scroll: expands the facility slots, Unlock, and level-up cost.
 func _facility_header(v: VBoxContainer, id: String) -> void:
 	var f: Dictionary = GameState.facilities[id]
 	var d: Dictionary = DB.facilities[id]
-	if FAC_MATS.has(id):
-		var mc := UIKit.card(); v.add_child(mc); mc.add_child(mats_header(id))
+	var cap: int = GameState.facility_cap(id)
+	var lvl := int(f.level); var mx := int(d.max)
+	var open: bool = bool(fac_open.get(id, false))
+	var label := "Upgrade   Lv %d / %d" % [lvl, mx]
+	if lvl >= cap and cap < mx: label += "  (cap %d)" % cap
+	if GameState.can_upgrade_facility(id) == "": label += " !"
+	var fold := UIKit.button(label, func(): fac_open[id] = not bool(fac_open.get(id, false)); _fill_window())
+	fold.name = "FacilityFold"
+	fold.size_flags_horizontal = SIZE_EXPAND_FILL
+	fold.autowrap_mode = TextServer.AUTOWRAP_OFF
+	if not open: UIKit.secondary(fold)
+	v.add_child(fold)
+	if not open: return
 	var card := UIKit.card(); v.add_child(card)
 	var col := UIKit.vbox(card)
 	var row := UIKit.hbox(col)
@@ -837,9 +873,7 @@ func _facility_header(v: VBoxContainer, id: String) -> void:
 		var at2 := AtlasTexture.new(); at2.atlas = load("res://assets/tiles/tiles_sewers.png"); at2.region = Rect2(0, 64, 16, 16)
 		var tp := UIKit.pixel(at2, int(kk)); tp.size_flags_vertical = SIZE_SHRINK_CENTER; row.add_child(tp)
 	var cv := UIKit.vbox(row); cv.size_flags_horizontal = SIZE_EXPAND_FILL
-	var cap: int = GameState.facility_cap(id)
-	var lvl := int(f.level); var mx := int(d.max)
-	cv.add_child(UIKit.label("%s   Lv %d / %d" % [d.name, lvl, mx], 1.0, Color("ffd27a")))
+	cv.add_child(UIKit.label(d.name, 1.0, Color("ffd27a")))
 	# Small slot row: filled = level, open = ready to upgrade, locked = needs a Scroll of Upgrade.
 	col.add_child(_facility_slots(lvl, cap, mx))
 	_facility_unlock(col, id)
@@ -1180,6 +1214,7 @@ func _alchemy_pot(v: VBoxContainer) -> void:
 		rr.add_child(b)
 
 func _page_facility(page: String, id: String) -> void:
+	_pin_mats(id)
 	var v := _p(page)
 	_facility_header(v, id)
 	if id == "alchemy": _alchemy_pot(v); return
@@ -1287,6 +1322,7 @@ func _identify_section(v: VBoxContainer) -> void:
 		t.timeout.connect(func(): if open_name == "Enchanter" and info_layer == null: _fill_window())
 
 func _page_guild() -> void:
+	_pin_mats("guild")
 	var v := _p("Guild")
 	_facility_header(v, "guild")
 	var out := GameState.heroes.values().filter(func(h): return not h.patrol.is_empty()).size()
