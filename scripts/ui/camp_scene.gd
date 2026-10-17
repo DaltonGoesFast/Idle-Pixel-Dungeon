@@ -98,7 +98,8 @@ func _masked(idx: int, bg: Array, flood: bool) -> Texture2D:
 const RAISED := [[122, 234], [125, 237], [130, 242], [131, 243]]
 func _raised(r: Rect2, kind: int, sway := 0.0, mod := Color.WHITE) -> void:
 	var pr: Array = RAISED[kind]
-	draw_texture_rect_region(_masked(pr[0], [0, 1, 4, 10], true), r, Rect2(0, 0, 16, 16), mod)
+	# sway moves base and overhang together, so a clump bends as one plant instead of shearing at the seam
+	draw_texture_rect_region(_masked(pr[0], [0, 1, 4, 10], true), Rect2(r.position + Vector2(sway, 0), r.size), Rect2(0, 0, 16, 16), mod)
 	var ti: int = pr[1]
 	draw_texture_rect_region(tiles, Rect2(r.position + Vector2(sway, -r.size.y), r.size), Rect2((ti % 16) * 16, (ti / 16) * 16, 16, 16), mod)
 
@@ -214,7 +215,9 @@ func _draw() -> void:
 			var rc2 := Rect2(ox + x * cs, sky_h + y * cs, cs, cs)
 			var c2 := rc2.get_center()
 			if absf(c2.x - fire.x) < cs * 1.6 or y == 0: continue
-			if SPOTS.any(func(sp): return spot_rect(sp).grow(cs * 0.4).merge(spot_rect(sp).grow(cs * 0.4).grow_individual(0, cs, 0, 0)).has_point(c2)): continue
+			# the clump covers its cell and the cell above (overhang) and is drawn over the NPCs: keep both clear
+			var span := Rect2(rc2.position - Vector2(0, cs), Vector2(cs, cs * 2.0))
+			if SPOTS.any(func(sp): return spot_rect(sp).merge(label_rect(sp)).grow(cs * 0.3).intersects(span)): continue
 			if h2 % 9 == 0:   # tall grass clump: SPD raised high grass, top half in the cell above
 				grass.append([rc2, h2 & 1, roundf(sin(t * 1.6 + x * 0.9 + y)) * kk])
 	_scenery(kk, cs, fire)
@@ -232,7 +235,9 @@ func _draw() -> void:
 		hero_anim = all.get(hero, {}).get("idle", {"fps": 1, "frames": [0]}); hero_anim._for = hero
 	var hfl: Array = hero_anim.frames; var hf := int(hfl[int(t * float(hero_anim.fps)) % hfl.size()])
 	var cols_h := int(hs.get_width() / 12)
-	draw_texture_rect_region(hs, Rect2(Vector2(fire.x + cs * 0.9, fire.y + kk * 6 - hz.y).floor(), hz), Rect2((hf % cols_h) * 12, (hf / cols_h + GameState.armor_tier(hero)) * 15, 12, 15))
+	var frad := minf(size.x, size.y - sky_h) * 0.75   # firelight reach: warm amber flicker on nearby sprites
+	var hr := Rect2(Vector2(fire.x + cs * 0.9, fire.y + kk * 6 - hz.y).floor(), hz)
+	draw_texture_rect_region(hs, hr, Rect2((hf % cols_h) * 12, (hf / cols_h + GameState.armor_tier(hero)) * 15, 12, 15), SceneFX.firelit(hr.get_center(), fire, frad, flk))
 	# facilities
 	var font := get_theme_default_font()
 	var fs := UIKit.font_px(UIKit.font_size * 0.85)
@@ -241,15 +246,15 @@ func _draw() -> void:
 		draw_texture_rect_region(load("res://assets/ui/shadow.png"), Rect2(sr.position.x + sr.size.x * 0.1, sr.end.y - kk * 3, sr.size.x * 0.8, kk * 5), Rect2(0, 0, 6, 6), Color(1, 1, 1, 0.6))
 		if hot == s[0]: draw_rect(sr.grow(kk * 2), Color(1, 1, 0.6, 0.18))
 		match s[1]:
-			"_pot": _tile(sr, 64, _masked(64, [4, 10], true))   # pot without its baked plank floor
+			"_pot": draw_texture_rect_region(_masked(64, [4, 10], true), sr, Rect2(0, 0, 16, 16), SceneFX.firelit(sr.get_center(), fire, frad, flk))   # pot without its baked plank floor
 			"_chest":   # trimmed SPD frame, centred on whole pixels (DECISIONS #89)
 				var cr := UIKit.item_rect(36); var cz := cr.size * floorf(sr.size.x / 16.0)
-				draw_texture_rect_region(items, Rect2((sr.get_center() - cz / 2.0).floor(), cz), cr)
+				draw_texture_rect_region(items, Rect2((sr.get_center() - cz / 2.0).floor(), cz), cr, SceneFX.firelit(sr.get_center(), fire, frad, flk))
 			_:
 				var fw: int = s[2]
 				var an: Array = NPC_IDLE[s[1]]; var fl: Array = an[1]
 				var frame: int = fl[int((t + s[4] * 3.0) * float(an[0])) % fl.size()]
-				draw_texture_rect_region(_sprite(s[1]), sr, Rect2(frame * fw, 0, fw, s[3]))
+				draw_texture_rect_region(_sprite(s[1]), sr, Rect2(frame * fw, 0, fw, s[3]), SceneFX.firelit(sr.get_center(), fire, frad, flk))
 	# night: the clearing darkens away from the fire, the sky stays readable (DECISIONS #179)
 	SceneFX.darkness(self, Rect2(0, sky_h, size.x, size.y - sky_h), fire, minf(size.x, size.y - sky_h) * 0.62 * flk, 0.5)
 	SceneFX.glow(self, fire, cs * 1.2 * flk, Color(1.0, 0.7, 0.3, 0.12))

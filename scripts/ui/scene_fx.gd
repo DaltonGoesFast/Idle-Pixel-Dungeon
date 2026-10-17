@@ -33,16 +33,22 @@ static func glow_tex() -> GradientTexture2D:
 static func flicker(t: float) -> float:
 	return 1.0 + 0.035 * sin(t * 9.0) + 0.025 * sin(t * 23.0 + 1.3)
 
-## Darken everything in `area` except a pool of light at `c` with radius `rad`.
+## Darken everything in `area` except a pool of light at `c` with radius `rad`. Every quad is clipped to `area`
+## (the light quad by its texture region), so nothing outside it (the camp sky) is touched.
 static func darkness(ci: CanvasItem, area: Rect2, c: Vector2, rad: float, alpha: float, tint := Color(0.02, 0.01, 0.04)) -> void:
 	var lr := Rect2(c - Vector2.ONE * rad, Vector2.ONE * rad * 2.0)
 	var dark := Color(tint.r, tint.g, tint.b, alpha)
-	ci.draw_texture_rect(light_tex(), lr, false, dark)
 	var a := area
-	ci.draw_rect(Rect2(a.position.x, a.position.y, a.size.x, maxf(0.0, lr.position.y - a.position.y)), dark)
-	ci.draw_rect(Rect2(a.position.x, lr.end.y, a.size.x, maxf(0.0, a.end.y - lr.end.y)), dark)
-	ci.draw_rect(Rect2(a.position.x, lr.position.y, maxf(0.0, lr.position.x - a.position.x), lr.size.y), dark)
-	ci.draw_rect(Rect2(lr.end.x, lr.position.y, maxf(0.0, a.end.x - lr.end.x), lr.size.y), dark)
+	var cl := lr.intersection(a)
+	if cl.has_area():
+		var ts := Vector2(light_tex().get_width(), light_tex().get_height())
+		ci.draw_texture_rect_region(light_tex(), cl, Rect2((cl.position - lr.position) / lr.size * ts, cl.size / lr.size * ts), dark)
+	var y0 := clampf(lr.position.y, a.position.y, a.end.y); var y1 := clampf(lr.end.y, a.position.y, a.end.y)
+	ci.draw_rect(Rect2(a.position.x, a.position.y, a.size.x, y0 - a.position.y), dark)
+	ci.draw_rect(Rect2(a.position.x, y1, a.size.x, a.end.y - y1), dark)
+	var x0 := clampf(lr.position.x, a.position.x, a.end.x); var x1 := clampf(lr.end.x, a.position.x, a.end.x)
+	ci.draw_rect(Rect2(a.position.x, y0, x0 - a.position.x, y1 - y0), dark)
+	ci.draw_rect(Rect2(x1, y0, a.end.x - x1, y1 - y0), dark)
 
 static func glow(ci: CanvasItem, c: Vector2, rad: float, col: Color) -> void:
 	ci.draw_texture_rect(glow_tex(), Rect2(c - Vector2.ONE * rad, Vector2.ONE * rad * 2.0), false, col)
@@ -81,3 +87,9 @@ static func sparkle(ci: CanvasItem, c: Vector2, k: float, age: float, col := Col
 		var pc := c + Vector2(cos(ang), sin(ang)) * r
 		var cc := col; cc.a = 1.0 - age
 		ci.draw_rect(Rect2(pc.floor(), Vector2(k, k)), cc)
+
+## Warm firelight on a sprite near a fire (DECISIONS #181): white far away, up to `amt` toward a flickering
+## amber within `rad` of the fire. Multiplied into the sprite's modulate, so it costs nothing extra.
+static func firelit(p: Vector2, fire: Vector2, rad: float, flk: float, amt := 0.35) -> Color:
+	var w := clampf(1.0 - p.distance_to(fire) / rad, 0.0, 1.0) * amt * (0.75 + (flk - 1.0) * 6.0)
+	return Color.WHITE.lerp(Color(1.0, 0.72, 0.45), clampf(w, 0.0, 1.0))
