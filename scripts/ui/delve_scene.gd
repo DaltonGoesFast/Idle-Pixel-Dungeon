@@ -15,6 +15,11 @@ const EXIT := 17
 ## SPD raised high grass: base tile in its cell, overhang in the cell above (DungeonTileSheet RAISED_HIGH_GRASS(_ALT)
 ## 122/125, HIGH_GRASS_OVERHANG(_ALT) 234/237).
 const HIGH_GRASS := [122, 125]; const HIGH_GRASS_TOP := [234, 237]
+## Biome props along the far wall (DECISIONS #181), SPD raised tile + overhang drawn on the wall above:
+## RAISED_REGION_DECO 130 / REGION_DECO_OVERHANG 242 (sewers barrel, prison cage, city plinth, halls tombstone)
+## and RAISED_STATUE 128 / STATUE_OVERHANG 240. Caves' region deco is a wall chunk, so caves use the statue.
+const REGION_DECO := {"sewers": [[130, 242]], "prison": [[130, 242], [128, 240]], "caves": [[128, 240]],
+	"city": [[130, 242], [128, 240]], "halls": [[130, 242], [128, 240]]}
 const SPRITE_K := 1.5            # characters ~1.5x the tile scale (rounded to a whole multiple: pixel-perfect)
 var host                         # DelveScreen (for `pending`, `running`)
 var scroll := 0.0                # in tiles
@@ -153,6 +158,10 @@ func _sprite(spr: String, fw: int, fh: int, frame: int, row: int, feet: Vector2,
 func _grass_at(cx: int) -> bool:
 	return _h(cx, 11) % 9 == 0 or (_h(cx - 1, 11) % 9 == 0 and _h(cx, 12) % 2 == 0)
 
+## A biome prop on the far floor row at this column (seeded; the caller keeps it off grass, doors, encounters).
+func _deco_at(cx: int) -> bool:
+	return _h(cx, 21) % 9 == 0
+
 func _draw() -> void:
 	var r := _run()
 	if r.is_empty(): return
@@ -171,6 +180,7 @@ func _draw() -> void:
 	var busy_from := stop_col - 1; var busy_to := stop_col + 4
 	if ev.is_empty(): busy_to = busy_from - 1
 	var grass_cells := []
+	var deco_cells := []
 	for i in range(-int(hero_x / cs) - 2, cols):
 		var cx := hero_col + i
 		var x := floorf(ox + i * cs)
@@ -184,12 +194,13 @@ func _draw() -> void:
 				1: idx = 80 if _h(cx, 1) % 7 else 96
 				_: idx = 1 if _h(cx * 3 + row, 2) % 11 == 0 and not near_grass else 0   # no moss deco by the grass
 			if row == 1 and _h(cx, 3) % 23 == 0 and not busy: idx = DOOR_CLOSED   # side rooms pass by, shut
+			if row == 2 and _deco_at(cx) and not busy and not near_grass and _h(cx, 3) % 23 != 0: deco_cells.append([rc, cx])
 			# grass clump: SPD short-grass floor (GRASS 2) under the keyed blades, drawn after the light
 			if row == 3 and not busy and _grass_at(cx): idx = 2; grass_cells.append([rc, cx & 1, cx])
 			if row == 1 and not ev.is_empty(): idx = _encounter_wall(ev, cx - stop_col, idx)
 			draw_texture_rect_region(tiles, rc, Rect2((idx % 16) * 16, (idx / 16) * 16, 16, 16))
 		# bones on the far floor row (seeded per column, kept clear of the encounter)
-		if not busy and cx > hero_col + 1 and _h(cx, 5) % 17 == 0 and not _grass_at(cx):   # never under a grass top
+		if not busy and cx > hero_col + 1 and _h(cx, 5) % 17 == 0 and not _grass_at(cx) and not _deco_at(cx):   # never under a prop
 			var ir := UIKit.item_rect(DB.icon_index("BONES"))
 			var isz := ir.size * k
 			draw_texture_rect_region(_t("res://assets/sprites/items.png"), Rect2((Vector2(x, y0 + 2 * cs) + (Vector2(cs, cs) - isz) / 2.0).floor(), isz), ir, Color(1, 1, 1, 0.85))
@@ -203,6 +214,12 @@ func _draw() -> void:
 	if lit: SceneFX.glow(self, hc, rad * 0.55, Color(1.0, 0.7, 0.35, 0.10))
 	# SPD raised high grass: base tile (122/125) in its cell, overhang (234/237) in the cell above, behind the
 	# characters; blades lit at half the floor's darkness so they read over the dark ground
+	var decos: Array = REGION_DECO.get(String(r.biome), REGION_DECO.sewers)
+	for d in deco_cells:   # props: floor keyed out of the base, overhang on the wall, lit once like the sprites
+		var dr: Rect2 = d[0]; var pr: Array = decos[_h(int(d[1]), 22) % decos.size()]
+		var lm := _lm(dr.get_center())
+		draw_texture_rect_region(_grass_tex(tiles, pr[0]), dr, Rect2(0, 0, 16, 16), lm)
+		draw_texture_rect_region(tiles, Rect2(dr.position - Vector2(0, cs), dr.size), Rect2((pr[1] % 16) * 16, (pr[1] / 16) * 16, 16, 16), lm)
 	for g in grass_cells:
 		var gr: Rect2 = g[0]; var gb: int = HIGH_GRASS[g[1]]; var gi: int = HIGH_GRASS_TOP[g[1]]
 		# one-pixel wind sway applied to base and overhang together; tips lit lighter so they stay crisp green
