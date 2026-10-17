@@ -10,9 +10,9 @@ const TILES_PER_FLOOR := 160.0
 const ROWS := 5                  # wall top, wall face, floor, floor, wall top
 ## SPD DungeonTileSheet raised doors: closed, open, locked, crystal.
 const DOOR_CLOSED := 112; const DOOR_OPEN := 113; const DOOR_LOCKED := 114; const DOOR_CRYSTAL := 115
-const DOOR_STATES := [DOOR_CLOSED, DOOR_CLOSED, DOOR_OPEN, DOOR_LOCKED, DOOR_CRYSTAL]
-const PROPS := ["BONES", "BONES", "SOMETHING", "ORE", "SEED_SUNGRASS", "SEED_ROTBERRY", "SEED_FIREBLOOM", "CHEST", "SCROLL_HOLDER"]
-const SPRITE_K := 1.5            # characters drawn 1.5x the tile scale so they read on the inner screen
+## SPD DungeonTileSheet floor features (DECISIONS #179): exit stairs, tall grass (raised overlay), grass.
+const EXIT := 17; const GRASS := 2; const HIGH_GRASS := [66, 67]
+const SPRITE_K := 1.5            # characters ~1.5x the tile scale (rounded to a whole multiple: pixel-perfect)
 var host                         # DelveScreen (for `pending`, `running`)
 var scroll := 0.0                # in tiles
 var target := 0.0
@@ -34,7 +34,10 @@ func _pickup(idx: int, n: int, snd: String) -> void:
 	if now - int(_snd_t.get(snd, 0)) > 180: _snd_t[snd] = now; Sfx.play(snd)   # no machine-gun clicks at x3
 var _hs := {}
 var _hs_t := 0.0
-var _light: GradientTexture2D
+var _ev_key := ""                # identity of the encounter on screen, to replay its arrival
+var _ev_t := 9.0                 # seconds since that encounter appeared
+var _floor_seen := -1
+var _fade := 0.0                 # black fade-in after descending a floor
 
 func _ready() -> void:
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -72,33 +75,50 @@ func _process(delta: float) -> void:
 	var ng: int = r.get("pack_gear", []).size()
 	if _last.has("_gear") and ng > int(_last._gear): _pickup(DB.icon_index(r.pack_gear[-1].id), 1, "item")
 	_last._gear = ng
+	var ev := encounter()
+	var key := "" if ev.is_empty() else "%s|%s|%s" % [ev.kind, str(ev.get("mobs", "")), str(r.get("floor", 1))]
+	if key != _ev_key: _ev_key = key; _ev_t = 0.0
+	_ev_t += delta
+	var fl := int(r.get("floor", 1))
+	if _floor_seen >= 0 and fl > _floor_seen: _fade = 1.0
+	_floor_seen = fl
+	_fade = maxf(0.0, _fade - delta * 1.6)
 	for p in pops: p.age += delta
 	pops = pops.filter(func(p): return p.age < 1.1)
 	glow = maxf(0.0, glow - delta * 2.5)
 	queue_redraw()   # 60 fps: the draw is now ~40 quads (DECISIONS #99)
 
-## The wall face at the encounter: door cards show their two doors (locked if one needs a key), special rooms an
-## open doorway, a cleared floor the crystal exit.
+## The wall face at the encounter (DECISIONS #179): a door card shows its two doors, closed or locked if that door
+## needs a key; a special room shows its closed door with the room's icon above it. Doors are always shut unless
+## something stands in them, matching the combat rule, so no open or crystal doors pass by.
 func _encounter_wall(ev: Dictionary, dx: int, idx: int) -> int:
 	match ev.kind:
 		"door":
 			var d: Dictionary = ev.get("door", {})
 			if dx == 0: return DOOR_LOCKED if d.get("a", {}).has("cost") else DOOR_CLOSED
 			if dx == 2: return DOOR_LOCKED if d.get("b", {}).has("cost") else DOOR_CLOSED
-		"special": if dx == 0: return DOOR_OPEN
-		"floor_done": if dx == 0: return DOOR_CRYSTAL
+			if dx == 1: return 80
+		"special": if dx == 0: return DOOR_CLOSED
 	return idx
 
+## Whole-pixel scale: tiles are 16 px at an integer multiple.
+func pk() -> float:
+	return maxf(1.0, floorf(size.y / ROWS / 16.0))
+
 func cell() -> float:
-	return floorf(size.y / ROWS)
+	return 16.0 * pk()
+
+## Sprite scale: ~1.5x the tile scale, rounded to a whole number so sprite pixels stay square.
+func sk(boss := false) -> float:
+	return maxf(1.0, roundf(pk() * SPRITE_K * (1.35 if boss else 1.0)))
 
 func _h(x: int, salt: int) -> int:
 	return absi(hash(Vector3i(x, salt, int(_run().get("floor", 1)))))
 
-func _frame(anim_owner: String, anim: String) -> int:
-	var a: Dictionary = _anims.get(anim_owner, {}).get(anim, {"fps": 1, "frames": [0]})
+func _frame(anim_owner: String, anim: String, off := 0.0) -> int:
+	var a: Dictionary = _anims.get(anim_owner, {}).get(anim, _anims.get(anim_owner, {}).get("idle", {"fps": 1, "frames": [0]}))
 	var fl: Array = a.frames
-	return int(fl[int(t * float(a.fps)) % fl.size()])
+	return int(fl[int((t + off) * float(a.fps)) % fl.size()])
 
 func _sprite(spr: String, fw: int, fh: int, frame: int, row: int, feet: Vector2, k: float, flip := false) -> void:
 	var tx := _t("res://assets/sprites/%s.png" % spr)
@@ -107,13 +127,18 @@ func _sprite(spr: String, fw: int, fh: int, frame: int, row: int, feet: Vector2,
 	var sz := Vector2(fw, fh) * k
 	var pos := (feet - Vector2(sz.x / 2.0, sz.y)).floor()
 	if flip: src = Rect2(src.position.x + fw, src.position.y, -fw, fh)
-	draw_texture_rect_region(_t("res://assets/ui/shadow.png"), Rect2(pos.x + sz.x * 0.15, feet.y - k * 2, sz.x * 0.7, k * 3), Rect2(0, 0, 6, 6), Color(1, 1, 1, 0.5))
+	draw_texture_rect_region(_t("res://assets/ui/shadow.png"), Rect2((Vector2(pos.x + sz.x * 0.15, feet.y - k * 2)).floor(), Vector2(sz.x * 0.7, k * 3).floor()), Rect2(0, 0, 6, 6), Color(1, 1, 1, 0.5))
 	draw_texture_rect_region(tx, Rect2(pos, sz), src)
+
+## Tall grass clumps on the near floor row, seeded per column (never where an encounter stands).
+func _grass_at(cx: int) -> bool:
+	return _h(cx, 11) % 9 == 0 or (_h(cx - 1, 11) % 9 == 0 and _h(cx, 12) % 2 == 0)
 
 func _draw() -> void:
 	var r := _run()
 	if r.is_empty(): return
-	var cs := cell(); var k := cs / 16.0
+	var k := pk(); var cs := cell()
+	draw_rect(Rect2(Vector2.ZERO, size), Color(0.02, 0.01, 0.03))
 	var y0 := floorf((size.y - cs * ROWS) / 2.0)
 	var biome: Dictionary = DB.biomes[r.biome]
 	var tiles := _t("res://assets/tiles/%s.png" % biome.tile)
@@ -124,76 +149,84 @@ func _draw() -> void:
 	var hero_col := base
 	var ev := encounter()
 	var stop_col := hero_col + 2         # where an encounter's door/enemies stand
+	var busy_from := stop_col - 1; var busy_to := stop_col + 4
+	if ev.is_empty(): busy_to = busy_from - 1
+	var grass_cells := []
 	for i in range(-int(hero_x / cs) - 2, cols):
 		var cx := hero_col + i
 		var x := floorf(ox + i * cs)
+		var busy := cx >= busy_from and cx <= busy_to
 		for row in ROWS:
-			var rc := Rect2(x, y0 + row * cs, cs + 1, cs + 1)
+			var rc := Rect2(x, y0 + row * cs, cs, cs)
 			var idx := 0
 			match row:
 				0, 4: idx = 144
 				1: idx = 80 if _h(cx, 1) % 7 else 96
-				_: idx = 2 if _h(cx * 3 + row, 2) % 9 == 0 else (1 if _h(cx, row) % 5 == 0 else 0)
-			if row == 1 and _h(cx, 3) % 23 == 0: idx = DOOR_STATES[_h(cx, 8) % DOOR_STATES.size()]   # side doors pass by
-			if row == 2 and _h(cx, 9) % 31 == 0: idx = 3                                              # embers
+				_: idx = 1 if _h(cx * 3 + row, 2) % 11 == 0 else 0
+			if row == 1 and _h(cx, 3) % 23 == 0 and not busy: idx = DOOR_CLOSED   # side rooms pass by, shut
+			if row == 3 and not busy and _grass_at(cx): idx = GRASS; grass_cells.append(rc)
 			if row == 1 and not ev.is_empty(): idx = _encounter_wall(ev, cx - stop_col, idx)
 			draw_texture_rect_region(tiles, rc, Rect2((idx % 16) * 16, (idx / 16) * 16, 16, 16))
-		# props on the far floor row (seeded per column)
-		if cx > hero_col + 1 and _h(cx, 5) % 13 == 0:
-			var pid: String = PROPS[_h(cx, 10) % PROPS.size()]
-			var ir := UIKit.item_rect(DB.icon_index(pid))
+		# bones on the far floor row (seeded per column, kept clear of the encounter)
+		if not busy and cx > hero_col + 1 and _h(cx, 5) % 17 == 0:
+			var ir := UIKit.item_rect(DB.icon_index("BONES"))
 			var isz := ir.size * k
 			draw_texture_rect_region(_t("res://assets/sprites/items.png"), Rect2((Vector2(x, y0 + 2 * cs) + (Vector2(cs, cs) - isz) / 2.0).floor(), isz), ir, Color(1, 1, 1, 0.85))
-		# ambient biome mob idling by the wall
-		if cx > hero_col + 2 and _h(cx, 6) % 41 == 0:
-			var sets: Array = biome.get("encounter_sets", [])
-			if not sets.is_empty():
-				var mid: String = sets[_h(cx, 7) % sets.size()].mobs[0]
-				var m: Dictionary = DB.mobs[mid]
-				_sprite(m.sprite, int(m.fw), int(m.fh), _frame(mid, "idle"), 0, Vector2(x + cs / 2.0, y0 + 3 * cs - k * 2), k * SPRITE_K, true)
-	# encounter ahead
+	var arrive := clampf(_ev_t / 0.45, 0.0, 1.0); var ease := 1.0 - pow(1.0 - arrive, 3.0)
+	if not ev.is_empty():
+		var ex := floorf(ox + (stop_col - hero_col) * cs)
+		match ev.kind:
+			"floor_done":   # the floor's exit: SPD down stairs on the floor
+				draw_texture_rect_region(tiles, Rect2(ex, y0 + 2 * cs, cs, cs), Rect2((EXIT % 16) * 16, (EXIT / 16) * 16, 16, 16))
+			"campfire":
+				var fp := Vector2(ex + cs / 2.0, y0 + 3.4 * cs).floor()
+				SceneFX.glow(self, fp - Vector2(0, 3 * k), cs * 2.2 * SceneFX.flicker(t), Color(1.0, 0.55, 0.2, 0.25))
+				draw_texture_rect_region(tiles, Rect2(fp - Vector2(cs / 2.0, cs * 0.7), Vector2(cs, cs)), Rect2(3 * 16, 0, 16, 16))
+				SceneFX.fire(self, fp, k, t, 7.0)
+	# encounter ahead: each foe on its own column, alternating floor rows, facing the hero; they run in on arrival
 	if not ev.is_empty() and ev.kind == "combat":
 		var ids: Array = ev.get("mobs", [])
+		var boss: bool = ev.get("boss", false)
 		for j in ids.size():
 			var m: Dictionary = DB.mobs[ids[j]]
-			var mk := k * SPRITE_K * (1.4 if ev.get("boss", false) else 1.0)
-			_sprite(m.sprite, int(m.fw), int(m.fh), _frame(ids[j], "idle"), 0, Vector2(floorf(hero_x + (2 + j * 1.1) * cs + cs / 2.0), y0 + (3.6 + (j % 2) * 0.35) * cs), mk, true)
+			var spr := String(m.sprite)
+			var colx := floorf(ox + (stop_col - hero_col + (j / 2) * 1.0 + (j % 2) * 0.5) * cs + cs / 2.0)
+			var fy := y0 + (3.85 if j % 2 == 0 else 2.95) * cs
+			var dx := (1.0 - ease) * cs * 3.0
+			var anim := "run" if arrive < 1.0 else "idle"
+			_sprite(spr, int(m.fw), int(m.fh), _frame(spr, anim, j * 0.37), 0, Vector2(colx + dx, fy).floor(), sk(boss), true)
 	if not ev.is_empty() and ev.kind == "special" and ev.get("special", {}).has("icon"):
 		var ir := UIKit.item_rect(DB.icon_index(ev.special.icon)); var isz := ir.size * k
-		var dc := Vector2(hero_x + 2.5 * cs, y0 + 1.5 * cs + sin(t * 3.0) * k)
+		var dc := Vector2(floorf(ox + (stop_col - hero_col) * cs + cs / 2.0), y0 + 0.5 * cs + roundf(sin(t * 3.0)) * k)
+		SceneFX.glow(self, dc, cs * 0.8, Color(1, 0.95, 0.6, 0.18))
 		draw_texture_rect_region(_t("res://assets/sprites/items.png"), Rect2((dc - isz / 2.0).floor(), isz), ir)
 	# hero
 	if _hs_t <= 0.0 or _hs.is_empty(): _hs = GameState.hero_stats(r.hero); _hs_t = 0.5
 	var hs: Dictionary = _hs
 	var hf := _frame(String(hs.sprite), "run") if moving else _frame(String(hs.sprite), "idle")
-	_sprite(hs.sprite, int(hs.fw), int(hs.fh), hf, int(hs.row), Vector2(hero_x + cs / 2.0, y0 + 3.8 * cs), k * SPRITE_K)
-	# torchlight: darkness falls off with distance from the hero (bigger pool with a lit torch)
-	var lit := float(r.get("torch", 0)) > 0 and not Delve.darkness(r)
-	var rad := cs * (5.5 if lit else (2.0 if Delve.darkness(r) else 3.8))
+	var hfeet := Vector2(hero_x + cs / 2.0, y0 + 3.8 * cs).floor()
+	_sprite(hs.sprite, int(hs.fw), int(hs.fh), hf, int(hs.row), hfeet, sk())
+	# tall grass is drawn over characters (SPD's raised high-grass layer), swaying a pixel in the wind
+	for gi in grass_cells.size():
+		var gr: Rect2 = grass_cells[gi]
+		var sway := roundf(sin(t * 2.0 + gr.position.x * 0.05)) * k
+		var gidx: int = HIGH_GRASS[int(gr.position.x / cs) & 1]
+		draw_texture_rect_region(tiles, Rect2(gr.position + Vector2(sway, cs * 0.5), Vector2(cs, cs * 0.5)), Rect2((gidx % 16) * 16, (gidx / 16) * 16 + 8, 16, 8))
+	# torchlight: the whole scene darkens away from the hero; a lit torch widens the pool and warms it
+	var dk := Delve.darkness(r)
+	var lit := float(r.get("torch", 0)) > 0 and not dk
+	var rad := cs * (6.5 if lit else (2.6 if dk else 4.6)) * SceneFX.flicker(t)
 	var hc := Vector2(hero_x + cs / 2.0, y0 + 3 * cs)
-	# one radial-gradient quad for the light pool + 4 solid rects around it (was ~2400 rects per frame)
-	if _light == null:
-		var g := Gradient.new(); g.offsets = PackedFloat32Array([0.0, 0.45, 1.0])
-		g.colors = PackedColorArray([Color(0.02, 0.01, 0.03, 0.0), Color(0.02, 0.01, 0.03, 0.0), Color(0.02, 0.01, 0.03, 0.6)])
-		_light = GradientTexture2D.new(); _light.gradient = g; _light.fill = GradientTexture2D.FILL_RADIAL
-		_light.fill_from = Vector2(0.5, 0.5); _light.fill_to = Vector2(1.0, 0.5); _light.width = 128; _light.height = 128
-	var flick := 1.0 + 0.04 * sin(t * 9.0) + 0.03 * sin(t * 23.0)
-	var lr := Rect2(hc - Vector2.ONE * rad * flick, Vector2.ONE * rad * flick * 2.0)
-	var dark := Color(0.02, 0.01, 0.03, 0.6)
-	draw_texture_rect(_light, lr, false)
-	draw_rect(Rect2(0, 0, size.x, maxf(0.0, lr.position.y)), dark)
-	draw_rect(Rect2(0, lr.end.y, size.x, maxf(0.0, size.y - lr.end.y)), dark)
-	draw_rect(Rect2(0, lr.position.y, maxf(0.0, lr.position.x), lr.size.y), dark)
-	draw_rect(Rect2(lr.end.x, lr.position.y, maxf(0.0, size.x - lr.end.x), lr.size.y), dark)
-	if lit: draw_circle(hc, rad * 0.35, Color(1.0, 0.75, 0.35, 0.06))
+	if lit: SceneFX.glow(self, hc, rad * 0.55, Color(1.0, 0.7, 0.35, 0.10))
+	SceneFX.darkness(self, Rect2(Vector2.ZERO, size), hc, rad, 0.78)
 	# parallax dust: far layer drifts at 0.3x the scroll, near at 1.4x
 	for layer in [[0.3, 0.25, 9], [1.4, 0.5, 6]]:
 		for n in int(layer[2]):
 			var px := fposmod(n * 137.0 * k - scroll * cs * float(layer[0]) + sin(t + n) * k * 3, size.x)
 			var py := fposmod(n * 59.0 * k + t * k * 2.0 * (n % 3 + 1), size.y)
 			draw_rect(Rect2(Vector2(px, py).floor(), Vector2(k, k)), Color(1, 0.9, 0.7, float(layer[1])))
-	# pickup pops
-	if glow > 0.0: draw_circle(hc - Vector2(0, cs * 0.6), cs * 0.9, Color(1.0, 0.9, 0.4, 0.18 * glow))
+	# pickup pops: rising icon, "+N", and an SPD-style spark burst
+	if glow > 0.0: SceneFX.glow(self, hc - Vector2(0, cs * 0.6), cs * 1.2, Color(1.0, 0.9, 0.4, 0.3 * glow))
 	var font := get_theme_default_font(); var fs := int(UIKit.font_size * 0.8)
 	for i in pops.size():
 		var p: Dictionary = pops[i]
@@ -201,9 +234,12 @@ func _draw() -> void:
 		var isz := ir.size * k
 		var a := clampf(1.0 - p.age / 1.1, 0.0, 1.0)
 		var c := Vector2(hc.x + (i % 3 - 1) * cs * 0.5, hc.y - cs * 1.4 - p.age * cs * 1.2)
+		SceneFX.sparkle(self, Vector2(hc.x + (i % 3 - 1) * cs * 0.5, hc.y - cs * 1.2), k, p.age / 0.5)
 		draw_texture_rect_region(_t("res://assets/sprites/items.png"), Rect2((c - isz / 2.0).floor(), isz), ir, Color(1, 1, 1, a))
 		var tp := (c + Vector2(isz.x / 2.0 + k, fs * 0.35)).floor()
 		draw_string_outline(font, tp, "+%d" % int(p.n), HORIZONTAL_ALIGNMENT_LEFT, -1, fs, maxi(2, int(k)), Color(0, 0, 0, a))
 		draw_string(font, tp, "+%d" % int(p.n), HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(1, 0.95, 0.5, a))
+	# descending: the new floor fades in from black
+	if _fade > 0.0: draw_rect(Rect2(Vector2.ZERO, size), Color(0, 0, 0, _fade))
 	# border
 	draw_rect(Rect2(Vector2.ZERO, size), Color(0, 0, 0, 0.9), false, maxf(2.0, k))

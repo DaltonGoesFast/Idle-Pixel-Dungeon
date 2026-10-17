@@ -127,17 +127,25 @@ func _draw() -> void:
 			var path := absf(ctr.x - fire.x) < cs * 0.6 and ctr.y > fire.y
 			_tile(rc, (0 if h % 3 else 6) if path else (2 if h % 4 else 8))
 			if y == 0: _tile(rc, 122 if h % 2 else 125)
-	# campfire: embers tile + flickering pixel flames + warm glow
+	# scenery (DECISIONS #179): SPD grass tufts and tall grass sway around the clearing, barrels by the Guild
+	# and the Forge, all from the sewers tile sheet; kept off the path and the NPC spots
+	for y in rows:
+		for x in cols:
+			var h2 := absi((x * 2654435761) ^ (y * 40503) ^ 0x5bd1)
+			var rc2 := Rect2(ox + x * cs, sky_h + y * cs, cs, cs)
+			var c2 := rc2.get_center()
+			if absf(c2.x - fire.x) < cs * 1.6 or y == 0: continue
+			if SPOTS.any(func(sp): return spot_rect(sp).grow(cs * 0.4).has_point(c2)): continue
+			if h2 % 7 == 0:
+				var sway := roundf(sin(t * 1.6 + x * 0.9 + y)) * kk
+				_tile(Rect2(rc2.position + Vector2(sway, 0), rc2.size), [250, 251, 253, 254][h2 % 4])
+	_scenery(kk, cs, fire)
+	# campfire: SPD embers tile under a FlameParticle fire with sparks and smoke, and a flickering warm glow
 	var fr := Rect2((fire - Vector2(cs, cs) / 2.0).floor(), Vector2(cs, cs))
-	draw_circle(fire, cs * (1.9 + 0.08 * sin(t * 7.0)), Color(1.0, 0.6, 0.2, 0.10))
-	draw_circle(fire, cs * 1.1, Color(1.0, 0.7, 0.3, 0.10))
+	var flk := SceneFX.flicker(t)
+	SceneFX.glow(self, fire, cs * 2.6 * flk, Color(1.0, 0.55, 0.2, 0.22))
 	_tile(fr, 3)
-	for i in 7:
-		var ph := t * 9.0 + i * 1.7
-		var hgt := (4.0 + 5.0 * absf(sin(ph))) * kk
-		var fx := fire.x + (i - 3) * 1.6 * kk + sin(ph * 0.7) * kk
-		var col := Color("ffd24a") if i % 2 else Color("ff7a1a")
-		draw_rect(Rect2(Vector2(fx, fire.y + 2 * kk - hgt).floor(), Vector2(kk * 2, hgt)), col)
+	SceneFX.fire(self, fire + Vector2(0, kk * 4), kk, t, 12.0, true, 1.6)
 	# the selected hero rests by the fire (idle frame 0)
 	var hs := _sprite(hero)
 	var hz := Vector2(12, 15) * kk * 2.0
@@ -164,6 +172,11 @@ func _draw() -> void:
 				var an: Array = NPC_IDLE[s[1]]; var fl: Array = an[1]
 				var frame: int = fl[int((t + s[4] * 3.0) * float(an[0])) % fl.size()]
 				draw_texture_rect_region(_sprite(s[1]), sr, Rect2(frame * fw, 0, fw, s[3]))
+	# night: the clearing darkens away from the fire, the sky stays readable (DECISIONS #179)
+	SceneFX.darkness(self, Rect2(0, sky_h, size.x, size.y - sky_h), fire, minf(size.x, size.y - sky_h) * 0.62 * flk, 0.5)
+	SceneFX.glow(self, fire, cs * 1.2 * flk, Color(1.0, 0.7, 0.3, 0.12))
+	for s in SPOTS:
+		var sr := spot_rect(s)
 		# name plate: SPD-ish yellow text with a dark backing
 		var lbl := _spot_label(s)
 		var lr := label_rect(s)
@@ -179,6 +192,17 @@ func _draw() -> void:
 		if _has_news(s[0]):   # "!" badge: something ready (identified item, affordable upgrade)
 			var bp := Vector2(sr.end.x - kk * 2, sr.position.y - kk * 2)
 			draw_circle(bp, kk * 3.5, Color("ff5a2a")); draw_string(font, bp + Vector2(-fs * 0.18, fs * 0.33), "!", HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color.WHITE)
+
+## Props from the SPD sewers sheet: barrels (raised, transparent) beside the Guild and the Forge.
+func _scenery(kk: float, cs: float, _fire: Vector2) -> void:
+	for sp in SPOTS:
+		var sr := spot_rect(sp)
+		match sp[0]:
+			"Guild":
+				_tile(Rect2(Vector2(sr.position.x - cs - kk * 2, sr.end.y - cs).floor(), Vector2(cs, cs)), 130)
+				_tile(Rect2(Vector2(sr.position.x - cs * 1.6 - kk * 2, sr.end.y - cs * 0.8).floor(), Vector2(cs, cs)), 131)
+			"Forge":
+				_tile(Rect2(Vector2(sr.position.x - cs - kk * 2, sr.end.y - cs).floor(), Vector2(cs, cs)), 130)
 
 ## Badge rule: a facility upgrade is affordable, or an identification is finished.
 func _has_news(page: String) -> bool:
