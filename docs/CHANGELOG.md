@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Battle scene polish (DECISIONS #183): walls in every biome carry their SPD decorations (Sewers drains drip, Prison torches burn, Caves ore glints, City recesses smoke, Halls lava throws embers), and tall grass grows on grass. Shots now fly SPD's own projectiles: spirit arrows, magic bolts, DM-100 lightning, the Evil Eye's death ray, the Bright Fist's light ray, and shaman and warlock bolts, each from the monster that fired it. Struck characters flash white, and fallen foes are drawn in the right order.
 - Delve scene polish (DECISIONS #182): walls and doors have their SPD tops (wall caps, door lintels, bookshelf tops), and the floor ends in SPD's chasm edge instead of a hard cut. Sewers and other corridors get stitched SPD water puddles, every screen shows a biome prop, Prison wall torches burn, City walls smoke and glow green, and Sewers drip. In fights, foes are drawn front-to-back correctly, the hero lunges and the struck foe flashes and recoils, and beaten foes fall with their SPD death frames and fade. The gnoll camp's gnolls no longer overlap.
 - Camp and delve scene polish (DECISIONS #181): the camp sky is fully static, grass never grows over barrels or NPCs and sways as one plant, and the campfire warms nearby characters with a flickering glow. In the delve, grass reads as crisp green blades (no muddy moss beside it), it sways, every foe plays its full SPD attack animation, the hero flashes white when a blow lands, and each biome shows its own props along the wall.
 
