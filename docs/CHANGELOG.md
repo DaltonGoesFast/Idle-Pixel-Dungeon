@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Enchanter's Desk splits into Scribe, Identify, and Attune tabs, the same section buttons the Forge and Guild use, so the queue and the gear are not one long scroll. Identify shows how many items are still unknown, and Attune shows cracked rings, wands and artifacts (+test).
 
 ## 0.41.0
 - Unidentified alchemy brews stay on their own flask. The pot was showing the healing yield's description and sprite, so every unknown potion looked like a Potion of Healing (+tests).

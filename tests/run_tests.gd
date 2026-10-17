@@ -62,6 +62,7 @@ func _ready() -> void:
 	test_crate_slot(gs)
 	test_max_all_supplies(gs)
 	test_guild_pack_cap(gs)
+	test_enchanter_tabs(gs)
 	test_identify_queue_all(gs)
 	test_blind_shots(gs)
 	test_vanilla_wands(gs)
@@ -2163,6 +2164,11 @@ func _btn_named(root: Node, nm: String) -> Button:
 		if not b.is_queued_for_deletion(): return b
 	return null
 
+func _btn_starts(root: Node, prefix: String) -> Button:
+	for b in (root.win_layer if root.win_layer else root).find_children("*", "Button", true, false):
+		if not b.is_queued_for_deletion() and String(b.text).begins_with(prefix): return b
+	return null
+
 func test_max_all_supplies(gs) -> void:
 	print("[max all supplies]")
 	gs.new_game()
@@ -2209,6 +2215,27 @@ func test_guild_pack_cap(gs) -> void:
 	check(int(gs.run.supplies.ration) == 3 and int(gs.run.supplies.torch) == 3 and gs.mat("ration") == 17, "start_run packs no more than the cap; the rest stays in the stash")
 	gs.end_run("abandon")
 
+## DECISIONS #173: Scribe, Identify and Attune are separate tabs. The choice sticks, and only the open tab is built.
+func test_enchanter_tabs(gs) -> void:
+	print("[enchanter tabs]")
+	gs.new_game()
+	gs.add_gear("ring_wealth", false)
+	var cs = load("res://scripts/ui/camp_screen.gd").new(); add_child(cs)
+	cs.open_page("Enchanter")
+	var blob := _node_text(cs.win_layer)
+	check(_btn_starts(cs, "Scribe") != null and _btn_starts(cs, "Identify") != null and _btn_starts(cs, "Attune") != null, "Enchanter has Scribe, Identify and Attune tabs")
+	check(blob.contains("Recipes (tap for details)") and not blob.contains("Identifying (") and not blob.contains("Attune rings"), "Scribe opens first")
+	var idb := _btn_starts(cs, "Identify")
+	if idb: idb.pressed.emit()
+	blob = _node_text(cs.win_layer)
+	check(blob.contains("Identifying (") and cs.win_layer.find_child("QueueAll", true, false) != null and not blob.contains("Recipes (tap for details)"), "Identify shows the queue and hides the scribe")
+	check(cs.section.get("Enchanter", "") == "identify", "the Identify choice is remembered")
+	var atb := _btn_starts(cs, "Attune")
+	if atb: atb.pressed.emit()
+	blob = _node_text(cs.win_layer)
+	check(blob.contains("Attune rings") and not blob.contains("Identifying (") and not blob.contains("Recipes (tap for details)"), "Attune shows rings, wands and artifacts")
+	cs.close_page(); cs.queue_free()
+
 ## DECISIONS #145: Enchanter "Queue all", and an Enchanter upgrade shortens identifications already running.
 func test_identify_queue_all(gs) -> void:
 	print("[identify queue all]")
@@ -2217,6 +2244,7 @@ func test_identify_queue_all(gs) -> void:
 	gs.enqueue_identify(a)
 	check(gs.identify_candidates().size() == 2, "candidates skip known and already-queued items")
 	var cs = load("res://scripts/ui/camp_screen.gd").new(); add_child(cs)
+	cs.section["Enchanter"] = "identify"
 	cs.open_page("Enchanter")
 	var qa = null
 	for n in cs.win_layer.find_children("QueueAll", "Button", true, false): qa = n
@@ -2235,6 +2263,7 @@ func test_identify_queue_all(gs) -> void:
 	check(prog.size() == 3 and prog[0] > 0.45 and prog[0] < 0.85 and prog[1] > 0.2 and prog[1] < prog[0] and prog[2] > 0.1 and prog[2] < prog[1],
 		"every queued item fills across its whole wait, not only the active one (%.2f %.2f %.2f)" % [prog[0] if prog.size() > 0 else -1, prog[1] if prog.size() > 1 else -1, prog[2] if prog.size() > 2 else -1])
 	var cs2 = load("res://scripts/ui/camp_screen.gd").new(); add_child(cs2)
+	cs2.section["Enchanter"] = "identify"
 	cs2.open_page("Enchanter")
 	var bars: Array = cs2.win_layer.find_children("IdentifyBar", "ProgressBar", true, false)
 	var shown := bars.size() == 3
@@ -2495,6 +2524,7 @@ func test_no_stacked_cost_rows(gs) -> void:
 		var cs = load("res://scripts/ui/camp_screen.gd").new(); add_child(cs); cs.size = vs
 		var bad := []
 		cs.section["Forge"] = "upgrade"
+		cs.section["Enchanter"] = "attune"
 		for pg in cs.PAGE_ORDER:
 			cs.open_page(pg)
 			for f in UIKit.collapsing_flows(cs.win_layer): bad.append("%s: %s" % [pg, f.get_parent().get_class()])

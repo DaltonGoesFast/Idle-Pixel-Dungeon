@@ -299,7 +299,7 @@ func _foot() -> VBoxContainer:
 	f.visible = true
 	return f
 
-## Section buttons at the top of a window (Stash, Forge, Guild). Returns the selected key.
+## Section buttons at the top of a window (Stash, Forge, Enchanter, Guild). Returns the selected key.
 ## opts: [[key, label], ...]; the choice is kept per page while the app runs.
 var section := {}
 var top_next := false   # the next window rebuild starts scrolled to the top (a section switch)
@@ -1079,8 +1079,21 @@ func _page_facility(page: String, id: String) -> void:
 		elif sec == "rings": _ring_forge_section(v)
 		else: _forge_upgrade_section(v)
 		return
+	if id == "enchanter":
+		var waiting := GameState.id_queue.size() + GameState.identify_candidates().size()
+		var cracked := 0
+		var hw: Dictionary = GameState.heroes.mage
+		if String(hw.get("wand", "")) != "" and hw.get("wand_cracked", false): cracked += 1
+		for g in GameState.gear:
+			if g.get("cracked", false) and g.known and GameState.is_trinket(g): cracked += 1
+		var desk := _switcher(v, page, [["scribe", "Scribe"],
+			["identify", "Identify" + (" (%d)" % waiting if waiting else "")],
+			["attune", "Attune" + (" (%d cracked)" % cracked if cracked else "")]])
+		if desk == "identify": _identify_section(v)
+		elif desk == "attune": _attune_section(v)
+		else: _recipe_slots(v, id, "Recipes (tap for details)")
+		return
 	_recipe_slots(v, id, "Recipes (tap for details)")
-	if id == "enchanter": _identify_section(v); _attune_section(v)
 
 func _forge_upgrade_section(v: VBoxContainer) -> void:
 	v.add_child(UIKit.header("Upgrade & repair (cap +%d)" % GameState.forge_cap()))
