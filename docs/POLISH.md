@@ -57,6 +57,17 @@ Priority: **P1** fix before a public build, **P2** next polish pass, **P3** nice
 | 21 | Dark far halves in 12x12 arenas | report 4dd90ed | P3 | M |
 | 22 | Special-room cards (Trapped Vault, Chained Prisoner, Abandoned Shop, Gnoll Camp) use generic icons; give each its SPD sprite | #41–#44 | P3 | S |
 
+## Camp and delve scene art
+| # | Item | Source | Pri | Effort |
+|---|---|---|---|---|
+| 39 | ~~Delve corridor drew tiles and sprites at a fractional scale (soft, uneven pixels)~~ **Done** (DECISIONS #179) | overnight 2026-10-16 | P2 | S |
+| 40 | ~~Delve wall showed random locked and crystal doors, and an open door for special rooms; doors never match the "shut unless occupied" rule~~ **Done** (#179) | overnight 2026-10-16 | P1 | S |
+| 41 | ~~Idle biome mobs and item props (rotberry seeds, holder outlines, "something") stood in the corridor and overlapped the encounter~~ **Done** (#179) | overnight 2026-10-16 | P2 | S |
+| 42 | ~~Delve floor exit was a crystal door; now SPD down stairs~~ **Done** (#179) | overnight 2026-10-16 | P3 | S |
+| 43 | ~~Camp campfire was seven orange bars; needs SPD flame particles, sparks, smoke, flicker and a night light pool~~ **Done** (#179) | overnight 2026-10-16 | P2 | M |
+| 44 | ~~Encounter foes stacked on one spot and popped in~~ **Done**: one column each, two rows, run in (#179) | overnight 2026-10-16 | P2 | S |
+| 45 | Animated water puddles in the Sewers corridor (needs SPD water edge stitching) | overnight 2026-10-16 | P3 | M |
+
 ## Code / docs hygiene (no player impact)
 | # | Item | Source | Pri | Effort |
 |---|---|---|---|---|
