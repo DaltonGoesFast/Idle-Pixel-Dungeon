@@ -32,6 +32,9 @@ var _anims := {}
 var _tex := {}
 var _redraw_t := 0.0
 var glow := 0.0
+var _last_combat := {}            # the combat on screen (ids, boss, world column), for its death scene
+var _vis_left := 0                # leftmost visible world column (set each draw)
+var _dying := {}                  # foes playing their SPD die frames after a won fight; age in seconds
 var hit_flash := 0.0              # hero white flash when a foe's lunge lands (0..1)
 var _snd_t := {}
 
@@ -98,6 +101,10 @@ func _process(delta: float) -> void:
 	pops = pops.filter(func(p): return p.age < 1.1)
 	glow = maxf(0.0, glow - delta * 2.5)
 	hit_flash = maxf(0.0, hit_flash - delta * 8.0)
+	if not _dying.is_empty():
+		_dying.age = float(_dying.age) + delta
+		# kept until the fight's columns scroll off the left edge, so its cleared ground never pops props in view
+		if float(_dying.age) > 2.5 and (int(_dying.col) + 6 < _vis_left or float(_dying.age) > 30.0): _dying = {}
 	queue_redraw()   # 60 fps: the draw is now ~40 quads (DECISIONS #99)
 
 ## The wall face at the encounter (DECISIONS #179): a door card shows its two doors, closed or locked if that door
@@ -115,6 +122,11 @@ func _encounter_wall(ev: Dictionary, dx: int, idx: int) -> int:
 			for op in ROOM_SCENES.get(String(ev.special.get("id", "")), []):   # room tiles set into the wall (bookshelves)
 				if String(op[0]) == "t" and float(op[3]) == 1.0 and int(op[2]) == dx: return int(op[1])
 	return idx
+
+## The fight on screen was won (DelveScreen._after_fight): its foes play their SPD die animation and fade.
+func foes_fell() -> void:
+	if _last_combat.is_empty(): return
+	_dying = _last_combat.duplicate(); _dying.age = 0.0; _last_combat = {}
 
 ## Whole-pixel scale: tiles are 16 px at an integer multiple.
 func pk() -> float:
@@ -144,18 +156,20 @@ func _lm(p: Vector2, strength := 1.0) -> Color:
 	var v := 1.0 - _la * d * strength
 	return Color(v, v, v)
 
-func _sprite(spr: String, fw: int, fh: int, frame: int, row: int, feet: Vector2, k: float, flip := false, shadow := true, flash := 0.0) -> void:
+func _sprite(spr: String, fw: int, fh: int, frame: int, row: int, feet: Vector2, k: float, flip := false, shadow := true, flash := 0.0, alpha := 1.0) -> void:
 	var tx := _t("res://assets/sprites/%s.png" % spr)
 	var cols := maxi(1, tx.get_width() / fw)
 	var src := Rect2((frame % cols) * fw, (frame / cols + row) * fh, fw, fh)
 	var sz := Vector2(fw, fh) * k
 	var pos := (feet - Vector2(sz.x / 2.0, sz.y)).floor()
-	if flip: src = Rect2(src.position.x + fw, src.position.y, -fw, fh)
-	if shadow: draw_texture_rect_region(_t("res://assets/ui/shadow.png"), Rect2((Vector2(pos.x + sz.x * 0.15, feet.y - k * 2)).floor(), Vector2(sz.x * 0.7, k * 3).floor()), Rect2(0, 0, 6, 6), Color(1, 1, 1, 0.5))
-	draw_texture_rect_region(tx, Rect2(pos, sz), src, _lm(feet - Vector2(0, sz.y * 0.5)))
+	if shadow: draw_texture_rect_region(_t("res://assets/ui/shadow.png"), Rect2((Vector2(pos.x + sz.x * 0.15, feet.y - k * 2)).floor(), Vector2(sz.x * 0.7, k * 3).floor()), Rect2(0, 0, 6, 6), Color(1, 1, 1, 0.5 * alpha))
+	var lm := _lm(feet - Vector2(0, sz.y * 0.5)); lm.a = alpha
+	# mirror through a negative destination width: a negative source width dropped some frames (e.g. gnoll die 10)
+	var dst := Rect2(pos.x + sz.x, pos.y, -sz.x, sz.y) if flip else Rect2(pos, sz)
+	draw_texture_rect_region(tx, dst, src, lm)
 	if flash > 0.0:   # white flash: the same frame again, overbright (modulate > 1 saturates to white), fading
 		var f := 1.0 + 4.0 * flash
-		draw_texture_rect_region(tx, Rect2(pos, sz), src, Color(f, f, f, flash))
+		draw_texture_rect_region(tx, dst, src, Color(f, f, f, flash * alpha))
 
 ## Tall grass clumps on the near floor row, seeded per column (never where an encounter stands).
 ## Corridor puddles (DECISIONS #182): at most one per 11-column block, 2-3 columns wide on one or both floor
@@ -238,6 +252,9 @@ func _draw() -> void:
 	var stop_col := hero_col + 2         # where an encounter's door/enemies stand
 	var busy_from := stop_col - 1; var busy_to := stop_col + 5
 	if ev.is_empty(): busy_to = busy_from - 1
+	if ev.is_empty() and not _dying.is_empty():   # the won fight's ground stays clear (no barrel popping up under a corpse)
+		busy_from = int(_dying.col) - 1; busy_to = int(_dying.col) + 5
+	_vis_left = hero_col - int(ceil(hero_x / cs)) - 1
 	var grass_cells := []
 	var deco_cells := []
 	var wet_cells := []
@@ -325,10 +342,22 @@ func _draw() -> void:
 				SceneFX.glow(self, fp - Vector2(0, 3 * k), cs * 2.2 * SceneFX.flicker(t), Color(1.0, 0.55, 0.2, 0.25))
 				draw_texture_rect_region(tiles, Rect2(fp - Vector2(cs / 2.0, cs * 0.7), Vector2(cs, cs)), Rect2(3 * 16, 0, 16, 16), _lm(fp))
 				SceneFX.fire(self, fp, k, t, 7.0)
-	# encounter ahead: each foe on its own whole column, alternating floor rows, facing the hero; they run in on arrival
+	# encounter ahead: each foe on its own whole column, alternating floor rows, facing the hero; they run in on arrival.
+	# Characters are collected and drawn back to front by their feet (z-order), the hero included.
+	var actors := []
+	var h_atk := -1.0; var h_win := 0.3; var h_tgt := -1
 	if not ev.is_empty() and ev.kind == "combat":
 		var ids: Array = ev.get("mobs", [])
 		var boss: bool = ev.get("boss", false)
+		_last_combat = {"ids": ids, "boss": boss, "col": stop_col}
+		var per := 2.6 + ids.size() * 0.4
+		# the hero answers between the foes' blows: SPD attack frames, a lunge, and the struck foe flashes and recoils
+		var ha: Dictionary = _anims.get(String(_hs.get("sprite", "")), {}).get("attack", {})
+		if not ha.is_empty(): h_win = clampf(float(ha.frames.size()) / float(ha.fps), 0.2, 0.8)
+		var hoff := 0.7 + ids.size() * 0.9
+		if arrive >= 1.0 and ids.size() > 0:
+			var hp := fposmod(_ev_t - hoff, per)
+			if hp < h_win + 0.3: h_atk = hp; h_tgt = int(floorf((_ev_t - hoff) / per)) % ids.size()
 		for j in ids.size():
 			var m: Dictionary = DB.mobs[ids[j]]
 			var spr := String(m.sprite)
@@ -339,7 +368,7 @@ func _draw() -> void:
 			var fr := _frame(spr, anim, j * 0.37)
 			# menace: every ~2.6 s one foe plays its SPD attack frames with a short lunge toward the hero
 			# the window is the SPD attack animation's own length (frames / fps), so every frame plays once
-			var ph := fposmod(_ev_t - 0.6 - j * 0.9, 2.6 + ids.size() * 0.4)
+			var ph := fposmod(_ev_t - 0.6 - j * 0.9, per)
 			var lunge := 0.0
 			var a: Dictionary = _anims.get(spr, {}).get("attack", {})
 			var win := clampf(float(a.frames.size()) / float(a.fps), 0.2, 0.8) if not a.is_empty() else 0.3
@@ -349,7 +378,25 @@ func _draw() -> void:
 				lunge = -sin(ph / win * PI) * cs * 0.25
 				# SPD CharSprite.flash(): the hero blinks white for a moment as the blow lands (lunge peak)
 				if absf(ph - win * 0.5) < 0.06: hit_flash = 1.0
-			_sprite(spr, int(m.fw), int(m.fh), fr, 0, Vector2(colx + dx + lunge, fy).floor(), sk(boss), true)
+			var fflash := 0.0
+			if j == h_tgt:   # struck by the hero: white flash and a small knockback, easing back
+				var kt := h_atk - h_win * 0.5
+				if kt >= 0.0 and kt < 0.25: lunge += sin(kt / 0.25 * PI) * cs * 0.12
+				if kt >= 0.0 and kt < 0.12: fflash = 1.0 - kt / 0.12
+			actors.append({"spr": spr, "fw": int(m.fw), "fh": int(m.fh), "fr": fr, "row": 0, "feet": Vector2(colx + dx + lunge, fy).floor(), "k": sk(boss), "flip": true, "flash": fflash, "alpha": 1.0})
+	# foes that fell in the fight just won: SPD die frames where they stood, then a fade (DECISIONS #182)
+	if not _dying.is_empty():
+		var dids: Array = _dying.ids
+		for j in dids.size():
+			var m: Dictionary = DB.mobs[dids[j]]
+			var spr := String(m.sprite)
+			var da: Dictionary = _anims.get(spr, {}).get("die", {})
+			var dur := float(da.frames.size()) / float(da.fps) if not da.is_empty() else 0.0
+			var fr := int(da.frames[mini(int(float(_dying.age) * float(da.fps)), da.frames.size() - 1)]) if not da.is_empty() else _frame(spr, "idle")
+			var al := 1.0 - clampf((float(_dying.age) - dur - 0.4) / 1.0, 0.0, 1.0)   # hold the corpse, then fade
+			if al <= 0.0: continue
+			var colx := floorf(ox + (int(_dying.col) - hero_col + j) * cs + cs / 2.0)
+			actors.append({"spr": spr, "fw": int(m.fw), "fh": int(m.fh), "fr": fr, "row": 0, "feet": Vector2(colx, y0 + (3.85 if j % 2 == 0 else 2.95) * cs).floor(), "k": sk(bool(_dying.boss)), "flip": true, "flash": 0.0, "alpha": al})
 	if not ev.is_empty() and ev.kind == "special": _room_scene(String(ev.special.get("id", "")), ox + (stop_col - hero_col) * cs, y0, cs, k, biome)
 	if not ev.is_empty() and ev.kind == "special" and ev.get("special", {}).has("icon") and not ROOM_SCENES.has(String(ev.special.get("id", ""))):
 		var ir := UIKit.item_rect(DB.icon_index(ev.special.icon)); var isz := ir.size * k
@@ -360,8 +407,15 @@ func _draw() -> void:
 	if _hs_t <= 0.0 or _hs.is_empty(): _hs = GameState.hero_stats(r.hero); _hs_t = 0.5
 	var hs: Dictionary = _hs
 	var hf := _frame(String(hs.sprite), "run") if moving else _frame(String(hs.sprite), "idle")
-	var hfeet := Vector2(hero_x + cs / 2.0, y0 + 3.8 * cs).floor()
-	_sprite(hs.sprite, int(hs.fw), int(hs.fh), hf, int(hs.row), hfeet, sk(), false, true, hit_flash)
+	var hlunge := 0.0
+	if h_atk >= 0.0 and h_atk < h_win:
+		var ha2: Dictionary = _anims.get(String(hs.sprite), {}).get("attack", {})
+		if not ha2.is_empty(): hf = int(ha2.frames[mini(int(h_atk * float(ha2.fps)), ha2.frames.size() - 1)])
+		hlunge = sin(h_atk / h_win * PI) * cs * 0.25
+	var hfeet := Vector2(hero_x + cs / 2.0 + hlunge, y0 + 3.8 * cs).floor()
+	actors.append({"spr": String(hs.sprite), "fw": int(hs.fw), "fh": int(hs.fh), "fr": hf, "row": int(hs.row), "feet": hfeet, "k": sk(), "flip": false, "flash": hit_flash, "alpha": 1.0})
+	actors.sort_custom(func(p, q): return p.feet.y < q.feet.y)
+	for ac in actors: _sprite(ac.spr, ac.fw, ac.fh, ac.fr, ac.row, ac.feet, ac.k, ac.flip, true, ac.flash, ac.alpha)
 	# parallax dust: far layer drifts at 0.3x the scroll, near at 1.4x
 	for layer in [[0.3, 0.25, 9], [1.4, 0.5, 6]]:
 		for n in int(layer[2]):

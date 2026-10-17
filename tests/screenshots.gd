@@ -125,6 +125,9 @@ func _ready() -> void:
 			_clear_pops()
 			main.delve.running = false
 			main.delve.pending = Delve.combat_event(GameState.run, Delve.rng_for(GameState.run, 4), ["gnoll", "rat"]); main.delve._show_card()])
+		plan.append([sz, "delve_death", func():   # the fight above was won: SPD die frames and fade (DECISIONS #182)
+			main.delve.scene._last_combat = {"ids": ["gnoll", "rat"], "boss": false, "col": main.delve.scene._last_combat.get("col", 0)}
+			main.delve.pending = {}; main.delve._show_card(); main.delve.scene.foes_fell()])
 		plan.append([sz, "delve_special", func():
 			_clear_pops()
 			main.delve.running = false

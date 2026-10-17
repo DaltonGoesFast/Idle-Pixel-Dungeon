@@ -539,6 +539,7 @@ func _after_fight(ev: Dictionary, res: Dictionary, reward: Dictionary) -> void:
 			return
 		if GameState.heroes[GameState.run.hero].level > lvl:
 			Sfx.play("levelup"); GameState.run.talent_prompted = false
+	if scene and res.get("won", false): scene.foes_fell()   # the scene plays the foes' death frames
 	if Delve.close_to_dying(GameState) and GameState.settings.get("full_auto", false):
 		_stop_auto_low_hp()
 	if res.get("pause_after", false): _pause_after_fight()
