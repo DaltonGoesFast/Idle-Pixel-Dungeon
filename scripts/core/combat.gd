@@ -900,7 +900,7 @@ func _resolve_danger() -> void:
 	for d in danger.duplicate():
 		if d.at <= time:
 			danger.erase(d)
-			_ev({"t": "blast", "pos": d.pos})
+			_ev({"t": "blast", "pos": d.pos, "uid": int(d.get("uid", 0)), "src": String(d.get("src", "")), "debuff": String(d.get("debuff", ""))})   # caster + source only feed the zap visual
 			if d.has("leap"):   # Ripper Demon lands (on the tile, or next to it if taken)
 				var lm = null
 				for e in enemies():

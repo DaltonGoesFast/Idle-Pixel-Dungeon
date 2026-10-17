@@ -143,7 +143,7 @@ func play_events(evs: Array) -> void:
 				Sfx.play("zap" if e.get("magic", true) else "atk_spiritbow")
 			"blast":
 				blasts.append({"pos": Vector2(e.pos), "t": 0.0}); Sfx.play("hit_crush")
-				_zap_visual(Vector2i(e.pos), fired)
+				_zap_visual(Vector2i(e.pos), fired, e)
 			"telegraph": Sfx.buzz(20)   # no alarm sound (DECISIONS #100)
 			"shock": blasts.append({"pos": Vector2(e.pos), "t": 0.0, "shock": true})
 			"burn": blasts.append({"pos": Vector2(e.pos), "t": 0.0, "fire": true}); Sfx.play("burning")
@@ -172,17 +172,19 @@ func _shot(kind: String, from: Vector2, to: Vector2, col := Color.WHITE) -> void
 
 ## A telegraphed zap resolving on `p`: draw what fired it, from the caster (SPD DM100 Lightning, Shaman / Warlock
 ## MagicMissile, Evil Eye DeathRay, Bright Fist LightRay). Combat resolves the damage; this only reads it.
-func _zap_visual(p: Vector2i, fired: Dictionary) -> void:
-	for dz in _danger_prev:
+## The blast event names its caster, so a telegraph made and resolved inside one step still draws; older danger
+## snapshots are the fallback.
+func _zap_visual(p: Vector2i, fired: Dictionary, ev := {}) -> void:
+	var cands := ([{"pos": p, "uid": ev.uid, "src": ev.get("src", ""), "debuff": ev.get("debuff", "")}] if int(ev.get("uid", 0)) > 0 else []) + _danger_prev
+	for dz in cands:
 		if Vector2i(dz.pos) != p or int(dz.get("uid", 0)) <= 0: continue
 		var src := String(dz.get("src", ""))
 		if not (src.ends_with("lightning") or src.ends_with("beam")): continue
 		var m = null
 		for u in combat.units:
 			if u.uid == int(dz.uid): m = u
-		if m == null: return
+		if m == null or fired.has(m.uid): continue   # a second zapper on the same cell still draws
 		var from: Vector2 = disp.get(m.uid, Vector2(m.pos))
-		if fired.has(m.uid): return
 		fired[m.uid] = true
 		_play(m.uid, "zap" if anims.get(String(m.sprite), {}).has("zap") else "attack", float(p.x) - from.x)
 		match String(m.sprite):
@@ -220,7 +222,7 @@ func _process(d: float) -> void:
 			var st: Dictionary = ustate.get(u.uid, {"anim": "idle", "t": randf() * 3.0, "flip": false})
 			st.t += d
 			if st.anim == "run" and disp[u.uid] == target and st.t > 0.1: st.anim = "idle"; st.t = 0.0
-			elif st.anim == "attack" and _anim_done(u.sprite, "attack", st.t): st.anim = "idle"; st.t = 0.0
+			elif (st.anim == "attack" or st.anim == "zap") and _anim_done(u.sprite, st.anim, st.t): st.anim = "idle"; st.t = 0.0
 			ustate[u.uid] = st
 	for dd in dying: dd.t += d
 	dying = dying.filter(func(dd): return dd.t < 1.6)
@@ -423,7 +425,7 @@ func _draw() -> void:
 				draw_texture_rect_region(water, r, Rect2(Vector2(x * 16, y * 16) + off, Vector2(16, 16)))
 			var v := terrain_visual(c)
 			if v >= 0: _tile(r, v)
-			if v == S_RAISED_WALL_DECO or v == S_RAISED_WALL_DECO_ALT: deco_faces.append([r, v])
+			if v - v % 4 == S_RAISED_WALL_DECO or v - v % 4 == S_RAISED_WALL_DECO_ALT: deco_faces.append([r, v])   # stitched sides (+1/+2) too
 			if t == Combat.T.WATER: wet.append(r)
 			elif t == Combat.T.WALL and _is_wall(c + Vector2i(0, 1)): _tile(r, S_WALL_INTERNAL + 15)  # solid fill under wall tops
 			if t == Combat.T.GRASS:
