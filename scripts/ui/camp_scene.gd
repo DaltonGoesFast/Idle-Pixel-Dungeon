@@ -50,14 +50,7 @@ func _sprite(n: String) -> Texture2D:
 func k() -> float:
 	return maxf(2.0, floorf(minf(size.x / (16.0 * 11.0), size.y / (16.0 * 6.0))))
 
-var feats: Texture2D
 var _mask_cache := {}
-
-## A terrain_features.png cell (transparent SPD props: barrels, grass tufts, tall grass).
-func _feat(r: Rect2, idx: int) -> void:
-	if feats == null: feats = load("res://assets/tiles/terrain_features.png")
-	var src := Rect2((idx % 16) * 16, (idx / 16) * 16, 16, 16)
-	draw_texture_rect_region(feats, r, src)
 
 ## A level tile with its baked floor keyed out (DECISIONS #179): SPD draws the alchemy pot and embers on a floor
 ## tile, which shows as a stone/plank square on the camp grass. Pixels whose colour belongs to the `bg` tiles are
@@ -96,6 +89,41 @@ func _masked(idx: int, bg: Array, flood: bool) -> Texture2D:
 	var tx := ImageTexture.create_from_image(img)
 	_mask_cache[idx] = tx
 	return tx
+
+## SPD raised terrain (DungeonTileSheet.java): the base tile sits in its cell and its OVERHANG tile is drawn in
+## the cell above, so tall grass and barrels show their full height. [base, overhang]:
+## RAISED_HIGH_GRASS 122 / HIGH_GRASS_OVERHANG 234, RAISED_HIGH_GRASS_ALT 125 / HIGH_GRASS_OVERHANG_ALT 237,
+## RAISED_REGION_DECO 130 / REGION_DECO_OVERHANG 242, RAISED_REGION_DECO_ALT 131 / REGION_DECO_ALT_OVERHANG 243
+## (the sewers' region deco is the barrel). The base's baked floor is keyed out so the camp grass shows through.
+const RAISED := [[122, 234], [125, 237], [130, 242], [131, 243]]
+func _raised(r: Rect2, kind: int, sway := 0.0, mod := Color.WHITE) -> void:
+	var pr: Array = RAISED[kind]
+	draw_texture_rect_region(_masked(pr[0], [0, 1, 4, 10], true), r, Rect2(0, 0, 16, 16), mod)
+	var ti: int = pr[1]
+	draw_texture_rect_region(tiles, Rect2(r.position + Vector2(sway, -r.size.y), r.size), Rect2((ti % 16) * 16, (ti / 16) * 16, 16, 16), mod)
+
+## Night sky (DECISIONS #179): deep navy at the top to blue-purple at the horizon in 6 flat bands, each
+## boundary dithered with a 4x4 Bayer pattern, rendered once per size at 1 texel per screen pixel-unit.
+var _sky: ImageTexture
+var _sky_key := Vector2.ZERO
+const SKY_BANDS := ["0c0f26", "131733", "1b1f42", "25284f", "2f305c", "3c3a6b"]
+func _sky_tex(kk: float, sky_h: float) -> ImageTexture:
+	var w := int(ceil(size.x / kk)); var h := maxi(1, int(ceil(sky_h / kk)))
+	if _sky != null and _sky_key == Vector2(w, h): return _sky
+	var img := Image.create(w, h, false, Image.FORMAT_RGBA8)
+	var bayer := [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5]
+	var n := SKY_BANDS.size()
+	for y in h:
+		var f := float(y) / float(h) * float(n - 1)     # 0..n-1 down the sky
+		var b := int(f); var frac := f - b
+		var c0 := Color(SKY_BANDS[b]); var c1 := Color(SKY_BANDS[mini(b + 1, n - 1)])
+		for x in w:
+			# only the lower third of each band dithers into the next: wide flat bands, crisp pixel steps
+			var tval := (float(bayer[(y % 4) * 4 + (x % 4)]) + 0.5) / 16.0
+			var mix := clampf((frac - 0.62) / 0.38, 0.0, 1.0)
+			img.set_pixel(x, y, c1 if mix > tval else c0)
+	_sky = ImageTexture.create_from_image(img); _sky_key = Vector2(w, h)
+	return _sky
 
 func _tile(r: Rect2, idx: int, tx: Texture2D = null) -> void:
 	if tx is ImageTexture and tx.get_width() == 16:
@@ -151,8 +179,7 @@ func _draw() -> void:
 	var kk := k(); var cs := 16.0 * kk
 	var sky_h := sky_height()
 	# night sky + stars + drifting SPD clouds (surface.png 88,0 / 88,20 / 88,42)
-	draw_rect(Rect2(0, 0, size.x, sky_h), Color("1d2342"))
-	draw_rect(Rect2(0, sky_h * 0.55, size.x, sky_h * 0.45), Color("2b3157"))
+	draw_texture_rect(_sky_tex(kk, sky_h), Rect2(0, 0, size.x, sky_h), false)
 	var r := RandomNumberGenerator.new(); r.seed = 7
 	for i in 40:
 		var p := Vector2(r.randf() * size.x, r.randf() * sky_h * 0.9)
@@ -175,9 +202,10 @@ func _draw() -> void:
 			var ctr := rc.get_center()
 			var path := absf(ctr.x - fire.x) < cs * 0.6 and ctr.y > fire.y
 			_tile(rc, (0 if h % 3 else 6) if path else (2 if h % 4 else 8))
-			# horizon: SPD's transparent tall grass (terrain_features 128/129) standing on the first ground row,
-			# its blades rising into the sky edge, so no stone backing shows (the old 122/125 tiles were opaque)
-			if y == 0: _feat(Rect2(rc.position - Vector2(0, cs * 0.5), rc.size), 128 + (h & 1))
+	# horizon: a row of SPD raised high grass (DECISIONS #179) whose tops reach up into the sky
+	var grass := []   # [rect, kind, sway]: drawn after the night pass so the blades are not darkened twice
+	for x in cols:
+		grass.append([Rect2(ox + x * cs, sky_h, cs, cs), 0 if (x * 7) % 3 else 1, 0.0])
 	# scenery (DECISIONS #179): SPD grass tufts and tall grass sway around the clearing, barrels by the Guild
 	# and the Forge, all from the sewers tile sheet; kept off the path and the NPC spots
 	for y in rows:
@@ -186,10 +214,9 @@ func _draw() -> void:
 			var rc2 := Rect2(ox + x * cs, sky_h + y * cs, cs, cs)
 			var c2 := rc2.get_center()
 			if absf(c2.x - fire.x) < cs * 1.6 or y == 0: continue
-			if SPOTS.any(func(sp): return spot_rect(sp).grow(cs * 0.4).has_point(c2)): continue
-			if h2 % 7 == 0:
-				var sway := roundf(sin(t * 1.6 + x * 0.9 + y)) * kk
-				_feat(Rect2(rc2.position + Vector2(sway, 0), rc2.size), [132, 133, 148, 149][h2 % 4])
+			if SPOTS.any(func(sp): return spot_rect(sp).grow(cs * 0.4).merge(spot_rect(sp).grow(cs * 0.4).grow_individual(0, cs, 0, 0)).has_point(c2)): continue
+			if h2 % 9 == 0:   # tall grass clump: SPD raised high grass, top half in the cell above
+				grass.append([rc2, h2 & 1, roundf(sin(t * 1.6 + x * 0.9 + y)) * kk])
 	_scenery(kk, cs, fire)
 	# campfire: SPD embers tile under a FlameParticle fire with sparks and smoke, and a flickering warm glow
 	var fr := Rect2((fire - Vector2(cs, cs) / 2.0).floor(), Vector2(cs, cs))
@@ -226,6 +253,13 @@ func _draw() -> void:
 	# night: the clearing darkens away from the fire, the sky stays readable (DECISIONS #179)
 	SceneFX.darkness(self, Rect2(0, sky_h, size.x, size.y - sky_h), fire, minf(size.x, size.y - sky_h) * 0.62 * flk, 0.5)
 	SceneFX.glow(self, fire, cs * 1.2 * flk, Color(1.0, 0.7, 0.3, 0.12))
+	# grass blades over the darkened ground, lit at half the night's strength (the floor keeps the full darkening)
+	var lrad := minf(size.x, size.y - sky_h) * 0.62 * flk
+	for g in grass:
+		var gc: Vector2 = (g[0] as Rect2).get_center()
+		var d := clampf((gc.distance_to(fire) / lrad - 0.3) / 0.65, 0.0, 1.0)
+		var v := 1.0 - 0.5 * d * 0.5
+		_raised(g[0], g[1], g[2], Color(v, v, v))
 	for s in SPOTS:
 		var sr := spot_rect(s)
 		# name plate: SPD-ish yellow text with a dark backing
@@ -250,10 +284,10 @@ func _scenery(kk: float, cs: float, _fire: Vector2) -> void:
 		var sr := spot_rect(sp)
 		match sp[0]:
 			"Guild":
-				_feat(Rect2(Vector2(sr.position.x - cs - kk * 2, sr.end.y - cs * 0.75).floor(), Vector2(cs, cs)), 137)
-				_feat(Rect2(Vector2(sr.position.x - cs * 1.6 - kk * 2, sr.end.y - cs * 0.6).floor(), Vector2(cs, cs)), 138)
+				_raised(Rect2(Vector2(sr.position.x - cs * 1.9 - kk * 2, sr.end.y - cs * 0.9).floor(), Vector2(cs, cs)), 3)
+				_raised(Rect2(Vector2(sr.position.x - cs - kk * 2, sr.end.y - cs).floor(), Vector2(cs, cs)), 2)
 			"Forge":
-				_feat(Rect2(Vector2(sr.position.x - cs - kk * 2, sr.end.y - cs * 0.75).floor(), Vector2(cs, cs)), 137)
+				_raised(Rect2(Vector2(sr.position.x - cs - kk * 2, sr.end.y - cs).floor(), Vector2(cs, cs)), 2)
 
 ## Badge rule: a facility upgrade is affordable, or an identification is finished.
 func _has_news(page: String) -> bool:
