@@ -494,7 +494,7 @@ func _room_scene(id: String, x0: float, y0: float, cs: float, k: float, biome: D
 	var feats := _t("res://assets/tiles/terrain_features.png")
 	var water := _t("res://assets/tiles/%s.png" % biome.get("water", "water0"))
 	var items := _t("res://assets/sprites/items.png")
-	var wo := Vector2(fposmod(t * 3.0, 16.0), fposmod(t * 2.0, 16.0)).floor()   # SPD water drifts slowly
+	var wo := Vector2(fposmod(t * 3.0, 32.0), fposmod(t * 2.0, 32.0)).floor()   # SPD water drifts slowly; wraps at the 32 px sheet so pools never hitch
 	var mi := 0
 	var wet := {}   # water cells, for SPD's edge stitching
 	for op in ROOM_SCENES[id]:
