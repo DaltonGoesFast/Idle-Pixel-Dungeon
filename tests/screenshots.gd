@@ -265,6 +265,8 @@ func _process(_d: float) -> void:
 	if f % 12 == 1:
 		get_window().size = SIZES[step[0]] * RENDER_SCALE
 		step[2].call()
+		# SCENE_ONLY=1: hide the delve's card so the scene art behind it can be audited (fix6)
+		if OS.has_environment("SCENE_ONLY") and main.get("delve") != null and is_instance_valid(main.delve): main.delve.win_layer.visible = false
 	if f % 12 == 11:
 		var img := get_viewport().get_texture().get_image()
 		if not OS.has_environment("SHOT_NATIVE"): img.resize(SIZES[step[0]].x, SIZES[step[0]].y, Image.INTERPOLATE_LANCZOS)

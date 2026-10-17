@@ -220,13 +220,20 @@ func _face_tile(wall: Dictionary, cx: int) -> int:
 	return w + (1 if int(wall.get(cx + 1, 80)) in DOORS else 0) + (2 if int(wall.get(cx - 1, 80)) in DOORS else 0)
 
 ## The cell above the wall row is void, so SPD's walls layer draws the wall's top there (DungeonWallsTilemap):
-## WALL_OVERHANG 192 (+1 open down-right, +2 open down-left, i.e. a door beside it), or over a door its lintel:
+## WALL_OVERHANG 192 (+1 open down-right, +2 open down-left, i.e. a door beside it), WALL_INTERNAL_WOODEN over a
+## bookshelf, or over a door its lintel:
 ## DOOR_OVERHANG 224 (closed and locked), DOOR_OVERHANG_OPEN 225, DOOR_OVERHANG_CRYSTAL 226.
 func _top_tile(wall: Dictionary, cx: int) -> int:
 	var w: int = wall.get(cx, 80)
 	var side := (1 if int(wall.get(cx + 1, 80)) in DOORS else 0) + (2 if int(wall.get(cx - 1, 80)) in DOORS else 0)
 	match w:
-		92, 108: return 200 + side   # WALL_OVERHANG_WOODEN over a raised bookshelf
+		92, 108:   # SPD LibraryRoom: shelves stand against the room wall, so the cell above is that wall's top,
+			# WALL_INTERNAL_WOODEN 176 (stitchInternalWallTile): black with a wooden edge where the run of shelves
+			# ends (+1 right, +8 left) and where a door is below-beside (+2, +4). WALL_OVERHANG_WOODEN is only for a
+			# floor cell above a shelf, which the corridor never has.
+			var sh := func(c2: int) -> bool: return int(wall.get(c2, 80)) in [92, 108]
+			return 176 + (0 if sh.call(cx + 1) else 1) + (2 if int(wall.get(cx + 1, 80)) in DOORS else 0) \
+				+ (4 if int(wall.get(cx - 1, 80)) in DOORS else 0) + (0 if sh.call(cx - 1) else 8)
 		112, 114: return 224
 		113: return 225
 		115: return 226
@@ -345,7 +352,8 @@ func _draw() -> void:
 			"campfire":
 				var fp := Vector2(ex + cs / 2.0, y0 + 3.4 * cs).floor()
 				SceneFX.glow(self, fp - Vector2(0, 3 * k), cs * 2.2 * SceneFX.flicker(t), Color(1.0, 0.55, 0.2, 0.25))
-				draw_texture_rect_region(tiles, Rect2(fp - Vector2(cs / 2.0, cs * 0.7), Vector2(cs, cs)), Rect2(3 * 16, 0, 16, 16), _lm(fp))
+				# SPD EMBERS with its baked floor keyed out: it sits off the tile grid, so the floor square would show (POLISH #56)
+				draw_texture_rect_region(_grass_tex(tiles, 3), Rect2(fp - Vector2(cs / 2.0, cs * 0.7), Vector2(cs, cs)), Rect2(0, 0, 16, 16), _lm(fp))
 				SceneFX.fire(self, fp, k, t, 7.0)
 	# encounter ahead: each foe on its own whole column, alternating floor rows, facing the hero; they run in on arrival.
 	# Characters are collected and drawn back to front by their feet (z-order), the hero included.
@@ -448,6 +456,7 @@ func _draw() -> void:
 
 ## Special-room scenes (DECISIONS #180): each room is built on the corridor floor ahead of its door from SPD's own
 ## tiles. Ops are [kind, what, dx, row]: "t" level tile (biome sheet), "f" terrain_features.png, "w" animated water,
+## "speck" SPD Speck from effects/specks.png over the cell (0 HEALING, 3 QUESTION).
 ## "i" item sprite, "m" mob sprite (idle anim, facing the hero), "fire"/"spark" SPD-style particles (what = colour).
 ## "r" SPD raised terrain (base tile in the cell, overhang tile in the cell above; DungeonTileSheet RAISED_* and
 ## *_OVERHANG): "grass" 122/234, "grass2" 125/237, "pot" 120/232, "barricade" 121/233. "f" props are bottom-aligned in their cell.
@@ -465,8 +474,8 @@ const ROOM_SCENES := {
 	"crystal_vein": [["f", 210, 0, 2], ["f", 211, 1, 2], ["f", 210, 2, 3], ["spark", "8ad8ff", 1.0, 2.5]],
 	"vault": [["t", 4, 0, 2], ["t", 4, 1, 2], ["t", 4, 0, 3], ["t", 4, 1, 3], ["i", "CRYSTAL_CHEST", 0.5, 2.5], ["spark", "a0e8ff", 0.5, 2.4]],
 	"library": [["t", 92, 1, 1], ["t", 108, 2, 1], ["t", 92, 3, 1], ["i", "SCROLL_KAUNAN", 1, 2], ["i", "SCROLL_ISAZ", 2, 3]],
-	"well_health": [["w", 0, 1, 2], ["t", 18, 1, 2], ["spark", "ff7070", 1.5, 2.4]],
-	"well_awareness": [["w", 0, 1, 2], ["t", 18, 1, 2], ["spark", "80c8ff", 1.5, 2.4]],
+	"well_health": [["w", 0, 1, 2], ["t", 18, 1, 2], ["spark", "ff7070", 1.5, 2.4], ["speck", 0, 1, 2]],
+	"well_awareness": [["w", 0, 1, 2], ["t", 18, 1, 2], ["spark", "80c8ff", 1.5, 2.4], ["speck", 3, 1, 2]],
 	"laboratory": [["r", "pot", 1, 3], ["i", "POTION_CRIMSON", 2, 2], ["i", "POTION_AZURE", 2, 3], ["i", "SEED_ROTBERRY", 0, 3], ["spark", "c0ff80", 1.5, 2.3]],
 	"treasury": [["f", 216, 0, 2], ["f", 218, 1, 2], ["i", "GOLD", 1, 3], ["i", "GOLD", 2, 2], ["f", 217, 3, 3]],
 	"shrine": [["t", 20, 1, 2], ["i", "ARTIFACT_CHALICE1", 1, 1.85], ["spark", "ffd27a", 1.5, 2.2]],
@@ -536,6 +545,8 @@ func _room_scene(id: String, x0: float, y0: float, cs: float, k: float, biome: D
 				var fp := Vector2(floorf(x0 + dx * cs), floorf(y0 + row * cs))
 				SceneFX.glow(self, fp - Vector2(0, 3 * k), cs * 1.8 * SceneFX.flicker(t), Color(1.0, 0.55, 0.2, 0.25))
 				SceneFX.fire(self, fp, k, t, 7.0)
+			"speck":   # SPD well water (WaterOfHealth / WaterOfAwareness use()): the blob pours Specks over the cell
+				_specks(int(op[1]), tl, cs, k)
 			"spark":
 				var sp := Vector2(x0 + dx * cs, y0 + row * cs)
 				SceneFX.glow(self, sp, cs * 0.9, Color(op[1], 0.22))
@@ -583,3 +594,29 @@ func _grass_tex(tiles: Texture2D, idx: int) -> Texture2D:
 	var tx := ImageTexture.create_from_image(img)
 	_grass_cache[key] = tx
 	return tx
+
+## SPD Specks poured over a well (Speck.java): HEALING (0) is a green plus that rises 20 px/s for 1 s and fades in its
+## second half, one every 0.5 s; QUESTION (3) is a "?" that grows and shrinks in place over 0.8 s, one every 0.3 s.
+## Positions are seeded per speck, scales are whole art pixels, so nothing shimmers between frames.
+var _speck_tex: Texture2D
+func _specks(kind: int, tl: Vector2, cs: float, k: float) -> void:
+	if _speck_tex == null: _speck_tex = load("res://assets/ui/specks.png")
+	var every := 0.5 if kind == 0 else 0.3
+	var life := 1.0 if kind == 0 else 0.8
+	var n := int(ceil(life / every))
+	for i in n:
+		var age := fposmod(t + i * every, n * every)
+		if age > life: continue
+		var seq := int(floor((t + i * every) / (n * every))) * n + i
+		var p := age / life
+		var sc := 1.0
+		var a := 1.0
+		var pos := tl + Vector2(SceneFX._rnd(seq, 7) * 12.0 + 2.0, SceneFX._rnd(seq, 11) * 10.0 + 3.0) * k
+		if kind == 0:
+			pos.y -= age * 20.0 * k
+			a = 1.0 if p < 0.5 else 2.0 - p * 2.0
+		else:
+			sc = floorf(sqrt(p if p < 0.5 else 1.0 - p) * 3.0)
+			if sc < 1.0: continue
+		var sz := Vector2(7, 7) * k * sc
+		draw_texture_rect_region(_speck_tex, Rect2((pos - sz / 2.0).floor(), sz), Rect2(kind * 7, 0, 7, 7), Color(1, 1, 1, a))
