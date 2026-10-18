@@ -1,6 +1,8 @@
 # Changelog
 
 ## Unreleased
+
+## 0.44.1
 - A long Defeat list no longer pushes the OK button off the screen (a softlock on phones). The list scrolls, and the window always fits on screen (DECISIONS #187, +test).
 - Phone fixes (DECISIONS #187): foes facing left no longer stand a cell to the right of their tile in battle, and ambush foes no longer pile up at the edge of the delve. The hero can no longer get stuck drawn solid white. The Piranha Pool shows real piranhas (dark shapes under the water that leap out) instead of a broken blob. Event windows no longer darken the scene behind them; taps behind them are still blocked.
 - Delve walls (DECISIONS #187): the black band between wall tops and wall faces is gone, so faces sit flush under the dark like in SPD, and doors keep their lintels. The Suspicious Wall is a plain wall that sparkles, the barricade is a line of barricade tiles across the corridor with no door next to it, and room scenes no longer have rubble piles.
