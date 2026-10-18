@@ -225,6 +225,9 @@ func _ready() -> void:
 			main.delve._open_summary("Defeat", PackedStringArray(), lost, Callable(), true, "Unused supplies return to the stash. Scrolls of Upgrade return on the next boss kill.")])
 		plan.append([sz, "event_result", func():   # an event's result window: no dim behind it, like the event card (DECISIONS #191)
 			main.delve._accept_summary()
+			# like the real chest/special-room flow (_card_special: pending = {}; _show_card() before _show_trade), the
+			# event card is closed first, so the shot shows the scene, not the fresh run's encounter card, behind it
+			main.delve.pending = {}; main.delve._show_card()
 			main.delve._open_summary("Open the chest", PackedStringArray(["+14 Gold", "Potion of Healing"]), PackedStringArray(["-1 Iron Key"]))])
 		plan.append([sz, "combat", func():
 			main.start_combat(Delve.combat_event(GameState.run, Delve.rng_for(GameState.run, 3), ["gnoll", "crab"]), func(_r): pass)
