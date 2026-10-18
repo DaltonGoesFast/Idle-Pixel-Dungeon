@@ -45,12 +45,14 @@ func _ready() -> void:
 	GameState.settings_changed.connect(func(): if pending.get("kind", "") == "settings": _show_card())
 	_refresh_controls()
 
-## SPD-style window over the corridor. The dim stops above the toolbar, so the bag and menu stay in reach.
+## SPD-style window over the corridor. The (clear) input shield stops above the toolbar, so the bag and menu stay in reach.
 func _build_window() -> void:
 	win_layer = Control.new(); win_layer.name = "DelveWindow"; win_layer.z_index = 20
 	win_layer.set_anchors_and_offsets_preset(PRESET_FULL_RECT); win_layer.mouse_filter = MOUSE_FILTER_IGNORE
 	win_layer.visible = false; add_child(win_layer)
-	win_dim = ColorRect.new(); win_dim.color = Color(0, 0, 0, 0.35); win_dim.mouse_filter = MOUSE_FILTER_STOP; win_layer.add_child(win_dim)
+	# a clear input shield (DECISIONS #187): taps behind an event window are still blocked, but the scene keeps its
+	# full brightness, so the room it describes stays readable
+	win_dim = ColorRect.new(); win_dim.color = Color(0, 0, 0, 0.0); win_dim.mouse_filter = MOUSE_FILTER_STOP; win_layer.add_child(win_dim)
 	win_panel = PanelContainer.new(); win_layer.add_child(win_panel)
 	var sc := ScrollContainer.new(); sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED; win_panel.add_child(sc)
 	card_host = UIKit.vbox(sc); card_host.size_flags_horizontal = SIZE_EXPAND_FILL
@@ -733,7 +735,7 @@ func _build_summary() -> void:
 	dim.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
 	dim.mouse_filter = MOUSE_FILTER_STOP
 	layer.add_child(dim)
-	var vs := size if size.x > 0.0 else get_viewport_rect().size
+	var vs := _summary_view()
 	var m := int(floorf(maxf(UIKit.font_size * 0.75, vs.x * 0.04)))
 	var mc := MarginContainer.new()
 	mc.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
@@ -770,7 +772,9 @@ func _build_summary() -> void:
 	var rows := _summary_row_count()
 	var want := float(rows) * line_h + float(maxi(rows - 1, 0)) * float(gap) + UIKit.font_size * 0.45
 	var reserved := UIKit.btn_height() + pad * 2.0 + float(gap) * 2.0 + UIKit.font_size * (3.2 if _summary_note != "" else 1.8)
-	var room := maxf(line_h * float(maxi(rows, 2)), vs.y - 2.0 * float(m) - reserved)
+	# at least two rows, at most what the screen leaves after the title, note and OK. This used to be at least
+	# every row (maxi(rows, 2)), so a long defeat list grew the window past the screen and hid OK (DECISIONS #187).
+	var room := maxf(line_h * 2.0, vs.y - 2.0 * float(m) - reserved)
 	sc.custom_minimum_size = Vector2(0, minf(want, room))
 	box.add_child(sc)
 	var inner := UIKit.vbox(sc, gap)
@@ -785,6 +789,7 @@ func _build_summary() -> void:
 	ok.name = "SummaryOK"
 	ok.custom_minimum_size.x = 1
 	box.add_child(ok)
+	_fit_summary(card, sc, vs.y - 2.0 * float(m), line_h)
 	card.modulate.a = 0.0
 	var tw := card.create_tween()
 	tw.tween_property(card, "modulate:a", 1.0, 0.15)
@@ -794,6 +799,22 @@ func _summary_row_count() -> int:
 	if not _summary_lost.is_empty():
 		n += 1 + _summary_lost.size()
 	return n
+
+## The area the result window must fit in: this screen, never more than the viewport (a stale, larger size
+## before the first layout pass let the window spill off the phone's screen).
+func _summary_view() -> Vector2:
+	var vp := get_viewport_rect().size
+	if size.x <= 0.0 or size.y <= 0.0: return vp
+	return Vector2(minf(size.x, vp.x), minf(size.y, vp.y))
+
+## Shrinks the list until the whole window fits in `avail` px, so OK (outside the scroll) is always on screen.
+## Measured after the layout pass: wrapped labels only know their height once they have their real width.
+func _fit_summary(card: Control, sc: ScrollContainer, avail: float, line_h: float) -> void:
+	if not card.is_inside_tree(): return
+	await get_tree().process_frame
+	if not is_instance_valid(card) or not is_instance_valid(sc): return
+	var over := card.get_combined_minimum_size().y - avail
+	if over > 0.0: sc.custom_minimum_size.y = maxf(line_h * 2.0, sc.custom_minimum_size.y - over)
 
 func _summary_line(text: String, scale: float, color: Color, line_h: float) -> Label:
 	var l := UIKit.label(text, scale, color)

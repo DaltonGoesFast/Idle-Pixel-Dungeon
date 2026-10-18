@@ -35,6 +35,7 @@ func _ready() -> void:
 	test_identify(gs)
 	test_alchemy_unknown(gs)
 	test_doors_grass(gs)
+	test_sprite_draw(gs)
 	test_spd_ai_doors(gs)
 	test_lose_enemies(gs)
 	test_rooms_surprise(gs)
@@ -935,6 +936,68 @@ func _pot_result(root: Node) -> Button:
 	return null
 
 
+## v0.44.0 phone regression (DECISIONS #187): sprites sit on their cells after a hit, a lunge and a move, flipped
+## or not; mirroring never uses a negative-size rect; the white hit flash ends after SPD's 0.05 s.
+func test_sprite_draw(gs) -> void:
+	print("[sprite draw]")
+	var r := Rect2(10, 20, 48, 48); var m := SceneFX.mirror_xform(r)
+	check(m * r.position == Vector2(58, 20) and m * r.end == Vector2(10, 68), "mirror transform maps the sprite rect onto itself")
+	var src := FileAccess.get_file_as_string("res://scripts/ui/grid_view.gd") + FileAccess.get_file_as_string("res://scripts/ui/delve_scene.gd")
+	check(not src.contains("-sz.x"), "no negative-width destination rects for mirrored sprites")
+	var gv = load("res://scripts/ui/grid_view.gd").new()
+	gv.size = Vector2(800, 800)
+	var c := Combat.new(); c.setup(DB.rooms[0], warrior(gs), 20, ["rat"])
+	for y in Combat.SIZE:
+		for x in Combat.SIZE: c.terrain[y][x] = Combat.T.FLOOR
+	var rat: Dictionary = c.enemies()[0]
+	c.hero.pos = Vector2i(2, 4); rat.pos = Vector2i(4, 4)
+	gv.combat = c; gv.set_combat(c)
+	gv.play_events([{"t": "attack", "uid": rat.uid, "to": c.hero.pos}, {"t": "hit", "uid": rat.uid, "amount": 5, "kind": "magic", "pos": rat.pos}])
+	check(gv.flash_white(rat.uid) == 1.0, "a hit turns the rat white")
+	for i in 3: gv._process(0.03)
+	check(gv.flash_white(rat.uid) == 0.0 and gv.flash.is_empty(), "the hit flash is gone after SPD's 0.05 s")
+	for i in 10: gv._process(0.05)
+	check(gv.unit_draw_pos(rat) == Vector2(rat.pos), "after the lunge the rat is drawn on its own cell")
+	check(gv.ustate[rat.uid].flip, "the rat faces left (mirrored) toward the hero")
+	var cr: Rect2 = gv.cell_rect(Vector2(rat.pos))
+	var sr: Rect2 = gv.sprite_rect(int(rat.fw), int(rat.fh), gv.unit_draw_pos(rat), 3.0)
+	check(sr.size.x > 0 and sr.size.y > 0 and absf(sr.get_center().x - cr.get_center().x) <= 1.0 and sr.end.y == cr.end.y, "a mirrored sprite is bottom-centred on its cell")
+	var from: Vector2i = rat.pos
+	c._place(rat, Vector2i(5, 4)); gv.play_events([{"t": "move", "uid": rat.uid, "from": from, "to": rat.pos}])
+	for i in 20: gv._process(0.05)
+	check(gv.unit_draw_pos(rat) == Vector2(5, 4), "after a move (or knockback) the sprite settles on the new cell")
+	gv.free()
+	check(DelveScene.blow_flash(0.2, 0.4) == 1.0 and DelveScene.blow_flash(0.26, 0.4) == 0.0 and DelveScene.blow_flash(0.19, 0.4) == 0.0, "delve: the hero flashes white only for 0.05 s at the blow")
+	# delve wall tops (DECISIONS #187): the corridor's row above the faces is wall, so SPD's black internal top,
+	# never the floor-above overhang rim with its black band; doors keep their lintel; the odd wall stays bare
+	var ds := DelveScene.new()
+	var wl := {0: 80, 1: 84, 2: DelveScene.DOORS[0], 3: 96, 4: 92}
+	check(ds._top_tile(wl, 0) == 144 and ds._top_tile(wl, 1) == 144 and ds._top_tile(wl, 3) == 144, "delve: the row above a wall face is SPD WALL_INTERNAL (black), not WALL_OVERHANG")
+	check(ds._top_tile(wl, 2) == 224 and ds._top_tile(wl, 4) == 176, "delve: a door keeps its lintel, a shelf its wooden top")
+	var odd := {"kind": "special", "special": {"id": "odd_wall"}}
+	check(ds._encounter_wall(odd, 1, 84) == 80 and ds._encounter_wall(odd, 2, 100) == 96, "delve: the suspicious wall is a bare face, never a biome wall deco")
+	check(not DelveScene.ROOM_SCENES.odd_wall.any(func(op): return String(op[0]) == "f") and DelveScene.ROOM_SCENES.odd_wall.any(func(op): return String(op[0]) == "spark"), "delve: the suspicious wall keeps its sparkle and has no floor rubble")
+	var bar: Array = DelveScene.ROOM_SCENES.barricade.filter(func(op): return String(op[0]) == "r" and String(op[1]) == "barricade")
+	var bcols := {}; var brows := {}
+	for op in bar: bcols[int(op[2])] = true; brows[int(op[3])] = true
+	check(bar.size() == 2 and bcols.size() == 1 and brows.has(2) and brows.has(3), "delve: the barricade is SPD barricade tiles across both floor rows (blocks the path)")
+	var bc: int = bcols.keys()[0]
+	var bev := {"kind": "special", "special": {"id": "barricade"}}
+	var bfaces := [ds._encounter_wall(bev, bc - 1, 112), ds._encounter_wall(bev, bc, 84), ds._encounter_wall(bev, bc + 1, 113)]
+	check(bfaces.all(func(f): return f == 80), "delve: no door on or beside the barricade's column, and a bare wall face over it")
+	check(ds._encounter_wall(odd, 0, 80) == DelveScene.DOOR_CLOSED, "delve: other rooms keep their door")
+	for id in DelveScene.ROOM_SCENES:
+		check(not DelveScene.ROOM_SCENES[id].any(func(op): return String(op[0]) == "f" and int(op[1]) in [216, 217, 218]), "delve: no SPD mining rubble in room " + String(id))
+	ds.free()
+	var pm := DelveScene.room_mob("piranha")
+	check(int(pm.fw) == 12 and int(pm.fh) == 16, "delve: the piranha uses SPD's 12x16 frames")
+	check(DelveScene.frame_rect(256, 12, 16, 1) == Rect2(12, 0, 12, 16) and DelveScene.frame_rect(256, 12, 16, 21) == Rect2(0, 16, 12, 16), "delve: piranha frame rects step 12 px and wrap after 21 frames")
+	var dsc = load("res://scripts/ui/delve_screen.gd").new(); dsc._build_window()
+	check(dsc.win_dim.color.a == 0.0 and dsc.win_dim.mouse_filter == Control.MOUSE_FILTER_STOP, "delve: no darkening behind an event window, but taps behind it are still blocked")
+	dsc.free()
+	var dr := DelveScene.sprite_rect(16, 15, Vector2(100, 200), 4.0)
+	check(dr.size == Vector2(64, 60) and dr.get_center().x == 100.0 and dr.end.y == 200.0, "delve: a sprite is bottom-centred on its feet, flipped or not")
+
 func test_doors_grass(gs) -> void:
 	print("[doors/grass]")
 	var gv = load("res://scripts/ui/grid_view.gd").new()
@@ -951,13 +1014,12 @@ func test_doors_grass(gs) -> void:
 	check(gv.terrain_visual(door) == 113 and gv.wall_visual(above) == 225, "occupied door: SPD open door + open overhang")
 	c.hero.pos = Vector2i(4, 4)
 	check(gv.terrain_visual(door) == 112, "door closes again when vacated")
-	# remains hold the door open (DECISIONS #176) and are drawn as SPD bones on it until someone passes through
-	check(gv.remains_visual(door) == -1, "an empty shut door shows no remains")
+	# remains hold the door open (DECISIONS #176); nothing is drawn on it, just the open door (DECISIONS #187)
 	var dm: Dictionary = c.enemies()[0]; var dm_from: Vector2i = dm.pos
 	dm.pos = door; c._kill(dm, false)
-	check(gv.terrain_visual(door) == 113 and gv.remains_visual(door) == DB.icon_index("BONES"), "a death in the doorway: open door with SPD bones on it")
+	check(gv.terrain_visual(door) == 113 and not gv.has_method("remains_visual"), "a death in the doorway: open door, no bones drawn")
 	c._place(c.hero, door); c._place(c.hero, Vector2i(4, 4))
-	check(gv.terrain_visual(door) == 112 and gv.remains_visual(door) == -1, "after someone passes through: shut door, no bones")
+	check(gv.terrain_visual(door) == 112, "after someone passes through: the door shuts")
 	dm.hp = int(dm.ht); dm.pos = dm_from
 	# sideways door (wall above and below)
 	for y in Combat.SIZE: c.terrain[y][6] = Combat.T.WALL
@@ -1880,6 +1942,20 @@ func test_encounter_summary(gs) -> void:
 	var bar := list.get_v_scroll_bar()
 	check(bar.max_value <= bar.page + 1.0, "a short summary fits without a scrollbar")
 	scr._accept_summary()
+	# v0.44.0 phone softlock: a long defeat list grew the window past the screen and hid OK (DECISIONS #187)
+	var old_root := get_tree().root.size; var old_sz: Vector2 = scr.size
+	get_tree().root.size = Vector2i(968, 2376); scr.size = Vector2(968, 2376)
+	var long_lost := PackedStringArray()
+	for i in 34: long_lost.append("Ring of Item %d cracks" % i)
+	scr._open_summary("Defeat", PackedStringArray(), long_lost, Callable(), true, "Unused supplies return to the stash. Scrolls of Upgrade return on the next boss kill.")
+	for i in 4: await get_tree().process_frame
+	var okb: Control = scr.get_node("EncounterSummary").find_child("SummaryOK", true, false)
+	var okr := okb.get_global_rect()
+	check(Rect2(0, 0, 968, 2376).encloses(okr) and okr.size.y > 0.0, "a 34-line defeat list keeps OK inside the 968x2376 phone screen (OK at %s)" % okr)
+	var llist: ScrollContainer = scr.get_node("EncounterSummary").find_child("SummaryList", true, false)
+	check(llist.get_v_scroll_bar().max_value > llist.get_v_scroll_bar().page, "the long loss list scrolls instead")
+	scr._accept_summary()
+	get_tree().root.size = old_root; scr.size = old_sz
 	gs.settings.full_auto = true
 	scr._open_summary("Free cache", PackedStringArray(), PackedStringArray())
 	scr._process(2.0)
