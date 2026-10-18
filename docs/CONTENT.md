@@ -9,6 +9,41 @@ Everything here is data-driven (`data/*.json`). Add content by editing JSON; no 
 Assets used (all from Shattered Pixel Dungeon, GPL-3.0): hero sprites (warrior, mage), mobs (rat, snake, gnoll, crab, statue, goo, piranha), `tiles_sewers.png`, `items.png` icons, ~30 sound effects, music (`sewers_1`, `sewers_boss`, `theme_1`).
 
 <!-- GENERATED -->
+### Patrol perks (DECISIONS #188)
+
+Worn ring, artifact and the Mage's staff wand, at +0; the step is per item level. Perks are locked in when the patrol starts.
+
+| Item | Type | On patrol |
+|---|---|---|
+| Ring of Might | ring | +15% iron ore (+5/lvl) |
+| Ring of Tenacity | ring | +1 patrol power (+1/lvl) |
+| Wand of Magic Missile | wand | +1 patrol power (+1/lvl) |
+| Wand of Firebolt | wand | +15% dark gold (+5/lvl) |
+| Wand of Lightning | wand | +15% arcane resin (+5/lvl) |
+| Wand of Frost | wand | +25% dew (+10/lvl) |
+| Wand of Corrosion | wand | +1 patrol power (+1/lvl) |
+| Wand of Blast Wave | wand | +1 patrol power (+1/lvl) |
+| Wand of Disintegration | wand | +1 patrol power (+1/lvl) |
+| Wand of Transfusion | wand | +1 patrol power (+1/lvl) |
+| Wand of Prismatic Light | wand | +15% curios (+5/lvl) |
+| Wand of Regrowth | wand | +1 seeds/h (+0.5/lvl), +50% dew |
+| Ring of Evasion | ring | +15% curios (+5/lvl) |
+| Ring of Wealth | ring | +10% gold (+5/lvl), curios: any ring |
+| Ring of Energy | ring | +15% arcane resin (+5/lvl) |
+| Ring of Furor | ring | +5% materials (not gold) (+2.5/lvl) |
+| Ring of Haste | ring | +10% patrol time (+5/lvl) |
+| Ring of Sharpshooting | ring | +25% dew (+10/lvl) |
+| Ring of Elements | ring | -15% fee (max 50%) (+5/lvl) |
+| Ring of Force | ring | +15% dark gold (+5/lvl) |
+| Chalice of Blood | artifact | +1 healing potion per 6h (-1/lvl, min 2) |
+| Talisman of Foresight | artifact | curios arrive identified, 20% of curios come +1 (+10/lvl) |
+| Horn of Plenty | artifact | +1 ration per 4h (-0.5/lvl, min 1.5) |
+| Cape of Thorns | artifact | +1 patrol power (+1/lvl) |
+| Ethereal Chains | artifact | +15% curios (+5/lvl) |
+| Timekeeper's Hourglass | artifact | +1h max (+0.5/lvl) |
+| Sandals of Nature | artifact | +1 seeds/h (+0.5/lvl), +1 dew/h (+0.5/lvl) |
+| Master Thieves' Armband | artifact | +15% gold (+5/lvl) |
+
 ### Recipes
 
 | Facility | Recipe | Cost | Output | Min level |

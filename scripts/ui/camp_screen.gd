@@ -1402,16 +1402,17 @@ func _patrol_list(v: Control) -> void:
 			cv.add_child(UIKit.label("%s - idle" % DB.heroes[c].name, 0.9))
 			if int(h.level) < GameState.train_cap(c):
 				cv.add_child(UIKit.button("Retrain to Lv %d (%s)" % [int(h.level) + 1, GameState.cost_text(GameState.train_cost(c))], func(): GameState.train(c), GameState.can_train(c) == "", GameState.can_train(c)))
+			_patrol_bonus(cv, c)
 			var bf := HFlowContainer.new(); cv.add_child(bf)
 			for b in DB.biomes:
 				if GameState.can_patrol(c, b) != "" and not GameState.can_patrol(c, b).begins_with("need"): continue
-				var pb := UIKit.button("%s %d%%  (%dg)" % [DB.biomes[b].name, int(GameState.patrol_efficiency(c, b) * 100), int(GameState.patrol_fee(b).gold)], func(): GameState.start_patrol(c, b), GameState.can_patrol(c, b) == "", GameState.can_patrol(c, b))
+				var pb := UIKit.button("%s %d%%  (%dg)" % [DB.biomes[b].name, int(GameState.patrol_efficiency(c, b) * 100), int(GameState.patrol_fee(b, c).gold)], func(): GameState.start_patrol(c, b), GameState.can_patrol(c, b) == "", GameState.can_patrol(c, b))
 				bf.add_child(pb)
 			if bf.get_child_count() == 0: cv.add_child(UIKit.label("Clear a biome first.", 0.8, Color("9a9488")))
 		else:
 			var y: Dictionary = GameState.patrol_preview(c)
 			var head := UIKit.hbox(cv)
-			var title := UIKit.label("%s   %.1fh / %dh" % [DB.heroes[c].name, y._hours, int(GameState.patrol_max_hours())], 0.9, Color("ffd27a") if c == chosen_hero else Color.WHITE)
+			var title := UIKit.label("%s   %.1fh / %sh" % [DB.heroes[c].name, y._hours, _hours_text(float(y.get("_max_h", GameState.patrol_max_hours())))], 0.9, Color("ffd27a") if c == chosen_hero else Color.WHITE)
 			title.size_flags_horizontal = SIZE_EXPAND_FILL; title.size_flags_vertical = SIZE_SHRINK_CENTER
 			head.add_child(title)
 			var recall := UIKit.button("Recall", func(): GameState.collect_patrol(c))
@@ -1419,12 +1420,23 @@ func _patrol_list(v: Control) -> void:
 			recall.custom_minimum_size.x = UIKit.font_size * 4.6
 			recall.size_flags_horizontal = SIZE_SHRINK_END; recall.size_flags_vertical = SIZE_SHRINK_CENTER
 			UIKit.secondary(recall); head.add_child(recall)
-			var pr := ProgressBar.new(); pr.max_value = GameState.patrol_max_hours(); pr.step = 0.0; pr.value = float(y._hours); pr.show_percentage = false
+			var pr := ProgressBar.new(); pr.max_value = float(y.get("_max_h", GameState.patrol_max_hours())); pr.step = 0.0; pr.value = float(y._hours); pr.show_percentage = false
 			pr.custom_minimum_size.y = UIKit.font_size * 0.5; cv.add_child(pr)
 			var yf := HFlowContainer.new(); cv.add_child(yf)
+			yf.add_theme_constant_override("h_separation", int(UIKit.font_size * 0.4))   # "1" potion + "+2 curios" read as "1+2"
 			for k in y:
 				if not String(k).begins_with("_") and int(y[k]) > 0: yf.add_child(UIKit.res_chip(k, str(y[k]), 0.8))
 			if y._curios > 0: yf.add_child(UIKit.chip_label("+%d curio%s" % [y._curios, "" if int(y._curios) == 1 else "s"], 0.8))
+			_patrol_bonus(cv, c)
+
+## What the hero's gear adds on patrol (DECISIONS #188): gear level bonus and each perk, one small line each.
+func _patrol_bonus(cv: Control, c: String) -> void:
+	for line in GameState.patrol_bonus_lines(c):
+		var l := UIKit.label(line, 0.75, Color("9fd4a0")); l.set_meta("patrol_perk", true)
+		cv.add_child(l)
+
+static func _hours_text(h: float) -> String:
+	return str(int(h)) if is_equal_approx(h, roundf(h)) else "%.1f" % h
 
 # ------------------------------------------------------------ Journal (meta-progression + codex)
 var journal_view := "progress"
