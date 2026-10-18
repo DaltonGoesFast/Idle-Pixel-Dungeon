@@ -123,12 +123,15 @@ func _ready() -> void:
 			GameState.add_mat("potion_toxic", 1); GameState.add_mat("seeds", 3)
 			main.show_camp(); main.screen.alch_sel = "transmute_toxic"; main.screen.open_page("Alchemy")])
 		plan.append([sz, "camp_enchanter", func():
+			# earlier steps make these types known, which identifies a queued one at once (DECISIONS #203), so forget them
+			for t in ["ring_wealth", "ring_evasion"]: GameState.seen.erase("item:" + t)
 			var u: int = GameState.add_gear("ring_wealth", false); GameState.add_gear("ring_evasion", false); GameState.enqueue_identify(u)
 			main.show_camp(); main.screen.section["Enchanter"] = "identify"; main.screen.open_page("Enchanter")])
 		# DECISIONS #203: the user's queue (7 Garnet + 2 Ruby at a Lv1 Desk), right after Queue all
 		plan.append([sz, "enchanter_queue", func():
 			GameState.id_queue = []
 			for g in GameState.gear.filter(func(x): return not x.known): GameState.gear.erase(g)
+			for t in ["ring_might", "ring_tenacity"]: GameState.seen.erase("item:" + t)   # known by now; the shot is the first Garnet
 			for i in 7: GameState.add_gear("ring_might", false)
 			for i in 2: GameState.add_gear("ring_tenacity", false)
 			GameState.mats.gold = 1369; GameState.enqueue_identify_all()
