@@ -1,0 +1,6 @@
+{
+ "_note": "Anonymous gameplay telemetry (DECISIONS #197, docs/PRIVACY.md). api_key is the PostHog *project* key (phc_..., public, safe to ship). Empty api_key = telemetry off (events are only printed in debug builds). host is the PostHog ingestion host.",
+ "api_key": "phc_pa4kUPQzhqPWxQgEErDFRYtXEJp5ZYABFZBnFUyNAJUn",
+ "host": "https://us.i.posthog.com",
+ "privacy_url": "https://github.com/DaltonGoesFast/spd-tactics-builds/blob/main/docs/PRIVACY.md"
+}

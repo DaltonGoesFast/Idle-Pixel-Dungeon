@@ -35,6 +35,7 @@ func _ready() -> void:
 	get_viewport().size_changed.connect(_relayout)
 	_relayout()
 	GameState.tick_identify()
+	if Telemetry.needs_notice(): show_data_notice()
 	if GameState.run.is_empty(): show_camp()
 	else:
 		show_delve()
@@ -116,6 +117,12 @@ func start_combat(event: Dictionary, on_done: Callable, saved := {}) -> void:
 
 func end_combat() -> void:
 	show_delve()
+
+## One-time notice that anonymous gameplay data is collected (DECISIONS #197). Tip card look; OK + Privacy link.
+const DATA_NOTICE_TITLE := "Gameplay data"
+const DATA_NOTICE_TEXT := "SPD Tactics collects anonymous gameplay data (fights, floors, deaths, loot) to improve the game's balance. No names or accounts."
+func show_data_notice() -> void:
+	tips.push_notice("data_notice", DATA_NOTICE_TITLE, DATA_NOTICE_TEXT, Telemetry.mark_notice_seen, "Privacy", Telemetry.privacy_url)
 
 ## Show a tutorial tip once (if tips are enabled). Screens pause while one is open.
 func tip(id: String) -> void:

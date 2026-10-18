@@ -22,6 +22,13 @@ func push(id: String) -> void:
 	queue.append({"id": id, "pages": t.get("pages", [t])})
 	if queue.size() == 1: page = 0; _render()
 
+## A one-off card in the same tip look (not from tutorial.json, not affected by "Skip tips"): goes first in the
+## queue; OK calls on_ok. link_text/url add a second button that opens the url (DECISIONS #197 data notice).
+func push_notice(id: String, title: String, text: String, on_ok: Callable, link_text := "", url := "") -> void:
+	if queue.any(func(q): return q.id == id): return
+	queue.push_front({"id": id, "pages": [{"title": title, "text": text}], "notice": true, "on_ok": on_ok, "link": link_text, "url": url})
+	page = 0; _render()
+
 var card: PanelContainer
 var _tween: Tween
 
@@ -56,6 +63,22 @@ func _render() -> void:
 	l.size_flags_horizontal = SIZE_EXPAND_FILL; box.add_child(l)
 	if cur.pages.size() > 1: box.add_child(UIKit.label("%d / %d" % [page + 1, cur.pages.size()], 0.75, Color("9a8f7c")))
 	var row := UIKit.hbox(box)
+	if cur.get("notice", false):
+		var okn := UIKit.button("OK", next); okn.size_flags_horizontal = SIZE_EXPAND_FILL; row.add_child(okn)
+		var btns: Array = [okn]
+		if String(cur.get("link", "")) != "":
+			var u := String(cur.url)
+			var lk := UIKit.button(String(cur.link), func(): OS.shell_open(u)); lk.size_flags_horizontal = SIZE_EXPAND_FILL; row.add_child(lk)
+			btns.append(lk)
+		for b in btns: b.clip_text = true; b.custom_minimum_size.x = 1
+		card.modulate.a = 0.0
+		var mn := card
+		await get_tree().process_frame
+		await get_tree().process_frame
+		if not is_instance_valid(mn): return
+		if _tween: _tween.kill()
+		_tween = create_tween(); _tween.tween_property(mn, "modulate:a", 1.0, 0.15)
+		return
 	var last: bool = page >= cur.pages.size() - 1
 	var ok := UIKit.button("Got it" if last else "Next", next); ok.size_flags_horizontal = SIZE_EXPAND_FILL; row.add_child(ok)
 	var skip := UIKit.button("Skip tips", skip_all); skip.size_flags_horizontal = SIZE_EXPAND_FILL; row.add_child(skip)
@@ -76,8 +99,12 @@ func next() -> void:
 	else: _render()
 
 func _finish_current() -> void:
-	var id: String = queue.pop_front().id
-	if not (id in GameState.tutorial_done): GameState.tutorial_done.append(id)
+	var cur: Dictionary = queue.pop_front()
+	var id: String = cur.id
+	if cur.get("notice", false):
+		var cb: Callable = cur.get("on_ok", Callable())
+		if cb.is_valid(): cb.call()
+	elif not (id in GameState.tutorial_done): GameState.tutorial_done.append(id)
 	SaveSystem.save_game()
 	page = 0
 	closed.emit(id)
@@ -85,5 +112,8 @@ func _finish_current() -> void:
 
 func skip_all() -> void:
 	GameState.settings.tutorial = false
-	while not queue.is_empty(): _finish_current()
+	while not queue.is_empty() and not queue[0].get("notice", false): _finish_current()
+	# a notice stays until its own OK
+	queue = queue.filter(func(q): return q.get("notice", false))
+	_render()
 	GameState.touch()

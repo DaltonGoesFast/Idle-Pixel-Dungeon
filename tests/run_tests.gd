@@ -119,6 +119,7 @@ func _ready() -> void:
 	await test_tip_fit()
 	await test_window_dim(gs)
 	await test_hero_window_wide(gs)
+	await test_telemetry(gs)
 	print("TESTS: %d passed, %d failed -> %s" % [passes, fails, "PASS" if fails == 0 else "FAIL"])
 	get_tree().quit(1 if fails else 0)
 
@@ -4235,4 +4236,119 @@ func test_milestones(gs, ss) -> void:
 	var spent0 := int(gs.stats.gold_spent)
 	gs.add_mat("gold", 50); gs.pay({"gold": 30})
 	check(int(gs.stats.gold_spent) == spent0 + 30, "Camp spending counts gold spent")
+	gs.new_game()
+
+## DECISIONS #197: anonymous telemetry. The live autoload is off under tests (nothing queued or sent while every
+## suite and sim above ran); a detached instance with a key covers payload shape, PII, caps and HTTP failure.
+func test_telemetry(gs) -> void:
+	print("[telemetry]")
+	check(Telemetry.suppressed, "telemetry: suppressed under tests/headless")
+	check(not Telemetry.enabled(), "telemetry: disabled under tests even with a key")
+	check(Telemetry.queue.is_empty(), "telemetry: the sims and suites above queued nothing (%d)" % Telemetry.queue.size())
+	check(not Telemetry.needs_notice(), "telemetry: no notice under tests")
+	Telemetry.track("fight_end", {"x": 1})
+	check(Telemetry.queue.is_empty(), "telemetry: track() is a no-op while suppressed")
+	check(not Telemetry.flush(true), "telemetry: flush() sends nothing while suppressed")
+	# config: the shipped file has a phc_ project key and an https host
+	var cfg = JSON.parse_string(FileAccess.get_file_as_string("res://data/telemetry.json"))
+	check(typeof(cfg) == TYPE_DICTIONARY and String(cfg.get("host", "")) == "https://us.i.posthog.com", "telemetry: host is the PostHog US host")
+	check(typeof(cfg) == TYPE_DICTIONARY and (String(cfg.get("api_key", "")) == "" or String(cfg.api_key).begins_with("phc_")), "telemetry: key is empty or a public phc_ project key")
+	var T: GDScript = load("res://scripts/autoload/telemetry.gd")
+	# UUIDs
+	var u: String = T.new_uuid()
+	var re := RegEx.new(); re.compile("^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")
+	check(re.search(u) != null and T.new_uuid() != u, "telemetry: random v4 UUIDs")
+	# a detached instance (no _ready, no tree, no network) with a key set
+	var t: Node = T.new()
+	t.suppressed = false; t.api_key = "phc_test"; t.distinct_id = T.new_uuid(); t.session_id = T.new_uuid()
+	t.cfg_path = "user://test_telemetry.cfg"; t.queue_path = "user://test_telemetry_queue.json"
+	var e: Dictionary = t.build_event("fight_end", {"class": "warrior", "enemies": ["rat", "gnoll"], "turns": 12, "auto_battle": true, "ratio": 0.33333, "bad": Node})
+	check(e.event == "fight_end" and e.distinct_id == t.distinct_id and String(e.timestamp).ends_with("Z"), "telemetry: event has name, distinct_id, UTC timestamp")
+	var pr: Dictionary = e.properties
+	for k in ["version", "platform", "class", "session_id", "distinct_id"]: check(pr.has(k), "telemetry: prop " + k)
+	check(pr.version == ProjectSettings.get_setting("application/config/version") and pr.platform == T.platform() and pr["$process_person_profile"] == false and pr["$geoip_disable"] == true, "telemetry: version/platform/anonymous flags")
+	check(pr.enemies == ["rat", "gnoll"] and pr.turns == 12 and pr.ratio == 0.333 and pr.bad == null, "telemetry: props cleaned to JSON values")
+	check(T.platform() in ["android", "windows", "web", "linux", "macos", "ios"], "telemetry: platform name")
+	var b: Dictionary = t.build_batch([e])
+	check(b.api_key == "phc_test" and b.batch.size() == 1 and t.batch_url() == "https://us.i.posthog.com/batch/", "telemetry: /batch/ body and url")
+	# no PII: no OS user name, device id or hero display names in the JSON
+	var js := JSON.stringify(b)
+	var pii := []
+	for v in [OS.get_environment("USER"), OS.get_environment("USERNAME"), OS.get_unique_id(), OS.get_model_name()]:
+		if String(v).length() >= 3 and String(v) != "GenericDevice" and js.contains(String(v)): pii.append(v)
+	check(pii.is_empty(), "telemetry: no user name or device id in the payload " + str(pii))
+	var allowed := ["event", "uuid", "distinct_id", "timestamp", "properties"]
+	check(re.search(String(e.get("uuid", ""))) != null and t.build_event("x", {}).uuid != e.uuid, "telemetry: each event has its own uuid (PostHog dedup)")
+	check(e.keys().all(func(k): return k in allowed), "telemetry: only event/uuid/distinct_id/timestamp/properties at the top level")
+	# rate limit + queue cap
+	for i in 100: t.enqueue(t.build_event("x", {"i": i}))
+	check(t.queue.size() == T.RATE_PER_MIN and t.dropped == 100 - T.RATE_PER_MIN, "telemetry: rate limit (%d queued, %d dropped)" % [t.queue.size(), t.dropped])
+	t._rate = []; t.queue = []; t.dropped = 0
+	for i in T.QUEUE_CAP + 50:
+		t._rate = []
+		t.enqueue(t.build_event("x", {"i": i}))
+	check(t.queue.size() == T.QUEUE_CAP and int(t.queue[0].properties.i) == 50, "telemetry: offline queue capped, oldest dropped")
+	t._save_queue()
+	var t2: Node = T.new(); t2.suppressed = false; t2.queue_path = t.queue_path
+	t2._load_queue()
+	check(t2.queue.size() == T.QUEUE_CAP, "telemetry: queue survives a relaunch (%d)" % t2.queue.size())
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(t.queue_path))
+	t2.free()
+	# HTTP failure never raises: a request that can't start puts the batch back and backs off
+	t.queue = t.queue.slice(0, 60)
+	var h := HTTPRequest.new(); t._http = h   # not in a tree: request() fails like a dead network stack
+	var sent: bool = t.flush(true)
+	check(not sent and t.queue.size() == 60 and t._backoff >= T.BACKOFF_MIN and not t._busy, "telemetry: failed request requeues and backs off")
+	check(not t.flush(true), "telemetry: no retry during backoff")
+	# completed requests: network error requeues, 5xx requeues, 400 drops, 200 clears
+	t._backoff = 0.0; t._in_flight = t.queue.slice(0, 50); t.queue = t.queue.slice(50); t._busy = true
+	t._on_request_completed(HTTPRequest.RESULT_CANT_CONNECT, 0, PackedStringArray(), PackedByteArray())
+	check(t.queue.size() == 60 and t._in_flight.is_empty() and not t._busy and t._backoff >= T.BACKOFF_MIN, "telemetry: no network -> batch back in the queue")
+	var bo: float = t._backoff
+	t._in_flight = t.queue.slice(0, 50); t.queue = t.queue.slice(50)
+	t._on_request_completed(HTTPRequest.RESULT_SUCCESS, 503, PackedStringArray(), PackedByteArray())
+	check(t.queue.size() == 60 and t._backoff > bo, "telemetry: 5xx -> requeue, longer backoff")
+	t._in_flight = t.queue.slice(0, 50); t.queue = t.queue.slice(50); t.dropped = 0
+	t._on_request_completed(HTTPRequest.RESULT_SUCCESS, 400, PackedStringArray(), PackedByteArray())
+	check(t.queue.size() == 10 and t.dropped == 50, "telemetry: 400 (bad key/payload) drops the batch, no retry loop")
+	t._in_flight = t.queue.slice(0, 10); t.queue = []
+	t._on_request_completed(HTTPRequest.RESULT_SUCCESS, 200, PackedStringArray(), PackedByteArray())
+	check(t.queue.is_empty() and t.sent_ok == 10 and t._backoff == 0.0, "telemetry: 200 clears the batch")
+	var qf = JSON.parse_string(FileAccess.get_file_as_string(t.queue_path))
+	check(typeof(qf) == TYPE_ARRAY and qf.is_empty(), "telemetry: a sent batch leaves the queue file at once (no resend after a kill)")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(t.queue_path))
+	# empty key: no-op (nothing queued, nothing sent)
+	t.api_key = ""; t.queue = []
+	t.track("app_open", {})
+	check(t.queue.is_empty() and not t.enabled() and not t.flush(true), "telemetry: empty key is a no-op")
+	# gold sinks are summed per sink
+	t.api_key = "phc_test"; t._rate = []
+	t.spend("craft_guild", 10); t.spend("craft_guild", 5); t.spend("repair", 7); t.spend("repair", 0)
+	t._flush_spend()
+	var sp := {}
+	for q in t.queue: sp[q.properties.sink] = [q.properties.gold, q.properties.count]
+	check(sp.get("craft_guild") == [15, 2] and sp.get("repair") == [7, 1] and t.queue.size() == 2, "telemetry: gold_spent summed per sink " + str(sp))
+	h.free(); t.free()
+	# the combat counters fight_end reads
+	var c := Combat.new()
+	var hs: Dictionary = gs.hero_stats("warrior"); c.setup(DB.rooms[0], hs, hs.ht, ["rat"])
+	var mr: Dictionary = c.milestone_result()
+	check(mr.has("dmg_in") and mr.has("dmg_out") and mr.has("turns"), "telemetry: Combat reports dmg_in/dmg_out/turns")
+	var m = c.enemies()[0] if not c.enemies().is_empty() else null
+	if m != null:
+		var hp0 := int(m.hp)
+		c.hit_mob(m, 3, false, true)
+		check(c.dmg_out == mini(3, hp0), "telemetry: dmg_out counts the hero's hits (%d)" % c.dmg_out)
+	# the notice: same tip card, OK + Privacy, and it isn't skipped by "Skip tips"
+	var ov = load("res://scripts/ui/tip_overlay.gd").new()
+	add_child(ov)
+	var okd := [false]
+	ov.push_notice("data_notice", "Gameplay data", "SPD Tactics collects anonymous gameplay data.", func(): okd[0] = true, "Privacy", "https://example.invalid")
+	await get_tree().process_frame
+	check(ov.is_open() and ov.queue[0].id == "data_notice", "telemetry: notice opens first")
+	ov.skip_all()
+	check(ov.is_open() and not ov.queue.is_empty(), "telemetry: Skip tips doesn't close the data notice")
+	ov.next()
+	check(okd[0] and not ov.is_open(), "telemetry: OK closes the notice and marks it seen")
+	ov.queue_free()
 	gs.new_game()

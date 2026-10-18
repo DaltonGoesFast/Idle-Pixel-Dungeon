@@ -47,7 +47,11 @@ func _ready() -> void:
 			var hr := HFlowContainer.new(); v.add_child(hr)
 			for c in GameState.heroes: hr.add_child(main.screen._hero_slot(c))
 			Paperdoll.build(v, "warrior", not main.screen.portrait, "camp", func(): pass)])
-		plan.append([sz, "camp_expedition", func(): main.show_camp(); main.screen.open_page("Delve")])
+		# DECISIONS #197: the one-time gameplay data notice (tip card look, OK + Privacy)
+		plan.append([sz, "data_notice", func(): main.show_camp(); main.screen.close_page(); main.show_data_notice()])
+		plan.append([sz, "camp_expedition", func():
+			main.tips.queue = main.tips.queue.filter(func(q): return not q.get("notice", false)); main.tips._render()
+			main.show_camp(); main.screen.open_page("Delve")])
 		# DECISIONS #193: the Mage's wand taken out of the Staff - the Expedition window and Stats panel say "no Bolt"
 		plan.append([sz, "expedition_no_wand", func():
 			mage_was_unlocked = GameState.heroes.mage.unlocked
