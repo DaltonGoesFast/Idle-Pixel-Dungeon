@@ -4264,13 +4264,8 @@ func test_telemetry(gs) -> void:
 	check(T.classify(false, true, false, true, true, false) == "headless" and T.classify(false, false, true, true, true, false) == "tests", "telemetry: SPD_TELEMETRY_FROM_SOURCE never turns on headless runs or tests")
 	check(T.classify(true, false, false, false, false, false) == "env", "telemetry: SPD_NO_TELEMETRY turns it off even in an exported game")
 	check(T.classify(false, false, false, false, false, true) == "automated_browser", "telemetry: an automated browser on the web build sends nothing")
-	var ua_chrome := "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
-	var ua_headless := "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.0.0 Safari/537.36"
-	var ua_android := "Mozilla/5.0 (Linux; Android 14; SM-F946U) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36"
-	var ua_ios := "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1"
-	check(not T.automated_browser(ua_chrome, false) and not T.automated_browser(ua_android, false) and not T.automated_browser(ua_ios, false), "telemetry: desktop, Android and iPhone browsers are players")
-	check(T.automated_browser(ua_headless, false), "telemetry: headless Chrome is a bot even without an automation flag")
-	check(T.automated_browser(ua_chrome, true), "telemetry: navigator.webdriver (Playwright, Puppeteer, Selenium) is a bot")
+	check(not T.automated_browser(false), "telemetry: a real browser (no navigator.webdriver) is a player")
+	check(T.automated_browser(true), "telemetry: navigator.webdriver (Playwright, Puppeteer, Selenium) is a bot")
 	# UUIDs
 	var u: String = T.new_uuid()
 	var re := RegEx.new(); re.compile("^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")

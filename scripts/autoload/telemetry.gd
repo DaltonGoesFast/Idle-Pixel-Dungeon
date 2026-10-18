@@ -82,7 +82,7 @@ static func is_test_run() -> bool:
 ## Why this run must not collect ("" = a player's exported game). DECISIONS #197/#198: only exported builds (APK, EXE,
 ## the GitHub Pages build) in a real browser or on a real device send. Runs from source use the editor binary (the
 ## developer's own sessions, the playtest harness and its probes under xvfb, which aren't headless and don't live
-## in res://tests/), and an automated or headless browser is a check of the web build, not a player.
+## in res://tests/), and an automated browser (navigator.webdriver) is a check of the web build, not a player.
 ## SPD_TELEMETRY_FROM_SOURCE=1 lets a deliberate check from the editor send (never headless or tests).
 static func suppress_reason() -> String:
 	var tests := false
@@ -94,9 +94,10 @@ static func suppress_reason() -> String:
 		if cs != null and cs.scene_file_path.begins_with("res://tests/"): tests = true
 	var bot := false
 	if OS.has_feature("web"):
-		var ua = JavaScriptBridge.eval("navigator.userAgent", true)
+		# Only navigator.webdriver (Playwright/Puppeteer/Selenium). Do not key on user-agent strings —
+		# real browsers set those, and HeadlessChrome alone must not suppress a player's export.
 		var wd = JavaScriptBridge.eval("navigator.webdriver === true", true)
-		bot = automated_browser(String(ua) if typeof(ua) == TYPE_STRING else "", typeof(wd) == TYPE_BOOL and wd)
+		bot = automated_browser(typeof(wd) == TYPE_BOOL and wd)
 	return classify(OS.has_environment("SPD_NO_TELEMETRY"), DisplayServer.get_name() == "headless", tests,
 		OS.has_feature("editor"), OS.has_environment("SPD_TELEMETRY_FROM_SOURCE"), bot)
 
@@ -109,10 +110,10 @@ static func classify(env_off: bool, headless: bool, tests: bool, from_source: bo
 	if automated: return "automated_browser"
 	return ""
 
-## A browser driven by a test tool (Playwright, Puppeteer, Selenium set navigator.webdriver) or headless Chrome
-## (its user agent says "HeadlessChrome", even with no automation flag).
-static func automated_browser(user_agent: String, webdriver: bool) -> bool:
-	return webdriver or user_agent.contains("HeadlessChrome")
+## A browser driven by a test tool (Playwright, Puppeteer, Selenium set navigator.webdriver).
+## User-agent strings are ignored: real players' browsers set them, and must still send.
+static func automated_browser(webdriver: bool) -> bool:
+	return webdriver
 
 func load_config(path := CONFIG_PATH) -> void:
 	api_key = ""; host = DEFAULT_HOST; privacy_url = DEFAULT_PRIVACY_URL
