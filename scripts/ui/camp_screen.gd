@@ -342,7 +342,8 @@ func info(id: String, title: String, lines: Array, actions: Array = [], badge :=
 		body.add_child(UIKit.action(a[0], func(): a[1].call(); _close_info(), a[2]))
 	# fit the popup to its content
 	(func():
-		if not is_instance_valid(w[2]): return
+		# the window may be gone, or the Camp screen swapped out (a delve started) before this deferred fit runs
+		if not is_instance_valid(w[2]) or not is_inside_tree(): return
 		var pc: PanelContainer = w[2]; var vs := get_viewport_rect().size
 		var hh := minf(vs.y * 0.8, body.get_combined_minimum_size().y + UIKit.font_size * 4.0)
 		pc.size.y = hh; pc.position.y = floorf((vs.y - hh) / 2.0)).call_deferred()

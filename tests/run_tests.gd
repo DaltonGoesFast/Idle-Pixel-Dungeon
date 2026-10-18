@@ -89,6 +89,7 @@ func _ready() -> void:
 	test_full_auto(gs)
 	test_encounter_dismiss(gs)
 	await test_encounter_summary(gs)
+	await test_info_fit_out_of_tree(gs)
 	await test_menu_toast(gs)
 	test_log_and_sounds(gs)
 	test_ring_contexts(gs)
@@ -115,6 +116,7 @@ func _ready() -> void:
 	test_verify_apk_java()
 	await test_touch_scroll()
 	await test_tip_fit()
+	await test_hero_window_wide(gs)
 	print("TESTS: %d passed, %d failed -> %s" % [passes, fails, "PASS" if fails == 0 else "FAIL"])
 	get_tree().quit(1 if fails else 0)
 
@@ -2123,6 +2125,8 @@ func test_encounter_summary(gs) -> void:
 	check(clean_txt.contains("Victory") and clean_txt.contains("Got") and not clean_txt.contains("Lost"), "post-battle victory results hide the Lost category when nothing was lost")
 	cs_clean.queue_free()
 	scr._open_summary("Free cache", PackedStringArray(["+14 Gold", "+13 XP"]), PackedStringArray())
+	var shield: ColorRect = scr.get_node("EncounterSummary/SummaryShield")
+	check(shield.color.a == 0.0 and shield.mouse_filter == Control.MOUSE_FILTER_STOP and scr.get_node("EncounterSummary").mouse_filter == Control.MOUSE_FILTER_STOP, "an event's result window doesn't darken the scene, but taps behind it are still blocked")
 	txt = _node_text(scr.get_node("EncounterSummary"))
 	check(txt.contains("Got") and not txt.contains("Lost"), "results popup hides the Lost category when nothing was lost")
 	var list: ScrollContainer = scr.get_node("EncounterSummary").find_child("SummaryList", true, false)
@@ -2138,6 +2142,7 @@ func test_encounter_summary(gs) -> void:
 	for i in 34: long_lost.append("Ring of Item %d cracks" % i)
 	scr._open_summary("Defeat", PackedStringArray(), long_lost, Callable(), true, "Unused supplies return to the stash. Scrolls of Upgrade return on the next boss kill.")
 	for i in 4: await get_tree().process_frame
+	check(scr.get_node("EncounterSummary/SummaryShield").color.a > 0.0, "the Defeat window keeps its dim")
 	var okb: Control = scr.get_node("EncounterSummary").find_child("SummaryOK", true, false)
 	var okr := okb.get_global_rect()
 	check(Rect2(0, 0, 968, 2376).encloses(okr) and okr.size.y > 0.0, "a 34-line defeat list keeps OK inside the 968x2376 phone screen (OK at %s)" % okr)
@@ -2162,6 +2167,24 @@ func test_encounter_summary(gs) -> void:
 	scr._accept_summary()
 	check(gs.run.is_empty() and gs.last_result == "death", "OK after a defeat ends the expedition")
 	scr.queue_free()
+
+## Camp item windows fit themselves one frame later. If the Camp screen leaves the tree first (a delve starts in the
+## same frame, as the UI smoke does after its gear checks), that deferred fit must skip instead of asking a detached
+## node for its viewport ("!is_inside_tree()" engine error). In the tree it still fits the window.
+func test_info_fit_out_of_tree(gs) -> void:
+	print("[info fit out of tree]")
+	gs.new_game()
+	var cs = load("res://scripts/ui/camp_screen.gd").new(); add_child(cs)
+	cs.info("ring_might", "Ring of Might", ["one line"], [])
+	var pc: Control = cs.info_layer.find_children("*", "PanelContainer", true, false)[0]
+	await get_tree().process_frame
+	var vs := get_viewport().get_visible_rect().size
+	check(pc.size.y > 0.0 and pc.size.y <= vs.y * 0.8 + 1.0, "in the tree, the item window still fits itself (%.0f)" % pc.size.y)
+	cs.info("ring_might", "Ring of Might", ["one line"], [])
+	remove_child(cs)
+	await get_tree().process_frame
+	check(not cs.is_inside_tree() and is_instance_valid(cs), "out of the tree, the deferred fit is skipped without touching the viewport")
+	cs.free()
 
 ## A reward toast emitted before the floor menu opens must sit in the card, above the buttons.
 func test_menu_toast(gs) -> void:
@@ -3981,3 +4004,57 @@ func test_lose_enemies(gs) -> void:
 	c.drain_events(); c.hero_tap(rat.pos, "bolt")
 	check(c.drain_events().any(func(e): return e.get("kind", "") == "surprise"), "the first arrow at it is a Surprise")
 	check(rat.seen_hero and rat.state == "hunting" and rat.aim == c.hero.pos, "and the shot reveals you: it hunts your cell")
+
+
+## DECISIONS #192: on the Fold inner screen (1856x2160) the hero window's slot detail spans the full width under the
+## doll and Stats. Swap rows keep a readable name (the v0.44.1 phone report wrapped "Horn of Plenty" one letter
+## column wide), a normal-height button, and every button fits inside the viewport, in the delve and at Camp.
+func test_hero_window_wide(gs) -> void:
+	print("[hero window wide]")
+	var win := get_window(); var old := win.size
+	gs.new_game(); gs.settings.tutorial = false
+	var h: Dictionary = gs.heroes.rogue; h.unlocked = true; h.level = 10
+	gs.equip("rogue", gs.add_gear("cape_thorns", true, 2)); gs.add_gear("horn_plenty")
+	gs.equip("warrior", gs.add_gear("chalice_blood", true, 1))
+	var main = load("res://scenes/main.tscn").instantiate(); add_child(main)
+	for sz in [Vector2i(1856, 2160), Vector2i(484, 1188)]:
+		win.size = sz
+		await get_tree().process_frame
+		main._relayout()
+		for where in ["delve", "camp"]:
+			Paperdoll.sel_slot = "artifact"
+			if where == "delve":
+				gs.run = {}; gs.start_run("rogue", {}, "prison", 10)
+				gs.run.pack_gear.append({"uid": 9300, "id": "horn_plenty", "lvl": 0, "cracked": false, "known": true, "owned": false})
+				main.show_delve(); main.delve._open_panel("backpack")
+			else:
+				gs.end_run("abandon"); main.show_camp(); main.screen.chosen_hero = "rogue"; main.screen.open_page("Heroes")
+			for i in 3: await get_tree().process_frame
+			var host: Control = main.delve.win_panel if where == "delve" else main.screen.win_layer
+			var vr: Rect2 = main.get_viewport_rect()
+			var tag := "%s %s" % [sz, where]
+			var det: Control = host.find_child("SlotDetail", true, false)
+			var doll: Control = host.find_child("Paperdoll", true, false)
+			check(det != null and doll != null and det.size.x >= doll.size.x - 1.0, "%s: slot detail spans the hero window (%s of %s)" % [tag, det.size.x if det else -1.0, doll.size.x if doll else -1.0])
+			var names: Array = host.find_children("SwapName", "Label", true, false)
+			check(names.size() >= 1, "%s: swap rows render (%d)" % [tag, names.size()])
+			var sc: ScrollContainer = null
+			var p: Node = det
+			while p != null and sc == null:
+				if p is ScrollContainer: sc = p
+				p = p.get_parent()
+			for l in names:
+				var six: float = l.get_theme_font("font").get_string_size("Horn o", HORIZONTAL_ALIGNMENT_LEFT, -1, l.get_theme_font_size("font_size")).x
+				check(l.size.x >= six, "%s: '%s' gets at least 6 letters of width (%.0f >= %.0f)" % [tag, l.text, l.size.x, six])
+				check(l.size.y < l.get_line_height() * 2.6, "%s: '%s' wraps to at most two lines (h %.0f)" % [tag, l.text, l.size.y])
+			for b in host.find_children("SwapButton", "Button", true, false):
+				if sc: sc.ensure_control_visible(b)
+				await get_tree().process_frame
+				var br: Rect2 = b.get_global_rect()
+				check(br.size.y <= UIKit.btn_height() * 1.5, "%s: swap button '%s' is a normal height (%.0f)" % [tag, b.text, br.size.y])
+				check(vr.encloses(br), "%s: swap button '%s' is inside the viewport (%s in %s)" % [tag, b.text, br, vr])
+	Paperdoll.sel_slot = ""
+	gs.end_run("abandon")
+	main.queue_free()
+	win.size = old
+	await get_tree().process_frame

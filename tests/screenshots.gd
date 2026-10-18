@@ -218,7 +218,11 @@ func _ready() -> void:
 		plan.append([sz, "mage_ambush", func():
 			GameState.end_run("abandon")
 			for c in GameState.heroes: GameState.heroes[c].unlocked = true
-			GameState.start_run("mage", {}, "sewers", 1); main.show_delve(); _clear_pops(); main.delve.running = false
+			# camp_guild_patrols (#188) leaves the Mage out on patrol, and a hero on patrol can't start a run: without
+			# this start_run failed, these four shots showed an empty delve and logged 24 SCRIPT ERRORs
+			GameState.heroes.mage.patrol = {}
+			if not GameState.start_run("mage", {}, "sewers", 1): push_error("mage_ambush: start_run failed: " + GameState.can_start_run("mage"))
+			main.show_delve(); _clear_pops(); main.delve.running = false
 			main.delve.pending = Delve.combat_event(GameState.run, Delve.rng_for(GameState.run, 4), ["rat", "rat"]); main.delve._show_card()])
 		plan.append([sz, "mage_ambush_late", func(): pass])   # the same scene ~0.2 s later (foes arrived, lunging)
 		plan.append([sz, "mage_bolt", func():
@@ -232,6 +236,9 @@ func _ready() -> void:
 			var lost := PackedStringArray()
 			for i in 34: lost.append("Ring of Item %d cracks" % i)
 			main.delve._open_summary("Defeat", PackedStringArray(), lost, Callable(), true, "Unused supplies return to the stash. Scrolls of Upgrade return on the next boss kill.")])
+		plan.append([sz, "event_result", func():   # an event's result window: no dim behind it, like the event card (DECISIONS #191)
+			main.delve._accept_summary()
+			main.delve._open_summary("Open the chest", PackedStringArray(["+14 Gold", "Potion of Healing"]), PackedStringArray(["-1 Iron Key"]))])
 		plan.append([sz, "combat", func():
 			main.start_combat(Delve.combat_event(GameState.run, Delve.rng_for(GameState.run, 3), ["gnoll", "crab"]), func(_r): pass)
 			for i in 3: main.screen._do_bot()])
@@ -315,6 +322,18 @@ func _ready() -> void:
 			GameState.run.biome = "sewers"; GameState.run.floor = 1
 			main.start_combat({"kind": "combat", "boss": true, "room": DB.boss_rooms[0], "mobs": ["goo"]}, func(_r): pass)
 			for i in 3: main.screen._do_bot()])
+	# v0.44.1 phone report (Fold inner): the Rogue's artifact slot with a pack swap must not squeeze into a sliver.
+	# After every other shot at every size: these replace the Warrior run, end it and level the Rogue, which the
+	# shots above (and the next size's) would otherwise pick up
+	for sz in SIZES:
+		plan.append([sz, "hero_swap_delve", func():
+			_rogue_swap_run(); Paperdoll.sel_slot = "artifact"
+			# event_result left its result window open on the reused delve screen; close it so it doesn't cover the bag
+			if main.delve != null and is_instance_valid(main.delve): main.delve._accept_summary()
+			main.show_delve(); main.delve._open_panel("backpack"); _scroll_to_doll.call_deferred()])
+		plan.append([sz, "hero_swap_camp", func():
+			GameState.end_run("abandon"); _rogue_swap_camp(); Paperdoll.sel_slot = "artifact"
+			main.show_camp(); main.screen.chosen_hero = "rogue"; main.screen.open_page("Heroes")])
 
 func _process(_d: float) -> void:
 	if f == 0 and OS.has_environment("SHOTS"):  # SHOTS=caves,dm300 -> only those steps
@@ -361,3 +380,21 @@ func _fresh_warrior_run() -> void:
 	if GameState.run.is_empty():
 		for k in ["ration", "torch", "potion_healing"]: GameState.add_mat(k, 1)
 		GameState.start_run("warrior", {"ration": 1, "torch": 1, "potion_healing": 1}, "sewers", 5)
+
+
+## A Lv10 Rogue on Prison 10 wearing the Cape of Thorns, with a Horn of Plenty in the pack (the phone report).
+func _rogue_swap_run() -> void:
+	GameState.run = {}; _rogue_swap_camp()
+	GameState.start_run("rogue", {}, "prison", 10)
+	GameState.run.pack_gear.append({"uid": 9300, "id": "horn_plenty", "lvl": 0, "cracked": false, "known": true, "owned": false})
+
+func _rogue_swap_camp() -> void:
+	var h: Dictionary = GameState.heroes.rogue
+	h.unlocked = true; h.level = 10
+	if int(h.get("artifact", 0)) == 0: GameState.equip("rogue", GameState.add_gear("cape_thorns", true, 2))
+	if not GameState.gear.any(func(g): return g.id == "horn_plenty" and GameState.equipped_by(g.uid) == ""): GameState.add_gear("horn_plenty")
+	if not GameState.gear.any(func(g): return g.id == "chalice_blood"): GameState.equip("warrior", GameState.add_gear("chalice_blood", true, 1))
+
+func _scroll_to_doll() -> void:
+	var pd = main.delve.card_host.find_child("Paperdoll", true, false)
+	if pd: (main.delve.card_host.get_parent() as ScrollContainer).scroll_vertical = int(pd.position.y)
