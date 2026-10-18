@@ -43,6 +43,9 @@ func _ready() -> void:
 	danger = Control.new(); danger.name = "DangerEdges"; danger.mouse_filter = MOUSE_FILTER_IGNORE; danger.z_index = 25
 	danger.set_anchors_and_offsets_preset(PRESET_FULL_RECT); danger.draw.connect(_draw_danger); add_child(danger)
 	GameState.settings_changed.connect(func(): if pending.get("kind", "") == "settings": _show_card())
+	# An encounter card left open when the app closed comes back here, before Main lays the screen out: the first
+	# apply_layout() -> _show_card() would otherwise drop pending_card from the run and the bar would walk past it (#205).
+	if GameState.run.has("pending_card"): pending = GameState.run.pending_card
 	_refresh_controls()
 
 ## SPD-style window over the corridor. The (clear) input shield stops above the toolbar, so the bag and menu stay in reach.

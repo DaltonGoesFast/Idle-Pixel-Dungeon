@@ -90,6 +90,7 @@ func _ready() -> void:
 	test_full_auto(gs)
 	test_passage_confirm(gs)
 	test_encounter_dismiss(gs)
+	test_encounter_restart(gs)
 	await test_encounter_summary(gs)
 	await test_info_fit_out_of_tree(gs)
 	await test_menu_toast(gs)
@@ -2126,6 +2127,42 @@ func test_encounter_dismiss(gs) -> void:
 	check(d.pending.get("kind", "") == "combat", "Keep delving returns to the fight")
 	d.queue_free()
 	gs.end_run("abandon")
+
+## DECISIONS #205: an encounter card open (or set aside) when the app closes is still there after a restart.
+## Main builds a fresh DelveScreen and lays it out before on_shown(); that first layout must not drop the card.
+func test_encounter_restart(gs) -> void:
+	print("[encounter restart]")
+	for kind in ["ambush", "boss", "special", "set aside"]:
+		gs.new_game(); gs.add_mat("ration", 1); gs.add_mat("torch", 1)
+		gs.start_run("warrior", {"ration": 1, "torch": 1}, "sewers", 5)
+		gs.run.talent_prompted = true
+		var ev: Dictionary
+		match kind:
+			"boss": ev = {"kind": "combat", "boss": true, "room": DB.boss_rooms[0], "mobs": [DB.biomes.sewers.boss]}
+			"special", "set aside": ev = {"kind": "special", "special": Delve._for_biome(DB.specials, gs.run)[0]}
+			_: ev = Delve.combat_event(gs.run, Delve.rng_for(gs.run, 1), ["rat"])
+		var d = load("res://scripts/ui/delve_screen.gd").new()
+		d.pending = ev; d.running = true
+		add_child(d)
+		d._show_card()
+		if kind == "set aside": d._dismiss_encounter()
+		check(gs.run.get("pending_card", {}).get("kind", "") == ev.kind, "%s: the card is in the run before the app closes" % kind)
+		var saved: Dictionary = gs.to_dict()
+		d.queue_free()
+		gs.new_game(); gs.from_dict(JSON.parse_string(JSON.stringify(saved)))
+		# what Main does on launch: a new DelveScreen, added and laid out, then on_shown()
+		var d2 = load("res://scripts/ui/delve_screen.gd").new()
+		add_child(d2)
+		d2.apply_layout(true, Vector2(484, 1188))
+		check(d2.pending.get("kind", "") == ev.kind and d2.pending.get("boss", false) == ev.get("boss", false), "%s: the card is open again after a restart" % kind)
+		check(gs.run.get("pending_card", {}).get("kind", "") == ev.kind, "%s: the first layout keeps the card in the save" % kind)
+		check(_find_btn(d2.card_host, "Close") != null, "%s: the restored card has its buttons" % kind)
+		var prog := float(gs.run.progress)
+		d2.running = true
+		d2._process(1.0)
+		check(is_equal_approx(float(gs.run.progress), prog), "%s: the bar does not walk past it after a restart" % kind)
+		d2.queue_free()
+		gs.end_run("abandon")
 
 ## After a fight, chest, or room, a window lists gains and losses and holds the bar until OK.
 func test_encounter_summary(gs) -> void:
