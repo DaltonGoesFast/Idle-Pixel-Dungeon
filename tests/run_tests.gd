@@ -88,6 +88,7 @@ func _ready() -> void:
 	test_owed_sou(gs)
 	await test_icon_sizes(gs)
 	test_full_auto(gs)
+	test_passage_confirm(gs)
 	test_encounter_dismiss(gs)
 	await test_encounter_summary(gs)
 	await test_info_fit_out_of_tree(gs)
@@ -1469,7 +1470,7 @@ func test_break_rings(gs) -> void:
 	var before_g: int = gs.mat("gold"); var before_r: int = gs.mat("arcane_resin")
 	check(gs.break_ring_extras() and gs.gear_by_uid(cracked).is_empty(), "Break down extras melts the spare copies")
 	check(gs.gear_by_uid(worn).uid == worn and gs.heroes.warrior.ring == worn, "the equipped ring stays equipped")
-	check(not gs.gear_by_uid(unknown).is_empty() and gs.id_queue.size() == 1 and int(gs.id_queue[0].uid) == unknown, "the kept spare stays, including its identification")
+	check(not gs.gear_by_uid(unknown).is_empty() and gs.gear_by_uid(unknown).known and gs.id_queue.is_empty(), "the kept spare stays; Might is a known type, so queueing identified it at once (DECISIONS #203)")
 	var left_tenacity := 0
 	for g in gs.gear:
 		if g.id == "ring_tenacity": left_tenacity += 1
@@ -2016,9 +2017,83 @@ func test_full_auto(gs) -> void:
 	var pbtn: Button = _find_btn(cs_low.buttons, "Scroll of Passage")
 	check(pbtn != null, "Scroll of Passage button remains ready in combat after Auto Battle stops")
 	var gold_before: int = gs.mat("gold")
+	var time_before: float = cs_low.combat.time
 	pbtn.pressed.emit()
-	check(gs.run.is_empty() and gs.last_result == "extract" and gs.mat("iron_ore") == 7 and gs.mat("gold") >= gold_before + 25 and gs.mat("scroll_passage") == 0, "using Scroll of Passage in combat extracts and banks the pack")
+	check(cs_low.passage_confirm and cs_low.passage_layer != null and not gs.run.is_empty(), "combat Passage opens a confirm and does not extract yet")
+	check(int(gs.run.supplies.get("scroll_passage", 0)) == 1, "confirm keeps the scroll until Read")
+	var cancel: Button = _find_btn(cs_low.passage_layer, "Cancel")
+	check(cancel != null, "combat Passage confirm has Cancel")
+	cancel.pressed.emit()
+	check(not cs_low.passage_confirm and int(gs.run.supplies.get("scroll_passage", 0)) == 1 and is_equal_approx(cs_low.combat.time, time_before), "Cancel keeps the scroll and spends no turn")
+	pbtn = _find_btn(cs_low.buttons, "Scroll of Passage")
+	pbtn.pressed.emit()
+	var read: Button = _find_btn(cs_low.passage_layer, "Read")
+	check(read != null, "combat Passage confirm has Read")
+	read.pressed.emit()
+	check(gs.run.is_empty() and gs.last_result == "extract" and gs.mat("iron_ore") == 7 and gs.mat("gold") >= gold_before + 25 and gs.mat("scroll_passage") == 0, "Read on combat Passage extracts and banks the pack")
 	cs_low.queue_free()
+
+## DECISIONS #202: Scroll of Passage asks Read/Cancel from the Menu, an ambush card, and mid-fight.
+## Cancel keeps the scroll and spends no turn; Read extracts and banks the pack.
+func test_passage_confirm(gs) -> void:
+	print("[passage confirm]")
+	gs.new_game(); gs.settings.tutorial = false; gs.add_mat("ration", 1); gs.add_mat("torch", 1); gs.add_mat("scroll_passage", 2)
+	gs.start_run("warrior", {"ration": 1, "torch": 1, "scroll_passage": 1}, "sewers", 5)
+	gs.run.talent_prompted = true
+	gs.run.pack["gold"] = 12
+	var d = load("res://scripts/ui/delve_screen.gd").new()
+	add_child(d)
+	# Menu path
+	d._open_panel("menu")
+	var pbtn: Button = _find_btn(d.card_host, "Read Scroll of Passage (extract)")
+	check(pbtn != null, "Menu offers Scroll of Passage when carried")
+	pbtn.pressed.emit()
+	check(d.pending.get("kind", "") == "confirm_passage", "Menu Passage opens the confirm card")
+	check(_find_btn(d.card_host, "Read") != null and _find_btn(d.card_host, "Cancel") != null, "confirm has Read and Cancel")
+	var title_ok := false
+	for n in d.card_host.find_children("*", "Label", true, false):
+		if n.text == "Scroll of Passage": title_ok = true; break
+	check(title_ok, "confirm title is Scroll of Passage")
+	var body_ok := false
+	for n in d.card_host.find_children("*", "Label", true, false):
+		if n.text == Delve.passage_text(): body_ok = true; break
+	check(body_ok, "confirm body explains the extract")
+	_find_btn(d.card_host, "Cancel").pressed.emit()
+	check(int(gs.run.supplies.get("scroll_passage", 0)) == 1 and not gs.run.is_empty(), "Cancel from Menu confirm keeps the scroll")
+	# Ambush card path
+	var fight := Delve.combat_event(gs.run, Delve.rng_for(gs.run, 1), ["rat"])
+	d.pending = fight; d._under = {}; d._show_card()
+	pbtn = _find_btn(d.card_host, "Read Scroll of Passage (extract)")
+	check(pbtn != null, "ambush card offers Scroll of Passage")
+	pbtn.pressed.emit()
+	check(d.pending.get("kind", "") == "confirm_passage" and d._under.get("kind", "") == "combat", "ambush Passage confirm keeps the fight under it")
+	_find_btn(d.card_host, "Cancel").pressed.emit()
+	check(d.pending.get("kind", "") == "combat" and int(gs.run.supplies.get("scroll_passage", 0)) == 1, "Cancel from ambush confirm returns to the fight with the scroll")
+	# Read extracts
+	d._confirm_passage()
+	var gold_before: int = gs.mat("gold")
+	_find_btn(d.card_host, "Read").pressed.emit()
+	check(gs.run.is_empty() and gs.last_result == "extract" and gs.mat("gold") >= gold_before + 12 and gs.mat("scroll_passage") == 1, "Read extracts, banks the pack, and consumes one Passage")
+	d.queue_free()
+	# Mid-fight path (toolbar)
+	gs.start_run("warrior", {"ration": 1, "torch": 1, "scroll_passage": 1}, "sewers", 5)
+	gs.run.talent_prompted = true
+	gs.run.pack["iron_ore"] = 3
+	fight = Delve.combat_event(gs.run, Delve.rng_for(gs.run, 2), ["rat"])
+	var cs = load("res://scripts/ui/combat_screen.gd").new()
+	cs.setup(fight, func(_r): pass)
+	add_child(cs)
+	cs.apply_layout(true, Vector2(484, 1188))
+	var time0: float = cs.combat.time
+	_find_btn(cs.buttons, "Scroll of Passage").pressed.emit()
+	check(cs.passage_confirm and _find_btn(cs.passage_layer, "Cancel") != null, "combat toolbar Passage opens confirm")
+	_find_btn(cs.passage_layer, "Cancel").pressed.emit()
+	check(not cs.passage_confirm and int(gs.run.supplies.get("scroll_passage", 0)) == 1 and is_equal_approx(cs.combat.time, time0), "combat Cancel keeps scroll and spends no turn")
+	_find_btn(cs.buttons, "Scroll of Passage").pressed.emit()
+	var ore_before: int = gs.mat("iron_ore")
+	_find_btn(cs.passage_layer, "Read").pressed.emit()
+	check(gs.run.is_empty() and gs.last_result == "extract" and gs.mat("iron_ore") == ore_before + 3, "combat Read extracts and banks the pack")
+	cs.queue_free()
 
 ## Closing an encounter card sets it aside so the bag and settings work; the bar cannot skip it.
 func test_encounter_dismiss(gs) -> void:
@@ -2752,83 +2827,136 @@ func test_identify_queue_all(gs) -> void:
 	check(qa != null and qa.disabled, "Queue all is disabled when nothing is left to queue")
 	cs.close_page(); cs.queue_free()
 	check(gs.enqueue_identify_all() == 0, "Queue all with nothing to queue is a no-op")
-	# Upgrade mid-identification: 600 s each at Lv1, chained a=600 b=1200 c=1800. After 300 s, upgrade to Lv2 (420 s).
-	gs.time_offset += 300.0
-	var prog := []
-	for q in gs.id_queue: prog.append(gs.identify_progress(q))
-	check(prog.size() == 3 and prog[0] > 0.45 and prog[0] < 0.85 and prog[1] > 0.2 and prog[1] < prog[0] and prog[2] > 0.1 and prog[2] < prog[1],
-		"every queued item fills across its whole wait, not only the active one (%.2f %.2f %.2f)" % [prog[0] if prog.size() > 0 else -1, prog[1] if prog.size() > 1 else -1, prog[2] if prog.size() > 2 else -1])
-	var cs2 = load("res://scripts/ui/camp_screen.gd").new(); add_child(cs2)
-	cs2.section["Enchanter"] = "identify"
-	cs2.open_page("Enchanter")
-	var bars: Array = cs2.win_layer.find_children("IdentifyBar", "ProgressBar", true, false)
-	var shown := bars.size() == 3
-	if shown:
-		for i in 3: shown = shown and absf(bars[i].value - gs.identify_progress(gs.id_queue[i])) < 0.02 and bars[i].value > 0.1
-	check(shown, "the Enchanter draws a filling bar for every queued item")
-	cs2.close_page(); cs2.queue_free()
-	# DECISIONS #171: when the front item finishes, the waiting bars keep their fill (they used to drop to 0).
-	var saved_q: Array = gs.id_queue.duplicate(true)
-	var off0: float = gs.time_offset
-	var t_q: float = gs.now()
-	var front_left: float = float(gs.id_queue[0].ready_at) - t_q
-	gs.time_offset += front_left - 1.0
-	var before_tick := []
-	for q in gs.id_queue: before_tick.append(gs.identify_progress(q))
-	gs.time_offset += 2.0
-	var ticked: Array = gs.tick_identify()
-	var after_tick := []
-	for q in gs.id_queue: after_tick.append(gs.identify_progress(q))
-	check(ticked.size() == 1 and after_tick.size() == 2 and after_tick[0] >= before_tick[1] and after_tick[1] >= before_tick[2] and after_tick[0] > 0.4,
-		"identify bars never jump back when the front item finishes (%s -> %s)" % [before_tick, after_tick])
-	var legacy: Dictionary = JSON.parse_string(JSON.stringify(gs.to_dict()))
-	for q in legacy.id_queue: q.erase("queued_at")
-	var p_legacy0: float = gs.identify_progress(gs.id_queue[1])
-	gs.from_dict(legacy)
-	var p_legacy1: float = gs.identify_progress(gs.id_queue[1])
-	gs.time_offset += 30.0
-	var p_legacy2: float = gs.identify_progress(gs.id_queue[1])
-	check(gs.id_queue.all(func(q): return q.has("queued_at")) and p_legacy2 > p_legacy1 and p_legacy1 <= p_legacy0 + 0.001,
-		"a queue saved before queued_at loads with a fixed start and keeps filling (%.2f %.2f %.2f)" % [p_legacy0, p_legacy1, p_legacy2])
-	gs.time_offset -= 30.0
-	var u_back: int = int(ticked[0]) if not ticked.is_empty() else 0
-	var g_back: Dictionary = gs.gear_by_uid(u_back)
-	if not g_back.is_empty(): g_back.known = false
-	gs.id_queue = saved_q
-	gs.time_offset = off0 - 300.0
-	var s1: float = gs.identify_seconds()
-	gs.time_offset += 300.0
+	gs.time_offset = 0.0
+	test_identify_rework(gs)
+
+## DECISIONS #203: a type is learned once (the rest of that type finish with it or at once), one slot per Desk
+## level, 3/2/1 minute timers, Finish now for gold, and the queue survives save/load and old saves.
+func _id_reset(gs, lvl := 1) -> void:
+	gs.new_game(); gs.time_offset = 0.0
+	gs.facilities.enchanter.level = lvl; gs.facilities.enchanter.cap = lvl
+
+func _id_add(gs, id: String, n := 1) -> Array:
+	var out := []
+	for i in n: out.append(gs.add_gear(id, false))
+	return out
+
+func test_identify_rework(gs) -> void:
+	print("[identify rework]")
+	# timers and slots per Desk level
+	var secs := []; var slots := []
+	for lvl in [1, 2, 3]:
+		_id_reset(gs, lvl); secs.append(gs.identify_seconds()); slots.append(gs.identify_slots())
+	check(secs == [180.0, 120.0, 60.0] and slots == [1, 2, 3], "identify takes 3/2/1 min with 1/2/3 slots by Desk level (%s %s)" % [secs, slots])
+	# the user's queue: 7 Garnet + 2 Ruby at Lv1 used to take 90 minutes one after another
+	_id_reset(gs, 1)
+	var garnets := _id_add(gs, "ring_might", 7); var rubies := _id_add(gs, "ring_tenacity", 2)
+	check(gs.gear_name(gs.gear_by_uid(garnets[0])) == "Garnet Ring", "an unknown type keeps its SPD appearance name")
+	check(gs.enqueue_identify_all() == 9 and gs.id_queue.size() == 9, "Queue all queues all 9")
 	var t0: float = gs.now()
-	var left0 := []
-	for q in gs.id_queue: left0.append(float(q.ready_at) - t0)
-	var prog_before := []
-	for q in gs.id_queue: prog_before.append(gs.identify_progress(q))
-	gs.mats.gold = 10000; gs.facilities.enchanter.cap = 3
+	var states: Array = gs.id_queue.map(func(q): return gs.identify_state(q))
+	check(states.count("running") == 1 and states.count("same type") == 7 and states.count("waiting") == 1, "Lv1: one Garnet runs, six Garnets ride along, one Ruby waits and the other rides with it (%s)" % [states])
+	var latest := 0.0
+	for q in gs.id_queue: latest = maxf(latest, float(q.ready_at) - t0)
+	check(absf(latest - 360.0) < 1.0, "the whole 7+2 queue now finishes in 6 minutes, not 90 (%.0f s)" % latest)
+	var bars: Array = gs.id_queue.map(func(q): return gs.identify_progress(q))
+	gs.time_offset += 90.0
+	var mid: float = gs.identify_progress(gs.id_queue[1])
+	check(absf(mid - 0.5) < 0.02 and gs.identify_progress(gs.id_queue[7]) == 0.0, "a same-type item shows its leader's bar; a waiting one sits at 0 (%.2f)" % mid)
+	gs.time_offset += 91.0
+	var done: Array = gs.tick_identify()
+	check(done.size() == 7 and garnets.all(func(u): return gs.gear_by_uid(u).known), "when the first Garnet finishes, all 7 are identified (%d)" % done.size())
+	check(gs.id_queue.size() == 2 and gs.identify_state(gs.id_queue[0]) == "running" and absf(float(gs.id_queue[0].started) - (t0 + 180.0)) < 1.0, "the next type starts the moment the slot frees")
+	gs.time_offset += 180.0
+	done = gs.tick_identify()
+	check(done.size() == 2 and gs.id_queue.is_empty(), "both Rubies finish together")
+	# a type already known identifies the moment it's queued, and its name shows the type
+	var late: int = _id_add(gs, "ring_might")[0]
+	check(gs.gear_name(gs.gear_by_uid(late)) == "Ring of Might" and not gs.gear_by_uid(late).known, "once Garnet is known, a new Garnet reads Ring of Might (SPD) but is still unidentified")
+	check(gs.enqueue_identify(late) and gs.gear_by_uid(late).known and gs.id_queue.is_empty(), "queueing a known type identifies it at once")
+	# parallel slots at Lv2, and a slot freed while away starts the next item from that moment
+	_id_reset(gs, 2)
+	var three := [_id_add(gs, "ring_evasion")[0], _id_add(gs, "ring_wealth")[0], _id_add(gs, "ring_energy")[0]]
+	gs.enqueue_identify_all(); t0 = gs.now()
+	states = gs.id_queue.map(func(q): return gs.identify_state(q))
+	check(states == ["running", "running", "waiting"], "Lv2 runs two types at the same time (%s)" % [states])
+	gs.time_offset += 121.0
+	done = gs.tick_identify()
+	check(done.size() == 2 and gs.id_queue.size() == 1 and absf(float(gs.id_queue[0].ready_at) - (t0 + 240.0)) < 1.0, "the third starts when a slot frees and ends at 4:00")
+	_id_reset(gs, 1)
+	for id in ["ring_evasion", "ring_wealth", "ring_energy", "ring_furor"]: _id_add(gs, id)
+	gs.enqueue_identify_all()
+	gs.time_offset += 3600.0
+	done = gs.tick_identify()
+	check(done.size() == 4 and gs.id_queue.is_empty(), "an hour away finishes a chained Lv1 queue in one tick")
+	# Finish now: 15 gold per minute of work left, min 5; a gold sink
+	_id_reset(gs, 1)
+	var r1: int = _id_add(gs, "ring_haste")[0]; var r2: int = _id_add(gs, "ring_force")[0]
+	gs.enqueue_identify_all()
+	check(int(gs.identify_rush_cost(r1).get("gold", 0)) == 45 and int(gs.identify_rush_cost(r2).get("gold", 0)) == 45, "Finish now costs 45 gold for a fresh Lv1 item, running or waiting")
+	gs.mats.gold = 10
+	check(gs.can_rush_identify(r1).begins_with("need") and not gs.rush_identify(r1), "Finish now needs the gold")
+	gs.time_offset += 120.0
+	check(int(gs.identify_rush_cost(r1).gold) == 15, "a running item costs only for the minute left (%d)" % int(gs.identify_rush_cost(r1).gold))
+	gs.time_offset += 50.0
+	check(int(gs.identify_rush_cost(r1).gold) == 5, "never less than 5 gold")
+	gs.mats.gold = 100
+	var spent0 := int(gs.stats.get("gold_spent", 0))
+	check(gs.rush_identify(r1) and gs.gear_by_uid(r1).known and gs.mat("gold") == 95 and int(gs.stats.gold_spent) == spent0 + 5, "Finish now pays and identifies at once")
+	check(gs.id_queue.size() == 1 and gs.identify_state(gs.id_queue[0]) == "running", "the freed slot starts the next item")
+	# Enchanter upgrade mid-identification keeps the bar and opens a second slot
+	_id_reset(gs, 1); gs.facilities.enchanter.cap = 3
+	var u1: int = _id_add(gs, "ring_elements")[0]; _id_add(gs, "ring_sharpshooting")
+	gs.enqueue_identify_all(); t0 = gs.now()
+	gs.time_offset += 90.0
+	var p0: float = gs.identify_progress(gs.id_queue[0])
+	gs.mats.gold = 10000
 	var cost: Dictionary = gs.facility_upgrade_cost("enchanter"); for k in cost: gs.mats[k] = int(cost[k]) + 100
 	check(gs.upgrade_facility("enchanter"), "Enchanter upgrades")
-	var k: float = gs.identify_seconds() / s1
-	var ok := true
-	for i in gs.id_queue.size():
-		ok = ok and absf((float(gs.id_queue[i].ready_at) - t0) - left0[i] * k) < 0.5
-	var prog_after := []
-	for q in gs.id_queue: prog_after.append(gs.identify_progress(q))
-	var same_bar := prog_after.size() == prog_before.size()
-	for i in prog_after.size(): same_bar = same_bar and absf(prog_after[i] - prog_before[i]) < 0.01
-	check(same_bar, "an Enchanter upgrade keeps every identify bar where it was (%s -> %s)" % [prog_before, prog_after])
-	check(ok and k < 1.0, "upgrade scales every remaining time by new/old (%.2f): %s -> %s" % [k, left0, gs.id_queue.map(func(q): return snappedf(float(q.ready_at) - t0, 0.1))])
-	# save/load keeps the rescaled timers; offline time then finishes them on schedule
+	var p1: float = gs.identify_progress(gs.id_queue[0])
+	check(absf(p1 - p0) < 0.01 and absf(float(gs.id_queue[0].ready_at) - gs.now() - 60.0) < 1.0, "upgrading keeps the bar (%.2f -> %.2f) and the rest of the wait shrinks to 2/3" % [p0, p1])
+	check(gs.identify_state(gs.id_queue[1]) == "running", "the new slot starts the waiting item right away")
+	# save/load keeps running and waiting entries
+	_id_reset(gs, 1)
+	_id_add(gs, "ring_evasion", 2); _id_add(gs, "ring_wealth")
+	gs.enqueue_identify_all(); gs.time_offset += 30.0
+	var before: Array = gs.id_queue.duplicate(true)
 	var d: Dictionary = JSON.parse_string(JSON.stringify(gs.to_dict()))
 	gs.from_dict(d)
-	check(absf(float(gs.id_queue[0].ready_at) - (t0 + left0[0] * k)) < 0.5, "rescaled timer survives save/load")
-	gs.time_offset += left0[0] * k + 1.0
-	var done: Array = gs.tick_identify()
-	check(done.size() == 1 and int(done[0]) == a, "after offline time the first item is done exactly at its shortened time")
-	# an item already due is not pushed back by an upgrade
-	gs.time_offset += 100000.0
-	gs.facilities.enchanter.cap = 3
-	cost = gs.facility_upgrade_cost("enchanter"); for k2 in cost: gs.mats[k2] = int(cost[k2]) + 100
-	gs.upgrade_facility("enchanter")
-	check(gs.id_queue.is_empty() and gs.gear_by_uid(c).known, "items that finished offline are identified, not rescaled")
+	var same: bool = gs.id_queue.size() == before.size()
+	for i in mini(gs.id_queue.size(), before.size()):
+		same = same and int(gs.id_queue[i].uid) == int(before[i].uid) and absf(float(gs.id_queue[i].ready_at) - float(before[i].ready_at)) < 0.01 and absf(float(gs.id_queue[i].started) - float(before[i].started)) < 0.01
+	check(same, "the identify queue survives save/load")
+	check(gs.id_queue.map(func(q): return gs.identify_state(q)) == ["running", "same type", "waiting"], "states survive save/load")
+	gs.time_offset += 400.0
+	check(gs.tick_identify().size() == 3, "after loading, time away finishes the queue")
+	# a queue saved before #203 (600 s each, chained, no "started") loads under the new rules
+	_id_reset(gs, 1)
+	var l1: int = _id_add(gs, "ring_evasion")[0]; var l2: int = _id_add(gs, "ring_wealth")[0]; var l3: int = _id_add(gs, "ring_evasion")[0]
+	var tn: float = gs.now()
+	gs.id_queue = [{"uid": l1, "queued_at": tn - 300.0, "ready_at": tn + 300.0}, {"uid": l2, "queued_at": tn - 300.0, "ready_at": tn + 900.0}, {"uid": l3, "queued_at": tn - 300.0, "ready_at": tn + 1500.0}]
+	d = JSON.parse_string(JSON.stringify(gs.to_dict()))
+	gs.from_dict(d)
+	check(gs.id_queue.size() == 3 and gs.id_queue.all(func(q): return q.has("started")), "an old queue loads with every entry")
+	var front_left: float = float(gs.id_queue[0].ready_at) - gs.now()
+	check(front_left <= 180.5 and gs.identify_state(gs.id_queue[0]) == "running" and gs.identify_state(gs.id_queue[2]) == "same type", "the old front item keeps running, capped at 3 min, and its same-type item rides along (%.0f s)" % front_left)
+	gs.time_offset += 400.0
+	gs.tick_identify()
+	check(gs.id_queue.is_empty() and [l1, l2, l3].all(func(u): return gs.gear_by_uid(u).known), "the old queue finishes under the new timers")
+	# the Identify tab: a Finish button on each item that has its own timer, none on same-type riders
+	_id_reset(gs, 1)
+	var w1: int = _id_add(gs, "ring_furor")[0]; _id_add(gs, "ring_furor"); _id_add(gs, "ring_haste")
+	gs.enqueue_identify_all(); gs.mats.gold = 200
+	var cs = load("res://scripts/ui/camp_screen.gd").new(); add_child(cs)
+	cs.section["Enchanter"] = "identify"
+	cs.open_page("Enchanter")
+	var rush: Array = cs.win_layer.find_children("IdentifyRush", "Button", true, false)
+	var blob := _node_text(cs.win_layer)
+	check(rush.size() == 2 and blob.contains("1 at a time") and rush.all(func(b): return b.text == "Finish 45g"), "Identify shows Finish on the 2 timed items with its cost (%d buttons)" % rush.size())
+	check(cs.win_layer.find_children("IdentifyBar", "ProgressBar", true, false).size() == 3, "every queued item still has a bar")
+	if not rush.is_empty(): rush[0].pressed.emit()
+	check(gs.gear_by_uid(w1).known and gs.mat("gold") == 155, "pressing Finish pays and identifies (gold %d)" % gs.mat("gold"))
+	cs.close_page(); cs.queue_free()
 	gs.time_offset = 0.0
 
 ## DECISIONS #149: bows/wands aim at tiles (SPD Ballistica); shots pass tall grass, stop at bodies, walls, closed doors.
@@ -3289,6 +3417,8 @@ func test_patrol_perks(gs) -> void:
 	_pat_camp(gs, "warrior", "prison"); gs.facilities.guild.level = 3
 	_pat_full(gs, "warrior", "prison"); n0 = gs.gear.size(); gs.collect_patrol("warrior")
 	check(gs.gear.slice(n0).all(func(g): return not g.known and int(g.lvl) == 0), "without it curios come unknown +0")
+	var cur_ids: Array = gs.gear.slice(n0).map(func(g): return String(g.id))
+	check(cur_ids.size() >= 2 and absi(cur_ids.count("ring_might") - cur_ids.count("ring_tenacity")) <= 1, "default curios alternate Might / Tenacity, not all one ring (%s)" % [cur_ids])
 	# gear level: weapon + armor + ring + artifact + staff wand; cracked pieces don't count
 	_pat_camp(gs)
 	gs.gear_by_uid(gs.heroes.warrior.weapon).lvl = 3; gs.gear_by_uid(gs.heroes.warrior.armor).lvl = 2
@@ -4095,7 +4225,7 @@ func test_hero_window_wide(gs) -> void:
 
 
 ## DECISIONS #194: only event and result windows leave the scene undimmed. The delve's own panels (Bag, Talents, Menu,
-## Settings, Abandon) dim it like before #187, the Defeat window and the combat Bag keep their dim, and every window
+## Settings, Abandon, Passage confirm) dim it like before #187, the Defeat window and the combat Bag keep their dim, and every window
 ## still blocks taps behind it.
 func test_window_dim(gs) -> void:
 	print("[window dim]")
@@ -4110,7 +4240,7 @@ func test_window_dim(gs) -> void:
 	holder.add_child(d); d.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT); d.size = holder.size
 	await get_tree().process_frame
 	var cases := [[{"kind": "backpack"}, true], [{"kind": "talents"}, true], [{"kind": "menu"}, true],
-		[{"kind": "settings"}, true], [{"kind": "confirm_abandon"}, true],
+		[{"kind": "settings"}, true], [{"kind": "confirm_abandon"}, true], [{"kind": "confirm_passage"}, true],
 		[Delve.combat_event(gs.run, Delve.rng_for(gs.run, 1), ["rat"]), false], [{"kind": "door", "door": DB.doors[0]}, false],
 		[{"kind": "special", "special": DB.specials[0]}, false], [{"kind": "floor_done"}, false], [{"kind": "campfire"}, false]]
 	for cs in cases:
@@ -4363,7 +4493,7 @@ func test_telemetry(gs) -> void:
 	var sp := {}
 	for q in t.queue: sp[q.properties.sink] = [q.properties.gold, q.properties.count]
 	check(sp.get("craft_guild") == [15, 2] and sp.get("repair") == [7, 1] and t.queue.size() == 2, "telemetry: gold_spent summed per sink " + str(sp))
-	# DECISIONS #200: session_end on every platform. Which notifications end/resume a session where:
+	# DECISIONS #204: session_end on every platform. Which notifications end/resume a session where:
 	check(T.session_event(NOTIFICATION_APPLICATION_PAUSED, "Android") == "background" and T.session_event(NOTIFICATION_APPLICATION_FOCUS_OUT, "Android") == "background", "session_end: Android pause / focus out end the session")
 	check(T.session_event(NOTIFICATION_APPLICATION_RESUMED, "Android") == "resume" and T.session_event(NOTIFICATION_APPLICATION_FOCUS_IN, "Android") == "resume", "session_end: Android resume / focus in resume it")
 	check(T.session_event(NOTIFICATION_WM_CLOSE_REQUEST, "Windows") == "close" and T.session_event(NOTIFICATION_APPLICATION_FOCUS_OUT, "Windows") == "", "session_end: Windows closing ends it, alt-tab doesn't")

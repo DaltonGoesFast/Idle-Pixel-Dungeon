@@ -57,10 +57,10 @@ func _build_window() -> void:
 	var sc := ScrollContainer.new(); sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED; win_panel.add_child(sc)
 	card_host = UIKit.vbox(sc); card_host.size_flags_horizontal = SIZE_EXPAND_FILL
 
-## The delve's own panels (Bag, Talents, Menu, Settings, Abandon) darken the scene behind them as they did before #187.
+## The delve's own panels (Bag, Talents, Menu, Settings, Abandon, Passage confirm) darken the scene behind them as they did before #187.
 ## Only event and result windows (encounters, doors, special rooms, floor menu, campfire, results) keep the scene at
 ## full brightness; taps behind any window are blocked either way (DECISIONS #194).
-const PANEL_KINDS := ["backpack", "talents", "menu", "settings", "confirm_abandon"]
+const PANEL_KINDS := ["backpack", "talents", "menu", "settings", "confirm_abandon", "confirm_passage"]
 const PANEL_DIM := 0.35
 
 static func panel_dim(p: Dictionary) -> float:
@@ -397,8 +397,7 @@ static func _slot_icon(icon_name: String) -> Texture2D:
 func _card_menu() -> void:
 	var v := _card("Menu", "")
 	if Delve.scroll_passage_count(GameState) > 0:
-		v.add_child(UIKit.with_icon(UIKit.button("Read Scroll of Passage (extract)", func():
-			if Delve.use_scroll_passage(GameState) and main: main.show_camp()), "scroll"))
+		v.add_child(UIKit.with_icon(UIKit.button("Read Scroll of Passage (extract)", _confirm_passage), "scroll"))
 	v.add_child(UIKit.with_icon(UIKit.button("Settings", func(): _open_panel("settings")), "prefs"))
 	v.add_child(UIKit.with_icon(UIKit.button("Abandon run", _confirm_abandon), "exit"))
 	v.add_child(UIKit.secondary(UIKit.button("Close", _close_panel)))
@@ -458,6 +457,22 @@ func _cancel_abandon() -> void:
 	pending = _under; _under = {}
 	running = pending.is_empty(); _refresh_controls(); _show_card()
 
+## Ask before burning a Scroll of Passage (DECISIONS #202). Same window look as Abandon.
+func _confirm_passage() -> void:
+	if Delve.scroll_passage_count(GameState) <= 0: return
+	if _is_encounter(pending): _under = pending
+	running = false; pending = {"kind": "confirm_passage"}; _show_card()
+
+func _cancel_passage() -> void:
+	pending = _under; _under = {}
+	running = pending.is_empty(); _refresh_controls(); _show_card()
+
+func _read_passage() -> void:
+	if not Delve.use_scroll_passage(GameState):
+		_cancel_passage()
+		return
+	if main: main.show_camp()
+
 # ------------------------------------------------------------ cards
 func _card(title_text: String, body: String) -> VBoxContainer:
 	UIKit.clear(card_host)
@@ -510,6 +525,10 @@ func _show_card() -> void:
 			var v := _card("Abandon the expedition?", abandon_text(GameState.run))
 			v.add_child(UIKit.button("Abandon", func(): GameState.end_run("abandon"); main.show_camp()))
 			v.add_child(UIKit.button("Keep delving", _cancel_abandon))
+		"confirm_passage":
+			var v := _card("Scroll of Passage", Delve.passage_text())
+			v.add_child(UIKit.button("Read", _read_passage))
+			v.add_child(UIKit.button("Cancel", _cancel_passage))
 		"menu": _card_menu()
 	_take_floating_toast()
 	_mount_card_toast()
@@ -524,8 +543,7 @@ func _card_combat() -> void:
 	_add_close(v)
 	v.add_child(UIKit.button("Fight", func(): _fight(pending, {})))
 	if Delve.scroll_passage_count(GameState) > 0:
-		v.add_child(UIKit.button("Read Scroll of Passage (extract)", func():
-			if Delve.use_scroll_passage(GameState) and main: main.show_camp()))
+		v.add_child(UIKit.button("Read Scroll of Passage (extract)", _confirm_passage))
 
 func _fight(ev: Dictionary, reward: Dictionary, saved := {}) -> void:
 	_under = {}

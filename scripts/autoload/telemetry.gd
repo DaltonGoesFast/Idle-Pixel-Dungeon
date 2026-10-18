@@ -190,7 +190,7 @@ func _new_session() -> void:
 func session_seconds() -> float:
 	return _session_active + (0.0 if _ended else _now_s() - _session_start)
 
-## session_end, then get it out (DECISIONS #200). The queue file is written first, so if the send can't finish
+## session_end, then get it out (DECISIONS #204). The queue file is written first, so if the send can't finish
 ## (Windows quits right after WM_CLOSE_REQUEST, Android may kill a paused app) it goes out on the next launch.
 ## On the web build an ordinary HTTPRequest is cancelled when the tab closes and the IndexedDB copy of the queue
 ## file syncs asynchronously, so the queue goes out through navigator.sendBeacon (fetch keepalive as a fallback).

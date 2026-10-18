@@ -116,7 +116,8 @@ func gear_by_uid(uid: int) -> Dictionary:
 func gear_name(g: Dictionary) -> String:
 	if g.is_empty(): return "-"
 	var d := DB.item(g.id)
-	var n: String = d.name if g.known else d.get("unknown_name", "Unknown " + d.type)
+	# SPD: once a ring or wand type is known, every one of that type reads as it (its level stays hidden)
+	var n: String = d.name if g.known or type_known(String(g.id)) else d.get("unknown_name", "Unknown " + d.type)
 	if g.lvl > 0 and g.known: n += " +%d" % g.lvl
 	if g.cracked: n += " (cracked)"
 	return n
@@ -1130,6 +1131,7 @@ func _forget_gear(uid: int) -> void:
 	gear.erase(g)
 	for i in range(id_queue.size() - 1, -1, -1):
 		if int(id_queue[i].uid) == uid: id_queue.remove_at(i)
+	_schedule_identify()   # a running item that left frees its slot
 
 ## Melt these rings. Skips anything worn or not a ring. One toast for the whole batch.
 func break_rings(list: Array) -> bool:
@@ -1184,73 +1186,195 @@ func imbue_wand(uid: int) -> bool:
 	say("Imbued %s into the Mage's Staff." % DB.item(g.id).name); touch(); return true
 
 # ---------------------------------------------------------------- Enchanter's Desk
+## Identification (DECISIONS #203). SPD learns a ring or wand *type* once, then every item of that type reads as
+## that type. So only the first item of an unknown type takes the Desk's timer; the rest of that type finish the
+## moment it does, or at once when queued after the type is known. The Desk works on one type per level at the
+## same time (Lv1 1, Lv2 2, Lv3 3), and anything still waiting or running can be finished now for gold.
+## Queue entries: {uid, queued_at, started, ready_at}. started 0 = waiting for a slot, or riding along with a running
+## item of the same type; ready_at is then the projected finish. All times are absolute (now() incl. time_offset).
+const IDENTIFY_RUSH_GOLD_PER_MIN := 15.0   # Finish now: 15 gold per minute of Desk work left (45 for a fresh Lv1 item)
+const IDENTIFY_RUSH_MIN := 5
+
 func identify_seconds() -> float:
-	return maxf(60.0, 600.0 - 180.0 * (facility_level("enchanter") - 1))   # 10 / 7 / 4 minutes
+	return [180.0, 120.0, 60.0][clampi(facility_level("enchanter") - 1, 0, 2)]   # 3 / 2 / 1 minutes
 
-## 0..1 of the wait until this queued item is identified. Each item fills from the moment it was queued
-## (`queued_at`) to its own ready_at, so every waiting row moves and no bar ever jumps back. Anchoring on the
-## current front item made every waiting bar drop to 0 the moment the front one finished (DECISIONS #171).
+## Items the Desk identifies at the same time (one per level).
+func identify_slots() -> int:
+	return clampi(facility_level("enchanter"), 1, 3)
+
+## The type is known (one was identified, forged, bought or found known), so this one only needs a tap.
+func type_known(id: String) -> bool:
+	return seen.has("item:" + id)
+
+func _queue_entry(uid: int) -> Dictionary:
+	for q in id_queue:
+		if int(q.uid) == uid: return q
+	return {}
+
+## The running entry that is learning this entry's type (itself if it is running), or {}.
+func _identify_lead(q: Dictionary) -> Dictionary:
+	if float(q.get("started", 0.0)) > 0.0: return q
+	var id: String = String(gear_by_uid(int(q.uid)).get("id", ""))
+	for o in id_queue:
+		if float(o.get("started", 0.0)) > 0.0 and String(gear_by_uid(int(o.uid)).get("id", "")) == id: return o
+	return {}
+
+## 0..1 of the Desk work done on this item. Running items fill from their start to ready_at; one riding along with a
+## running item of its type shows that item's bar; one waiting for a slot sits at 0 until a slot frees.
 func identify_progress(q: Dictionary) -> float:
-	var ready := float(q.ready_at)
-	var start := float(q.get("queued_at", _identify_anchor()))
-	var total := maxf(1.0, ready - start)
-	var left := maxf(0.0, ready - now())
-	return clampf(1.0 - left / total, 0.0, 1.0)
+	var lead := _identify_lead(q)
+	if lead.is_empty(): return 0.0
+	var start := float(lead.started); var ready := float(lead.ready_at)
+	return clampf((now() - start) / maxf(1.0, ready - start), 0.0, 1.0)
 
-## Start of the front item's slot. Only used for queue entries saved before `queued_at` existed.
-func _identify_anchor() -> float:
-	if id_queue.is_empty(): return now()
-	return minf(now(), float(id_queue[0].ready_at) - maxf(1.0, identify_seconds()))
+## "running", "same type" (finishes with an item of its type that is running or ahead of it) or "waiting" (for a slot).
+func identify_state(q: Dictionary) -> String:
+	if float(q.get("started", 0.0)) > 0.0: return "running"
+	var id: String = String(gear_by_uid(int(q.uid)).get("id", ""))
+	for o in id_queue:
+		if o == q: break
+		if String(gear_by_uid(int(o.uid)).get("id", "")) == id: return "same type"
+	return "same type" if not _identify_lead(q).is_empty() else "waiting"
 
+## Works out who runs and when everyone finishes. Running items keep their times. Free slots (free_at: now, or the
+## moment a slot freed during an offline catch-up) take waiting items in queue order; a waiting item whose type is
+## already being learned rides along instead of taking a slot. A slot that frees in the past starts its next item
+## then, so time away keeps the Desk busy.
+func _schedule_identify(free_at := -1.0) -> void:
+	var t := now()
+	if free_at < 0.0: free_at = t
+	var free: Array = []
+	var lead_at := {}   # gear id -> finish time of the item learning that type
+	for q in id_queue:
+		if float(q.get("started", 0.0)) > 0.0:
+			free.append(float(q.ready_at))
+			var gid := String(gear_by_uid(int(q.uid)).get("id", ""))
+			lead_at[gid] = minf(float(lead_at.get(gid, INF)), float(q.ready_at))
+	while free.size() < identify_slots(): free.append(free_at)
+	for q in id_queue:
+		if float(q.get("started", 0.0)) > 0.0: continue
+		var gid := String(gear_by_uid(int(q.uid)).get("id", ""))
+		if lead_at.has(gid): q.ready_at = float(lead_at[gid]); continue
+		free.sort()
+		var s := maxf(float(free[0]), float(q.get("queued_at", free_at)))
+		var ready := s + identify_seconds()
+		if s <= t: q.started = s
+		q.ready_at = ready; free[0] = ready; lead_at[gid] = ready
+
+## Queue an unknown item. A type already known identifies at once (no slot, no wait).
 func enqueue_identify(uid: int) -> bool:
 	var g := gear_by_uid(uid)
-	if g.is_empty() or g.known: return false
-	for q in id_queue:
-		if q.uid == uid: return false
-	var start := now()
-	if not id_queue.is_empty(): start = maxf(start, float(id_queue.back().ready_at))
-	id_queue.append({"uid": uid, "ready_at": start + identify_seconds(), "queued_at": now()})
+	if g.is_empty() or g.known or not _queue_entry(uid).is_empty(): return false
+	if type_known(g.id):
+		_identify_gear(g); touch(); return true
+	id_queue.append({"uid": uid, "queued_at": now(), "started": 0.0, "ready_at": 0.0})
+	_schedule_identify()
 	touch(); return true
 
 ## Every unknown item not already queued, in stash order (Enchanter "Queue all", DECISIONS #145).
 func identify_candidates() -> Array:
-	return gear.filter(func(g): return not g.known and not id_queue.any(func(q): return int(q.uid) == int(g.uid)))
+	return gear.filter(func(g): return not g.known and _queue_entry(int(g.uid)).is_empty())
 
-## Queues every candidate. The queue has no size limit (items identify one after another), so this queues them all.
-## Returns how many were queued.
+## Queues every candidate. The queue has no size limit, so this queues them all. Returns how many were queued.
 func enqueue_identify_all() -> int:
 	var n := 0
 	for g in identify_candidates():
 		if enqueue_identify(int(g.uid)): n += 1
 	return n
 
-## Enchanter upgrade: identifications still running finish sooner. Each remaining time (to its absolute ready_at,
-## which already counts the items ahead of it) is scaled by new/old, so the chained queue keeps its order and an
-## item that was 50% done stays 50% done. Items already due are left for tick_identify. ready_at is absolute
-## (now() includes time_offset), so this holds across save/load and offline time.
+## Enchanter upgrade: the new level's shorter time applies to what's left of every running item (an item 50% done
+## stays 50% done), and the new slot starts the next waiting item. Items already due are left for tick_identify.
 func rescale_identify(old_secs: float, new_secs: float) -> void:
-	if old_secs <= 0.0 or is_equal_approx(old_secs, new_secs): return
 	tick_identify()
-	var t := now(); var k := new_secs / old_secs
-	for q in id_queue:
-		var left := float(q.ready_at) - t
-		if left <= 0.0: continue
-		var p := identify_progress(q)   # keep the bar where it was: the rest of the wait shrinks, the part done stays
-		q.ready_at = t + left * k
-		q.queued_at = float(q.ready_at) - (left * k) / maxf(0.0001, 1.0 - p)
+	var t := now()
+	if old_secs > 0.0 and not is_equal_approx(old_secs, new_secs):
+		var k := new_secs / old_secs
+		for q in id_queue:
+			if float(q.get("started", 0.0)) <= 0.0: continue
+			var left := float(q.ready_at) - t
+			if left <= 0.0: continue
+			var p := identify_progress(q)   # keep the bar where it was: the rest of the wait shrinks, the part done stays
+			q.ready_at = t + left * k
+			q.started = float(q.ready_at) - (left * k) / maxf(0.0001, 1.0 - p)
+	_schedule_identify()
 	touch()
 
-## Finishes any identifications whose time has passed. Returns identified uids.
+## Gold to finish this queued item now: the Desk work left on its type (a waiting item counts its full time).
+func identify_rush_cost(uid: int) -> Dictionary:
+	var q := _queue_entry(uid)
+	if q.is_empty(): return {}
+	var lead := _identify_lead(q)
+	var left := identify_seconds() if lead.is_empty() else maxf(0.0, float(lead.ready_at) - now())
+	return {"gold": maxi(IDENTIFY_RUSH_MIN, int(ceil(left / 60.0 * IDENTIFY_RUSH_GOLD_PER_MIN)))}
+
+func can_rush_identify(uid: int) -> String:
+	if _queue_entry(uid).is_empty(): return "not queued"
+	if not can_afford(identify_rush_cost(uid)): return "need " + cost_text(identify_rush_cost(uid))
+	return ""
+
+## Finish now: pays the gold sink "enchanter_rush" and identifies the item (and its type) at once.
+func rush_identify(uid: int) -> bool:
+	if can_rush_identify(uid) != "": return false
+	pay(identify_rush_cost(uid), "enchanter_rush")
+	var g := gear_by_uid(uid)
+	id_queue.erase(_queue_entry(uid))
+	_identify_gear(g)
+	_schedule_identify()
+	touch(); return true
+
+## Marks one item identified, then every other queued item of its type (its type is known now). Returns the uids.
+func _identify_gear(g: Dictionary) -> Array:
+	var done := []
+	if g.is_empty(): return done
+	var batch := [g]
+	for q in id_queue.duplicate():
+		var o := gear_by_uid(int(q.uid))
+		if o.is_empty() or o.id == g.id:
+			id_queue.erase(q)
+			if not o.is_empty() and int(o.uid) != int(g.uid): batch.append(o)
+	for x in batch:
+		if x.known: continue
+		x.known = true; done.append(int(x.uid))
+	seen["item:" + g.id] = true
+	add_stat("items_identified", done.size())
+	if done.size() == 1: say("Identified: " + gear_name(g))
+	elif done.size() > 1: say("Identified %d x %s." % [done.size(), DB.item(g.id).name])
+	return done
+
+## Finishes any identifications whose time has passed, in the order they finished, and starts the next waiting item
+## in each freed slot from the moment it freed. Returns identified uids.
 func tick_identify() -> Array:
 	var done := []
-	for q in id_queue.duplicate():
-		if float(q.ready_at) <= now():
-			var g := gear_by_uid(q.uid)
-			if not g.is_empty():
-				g.known = true; seen["item:" + g.id] = true; done.append(q.uid); add_stat("items_identified", 1); say("Identified: " + gear_name(g))
-			id_queue.erase(q)
+	var t := now()
+	while true:
+		var next: Dictionary = {}
+		for q in id_queue:
+			if float(q.get("started", 0.0)) > 0.0 and (next.is_empty() or float(q.ready_at) < float(next.ready_at)): next = q
+		if next.is_empty() or float(next.ready_at) > t: break
+		var at := float(next.ready_at)
+		id_queue.erase(next)
+		done.append_array(_identify_gear(gear_by_uid(int(next.uid))))
+		_schedule_identify(at)
 	if not done.is_empty(): touch()
 	return done
+
+## Queues saved before DECISIONS #203 ran one item after another with no "started": the front item keeps running
+## (its bar stays put, its wait capped at today's shorter time) and the rest are scheduled under the new rules.
+func _migrate_id_queue() -> void:
+	id_queue = id_queue.filter(func(q): return not gear_by_uid(int(q.uid)).is_empty())
+	if id_queue.is_empty() or id_queue.all(func(q): return q.has("started")): return
+	var t := now()
+	var front: Dictionary = id_queue[0]
+	for q in id_queue:
+		if not q.has("started"):
+			q.started = 0.0
+			q.queued_at = float(q.get("queued_at", t))
+	if float(front.started) <= 0.0:
+		var ready := minf(float(front.ready_at), t + identify_seconds())
+		front.started = minf(t, minf(float(front.queued_at), ready - 1.0))
+		front.ready_at = ready
+	_schedule_identify()
+	tick_identify()
 
 # ---------------------------------------------------------------- Offline Patrols
 ## Guild hours cap; a hero's own cap adds their Timekeeper's Hourglass (DECISIONS #188).
@@ -1445,8 +1569,9 @@ func collect_patrol(c: String) -> Dictionary:
 	var known: bool = fx.get("curio_known", false)
 	var plus := float(fx.get("curio_plus_pct", 0.0)) / 100.0
 	var rng := RandomNumberGenerator.new(); rng.seed = hash("%s|%s|%d" % [c, p.biome, int(float(p.start))])
+	var first_uid := next_uid   # add_gear bumps next_uid, so (next_uid + i) skipped every other ring (DECISIONS #203)
 	for i in y._curios:
-		var id: String = pool[(next_uid + i) % pool.size()] if pool.size() == 2 else pool[rng.randi() % pool.size()]
+		var id: String = pool[(first_uid + i) % pool.size()] if pool.size() == 2 else pool[rng.randi() % pool.size()]
 		add_gear(id, known, 1 if plus > 0.0 and rng.randf() < plus else 0)
 	var yld := {}
 	for k in y:
@@ -1831,10 +1956,7 @@ func _fix_types() -> void:
 		facilities[f].level = int(facilities[f].level); facilities[f].cap = int(facilities[f].cap)
 		if DB.facilities.has(f): facilities[f].cap = facility_cap(f)
 	for q in id_queue: q.uid = int(q.uid)
-	# queues saved before queued_at: freeze today's front-slot anchor so their bars keep filling and never jump back
-	var id_anchor := _identify_anchor()
-	for q in id_queue:
-		q.queued_at = float(q.get("queued_at", id_anchor))
+	_migrate_id_queue()
 	if not run.is_empty():
 		# runs saved before a field existed (backpack #67, milestones, boss flag...) get its start value (DECISIONS #117)
 		for k in RUN_DEFAULTS:
