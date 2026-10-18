@@ -223,6 +223,9 @@ func _ready() -> void:
 			var lost := PackedStringArray()
 			for i in 34: lost.append("Ring of Item %d cracks" % i)
 			main.delve._open_summary("Defeat", PackedStringArray(), lost, Callable(), true, "Unused supplies return to the stash. Scrolls of Upgrade return on the next boss kill.")])
+		plan.append([sz, "event_result", func():   # an event's result window: no dim behind it, like the event card (DECISIONS #191)
+			main.delve._accept_summary()
+			main.delve._open_summary("Open the chest", PackedStringArray(["+14 Gold", "Potion of Healing"]), PackedStringArray(["-1 Iron Key"]))])
 		plan.append([sz, "combat", func():
 			main.start_combat(Delve.combat_event(GameState.run, Delve.rng_for(GameState.run, 3), ["gnoll", "crab"]), func(_r): pass)
 			for i in 3: main.screen._do_bot()])
