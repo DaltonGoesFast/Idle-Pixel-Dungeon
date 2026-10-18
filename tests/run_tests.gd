@@ -2943,6 +2943,20 @@ func test_identify_rework(gs) -> void:
 	gs.time_offset += 400.0
 	gs.tick_identify()
 	check(gs.id_queue.is_empty() and [l1, l2, l3].all(func(u): return gs.gear_by_uid(u).known), "the old queue finishes under the new timers")
+	# a type learned away from the Desk while queued (forge, Staff wand, known find, pack Scroll of Identify) needs no timer
+	_id_reset(gs, 1)
+	var k1: int = _id_add(gs, "ring_force")[0]; var k2: int = _id_add(gs, "ring_elements")[0]; var k3: int = _id_add(gs, "ring_elements")[0]
+	var k4: int = _id_add(gs, "ring_haste")[0]
+	gs.enqueue_identify_all(); gs.mats.gold = 100
+	gs.add_gear("ring_elements", true)   # e.g. a known find or Talisman curio: Ring of Elements is a known type now
+	var kd: Array = gs.tick_identify()
+	check(kd.size() == 2 and gs.gear_by_uid(k2).known and gs.gear_by_uid(k3).known and gs.mat("gold") == 100, "queued items of a type learned elsewhere identify on the next tick, free (%s)" % [kd])
+	check(gs.id_queue.size() == 2 and gs.identify_state(gs.id_queue[0]) == "running" and gs.identify_state(gs.id_queue[1]) == "waiting", "the rest of the queue is unchanged")
+	var t_k: float = gs.now()
+	gs.discover("item:ring_force")   # e.g. the running item's type learned by a Scroll of Identify on the pack
+	kd = gs.tick_identify()
+	check(kd == [k1] and gs.id_queue.size() == 1 and gs.identify_state(gs.id_queue[0]) == "running" and absf(float(gs.id_queue[0].ready_at) - (t_k + 180.0)) < 1.0 and int(gs.id_queue[0].uid) == k4,
+		"a running item whose type is learned elsewhere finishes and frees its slot for the next item")
 	# the Identify tab: a Finish button on each item that has its own timer, none on same-type riders
 	_id_reset(gs, 1)
 	var w1: int = _id_add(gs, "ring_furor")[0]; _id_add(gs, "ring_furor"); _id_add(gs, "ring_haste")

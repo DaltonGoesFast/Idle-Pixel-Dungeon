@@ -1344,7 +1344,8 @@ func _identify_gear(g: Dictionary) -> Array:
 ## Finishes any identifications whose time has passed, in the order they finished, and starts the next waiting item
 ## in each freed slot from the moment it freed. Returns identified uids.
 func tick_identify() -> Array:
-	var done := []
+	var done := _identify_known_types()
+	if not done.is_empty(): _schedule_identify()   # their slots go to the next items (from when each slot frees)
 	var t := now()
 	while true:
 		var next: Dictionary = {}
@@ -1356,6 +1357,16 @@ func tick_identify() -> Array:
 		done.append_array(_identify_gear(gear_by_uid(int(next.uid))))
 		_schedule_identify(at)
 	if not done.is_empty(): touch()
+	return done
+
+## A type learned away from the Desk while its items wait (forged, a wand out of the Staff, a known find or curio, a pack Scroll
+## of Identify): they need no Desk time, the same as queueing them after the type is known. Without this they kept
+## their timer and a Finish price under their real name.
+func _identify_known_types() -> Array:
+	var done := []
+	for q in id_queue.duplicate():
+		var g := gear_by_uid(int(q.uid))
+		if not g.is_empty() and not g.known and type_known(String(g.id)): done.append_array(_identify_gear(g))
 	return done
 
 ## Queues saved before DECISIONS #203 ran one item after another with no "started": the front item keeps running
