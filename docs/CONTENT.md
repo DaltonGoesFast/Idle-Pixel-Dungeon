@@ -588,6 +588,9 @@ Leveled and repaired at the **Enchanter's Desk**, not the Forge. Item level cap 
 
 Per level: Might +1 dmg, Tenacity +1 Barrier, Evasion +1 DR per 2 levels, Wealth +5% gold, Energy +2 HP; staff wand +1 bolt dmg and +1 charge per 2 levels; Chalice +3 HP, Talisman +1 search per 2 levels, Horn -5% hunger. New drops start at +0 with lower base power: Tenacity +1 Barrier (was 2), Wealth +15% (was 30%), Energy +2 HP (was 4), Chalice +6 HP (was 15), Horn x0.8 hunger (was 0.6). On death, equipped rings/artifacts crack as before; an imbued wand with levels cracks too (its levels go dormant, base bolt still works). The free Patch up only covers weapons and armor.
 
+### Equipment at Camp (DECISIONS #189)
+Every hero has one weapon, armor, ring and artifact slot; the Mage's Staff also holds one wand. At Camp any of these can be unequipped back to the stash (heirlooms like the Mage's Staff stay put). Gear another hero wears can be taken: if you hand back something they can wear, the two heroes swap, otherwise their slot goes empty. The Stash, Forge and Enchanter name the wearer on each piece, and the Wands list shows the staff's wand. While a hero is on patrol or on the current delve, nothing they wear can be unequipped, taken or swapped ("<Hero> is on patrol").
+
 ### Vanilla artifacts (DECISIONS #159)
 Bosses drop an artifact you don't own yet (as before). They start at +0, gain a level every 8 x (next level) won fights while equipped, and are capped by the Enchanter's Desk (#158).
 

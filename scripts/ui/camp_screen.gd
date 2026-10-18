@@ -738,9 +738,7 @@ func compare(g: Dictionary) -> void:
 		grid.add_child(nl.call("-" if av == null else str(av), 0.9, col))
 		grid.add_child(nl.call("-" if cv == null else str(cv), 0.9, Color.WHITE))
 	var lines: Array = ["vs %s's %s" % [DB.heroes[chosen_hero].name, GameState.gear_name(cur) if not cur.is_empty() else "empty slot"], grid]
-	var acts := []
-	if SLOT_OF.has(t) and GameState.equipped_by(g.uid) == "":
-		acts.append(["Equip on " + DB.heroes[chosen_hero].name, func(): GameState.equip(chosen_hero, g.uid), GameState.can_equip(chosen_hero, g.uid)])
+	var acts := gear_actions(g, false)
 	var bdg := UIKit.gear_badge(g)
 	if bdg == "": bdg = "NONE"
 	info(gear_icon(g), "Compare: " + GameState.gear_name(g), lines, acts, bdg)
@@ -762,8 +760,50 @@ func gear_lines(g: Dictionary) -> Array:
 		out.append_array(Codex.artifact_lines(g, GameState.enchant_cap(), GameState.ARTIFACT_XP_PER_LVL))   # DECISIONS #164
 	else: out.append("Unidentified. The Enchanter can identify it.")
 	if g.get("cracked", false): out.append("Cracked - repair at the Forge.")
-	if who != "": out.append("Equipped by " + DB.heroes[who].name)
+	if who != "":
+		out.append("Equipped by " + DB.heroes[who].name)
+		var lock := GameState.gear_lock(who)
+		if lock != "": out.append("Locked: %s." % lock)
 	return out
+
+## Item-window actions for a stash piece (DECISIONS #189): take it off its wearer, put it on the selected hero
+## (moving or swapping it from whoever wears it), or imbue a wand. Disabled buttons say why (patrol lock...).
+func gear_actions(g: Dictionary, with_unequip := true) -> Array:
+	var acts := []
+	var t: String = DB.item(g.id).type
+	var uid := int(g.uid)
+	var who := GameState.equipped_by(uid)
+	if with_unequip and who != "" and not DB.item(g.id).get("heirloom", false):
+		var ws := GameState.slot_of(who, uid)
+		acts.append(["Unequip from " + DB.heroes[who].name, func(): GameState.unequip(who, ws), GameState.can_unequip(who, ws)])
+	if SLOT_OF.has(t) and who != chosen_hero and not GameState.can_equip(chosen_hero, uid).begins_with("heirloom"):
+		var nm: String = DB.heroes[chosen_hero].name
+		var label := "Equip on " + nm
+		if who != "":
+			var back := GameState.equip_swap_back(chosen_hero, uid)
+			label = ("Swap to %s (%s gets %s)" % [nm, DB.heroes[who].name, GameState.gear_name(GameState.gear_by_uid(back))]) if back != 0 else "Move to %s" % nm
+		acts.append([label, func(): GameState.equip(chosen_hero, uid), GameState.can_equip(chosen_hero, uid)])
+	if t == "wand" and g.known:
+		acts.append(["Imbue into the Mage's Staff", func(): GameState.imbue_wand(uid), GameState.can_imbue_wand(uid)])
+	return acts
+
+## The wand imbued in the Mage's Staff is not a stash entry (it lives on the staff), so the Wands list shows it as
+## a Mage-marked slot with an Unequip action (DECISIONS #189).
+func _imbued_wand_slot() -> Button:
+	var h: Dictionary = GameState.heroes.get("mage", {})
+	var wid := String(h.get("wand", ""))
+	if wid == "": return null
+	var lvl := int(h.get("wand_lvl", 0)); var cr: bool = h.get("wand_cracked", false)
+	var nm: String = String(DB.item(wid).name) + (" +%d" % lvl if lvl > 0 else "") + (" (cracked)" if cr else "")
+	var lines: Array = [Codex.item_line(wid), "Imbued in the Mage's Staff."]
+	var lock := GameState.gear_lock("mage")
+	if lock != "": lines.append("Locked: %s." % lock)
+	var slot := item_slot(wid, "", "+%d" % lvl if lvl > 0 else "", func():
+		info(wid, nm, lines, [["Unequip from Mage", func(): GameState.unequip("mage", "staff"), GameState.can_unequip("mage", "staff")]], "NONE"),
+		Color.WHITE, "ff5040" if cr else _hero_frame("mage"), {}, "NONE")
+	slot.name = "ImbuedWand"
+	_owner_bar(slot, ["mage"])
+	return slot
 
 # ------------------------------------------------------------ Heroes (equipment)
 var show_talents := false
@@ -783,7 +823,8 @@ func _page_heroes() -> void:
 	if c == "mage":
 		for g in GameState.gear:
 			if DB.item(g.id).type == "wand" and g.known:
-				v.add_child(UIKit.button("Imbue " + GameState.gear_name(g), func(): GameState.imbue_wand(g.uid)))
+				var why_im := GameState.can_imbue_wand(int(g.uid))
+				v.add_child(UIKit.button("Imbue " + GameState.gear_name(g), func(): GameState.imbue_wand(g.uid), why_im == "", why_im))
 	if show_talents or GameState.talent_points_total_free(c) > 0: HeroPanels.talents(v, c, _fill_window)
 
 # ------------------------------------------------------------ Stash
@@ -836,16 +877,18 @@ func _page_stash() -> void:
 	v.add_child(UIKit.label("Tap for info, hold to compare with %s's gear." % DB.heroes[chosen_hero].name, 0.75, Color("9a9488")))
 	for cat in GEAR_CATS:
 		var list := GameState.gear.filter(func(g): return DB.item(g.id).type == cat[0])
-		if list.is_empty(): continue
+		var imbued: Button = _imbued_wand_slot() if cat[0] == "wand" else null
+		if list.is_empty() and imbued == null: continue
 		list.sort_custom(_stash_gear_less)
-		v.add_child(UIKit.label("%s (%d)" % [cat[1], list.size()], 0.95, Color("ffd27a")))
+		v.add_child(UIKit.label("%s (%d)" % [cat[1], list.size() + (1 if imbued else 0)], 0.95, Color("ffd27a")))
 		var gg := slot_grid(v, GEAR_CELL)
+		if imbued: gg.add_child(imbued)
 		for g in list:
 			var who := GameState.equipped_by(g.uid)
 			var bdg := UIKit.gear_badge(g)
 			if bdg == "": bdg = "NONE"
 			var slot := item_slot(gear_icon(g), "", "+%d" % g.lvl if g.lvl > 0 and g.known else "",
-				func(): info(gear_icon(g), GameState.gear_name(g), gear_lines(g), [], bdg), Color(1, 0.55, 0.5) if g.get("cracked", false) else Color.WHITE, _hero_frame(who), g)
+				func(): info(gear_icon(g), GameState.gear_name(g), gear_lines(g), gear_actions(g), bdg), Color(1, 0.55, 0.5) if g.get("cracked", false) else Color.WHITE, _hero_frame(who), g)
 			gg.add_child(_mark_worn(slot, int(g.uid)))
 
 # ------------------------------------------------------------ Facilities

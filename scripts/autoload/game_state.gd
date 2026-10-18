@@ -547,25 +547,146 @@ func power_rating(c: String) -> int:
 func can_equip(c: String, uid: int) -> String:
 	var g := gear_by_uid(uid)
 	if g.is_empty(): return "missing"
+	if _slot_for(DB.item(g.id).type) == "": return "can't be equipped"
+	var lock := gear_lock(c)
+	if lock != "": return lock
 	if g.cracked: return "cracked - repair at the Blacksmith"
 	if not g.known and DB.item(g.id).type == "ring": return "unidentified - use the Enchanter's Desk"
 	var d := DB.item(g.id)
 	if d.get("heirloom", false) and DB.heroes[c].heirloom != g.id: return "heirloom of another class"
+	# worn by someone else: it moves over (a swap), unless that hero's gear is locked (DECISIONS #189)
 	var other := equipped_by(uid)
-	if other != "" and other != c: return "equipped by " + DB.heroes[other].name
-	if not run.is_empty() and run.hero == c: return "hero is on an expedition"
+	if other != "" and other != c:
+		var olock := gear_lock(other)
+		if olock != "": return olock
 	return ""
 
+## Equip from the Camp stash. An item another hero wears moves over; when this hero had something in that slot
+## and the other hero can wear it, the two trade (a swap), otherwise their slot is left empty (DECISIONS #189).
 func equip(c: String, uid: int) -> bool:
 	if can_equip(c, uid) != "": return false
-	var t: String = DB.item(gear_by_uid(uid).id).type
-	match t:
-		"weapon": heroes[c].weapon = uid
-		"armor": heroes[c].armor = uid
-		"ring": heroes[c].ring = uid
-		"artifact": heroes[c].artifact = uid
-		_: return false
+	var g := gear_by_uid(uid)
+	var slot := _slot_for(DB.item(g.id).type)
+	var other := equipped_by(uid)
+	if other == c and int(heroes[c][slot]) == uid: return true
+	var given := 0
+	if other != "" and other != c:
+		given = equip_swap_back(c, uid)
+		heroes[other][slot] = given
+	heroes[c][slot] = uid
+	if other != "" and other != c:
+		if given != 0: say("%s and %s swap: %s / %s." % [DB.heroes[c].name, DB.heroes[other].name, gear_name(g), gear_name(gear_by_uid(given))])
+		else: say("%s takes %s from %s." % [DB.heroes[c].name, gear_name(g), DB.heroes[other].name])
 	touch(); return true
+
+# ---------------------------------------------------------------- gear ownership (DECISIONS #189)
+const GEAR_SLOTS := ["weapon", "armor", "ring", "artifact"]
+
+## Why this hero's equipment can't change at Camp right now ("" = free): out on a patrol (its yield is worked out
+## from the gear they left with) or on the current expedition (the backpack handles that).
+func gear_lock(c: String) -> String:
+	if not heroes.has(c): return "unknown hero"
+	if not heroes[c].get("patrol", {}).is_empty(): return "%s is on patrol" % DB.heroes[c].name
+	if not run.is_empty() and run.hero == c: return "%s is on an expedition" % DB.heroes[c].name
+	return ""
+
+## The slot holding uid on hero c ("" when they don't wear it).
+func slot_of(c: String, uid: int) -> String:
+	for s in GEAR_SLOTS:
+		if int(heroes[c].get(s, 0)) == uid: return s
+	return ""
+
+## What would go back to the current wearer if c takes uid: c's item in that slot, when the wearer can use it
+## (intact, identified, not another class's heirloom); 0 = the wearer's slot is left empty.
+func equip_swap_back(c: String, uid: int) -> int:
+	var other := equipped_by(uid)
+	if other == "" or other == c: return 0
+	var g := gear_by_uid(uid)
+	var mine := gear_by_uid(int(heroes[c].get(_slot_for(DB.item(g.id).type), 0)))
+	if mine.is_empty() or mine.cracked: return 0
+	var md := DB.item(mine.id)
+	if not mine.known and md.type == "ring": return 0
+	if md.get("heirloom", false) and DB.heroes[other].heirloom != mine.id: return 0
+	return int(mine.uid)
+
+## Button text for putting uid on hero c: "Equip", "Take from Mage", "Swap with Mage".
+func equip_verb(c: String, uid: int) -> String:
+	var other := equipped_by(uid)
+	if other == "" or other == c: return "Equip"
+	return ("Swap with " if equip_swap_back(c, uid) != 0 else "Take from ") + String(DB.heroes[other].name)
+
+## slot: weapon/armor/ring/artifact, or "staff" for the Mage's imbued wand.
+func can_unequip(c: String, slot: String) -> String:
+	var h: Dictionary = heroes[c]
+	if slot == "staff":
+		if String(h.get("wand", "")) == "": return "no wand imbued"
+	else:
+		if not (slot in GEAR_SLOTS): return "not a gear slot"
+		var g := gear_by_uid(int(h.get(slot, 0)))
+		if g.is_empty(): return "empty slot"
+		if DB.item(g.id).get("heirloom", false): return "heirloom - it stays with the %s" % DB.heroes[c].name
+	return gear_lock(c)
+
+## Take a piece off at Camp: it goes back to the stash (still owned, just not worn). The Mage's wand leaves the
+## staff as a stash wand with its level and crack kept.
+func unequip(c: String, slot: String) -> bool:
+	if can_unequip(c, slot) != "": return false
+	var h: Dictionary = heroes[c]
+	if slot == "staff":
+		var ou := add_gear(String(h.wand), true, int(h.get("wand_lvl", 0))); gear_by_uid(ou).cracked = bool(h.get("wand_cracked", false))
+		say("Took %s out of the staff." % DB.item(h.wand).name)
+		h.wand = ""; h.wand_lvl = 0; h.wand_cracked = false
+	else:
+		var g := gear_by_uid(int(h[slot]))
+		h[slot] = 0
+		say("%s unequips %s." % [DB.heroes[c].name, gear_name(g)])
+	touch(); return true
+
+## Holder of a stash item, for item lists: {"hero": id, "slot": s, "locked": reason}; empty when nobody wears it.
+func gear_owner(uid: int) -> Dictionary:
+	var c := equipped_by(uid)
+	if c == "": return {}
+	return {"hero": c, "slot": slot_of(c, uid), "locked": gear_lock(c)}
+
+## Old saves (DECISIONS #189): one uid per gear entry, one wearer per item, slots only point at real gear of their
+## type, and next_uid stays above every uid in use. Returns the number of fixes made.
+func _fix_ownership() -> int:
+	var fixes := 0
+	var seen_uid := {}
+	var max_uid := 0
+	for g in gear: max_uid = maxi(max_uid, int(g.uid))
+	if not run.is_empty():
+		for g in run.get("pack_gear", []) + run.get("overflow", []): max_uid = maxi(max_uid, int(g.get("uid", 0)))
+	next_uid = maxi(next_uid, max_uid + 1)
+	var kept: Array = []
+	for g in gear:
+		var u := int(g.uid)
+		if seen_uid.has(u):
+			var first: Dictionary = seen_uid[u]
+			if String(first.id) == String(g.id): fixes += 1; continue   # the same item listed twice: keep one
+			g.uid = next_uid; next_uid += 1; fixes += 1                    # two items sharing a uid: both stay
+		seen_uid[int(g.uid)] = g
+		kept.append(g)
+	gear = kept
+	if not run.is_empty():   # a backpack copy may not reuse a stash uid either, or extracting would duplicate it
+		for g in run.get("pack_gear", []) + run.get("overflow", []):
+			if seen_uid.has(int(g.get("uid", 0))): g.uid = next_uid; next_uid += 1; fixes += 1
+	var worn := {}
+	for c in DB.heroes:
+		if not heroes.has(c): continue
+		var h: Dictionary = heroes[c]
+		for s in GEAR_SLOTS:
+			var u := int(h.get(s, 0))
+			if u == 0: continue
+			var g: Dictionary = seen_uid.get(u, {})
+			if g.is_empty() or _slot_for(DB.item(g.id).type) != s or worn.has(u):
+				h[s] = 0; fixes += 1   # missing, wrong kind, or already worn by an earlier hero: back to the stash
+				continue
+			worn[u] = c
+		if c != "mage" and String(h.get("wand", "")) != "":   # only the Mage's Staff holds a wand
+			var wu := add_gear(String(h.wand), true, int(h.get("wand_lvl", 0))); gear_by_uid(wu).cracked = bool(h.get("wand_cracked", false))
+			h.wand = ""; h.wand_lvl = 0; h.wand_cracked = false; fixes += 1
+	return fixes
 
 func grant_xp(c: String, n: int) -> bool:
 	var h: Dictionary = heroes[c]
@@ -1026,9 +1147,15 @@ func use_elixir(c: String) -> bool:
 	add_mat("elixir_starter", -1); h.level = 3; h.xp = 0
 	say(DB.heroes[c].name + " drinks a Starter Elixir (Lv3)."); touch(); return true
 
-func imbue_wand(uid: int) -> bool:
+func can_imbue_wand(uid: int) -> String:
 	var g := gear_by_uid(uid)
-	if g.is_empty() or DB.item(g.id).type != "wand" or not g.known: return false
+	if g.is_empty() or DB.item(g.id).type != "wand": return "not a wand"
+	if not g.known: return "unidentified"
+	return gear_lock("mage")   # the staff's wand is Mage gear: locked while she's out (DECISIONS #189)
+
+func imbue_wand(uid: int) -> bool:
+	if can_imbue_wand(uid) != "": return false
+	var g := gear_by_uid(uid)
 	var old: String = heroes.mage.wand
 	var old_lvl := int(heroes.mage.get("wand_lvl", 0)); var old_cr: bool = heroes.mage.get("wand_cracked", false)
 	heroes.mage.wand = g.id; heroes.mage.wand_lvl = int(g.lvl); heroes.mage.wand_cracked = g.get("cracked", false)
@@ -1402,6 +1529,7 @@ func _fix_types() -> void:
 		# a start ahead of the clock (fast-forward that was not saved) stays at 0% until that gap passes
 		var p: Dictionary = h.get("patrol", {})
 		if not p.is_empty() and float(p.get("start", 0)) > now(): p.start = now()
+	_fix_ownership()
 	for f in facilities:
 		facilities[f].level = int(facilities[f].level); facilities[f].cap = int(facilities[f].cap)
 		if DB.facilities.has(f): facilities[f].cap = facility_cap(f)
