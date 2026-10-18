@@ -1812,24 +1812,6 @@ func test_gear_ownership(gs) -> void:
 	cs.queue_free()
 	UIKit.make_theme(fs0)
 
-## Camp item windows fit themselves one frame later. If the Camp screen leaves the tree first (a delve starts in the
-## same frame, as the UI smoke does after its gear checks), that deferred fit must skip instead of asking a detached
-## node for its viewport ("!is_inside_tree()" engine error). In the tree it still fits the window.
-func test_info_fit_out_of_tree(gs) -> void:
-	print("[info fit out of tree]")
-	gs.new_game()
-	var cs = load("res://scripts/ui/camp_screen.gd").new(); add_child(cs)
-	cs.info("ring_might", "Ring of Might", ["one line"], [])
-	var pc: Control = cs.info_layer.find_children("*", "PanelContainer", true, false)[0]
-	await get_tree().process_frame
-	var vs := get_viewport().get_visible_rect().size
-	check(pc.size.y > 0.0 and pc.size.y <= vs.y * 0.8 + 1.0, "in the tree, the item window still fits itself (%.0f)" % pc.size.y)
-	cs.info("ring_might", "Ring of Might", ["one line"], [])
-	remove_child(cs)
-	await get_tree().process_frame
-	check(not cs.is_inside_tree() and is_instance_valid(cs), "out of the tree, the deferred fit is skipped without touching the viewport")
-	cs.free()
-
 func _first_of_type(t: String) -> String:
 	for k in DB.items:
 		if DB.items[k].get("type", "") == t and not DB.items[k].get("heirloom", false): return k
@@ -2144,6 +2126,24 @@ func test_encounter_summary(gs) -> void:
 	scr._accept_summary()
 	check(gs.run.is_empty() and gs.last_result == "death", "OK after a defeat ends the expedition")
 	scr.queue_free()
+
+## Camp item windows fit themselves one frame later. If the Camp screen leaves the tree first (a delve starts in the
+## same frame, as the UI smoke does after its gear checks), that deferred fit must skip instead of asking a detached
+## node for its viewport ("!is_inside_tree()" engine error). In the tree it still fits the window.
+func test_info_fit_out_of_tree(gs) -> void:
+	print("[info fit out of tree]")
+	gs.new_game()
+	var cs = load("res://scripts/ui/camp_screen.gd").new(); add_child(cs)
+	cs.info("ring_might", "Ring of Might", ["one line"], [])
+	var pc: Control = cs.info_layer.find_children("*", "PanelContainer", true, false)[0]
+	await get_tree().process_frame
+	var vs := get_viewport().get_visible_rect().size
+	check(pc.size.y > 0.0 and pc.size.y <= vs.y * 0.8 + 1.0, "in the tree, the item window still fits itself (%.0f)" % pc.size.y)
+	cs.info("ring_might", "Ring of Might", ["one line"], [])
+	remove_child(cs)
+	await get_tree().process_frame
+	check(not cs.is_inside_tree() and is_instance_valid(cs), "out of the tree, the deferred fit is skipped without touching the viewport")
+	cs.free()
 
 ## A reward toast emitted before the floor menu opens must sit in the card, above the buttons.
 func test_menu_toast(gs) -> void:
