@@ -54,6 +54,7 @@ func _ready() -> void:
 	test_rec_levels(gs)
 	test_strength_once(gs)
 	test_gold_sinks(gs)
+	test_patrol_perks(gs)
 	test_goo_spd(gs)
 	test_level_cap(gs)
 	test_dew_sink(gs)
@@ -2928,6 +2929,185 @@ func test_strength_once(gs) -> void:
 	check(gs.heroes.warrior.str_found.is_empty() and int(gs.heroes.warrior.str) == 10, "death resets Str and the found list")
 	gs.from_dict(JSON.parse_string(JSON.stringify(gs.to_dict())))
 	check(gs.heroes.warrior.str_found is Array, "str_found survives save/load")
+
+
+## Fresh camp with one idle hero who has cleared `biome` and has gold for any fee.
+func _pat_camp(gs, c := "warrior", biome := "sewers") -> void:
+	gs.new_game()
+	gs.heroes[c].unlocked = true
+	gs.heroes[c].cleared.append(biome)
+	gs.mats.gold = 100000
+
+## Full-length patrol yield for hero c right now (starts, fast-forwards, previews; leaves the patrol out).
+func _pat_full(gs, c := "warrior", biome := "sewers") -> Dictionary:
+	check(gs.start_patrol(c, biome), "%s starts a %s patrol" % [c, biome])
+	gs.time_offset += 24 * 3600
+	return gs.patrol_preview(c)
+
+## Equip a known item at a level on c; returns its uid.
+func _pat_wear(gs, c: String, id: String, lvl := 0) -> int:
+	var u: int = gs.add_gear(id, true, lvl)
+	check(gs.equip(c, u), "%s equips %s +%d" % [c, id, lvl])
+	return u
+
+## Patrol perks and gear level (DECISIONS #188).
+func test_patrol_perks(gs) -> void:
+	print("[patrol perks]")
+	# every ring, wand and artifact in the game has a patrol perk, and it shows as one line with the item's name
+	for k in DB.items:
+		var d = DB.items[k]
+		if not (d is Dictionary) or not (d.get("type", "") in ["ring", "wand", "artifact"]): continue
+		check(d.has("patrol") and not d.patrol.is_empty(), "%s has a patrol perk" % k)
+		_pat_camp(gs, "mage")
+		if d.type == "wand": gs.heroes.mage.wand = k; gs.heroes.mage.wand_lvl = 2
+		else: _pat_wear(gs, "mage", k, 2); gs.heroes.mage.wand = ""
+		var pk: Dictionary = gs.patrol_perks("mage")
+		check(pk.lines.size() == 1 and String(pk.lines[0]).begins_with(String(d.name) + " +2: "), "%s +2 perk line (%s)" % [k, pk.lines])
+	# baseline Warrior, starter gear: no perks, gear level 0, no gear bonus
+	_pat_camp(gs)
+	check(gs.patrol_perks("warrior").lines.is_empty() and gs.patrol_gear_level("warrior") == 0, "starter Warrior has no perks and gear level 0")
+	check(is_equal_approx(gs.patrol_gear_mult("warrior"), 1.0), "gear level 0 = no gear bonus")
+	var base: Dictionary = _pat_full(gs)
+	check(int(base.gold) > 0 and int(base.iron_ore) > 0 and int(base._curios) >= 0, "baseline patrol yields (%s)" % base)
+	# Ring of Wealth +2: +20% gold, curios from every ring
+	_pat_camp(gs); _pat_wear(gs, "warrior", "ring_wealth", 2)
+	check("Ring of Wealth +2: +20% gold, curios: any ring" in gs.patrol_perks("warrior").lines, "Wealth +2 line (%s)" % [gs.patrol_perks("warrior").lines])
+	var y: Dictionary = _pat_full(gs)
+	var gm: float = 1.0 + (gs.patrol_gear_mult_for(2) - 1.0) * gs.PATROL_GOLD_GEAR_SHARE
+	check(int(y.gold) == int(floor(15.0 * 2.0 * float(gs.heroes.warrior.patrol.eff) * gm * 1.2)), "Wealth +2 adds 20%% gold on top of the gear bonus (%d)" % int(y.gold))
+	check(gs.patrol_curio_pool(gs.heroes.warrior.patrol.fx).size() == 10, "Wealth opens all 10 rings as curios")
+	check(gs.patrol_curio_pool({}) == ["ring_might", "ring_tenacity"], "default curios are Might / Tenacity")
+	# Ring of Might +0: +15% ore; Furor: every material; Energy: resin
+	_pat_camp(gs); _pat_wear(gs, "warrior", "ring_might", 0)
+	y = _pat_full(gs)
+	check(int(y.iron_ore) == int(floor(3.0 * 2.0 * float(gs.heroes.warrior.patrol.eff) * 1.15)), "Might +0: +15%% iron ore (%d)" % int(y.iron_ore))
+	check(int(y.gold) == int(floor(15.0 * 2.0 * float(gs.heroes.warrior.patrol.eff))), "Might leaves gold alone (gear level 0)")
+	_pat_camp(gs); _pat_wear(gs, "warrior", "ring_furor", 2)
+	check(is_equal_approx(float(gs.patrol_perks("warrior").fx.all_pct), 10.0), "Furor +2: +10% materials")
+	var fy: Dictionary = _pat_full(gs)
+	var fe: float = gs.heroes.warrior.patrol.eff * gs.heroes.warrior.patrol.gear_mult
+	check(int(fy.iron_ore) == int(floor(3.0 * 2.0 * fe * 1.1)) and int(fy.gold) == int(floor(15.0 * 2.0 * gs.heroes.warrior.patrol.eff)), "Furor raises ore, not gold (%s)" % fy)
+	# Ring of Haste: more ground per hour -> more of everything; Evasion / Chains: more curios
+	_pat_camp(gs); _pat_wear(gs, "warrior", "ring_haste", 0)
+	check(is_equal_approx(float(gs.patrol_perks("warrior").fx.time_pct), 10.0), "Haste +0: +10% patrol time")
+	_pat_camp(gs, "warrior", "prison"); gs.facilities.guild.level = 3
+	var b8: Dictionary = _pat_full(gs, "warrior", "prison")
+	_pat_camp(gs, "warrior", "prison"); gs.facilities.guild.level = 3; _pat_wear(gs, "warrior", "ring_evasion", 4)
+	var e8: Dictionary = _pat_full(gs, "warrior", "prison")
+	check(int(e8._curios) > int(b8._curios), "Evasion +4 (+35%%) brings more curios on an 8h Prison patrol (%d vs %d)" % [int(e8._curios), int(b8._curios)])
+	# Ring of Tenacity / Cape of Thorns: patrol power -> efficiency where the hero is under-geared
+	_pat_camp(gs, "warrior", "halls")
+	var e0: float = gs.patrol_efficiency("warrior", "halls")
+	_pat_wear(gs, "warrior", "ring_tenacity", 3)
+	check(gs.patrol_efficiency("warrior", "halls") > e0 and e0 < 1.25, "Tenacity +3 (+4 power) raises Halls efficiency (%.2f -> %.2f)" % [e0, gs.patrol_efficiency("warrior", "halls")])
+	# Ring of Elements: cheaper fee, capped at 50%
+	_pat_camp(gs)
+	var fee0 := int(gs.patrol_fee("sewers", "warrior").gold)
+	_pat_wear(gs, "warrior", "ring_elements", 1)
+	check(int(gs.patrol_fee("sewers", "warrior").gold) == int(fee0 * 0.8), "Elements +1 cuts the fee 20%")
+	check(int(gs.patrol_fee("sewers").gold) == fee0, "the fee without a hero is unchanged")
+	var g0: int = gs.mat("gold"); gs.start_patrol("warrior", "sewers")
+	check(g0 - gs.mat("gold") == int(fee0 * 0.8), "starting pays the cut fee")
+	gs.heroes.warrior.patrol = {}
+	gs.gear_by_uid(gs.heroes.warrior.ring).lvl = 20
+	check(int(gs.patrol_fee("sewers", "warrior").gold) == int(fee0 * 0.5), "the fee cut stops at 50%")
+	# Chalice of Blood: a healing potion every 6h (-1h per level, min 2h); Horn of Plenty: rations
+	_pat_camp(gs); gs.facilities.guild.level = 3; _pat_wear(gs, "warrior", "chalice_blood", 2)
+	y = _pat_full(gs)
+	check(int(y.get("potion_healing", 0)) == 2, "Chalice +2: 8h / 4h = 2 healing potions (%d)" % int(y.get("potion_healing", 0)))
+	_pat_camp(gs); gs.facilities.guild.level = 3; _pat_wear(gs, "warrior", "horn_plenty", 0)
+	y = _pat_full(gs)
+	check(int(y.get("ration", 0)) == 2, "Horn +0: a ration per 4h -> 2 on 8h (%d)" % int(y.get("ration", 0)))
+	var r0: int = gs.mat("ration"); gs.collect_patrol("warrior")
+	check(gs.mat("ration") == r0 + 2, "collected rations land in the stash")
+	# Timekeeper's Hourglass: the hero can stay out longer than the Guild cap
+	_pat_camp(gs); _pat_wear(gs, "warrior", "timekeepers_hourglass", 2)
+	check(is_equal_approx(gs.patrol_max_hours("warrior"), 4.0) and is_equal_approx(gs.patrol_max_hours(), 2.0), "Hourglass +2: 2h Guild + 2h")
+	y = _pat_full(gs)
+	check(is_equal_approx(float(y._hours), 4.0) and int(y.gold) > int(base.gold), "Hourglass patrol runs 4h and brings more")
+	# Sandals of Nature / Wand of Regrowth: seeds (and dew) per hour, even where the biome has none
+	_pat_camp(gs, "warrior", "prison"); _pat_wear(gs, "warrior", "sandals_nature", 2)
+	y = _pat_full(gs, "warrior", "prison")
+	var eff_p: float = gs.heroes.warrior.patrol.eff
+	check(int(y.get("seeds", 0)) == int(floor(2.0 * 2.0 * eff_p)), "Sandals +2: 2 seeds/h in the Prison (%d)" % int(y.get("seeds", 0)))
+	_pat_camp(gs, "mage", "prison"); gs.heroes.mage.wand = "wand_regrowth"; gs.heroes.mage.wand_lvl = 0
+	y = _pat_full(gs, "mage", "prison")
+	check(int(y.get("seeds", 0)) >= 1, "Wand of Regrowth brings seeds back (%d)" % int(y.get("seeds", 0)))
+	# Talisman of Foresight: curios arrive identified, high levels make them +1
+	_pat_camp(gs, "warrior", "prison"); gs.facilities.guild.level = 3; _pat_wear(gs, "warrior", "talisman_foresight", 8)
+	y = _pat_full(gs, "warrior", "prison")
+	var n0: int = gs.gear.size(); gs.collect_patrol("warrior")
+	var got: Array = gs.gear.slice(n0)
+	check(got.size() == int(y._curios) and got.size() > 0, "talisman patrol brought curios")
+	check(got.all(func(g): return g.known and int(g.lvl) == 1), "Talisman +8: curios known and +1 (100%)")
+	_pat_camp(gs, "warrior", "prison"); gs.facilities.guild.level = 3
+	_pat_full(gs, "warrior", "prison"); n0 = gs.gear.size(); gs.collect_patrol("warrior")
+	check(gs.gear.slice(n0).all(func(g): return not g.known and int(g.lvl) == 0), "without it curios come unknown +0")
+	# gear level: weapon + armor + ring + artifact + staff wand; cracked pieces don't count
+	_pat_camp(gs)
+	gs.gear_by_uid(gs.heroes.warrior.weapon).lvl = 3; gs.gear_by_uid(gs.heroes.warrior.armor).lvl = 2
+	_pat_wear(gs, "warrior", "ring_might", 2); _pat_wear(gs, "warrior", "cape_thorns", 1)
+	check(gs.patrol_gear_level("warrior") == 8, "gear level sums weapon, armor, ring, artifact (%d)" % gs.patrol_gear_level("warrior"))
+	gs.gear_by_uid(gs.heroes.warrior.armor).cracked = true
+	check(gs.patrol_gear_level("warrior") == 6, "cracked armor stops counting")
+	_pat_camp(gs, "mage"); gs.heroes.mage.wand_lvl = 3
+	check(gs.patrol_gear_level("mage") == 3, "the staff's wand level counts")
+	gs.heroes.mage.wand_cracked = true
+	check(gs.patrol_gear_level("mage") == 0, "a cracked staff wand doesn't")
+	var m := func(l): return gs.patrol_gear_mult_for(l)
+	check(m.call(4) > m.call(1) and m.call(100) > m.call(99) and m.call(400) > 3.9, "gear bonus keeps growing, no ceiling")
+	check(m.call(2) - m.call(1) > m.call(11) - m.call(10), "gear bonus has diminishing returns")
+	check(is_equal_approx(m.call(16), 1.6), "16 levels = x1.6 materials")
+	# well geared vs baseline at the same biome: noticeably more, not runaway
+	_pat_camp(gs, "warrior", "caves"); gs.facilities.guild.level = 3
+	var bc: Dictionary = _pat_full(gs, "warrior", "caves")
+	var bc_eff: float = gs.heroes.warrior.patrol.eff
+	_pat_camp(gs, "warrior", "caves"); gs.facilities.guild.level = 3
+	gs.gear_by_uid(gs.heroes.warrior.weapon).lvl = 4; gs.gear_by_uid(gs.heroes.warrior.armor).lvl = 4
+	_pat_wear(gs, "warrior", "ring_might", 3); _pat_wear(gs, "warrior", "cape_thorns", 3)
+	var gc: Dictionary = _pat_full(gs, "warrior", "caves")
+	var gc_eff: float = gs.heroes.warrior.patrol.eff
+	# efficiency (power vs the biome gate) already paid for gear before #188; this is what gear adds on top of it
+	var ratio := (float(gc.iron_ore) / gc_eff) / (float(bc.iron_ore) / bc_eff)
+	check(ratio >= 1.5 and ratio <= 2.2, "geared Warrior (14 levels, Might +3) brings 1.5-2.2x the Caves ore per efficiency (x%.2f)" % ratio)
+	var gratio := (float(gc.gold) / gc_eff) / (float(bc.gold) / bc_eff)
+	check(is_equal_approx(gratio, 1.0), "gear level leaves gold alone: it is the sink (x%.2f)" % gratio)
+	# the patrol keeps what the hero left with: swapping or levelling gear mid-patrol changes nothing
+	var before: Dictionary = gs.patrol_preview("warrior")
+	gs.heroes.warrior.ring = 0; gs.gear_by_uid(gs.heroes.warrior.weapon).lvl = 0
+	check(gs.patrol_preview("warrior") == before, "mid-patrol gear changes don't change the haul")
+	# save compat: the snapshot survives save/load; a pre-#188 patrol (no "v") still previews and collects
+	var snap: Dictionary = JSON.parse_string(JSON.stringify(gs.to_dict()))
+	gs.from_dict(snap)
+	check(gs.patrol_preview("warrior") == before, "patrol perks survive save/load")
+	_pat_camp(gs)
+	gs.heroes.warrior.patrol = {"biome": "sewers", "start": gs.now() - 3 * 3600.0}
+	var old: Dictionary = JSON.parse_string(JSON.stringify(gs.to_dict()))
+	gs.from_dict(old)
+	y = gs.patrol_preview("warrior")
+	check(is_equal_approx(float(y._hours), 2.0) and int(y.gold) == int(base.gold), "old-save patrol works out like before (%s)" % y)
+	var ou: int = gs.add_gear("timekeepers_hourglass", true, 0); gs.heroes.warrior.artifact = ou
+	check(is_equal_approx(float(gs.patrol_preview("warrior")._hours), 3.0), "an old-save patrol gets the Hourglass hours too")
+	gs.heroes.warrior.artifact = 0
+	var gold_b: int = gs.mat("gold")
+	gs.collect_patrol("warrior")
+	check(gs.mat("gold") == gold_b + int(base.gold) and gs.heroes.warrior.patrol.is_empty(), "old-save patrol collects")
+	# Guild card: an idle hero lists the gear bonus and perks before setting out; a patrolling one what they left with
+	_pat_camp(gs)
+	gs.gear_by_uid(gs.heroes.warrior.weapon).lvl = 2
+	_pat_wear(gs, "warrior", "ring_wealth", 2)
+	gs.heroes.mage.unlocked = true; gs.heroes.mage.cleared.append("sewers"); gs.heroes.mage.wand_lvl = 1
+	check(gs.start_patrol("mage", "sewers"), "mage sets out")
+	for vs in [Vector2(968, 2376), Vector2(1856, 2160)]:
+		var cs = load("res://scripts/ui/camp_screen.gd").new(); add_child(cs); cs.size = vs
+		var v := VBoxContainer.new(); v.size = Vector2(vs.x * 0.4, 0); add_child(v)
+		cs._patrol_list(v)
+		var texts: Array = v.find_children("*", "Label", true, false).filter(func(l): return l.has_meta("patrol_perk")).map(func(l): return String(l.text))
+		check("Gear Lv 4: +30% materials" in texts and "Ring of Wealth +2: +20% gold, curios: any ring" in texts, "%s: idle Warrior card lists gear bonus and Wealth (%s)" % [vs, texts])
+		check("Gear Lv 1: +15% materials" in texts and "Wand of Magic Missile +1: +2 patrol power" in texts, "%s: patrolling Mage card lists what she left with (%s)" % [vs, texts])
+		var bad := UIKit.collapsing_labels(v)
+		check(bad.is_empty(), "%s: perk lines keep their width" % vs)
+		v.queue_free(); cs.queue_free()
 
 func test_gold_sinks(gs) -> void:
 	print("[gold sinks]")

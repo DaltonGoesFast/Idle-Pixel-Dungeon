@@ -88,6 +88,12 @@
   "desc": "+1 melee damage. (+1 per level)",
   "per_level": {
    "dmg_bonus": 1
+  },
+  "patrol": {
+   "iron_ore_pct": [
+    15,
+    5
+   ]
   }
  },
  "ring_tenacity": {
@@ -100,6 +106,12 @@
   "desc": "+1 Barrier (+1 per level).",
   "per_level": {
    "barrier_bonus": 1
+  },
+  "patrol": {
+   "power": [
+    1,
+    1
+   ]
   }
  },
  "wand_magic_missile": {
@@ -111,7 +123,13 @@
   "unknown_name": "Oak Wand",
   "icon": "WAND_MAGIC_MISSILE",
   "spd": "dmg 2-8",
-  "desc": "Bolt: 5 damage (ignores DR), 2 charges."
+  "desc": "Bolt: 5 damage (ignores DR), 2 charges.",
+  "patrol": {
+   "power": [
+    1,
+    1
+   ]
+  }
  },
  "wand_firebolt": {
   "name": "Wand of Firebolt",
@@ -122,7 +140,13 @@
   "burns_grass": true,
   "unknown_name": "Ash Wand",
   "icon": "WAND_FIREBOLT",
-  "desc": "Bolt: 4 damage (ignores DR), 2 charges. Burns grass."
+  "desc": "Bolt: 4 damage (ignores DR), 2 charges. Burns grass.",
+  "patrol": {
+   "dark_gold_pct": [
+    15,
+    5
+   ]
+  }
  },
  "_materials": {
   "gold": {
@@ -360,7 +384,13 @@
   "unknown_name": "Birch Wand",
   "icon": "WAND_LIGHTNING",
   "spd": "dmg 5-10",
-  "desc": "Bolt: 7 damage (ignores DR), 2 charges. Chains through water."
+  "desc": "Bolt: 7 damage (ignores DR), 2 charges. Chains through water.",
+  "patrol": {
+   "arcane_resin_pct": [
+    15,
+    5
+   ]
+  }
  },
  "wand_frost": {
   "name": "Wand of Frost",
@@ -372,7 +402,13 @@
   "unknown_name": "Holly Wand",
   "icon": "WAND_FROST",
   "spd": "dmg 2-8, chills",
-  "desc": "Bolt: 3 damage (ignores DR) and chills: the target's next action is delayed 1 tick (1.5 from hero Lv 15). 2 charges."
+  "desc": "Bolt: 3 damage (ignores DR) and chills: the target's next action is delayed 1 tick (1.5 from hero Lv 15). 2 charges.",
+  "patrol": {
+   "dew_pct": [
+    25,
+    10
+   ]
+  }
  },
  "wand_corrosion": {
   "name": "Wand of Corrosion",
@@ -384,7 +420,13 @@
   "unknown_name": "Yew Wand",
   "icon": "WAND_CORROSION",
   "spd": "corrosive gas, no direct dmg",
-  "desc": "Bolt: 2 damage (ignores DR) and 3 poison (+1 per 6 hero levels). 2 charges."
+  "desc": "Bolt: 2 damage (ignores DR) and 3 poison (+1 per 6 hero levels). 2 charges.",
+  "patrol": {
+   "power": [
+    1,
+    1
+   ]
+  }
  },
  "wand_blast_wave": {
   "name": "Wand of Blast Wave",
@@ -396,7 +438,13 @@
   "unknown_name": "Elm Wand",
   "icon": "WAND_BLAST_WAVE",
   "spd": "dmg 1-5 + knockback",
-  "desc": "Bolt: 3 damage (ignores DR) and knocks the target back a tile (2 tiles from hero Lv 15). Chasms kill. 2 charges."
+  "desc": "Bolt: 3 damage (ignores DR) and knocks the target back a tile (2 tiles from hero Lv 15). Chasms kill. 2 charges.",
+  "patrol": {
+   "power": [
+    1,
+    1
+   ]
+  }
  },
  "wand_disintegration": {
   "name": "Wand of Disintegration",
@@ -408,7 +456,13 @@
   "unknown_name": "Ebony Wand",
   "icon": "WAND_DISINTEGRATION",
   "spd": "dmg 2-8, pierces",
-  "desc": "Bolt: 4 damage (ignores DR) to every enemy on the line. Walls still stop it. 2 charges."
+  "desc": "Bolt: 4 damage (ignores DR) to every enemy on the line. Walls still stop it. 2 charges.",
+  "patrol": {
+   "power": [
+    1,
+    1
+   ]
+  }
  },
  "wand_transfusion": {
   "name": "Wand of Transfusion",
@@ -420,7 +474,13 @@
   "unknown_name": "Willow Wand",
   "icon": "WAND_TRANSFUSION",
   "spd": "drains HP to the user",
-  "desc": "Bolt: 3 damage (ignores DR); heals you 2 HP (+1 per 10 hero levels) when it hits. 2 charges."
+  "desc": "Bolt: 3 damage (ignores DR); heals you 2 HP (+1 per 10 hero levels) when it hits. 2 charges.",
+  "patrol": {
+   "power": [
+    1,
+    1
+   ]
+  }
  },
  "wand_prismatic_light": {
   "name": "Wand of Prismatic Light",
@@ -432,7 +492,13 @@
   "unknown_name": "Rowan Wand",
   "icon": "WAND_PRISMATIC_LIGHT",
   "spd": "dmg 1-5, reveals, blinds",
-  "desc": "Bolt: 4 damage (ignores DR); lights up hidden traps within 2 tiles of where it lands. 2 charges."
+  "desc": "Bolt: 4 damage (ignores DR); lights up hidden traps within 2 tiles of where it lands. 2 charges.",
+  "patrol": {
+   "curio_pct": [
+    15,
+    5
+   ]
+  }
  },
  "wand_regrowth": {
   "name": "Wand of Regrowth",
@@ -445,7 +511,17 @@
   "unknown_name": "Maple Wand",
   "icon": "WAND_REGROWTH",
   "spd": "grass + roots",
-  "desc": "Bolt: 1 damage (ignores DR); roots the target for 2 ticks and grows tall grass around where it lands. 2 charges."
+  "desc": "Bolt: 1 damage (ignores DR); roots the target for 2 ticks and grows tall grass around where it lands. 2 charges.",
+  "patrol": {
+   "seeds_per_hour": [
+    1,
+    0.5
+   ],
+   "dew_pct": [
+    50,
+    0
+   ]
+  }
  },
  "longsword": {
   "name": "Longsword",
@@ -495,6 +571,12 @@
   "desc": "+1 DR (+1 per 2 levels).",
   "per_level": {
    "dr_bonus": 0.5
+  },
+  "patrol": {
+   "curio_pct": [
+    15,
+    5
+   ]
   }
  },
  "ring_wealth": {
@@ -507,6 +589,13 @@
   "desc": "+15% gold from fights (+5% per level).",
   "per_level": {
    "gold_mult": 0.05
+  },
+  "patrol": {
+   "gold_pct": [
+    10,
+    5
+   ],
+   "curio_pool": "rings"
   }
  },
  "ring_energy": {
@@ -520,6 +609,12 @@
   "desc": "+1 staff charge, +2 max HP (+2 HP per level).",
   "per_level": {
    "ht_bonus": 2
+  },
+  "patrol": {
+   "arcane_resin_pct": [
+    15,
+    5
+   ]
   }
  },
  "ring_furor": {
@@ -532,6 +627,12 @@
   "desc": "Melee attacks take 15% less time. -5% more per level.",
   "per_level": {
    "delay_mult": -0.05
+  },
+  "patrol": {
+   "all_pct": [
+    5,
+    2.5
+   ]
   }
  },
  "ring_haste": {
@@ -544,6 +645,12 @@
   "desc": "Steps take 15% less time. -5% more per level.",
   "per_level": {
    "move_cost": -0.05
+  },
+  "patrol": {
+   "time_pct": [
+    10,
+    5
+   ]
   }
  },
  "ring_sharpshooting": {
@@ -556,6 +663,12 @@
   "desc": "+1 damage with the Spirit Bow and staff bolts. +1 per 2 levels.",
   "per_level": {
    "bolt_bonus": 0.5
+  },
+  "patrol": {
+   "dew_pct": [
+    25,
+    10
+   ]
   }
  },
  "ring_elements": {
@@ -568,6 +681,12 @@
   "desc": "Fire, lightning, gas and other piercing magic hurt you a third less. -7% more per level.",
   "per_level": {
    "elem_resist": -0.07
+  },
+  "patrol": {
+   "fee_cut_pct": [
+    15,
+    5
+   ]
   }
  },
  "ring_force": {
@@ -580,6 +699,12 @@
   "desc": "+2 melee damage while wielding a tier-1 weapon (fists, dagger, gloves, staff). +1 per level.",
   "per_level": {
    "force_bonus": 1
+  },
+  "patrol": {
+   "dark_gold_pct": [
+    15,
+    5
+   ]
   }
  },
  "chalice_blood": {
@@ -590,6 +715,13 @@
   "desc": "+6 max HP (+3 per level; levels by use).",
   "per_level": {
    "ht_bonus": 3
+  },
+  "patrol": {
+   "potion_healing_every": [
+    6,
+    -1,
+    2
+   ]
   }
  },
  "talisman_foresight": {
@@ -601,6 +733,13 @@
   "desc": "+1 search radius; hidden traps next to you are revealed. (+1 search radius per 2 levels; levels by use)",
   "per_level": {
    "search_add": 0.5
+  },
+  "patrol": {
+   "curio_known": true,
+   "curio_plus_pct": [
+    20,
+    10
+   ]
   }
  },
  "horn_plenty": {
@@ -611,6 +750,13 @@
   "desc": "Rations last 25% longer (better per level; levels by use).",
   "per_level": {
    "hunger_mult": -0.05
+  },
+  "patrol": {
+   "ration_every": [
+    4,
+    -0.5,
+    1.5
+   ]
   }
  },
  "cape_thorns": {
@@ -621,7 +767,13 @@
    "thorns": 0.5
   },
   "icon": "ARTIFACT_CAPE",
-  "desc": "An enemy that hits you in melee takes 1 damage back (+1 per 2 levels; levels by use)."
+  "desc": "An enemy that hits you in melee takes 1 damage back (+1 per 2 levels; levels by use).",
+  "patrol": {
+   "power": [
+    1,
+    1
+   ]
+  }
  },
  "ethereal_chains": {
   "name": "Ethereal Chains",
@@ -631,7 +783,13 @@
    "chain_root": 0.5
   },
   "icon": "ARTIFACT_CHAINS",
-  "desc": "Once per fight, the nearest enemy 3+ tiles away is dragged next to you (bosses resist). From +1 it is held 0.5 tick per level."
+  "desc": "Once per fight, the nearest enemy 3+ tiles away is dragged next to you (bosses resist). From +1 it is held 0.5 tick per level.",
+  "patrol": {
+   "curio_pct": [
+    15,
+    5
+   ]
+  }
  },
  "timekeepers_hourglass": {
   "name": "Timekeeper's Hourglass",
@@ -641,7 +799,13 @@
    "freeze_start": 0.25
   },
   "icon": "ARTIFACT_HOURGLASS",
-  "desc": "Each fight opens with enemies frozen 0.5 tick (+0.25 per level; bosses immune)."
+  "desc": "Each fight opens with enemies frozen 0.5 tick (+0.25 per level; bosses immune).",
+  "patrol": {
+   "max_hours": [
+    1,
+    0.5
+   ]
+  }
  },
  "sandals_nature": {
   "name": "Sandals of Nature",
@@ -651,7 +815,17 @@
    "grass_root": 0.25
   },
   "icon": "ARTIFACT_SANDALS",
-  "desc": "Stepping into tall grass roots adjacent enemies 0.5 tick (+0.25 per level)."
+  "desc": "Stepping into tall grass roots adjacent enemies 0.5 tick (+0.25 per level).",
+  "patrol": {
+   "seeds_per_hour": [
+    1,
+    0.5
+   ],
+   "dew_per_hour": [
+    1,
+    0.5
+   ]
+  }
  },
  "thieves_armband": {
   "name": "Master Thieves' Armband",
@@ -661,6 +835,12 @@
    "loot_mult": 0.05
   },
   "icon": "ARTIFACT_ARMBAND",
-  "desc": "+10% gold from fights (+5% per level)."
+  "desc": "+10% gold from fights (+5% per level).",
+  "patrol": {
+   "gold_pct": [
+    15,
+    5
+   ]
+  }
  }
 }

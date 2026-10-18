@@ -93,6 +93,20 @@ func _ready() -> void:
 		plan.append([sz, "camp_guild", func():
 			GameState.add_mat("gold", 200); GameState.facilities.guild.level = 2
 			main.show_camp(); main.screen.open_page("Guild")])
+		plan.append([sz, "camp_guild_patrols", func():
+			# patrol perks (DECISIONS #188): idle geared Warrior with Wealth +2, Mage out with her staff wand and the Chalice
+			GameState.add_mat("gold", 2000); GameState.facilities.guild.level = 3
+			for c in ["warrior", "mage"]:
+				GameState.heroes[c].unlocked = true
+				for b in ["sewers", "prison"]: if not (b in GameState.heroes[c].cleared): GameState.heroes[c].cleared.append(b)
+			GameState.gear_by_uid(GameState.heroes.warrior.weapon).lvl = 3; GameState.gear_by_uid(GameState.heroes.warrior.armor).lvl = 2
+			var wr: int = GameState.add_gear("ring_wealth", true, 2); GameState.equip("warrior", wr)
+			var th: int = GameState.add_gear("thieves_armband", true, 1); GameState.equip("warrior", th)
+			if GameState.heroes.mage.patrol.is_empty():
+				GameState.heroes.mage.wand_lvl = 2
+				var ch: int = GameState.add_gear("chalice_blood", true, 1); GameState.equip("mage", ch)
+				GameState.start_patrol("mage", "prison"); GameState.heroes.mage.patrol.start = GameState.now() - 5.0 * 3600.0
+			main.show_camp(); main.screen.section["Guild"] = "patrols"; main.screen.open_page("Guild")])
 		plan.append([sz, "camp_guild_buy", func():
 			main.show_camp(); main.screen.open_page("Guild")
 			var r: Dictionary = GameState.recipe("guild", "buy_ration")
