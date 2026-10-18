@@ -1344,8 +1344,10 @@ func _identify_gear(g: Dictionary) -> Array:
 ## Finishes any identifications whose time has passed, in the order they finished, and starts the next waiting item
 ## in each freed slot from the moment it freed. Returns identified uids.
 func tick_identify() -> Array:
-	var done := _identify_known_types()
-	if not done.is_empty(): _schedule_identify()   # their slots go to the next items (from when each slot frees)
+	# known types that hold no slot go first, so the catch-up below never starts them; running ones of a known type
+	# stay in the catch-up (one already due finishes at its own time, keeping the offline chain; Bugbot on #98)
+	var done := _identify_known_types(false)
+	if not done.is_empty(): _schedule_identify()
 	var t := now()
 	while true:
 		var next: Dictionary = {}
@@ -1356,17 +1358,23 @@ func tick_identify() -> Array:
 		id_queue.erase(next)
 		done.append_array(_identify_gear(gear_by_uid(int(next.uid))))
 		_schedule_identify(at)
+	var late := _identify_known_types(true)   # still running and not due: their slots free now
+	if not late.is_empty():
+		done.append_array(late); _schedule_identify()
 	if not done.is_empty(): touch()
 	return done
 
 ## A type learned away from the Desk while its items wait (forged, a wand out of the Staff, a known find or curio, a pack Scroll
 ## of Identify): they need no Desk time, the same as queueing them after the type is known. Without this they kept
 ## their timer and a Finish price under their real name.
-func _identify_known_types() -> Array:
+## with_running false skips any type that has a running entry (it holds a slot, so the catch-up handles it first).
+func _identify_known_types(with_running := true) -> Array:
 	var done := []
 	for q in id_queue.duplicate():
 		var g := gear_by_uid(int(q.uid))
-		if not g.is_empty() and not g.known and type_known(String(g.id)): done.append_array(_identify_gear(g))
+		if g.is_empty() or g.known or not type_known(String(g.id)): continue
+		if not with_running and id_queue.any(func(o): return float(o.get("started", 0.0)) > 0.0 and String(gear_by_uid(int(o.uid)).get("id", "")) == String(g.id)): continue
+		done.append_array(_identify_gear(g))
 	return done
 
 ## Queues saved before DECISIONS #203 ran one item after another with no "started": the front item keeps running
