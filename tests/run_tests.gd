@@ -119,6 +119,7 @@ func _ready() -> void:
 	await test_tip_fit()
 	await test_window_dim(gs)
 	await test_hero_window_wide(gs)
+	test_web_no_dev_tools(gs)
 	await test_telemetry(gs)
 	print("TESTS: %d passed, %d failed -> %s" % [passes, fails, "PASS" if fails == 0 else "FAIL"])
 	get_tree().quit(1 if fails else 0)
@@ -4240,6 +4241,24 @@ func test_milestones(gs, ss) -> void:
 
 ## DECISIONS #197: anonymous telemetry. The live autoload is off under tests (nothing queued or sent while every
 ## suite and sim above ran); a detached instance with a key covers payload shape, PII, caps and HTTP failure.
+func test_web_no_dev_tools(gs) -> void:
+	print("[web dev tools]")
+	var SP: GDScript = load("res://scripts/ui/settings_panel.gd")
+	check(not SP.dev_tools_allowed(true), "web dev tools: hidden on the web export")
+	check(SP.dev_tools_allowed(false), "web dev tools: kept off the web (Android, Windows, source)")
+	check(SP.dev_tools_allowed() == not OS.has_feature("web"), "web dev tools: default follows the web feature tag")
+	var had = gs.settings.get("dev_tools", false); gs.settings.dev_tools = true
+	var v := VBoxContainer.new(); SP.build(v, true)
+	var found := false
+	for c in v.get_children():
+		if c is Button and String(c.text).begins_with("Developer tools"): found = true
+	check(found, "web dev tools: Settings still shows the Developer toggle off the web")
+	var credits := false
+	for c in v.get_children():
+		if c is Label and String(c.text).begins_with("Art, sounds and music"): credits = true
+	check(credits, "web dev tools: the GPL credits line still shows")
+	v.free(); gs.settings.dev_tools = had
+
 func test_telemetry(gs) -> void:
 	print("[telemetry]")
 	check(Telemetry.suppressed, "telemetry: suppressed under tests/headless")
