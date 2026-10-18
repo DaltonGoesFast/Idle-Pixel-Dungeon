@@ -66,6 +66,7 @@ Compatibility renderer (OpenGL ES 3) on all platforms; `canvas_items` stretch wi
 - `UIKit.chrome(name)` returns an SPD 9-patch StyleBoxTexture; `make_theme` applies it to Button/PanelContainer/TabBar and sets SPD's pixel font.
 - `scripts/ui/hero_panels.gd` (HeroPanels) builds the Talents and Backpack panels used by Camp, DelveScreen (`_open_panel`) and CombatScreen (Bag).
 - GameState: `talent_*`, `pick_talent`, `auto_pick_talents`; `delve_equip/unequip/drop/use`, `compare_equip`, `resolve_overflow`; `BACKPACK_SLOTS`. Delve `_stow` handles full packs. `Combat.apply_stats` refreshes the hero after a mid-fight swap.
+- Camp gear ownership (DECISIONS #189): `equip` (moves or swaps from another wearer, `equip_swap_back`/`equip_verb`), `can_unequip/unequip` (slot or `"staff"`), `gear_lock` (patrol / expedition), `slot_of`, `gear_owner`, `can_imbue_wand`; `_fix_ownership` repairs old saves. UI: `Paperdoll._detail` (Unequip, worn-by rows) and `CampScreen.gear_actions` / `_imbued_wand_slot`.
 
 - `scripts/ui/status_pane.gd` (StatusPane): SPD status_pane.png HUD used by Delve and Combat. `UIKit.font_px` snaps text to the pixel-font grid; `UIKit.as_toolbar` gives toolbar.png buttons.
 

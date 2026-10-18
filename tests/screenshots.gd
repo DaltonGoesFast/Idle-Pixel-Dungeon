@@ -58,6 +58,24 @@ func _ready() -> void:
 			HeroPanels.sel_talent = ""; GameState.heroes.warrior.level = 1
 			main.show_camp(); main.screen.open_page("Stash")
 			main.screen.compare(GameState.gear.filter(func(g): return g.id == "mace")[0])])
+		# gear ownership (DECISIONS #189): picker with another hero's ring, the patrol lock, the stash item window
+		plan.append([sz, "gear_take", func():
+			main.screen._close_info()
+			for c in GameState.heroes: GameState.heroes[c].unlocked = true
+			if GameState.heroes.mage.ring == 0: GameState.equip("mage", GameState.add_gear("ring_might", true))
+			GameState.equip("warrior", GameState.add_gear("ring_tenacity", true))
+			main.show_camp(); main.screen.chosen_hero = "warrior"; Paperdoll.sel_slot = "ring"; main.screen.open_page("Heroes")])
+		plan.append([sz, "gear_locked", func():
+			for c in GameState.heroes: GameState.heroes[c].unlocked = true
+			GameState.heroes.mage.patrol = {"biome": "sewers", "start": GameState.now()}
+			main.show_camp(); main.screen.chosen_hero = "mage"; Paperdoll.sel_slot = "ring"; main.screen.open_page("Heroes")])
+		plan.append([sz, "gear_stash_item", func():
+			main.show_camp(); main.screen.chosen_hero = "warrior"; main.screen.section["Stash"] = "gear"; main.screen.open_page("Stash")
+			var g: Dictionary = GameState.gear_by_uid(int(GameState.heroes.mage.ring))
+			main.screen.info(g.id, GameState.gear_name(g), main.screen.gear_lines(g), main.screen.gear_actions(g))])
+		plan.append([sz, "gear_stash", func():
+			main.screen._close_info(); GameState.heroes.mage.patrol = {}; Paperdoll.sel_slot = ""
+			main.show_camp(); main.screen.section["Stash"] = "gear"; main.screen.open_page("Stash")])
 		plan.append([sz, "camp_toast", func():
 			main.show_camp(); main.screen.open_page("Guild"); GameState.say("Bought a Ration.")])
 		plan.append([sz, "camp_stash", func():
