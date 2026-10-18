@@ -1,0 +1,60 @@
+# DECISIONS #196: optional CI version of tools/deploy_web.sh. To use it, move to .github/workflows/web.yml
+# (needs a token with the `workflow` scope) and set Pages source to "GitHub Actions".
+name: Web build
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: false
+env:
+  GODOT_VERSION: 4.7.2
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cache Godot + templates
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: ~/godot-cache
+          key: godot-${{ env.GODOT_VERSION }}-web
+      - name: Download Godot + web templates
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p ~/godot-cache && cd ~/godot-cache
+          base=https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable
+          curl -fsSL -o godot.zip $base/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip
+          unzip -q godot.zip && rm godot.zip
+          curl -fsSL -o t.tpz $base/Godot_v${GODOT_VERSION}-stable_export_templates.tpz
+          unzip -q t.tpz 'templates/web_nothreads_release.zip' 'templates/version.txt' && rm t.tpz
+      - name: Install
+        run: |
+          d=~/.local/share/godot/export_templates/${GODOT_VERSION}.stable
+          mkdir -p $d && cp ~/godot-cache/templates/* $d/
+          ln -s ~/godot-cache/Godot_v${GODOT_VERSION}-stable_linux.x86_64 /usr/local/bin/godot 2>/dev/null || sudo ln -s ~/godot-cache/Godot_v${GODOT_VERSION}-stable_linux.x86_64 /usr/local/bin/godot
+      - name: Import + export
+        run: |
+          godot --headless --path . --import || true
+          mkdir -p builds/web
+          godot --headless --path . --export-release Web builds/web/index.html
+          test -s builds/web/index.wasm && test -s builds/web/index.pck
+          touch builds/web/.nojekyll
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: builds/web
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
