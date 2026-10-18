@@ -1,6 +1,9 @@
 # Changelog
 
 ## Unreleased
+- Phone fixes (DECISIONS #187): foes facing left no longer stand a cell to the right of their tile in battle, and ambush foes no longer pile up at the edge of the delve. The hero can no longer get stuck drawn solid white. The Piranha Pool shows real piranhas (dark shapes under the water that leap out) instead of a broken blob. Event windows no longer darken the scene behind them; taps behind them are still blocked.
+- Delve walls (DECISIONS #187): the black band between wall tops and wall faces is gone, so faces sit flush under the dark like in SPD, and doors keep their lintels. The Suspicious Wall is a plain wall that sparkles, the barricade is a line of barricade tiles across the corridor with no door next to it, and room scenes no longer have rubble piles.
+- A door held open by a death shows just the open door again, like SPD, with no bones on it (DECISIONS #187, replaces #184). It still shuts once someone passes through.
 
 ## 0.44.0
 - Scene nits (DECISIONS #186): library shelves no longer have a wooden post sticking up into the dark at either end. The Dwarf King's carpet is darker, so his red danger tiles stand out on it. Prison torch light stays inside the battle arena, City smoke drifts as faint haze instead of dark squares, and the battle hit flash is SPD's quick white blink (0.05 s).
