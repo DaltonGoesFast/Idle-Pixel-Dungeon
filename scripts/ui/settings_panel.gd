@@ -6,6 +6,11 @@ extends RefCounted
 const TEXT_SIZES := [["Small", 0.85], ["Normal", 1.0], ["Large", 1.15], ["Huge", 1.3]]
 const DELVE_SPEEDS := [["Slow", 0.5], ["Normal", 1.0], ["Fast", 1.5], ["Faster", 2.0]]
 
+## The Developer section (cheats, timer skip, wipe save) is left out of the browser build (DECISIONS #199).
+## Android, Windows and source/editor runs keep it. A saved dev_tools=true is ignored on web.
+static func dev_tools_allowed(is_web: bool = OS.has_feature("web")) -> bool:
+	return not is_web
+
 static func build(v: VBoxContainer, show_dev := true) -> void:
 	v.add_child(UIKit.label("SPD Tactics " + UIKit.version(), 0.8, Color("c9a96e")))
 	_build_update(v)
@@ -51,8 +56,8 @@ static func build(v: VBoxContainer, show_dev := true) -> void:
 	v.add_child(UIKit.button("Replay the tutorial tips", func():
 		GameState.tutorial_done.clear(); GameState.settings.tutorial = true; SaveSystem.save_game(); GameState.touch()))
 	if not show_dev: return
-	var dev: bool = GameState.settings.get("dev_tools", false)
-	v.add_child(UIKit.button("Developer tools: %s" % ("shown" if dev else "hidden"), func():
+	var dev: bool = dev_tools_allowed() and GameState.settings.get("dev_tools", false)
+	if dev_tools_allowed(): v.add_child(UIKit.button("Developer tools: %s" % ("shown" if dev else "hidden"), func():
 		GameState.set_setting("dev_tools", not dev); GameState.touch()))
 	if dev:
 		v.add_child(UIKit.header("Developer"))
