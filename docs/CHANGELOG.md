@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- An event's result window (after opening a chest or choosing in a special room) no longer darkens the scene behind it either; taps behind it are still blocked. The Defeat window keeps its dim (DECISIONS #191, +test).
 
 ## 0.44.1
 - A long Defeat list no longer pushes the OK button off the screen (a softlock on phones). The list scrolls, and the window always fits on screen (DECISIONS #187, +test).

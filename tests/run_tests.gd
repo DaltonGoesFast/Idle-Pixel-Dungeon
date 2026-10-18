@@ -1934,6 +1934,8 @@ func test_encounter_summary(gs) -> void:
 	check(clean_txt.contains("Victory") and clean_txt.contains("Got") and not clean_txt.contains("Lost"), "post-battle victory results hide the Lost category when nothing was lost")
 	cs_clean.queue_free()
 	scr._open_summary("Free cache", PackedStringArray(["+14 Gold", "+13 XP"]), PackedStringArray())
+	var shield: ColorRect = scr.get_node("EncounterSummary/SummaryShield")
+	check(shield.color.a == 0.0 and shield.mouse_filter == Control.MOUSE_FILTER_STOP and scr.get_node("EncounterSummary").mouse_filter == Control.MOUSE_FILTER_STOP, "an event's result window doesn't darken the scene, but taps behind it are still blocked")
 	txt = _node_text(scr.get_node("EncounterSummary"))
 	check(txt.contains("Got") and not txt.contains("Lost"), "results popup hides the Lost category when nothing was lost")
 	var list: ScrollContainer = scr.get_node("EncounterSummary").find_child("SummaryList", true, false)
@@ -1949,6 +1951,7 @@ func test_encounter_summary(gs) -> void:
 	for i in 34: long_lost.append("Ring of Item %d cracks" % i)
 	scr._open_summary("Defeat", PackedStringArray(), long_lost, Callable(), true, "Unused supplies return to the stash. Scrolls of Upgrade return on the next boss kill.")
 	for i in 4: await get_tree().process_frame
+	check(scr.get_node("EncounterSummary/SummaryShield").color.a > 0.0, "the Defeat window keeps its dim")
 	var okb: Control = scr.get_node("EncounterSummary").find_child("SummaryOK", true, false)
 	var okr := okb.get_global_rect()
 	check(Rect2(0, 0, 968, 2376).encloses(okr) and okr.size.y > 0.0, "a 34-line defeat list keeps OK inside the 968x2376 phone screen (OK at %s)" % okr)

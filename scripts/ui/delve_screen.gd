@@ -731,7 +731,10 @@ func _build_summary() -> void:
 	add_child(layer)
 	_summary_layer = layer
 	var dim := ColorRect.new()
-	dim.color = Color(0, 0, 0, 0.55)
+	dim.name = "SummaryShield"
+	# An event's result (chest, special room: _show_trade) is an event window too, so like the card above it the
+	# scene stays at full brightness and only taps are blocked (DECISIONS #187/#191). The Defeat window keeps its dim.
+	dim.color = Color(0, 0, 0, 0.55 if _summary_fatal else 0.0)
 	dim.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
 	dim.mouse_filter = MOUSE_FILTER_STOP
 	layer.add_child(dim)
