@@ -55,9 +55,9 @@ static func build(v: VBoxContainer, show_dev := true) -> void:
 		GameState.set_setting("tutorial", not tut); SaveSystem.save_game(); GameState.touch()))
 	v.add_child(UIKit.button("Replay the tutorial tips", func():
 		GameState.tutorial_done.clear(); GameState.settings.tutorial = true; SaveSystem.save_game(); GameState.touch()))
-	if not show_dev or not dev_tools_allowed(): return
-	var dev: bool = GameState.settings.get("dev_tools", false)
-	v.add_child(UIKit.button("Developer tools: %s" % ("shown" if dev else "hidden"), func():
+	if not show_dev: return
+	var dev: bool = dev_tools_allowed() and GameState.settings.get("dev_tools", false)
+	if dev_tools_allowed(): v.add_child(UIKit.button("Developer tools: %s" % ("shown" if dev else "hidden"), func():
 		GameState.set_setting("dev_tools", not dev); GameState.touch()))
 	if dev:
 		v.add_child(UIKit.header("Developer"))

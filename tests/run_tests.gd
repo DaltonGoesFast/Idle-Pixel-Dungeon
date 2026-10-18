@@ -4253,6 +4253,10 @@ func test_web_no_dev_tools(gs) -> void:
 	for c in v.get_children():
 		if c is Button and String(c.text).begins_with("Developer tools"): found = true
 	check(found, "web dev tools: Settings still shows the Developer toggle off the web")
+	var credits := false
+	for c in v.get_children():
+		if c is Label and String(c.text).begins_with("Art, sounds and music"): credits = true
+	check(credits, "web dev tools: the GPL credits line still shows")
 	v.free(); gs.settings.dev_tools = had
 
 func test_telemetry(gs) -> void:
