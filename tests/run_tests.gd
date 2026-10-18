@@ -2332,6 +2332,18 @@ func test_export_presets() -> void:
 			var extra := String(cfg.get_value(opt, "application/additional_plist_content", ""))
 			check(not extra.contains("ITSAppUsesNonExemptEncryption"), "iOS additional_plist_content does not duplicate ITSAppUsesNonExemptEncryption (Godot 4.6+ writes it from app_store_compliance/uses_non_exempt_encryption)")
 	check(found_android and found_ios, "both Android and iOS presets exist")
+	# DECISIONS #196: browser build for GitHub Pages - single-threaded (no COOP/COEP headers there), no GDExtension.
+	var found_web := false
+	for s in cfg.get_sections():
+		if s.ends_with(".options") or String(cfg.get_value(s, "platform", "")) != "Web": continue
+		found_web = true
+		var wopt := s + ".options"
+		check(not bool(cfg.get_value(wopt, "variant/thread_support", true)), "Web preset is single-threaded (works on GitHub Pages without COOP/COEP)")
+		check(not bool(cfg.get_value(wopt, "variant/extensions_support", true)), "Web preset has no GDExtension support")
+		check(String(cfg.get_value(s, "export_path", "")).ends_with("index.html"), "Web preset exports index.html")
+		check(String(cfg.get_value(s, "exclude_filter", "")).contains("tests/*"), "Web preset excludes tests")
+	check(found_web, "Web export preset exists")
+	check(FileAccess.file_exists("res://tools/deploy_web.sh"), "web deploy script present")
 
 ## DECISIONS #140: Godot's Gradle export checks res://android/.build_version before running Gradle;
 ## tools/build.sh must write it alongside android/build when unpacking android_source.zip.
