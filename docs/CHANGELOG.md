@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Closing the app on the Defeat window no longer brings the run back from before the fight. The defeat is saved as soon as the window opens, and it shows again on the next launch (DECISIONS #190, POLISH #70, +test).
 
 ## 0.44.2
 - The delve's own panels darken the scene behind them again, as they did before v0.44.1: the Bag, Talents, Menu, Settings and the Abandon prompt (DECISIONS #194). Only event and result windows (encounters, doors, special rooms, the floor menu, the campfire and their results) leave the scene at full brightness. The combat Bag, Camp windows, tips and the Defeat window keep their dim (+test).
