@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Gear matters on patrol (DECISIONS #188). Every ring, wand and artifact gives its wearer a patrol perk that grows with its level: Ring of Wealth brings more gold and curios of any ring, the Master Thieves' Armband more gold, Sandals of Nature and the Wand of Regrowth seeds, the Chalice of Blood healing potions, the Horn of Plenty rations, the Talisman of Foresight identified (sometimes +1) curios, the Hourglass longer patrols, the Ring of Elements a cheaper fee, and so on. Higher total gear level (weapon, armor, ring, artifact, staff wand) brings back more materials with no cap, with diminishing returns (+34% at 5 levels, +60% at 16); gold gets none of that bonus. The Guild patrol card lists the hero's gear bonus and perks, and a patrol keeps what the hero set out with (+tests).
 
 ## 0.44.0
 - Scene nits (DECISIONS #186): library shelves no longer have a wooden post sticking up into the dark at either end. The Dwarf King's carpet is darker, so his red danger tiles stand out on it. Prison torch light stays inside the battle arena, City smoke drifts as faint haze instead of dark squares, and the battle hit flash is SPD's quick white blink (0.05 s).

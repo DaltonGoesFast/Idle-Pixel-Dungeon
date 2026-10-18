@@ -34,14 +34,37 @@ def balance():
         s += f"\n### {b['name']} (floors {b['floors'][0]}-{b['floors'][1]}, boss {b['boss']} on {b['boss_floor']}, {b['str_gate']} Str)\n\n"
         s += f"Traps: {', '.join(b.get('traps', []))}. Strength potions at {b['strength_potions_at']}. Secret cache: {b.get('secret_cache', {})}\n\n"
         s += table(["From floor", "Mobs"], [[e["min_floor"], ", ".join(e["mobs"])] for e in b["encounter_sets"]])
+    s += "\n### Patrol yields per hour (x efficiency x gear bonus; gold has no gear bonus)\n\n"
+    mats = ["gold", "iron_ore", "dark_gold", "arcane_resin", "dew", "seeds"]
+    s += table(["Biome", "Str gate"] + mats + ["Curio every"], [[b["name"], b["str_gate"]] + [b["patrol_yield_per_hour"].get(m, "-") for m in mats] + [f"{b['patrol_curio_every_hours']}h"] for b in biomes.values()])
     s += "\n### Traps\n\n"
     s += table(["Trap", "Effect", "SPD source"], [[t["name"], t["desc"], t.get("spd", "")] for k, t in traps.items() if not k.startswith("_")])
     s += "\n### Facilities\n\n"
     s += table(["Facility", "Upgrade cost (x current level)", "Scrolls of Upgrade per cap raise", "Max"], [[f["name"], ", ".join(f"{v} {k}" for k, v in f["upgrade_cost"].items()), " / ".join(str(x) for x in f.get("cap_scrolls", [])), f["max"]] for f in fac.values() if isinstance(f, dict)])
     return s
 
+MATW = {"dew": "dew", "potion_healing": "healing potion"}
+def matw(m): return MATW.get(m, items["_materials"].get(m, {}).get("name", m).lower())
+def num(x): return str(int(x)) if float(x) == int(x) else f"{x:.1f}"
+def perk_text(k, v):
+    """Mirror of GameState.patrol_perk_text for one perk spec at +0 with its per-level step."""
+    if isinstance(v, bool): return {"curio_known": "curios arrive identified"}.get(k, k)
+    if isinstance(v, str): return "curios: any ring" if k == "curio_pool" else k
+    b, per = v[0], v[1]
+    step = f" ({'+' if per >= 0 else ''}{num(per)}/lvl{', min ' + num(v[2]) if len(v) > 2 else ''})" if per else ""
+    if k.endswith("_per_hour"): return f"+{num(b)} {matw(k[:-9])}/h{step}"
+    if k.endswith("_every"): return f"+1 {matw(k[:-6])} per {num(b)}h{step}"
+    t = {"all_pct": "+{}% materials (not gold)", "time_pct": "+{}% patrol time", "curio_pct": "+{}% curios", "fee_cut_pct": "-{}% fee (max 50%)",
+         "power": "+{} patrol power", "max_hours": "+{}h max", "curio_plus_pct": "{}% of curios come +1"}.get(k)
+    if t: return t.format(num(b)) + step
+    if k.endswith("_pct"): return f"+{num(b)}% {matw(k[:-4])}{step}"
+    return k
+
 def content():
-    s = "### Recipes\n\n"
+    s = "### Patrol perks (DECISIONS #188)\n\nWorn ring, artifact and the Mage's staff wand, at +0; the step is per item level. Perks are locked in when the patrol starts.\n\n"
+    s += table(["Item", "Type", "On patrol"], [[i["name"], i["type"], ", ".join(perk_text(k, v) for k, v in i["patrol"].items())]
+         for k, i in items.items() if not k.startswith("_") and "patrol" in i])
+    s += "\n### Recipes\n\n"
     rows = []
     for facn, lst in recipes.items():
         if facn.startswith("_"): continue
