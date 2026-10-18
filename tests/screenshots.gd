@@ -143,8 +143,21 @@ func _ready() -> void:
 			var r: Dictionary = GameState.recipe("guild", "buy_ration")
 			main.screen._recipe_info("guild", r, r.out_mat, [main.screen.cost_row(r.cost)], "")])
 		plan.append([sz, "journal", func():
-			GameState.stats.extractions = 1; GameState.stats.kills = 37; GameState.touch()
-			main.show_camp(); main.screen.open_page("Journal")])
+			# DECISIONS #195: two reached milestones wait for Claim; the rest show "have / goal" by category
+			GameState.milestones_claimed.clear(); GameState.milestones_reached.clear()
+			GameState.stats.extractions = 1; GameState.stats.kills = 37; GameState.stats["kill_rat"] = 12; GameState.touch()
+			main.show_camp(); main.screen.journal_view = "milestones"; main.screen.open_page("Journal")])
+		plan.append([sz, "camp_claim_dot", func(): main.show_camp(); main.screen.close_page()])
+		plan.append([sz, "journal_claimed", func():
+			GameState.claim_all_milestones()
+			main.show_camp(); main.screen.journal_view = "milestones"; main.screen.open_page("Journal")])
+		plan.append([sz, "journal_progress", func(): main.show_camp(); main.screen.journal_view = "progress"; main.screen.open_page("Journal")])
+		plan.append([sz, "journal_bottom", func():
+			# the end of the list: Feats with their claimed line, scrolled all the way down
+			GameState.stats.feat_close_call = 1; GameState.touch(); GameState.claim_all_milestones()
+			main.show_camp(); main.screen.journal_view = "milestones"; main.screen.open_page("Journal")
+			var sc: ScrollContainer = main.screen.win_layer.get_meta("sc")
+			(func(): sc.scroll_vertical = 1000000).call_deferred()])
 		plan.append([sz, "codex", func():
 			for m in ["rat", "snake", "gnoll", "crab", "goo"]: GameState.discover("mob:" + m)
 			GameState.discover("trap:worn_dart")

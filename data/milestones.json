@@ -1,8 +1,21 @@
 {
- "_note": "Account milestones (meta-progression). stat = key in GameState.stats (or boss:<mob>, cleared:<biome> counted over heroes). Rewards go to the stash once; checked on every state change.",
+ "_note": "Account milestones (DECISIONS #195). stat = a GameState.stats counter, or boss:<mob>, cleared:<biome>, class_boss:<class>:<biome>, kill:<mob>[,<mob>...], seen:<prefix>, or a live Camp total (see GameState.stat_value). Reaching the goal latches the milestone as claimable; the reward is paid only when the player taps Claim in the Journal. badge = SPD badges.png index (16px cells, 8 per row; frame colour = tier).",
+ "categories": [
+  "Delving",
+  "Bosses",
+  "Monsters",
+  "Wealth",
+  "Crafting",
+  "Items",
+  "Patrols",
+  "Camp",
+  "Heroes",
+  "Feats"
+ ],
  "milestones": [
   {
    "id": "first_steps",
+   "cat": "Delving",
    "name": "First Steps",
    "desc": "Complete an expedition (extract).",
    "stat": "extractions",
@@ -10,86 +23,12 @@
    "reward": {
     "gold": 30,
     "ration": 1
-   }
-  },
-  {
-   "id": "slime_time",
-   "name": "Slime Time",
-   "desc": "Defeat Goo.",
-   "stat": "boss:goo",
-   "goal": 1,
-   "reward": {
-    "iron_ore": 5,
-    "seeds": 3
-   }
-  },
-  {
-   "id": "deep_dive",
-   "name": "Deep Dive",
-   "desc": "Reach floor 6 (the Prison).",
-   "stat": "deepest_floor",
-   "goal": 6,
-   "reward": {
-    "torch": 2,
-    "gold": 40
-   }
-  },
-  {
-   "id": "trap_sense",
-   "name": "Trap Sense",
-   "desc": "Find 10 hidden traps.",
-   "stat": "traps_found",
-   "goal": 10,
-   "reward": {
-    "arcane_resin": 2
-   }
-  },
-  {
-   "id": "secret_keeper",
-   "name": "Secret Keeper",
-   "desc": "Discover 3 hidden doors.",
-   "stat": "hidden_doors",
-   "goal": 3,
-   "reward": {
-    "iron_key": 2,
-    "dark_gold": 1
-   }
-  },
-  {
-   "id": "brewer",
-   "name": "Master Brewer",
-   "desc": "Brew 10 potions.",
-   "stat": "potions_brewed",
-   "goal": 10,
-   "reward": {
-    "seeds": 5,
-    "potion_healing": 1
-   }
-  },
-  {
-   "id": "exterminator",
-   "name": "Exterminator",
-   "desc": "Defeat 100 monsters.",
-   "stat": "kills",
-   "goal": 100,
-   "reward": {
-    "gold": 80,
-    "iron_ore": 6
-   }
-  },
-  {
-   "id": "jailbreak",
-   "name": "Jailbreak",
-   "desc": "Defeat Tengu.",
-   "stat": "boss:tengu",
-   "goal": 1,
-   "reward": {
-    "dark_gold": 3,
-    "scroll_upgrade": 1
-   }
+   },
+   "badge": 23
   },
   {
    "id": "veteran",
+   "cat": "Delving",
    "name": "Veteran",
    "desc": "Complete 10 expeditions.",
    "stat": "extractions",
@@ -97,17 +36,984 @@
    "reward": {
     "scroll_passage": 1,
     "gold": 100
-   }
+   },
+   "badge": 56
+  },
+  {
+   "id": "seasoned",
+   "cat": "Delving",
+   "name": "Seasoned Delver",
+   "desc": "Complete 25 expeditions.",
+   "stat": "extractions",
+   "goal": 25,
+   "reward": {
+    "iron_ore": 2,
+    "scroll_passage": 1
+   },
+   "badge": 86
+  },
+  {
+   "id": "deep_dive",
+   "cat": "Delving",
+   "name": "Deep Dive",
+   "desc": "Reach floor 6 (the Prison).",
+   "stat": "deepest_floor",
+   "goal": 6,
+   "reward": {
+    "torch": 2,
+    "gold": 40
+   },
+   "badge": 24
+  },
+  {
+   "id": "into_caves",
+   "cat": "Delving",
+   "name": "Into the Caves",
+   "desc": "Reach floor 11 (the Caves).",
+   "stat": "deepest_floor",
+   "goal": 11,
+   "reward": {
+    "torch": 1,
+    "iron_ore": 2
+   },
+   "badge": 57
+  },
+  {
+   "id": "dwarven_city",
+   "cat": "Delving",
+   "name": "Dwarven Metropolis",
+   "desc": "Reach floor 16 (the City).",
+   "stat": "deepest_floor",
+   "goal": 16,
+   "reward": {
+    "dark_gold": 1,
+    "torch": 1
+   },
+   "badge": 87
+  },
+  {
+   "id": "demon_halls",
+   "cat": "Delving",
+   "name": "Demon Halls",
+   "desc": "Reach floor 21 (the Halls).",
+   "stat": "deepest_floor",
+   "goal": 21,
+   "reward": {
+    "dark_gold": 1,
+    "iron_ore": 3
+   },
+   "badge": 110
+  },
+  {
+   "id": "trap_sense",
+   "cat": "Delving",
+   "name": "Trap Sense",
+   "desc": "Find 10 hidden traps.",
+   "stat": "traps_found",
+   "goal": 10,
+   "reward": {
+    "arcane_resin": 2
+   },
+   "badge": 64
+  },
+  {
+   "id": "secret_keeper",
+   "cat": "Delving",
+   "name": "Secret Keeper",
+   "desc": "Discover 3 hidden doors.",
+   "stat": "hidden_doors",
+   "goal": 3,
+   "reward": {
+    "iron_key": 2,
+    "dark_gold": 1
+   },
+   "badge": 102
+  },
+  {
+   "id": "explorer",
+   "cat": "Delving",
+   "name": "Explorer",
+   "desc": "Explore 10 special rooms.",
+   "stat": "rooms",
+   "goal": 10,
+   "reward": {
+    "seeds": 1,
+    "dew": 5
+   },
+   "badge": 22
+  },
+  {
+   "id": "treasure_hunter",
+   "cat": "Delving",
+   "name": "Treasure Hunter",
+   "desc": "Open 10 chests behind doors.",
+   "stat": "chests",
+   "goal": 10,
+   "reward": {
+    "dew": 8
+   },
+   "badge": 67
+  },
+  {
+   "id": "slime_time",
+   "cat": "Bosses",
+   "name": "Slime Time",
+   "desc": "Defeat Goo.",
+   "stat": "boss:goo",
+   "goal": 1,
+   "reward": {
+    "iron_ore": 5,
+    "seeds": 3
+   },
+   "badge": 15
+  },
+  {
+   "id": "jailbreak",
+   "cat": "Bosses",
+   "name": "Jailbreak",
+   "desc": "Defeat Tengu.",
+   "stat": "boss:tengu",
+   "goal": 1,
+   "reward": {
+    "dark_gold": 3,
+    "scroll_upgrade": 1
+   },
+   "badge": 48
+  },
+  {
+   "id": "clockwork",
+   "cat": "Bosses",
+   "name": "Clockwork Breaker",
+   "desc": "Defeat DM-300.",
+   "stat": "boss:dm300",
+   "goal": 1,
+   "reward": {
+    "dark_gold": 1,
+    "iron_ore": 3
+   },
+   "badge": 79
+  },
+  {
+   "id": "regicide",
+   "cat": "Bosses",
+   "name": "Regicide",
+   "desc": "Defeat the King of Dwarves.",
+   "stat": "boss:dking",
+   "goal": 1,
+   "reward": {
+    "dark_gold": 1,
+    "iron_ore": 3
+   },
+   "badge": 105
+  },
+  {
+   "id": "happy_end",
+   "cat": "Bosses",
+   "name": "Happy End",
+   "desc": "Defeat Yog-Dzewa.",
+   "stat": "boss:yog",
+   "goal": 1,
+   "reward": {
+    "dark_gold": 3,
+    "arcane_resin": 3,
+    "gold": 100
+   },
+   "badge": 99
   },
   {
    "id": "full_roster",
+   "cat": "Bosses",
    "name": "Full Roster",
    "desc": "Clear the Sewers with all four heroes.",
    "stat": "cleared:sewers",
    "goal": 4,
    "reward": {
     "scroll_upgrade": 1
-   }
+   },
+   "badge": 54
+  },
+  {
+   "id": "full_roster_2",
+   "cat": "Bosses",
+   "name": "Full Roster II",
+   "desc": "Clear the Prison with all four heroes.",
+   "stat": "cleared:prison",
+   "goal": 4,
+   "reward": {
+    "dark_gold": 1,
+    "iron_ore": 2
+   },
+   "badge": 83
+  },
+  {
+   "id": "warrior_goo",
+   "cat": "Bosses",
+   "name": "Goo Slayer: Warrior",
+   "desc": "Defeat Goo with the Warrior.",
+   "stat": "class_boss:warrior:sewers",
+   "goal": 1,
+   "reward": {
+    "iron_ore": 1,
+    "seeds": 1
+   },
+   "badge": 0
+  },
+  {
+   "id": "mage_goo",
+   "cat": "Bosses",
+   "name": "Goo Slayer: Mage",
+   "desc": "Defeat Goo with the Mage.",
+   "stat": "class_boss:mage:sewers",
+   "goal": 1,
+   "reward": {
+    "iron_ore": 1,
+    "seeds": 1
+   },
+   "badge": 1
+  },
+  {
+   "id": "rogue_goo",
+   "cat": "Bosses",
+   "name": "Goo Slayer: Rogue",
+   "desc": "Defeat Goo with the Rogue.",
+   "stat": "class_boss:rogue:sewers",
+   "goal": 1,
+   "reward": {
+    "iron_ore": 1,
+    "seeds": 1
+   },
+   "badge": 2
+  },
+  {
+   "id": "huntress_goo",
+   "cat": "Bosses",
+   "name": "Goo Slayer: Huntress",
+   "desc": "Defeat Goo with the Huntress.",
+   "stat": "class_boss:huntress:sewers",
+   "goal": 1,
+   "reward": {
+    "iron_ore": 1,
+    "seeds": 1
+   },
+   "badge": 3
+  },
+  {
+   "id": "warrior_tengu",
+   "cat": "Bosses",
+   "name": "Tengu Slayer: Warrior",
+   "desc": "Defeat Tengu with the Warrior.",
+   "stat": "class_boss:warrior:prison",
+   "goal": 1,
+   "reward": {
+    "iron_ore": 1,
+    "torch": 1
+   },
+   "badge": 0
+  },
+  {
+   "id": "mage_tengu",
+   "cat": "Bosses",
+   "name": "Tengu Slayer: Mage",
+   "desc": "Defeat Tengu with the Mage.",
+   "stat": "class_boss:mage:prison",
+   "goal": 1,
+   "reward": {
+    "iron_ore": 1,
+    "torch": 1
+   },
+   "badge": 1
+  },
+  {
+   "id": "rogue_tengu",
+   "cat": "Bosses",
+   "name": "Tengu Slayer: Rogue",
+   "desc": "Defeat Tengu with the Rogue.",
+   "stat": "class_boss:rogue:prison",
+   "goal": 1,
+   "reward": {
+    "iron_ore": 1,
+    "torch": 1
+   },
+   "badge": 2
+  },
+  {
+   "id": "huntress_tengu",
+   "cat": "Bosses",
+   "name": "Tengu Slayer: Huntress",
+   "desc": "Defeat Tengu with the Huntress.",
+   "stat": "class_boss:huntress:prison",
+   "goal": 1,
+   "reward": {
+    "iron_ore": 1,
+    "torch": 1
+   },
+   "badge": 3
+  },
+  {
+   "id": "monsters_1",
+   "cat": "Monsters",
+   "name": "Monsters Slain I",
+   "desc": "Defeat 20 monsters.",
+   "stat": "kills",
+   "goal": 20,
+   "reward": {
+    "iron_ore": 1
+   },
+   "badge": 6
+  },
+  {
+   "id": "exterminator",
+   "cat": "Monsters",
+   "name": "Exterminator",
+   "desc": "Defeat 100 monsters.",
+   "stat": "kills",
+   "goal": 100,
+   "reward": {
+    "gold": 80,
+    "iron_ore": 6
+   },
+   "badge": 34
+  },
+  {
+   "id": "monsters_3",
+   "cat": "Monsters",
+   "name": "Monsters Slain III",
+   "desc": "Defeat 500 monsters.",
+   "stat": "kills",
+   "goal": 500,
+   "reward": {
+    "iron_ore": 3,
+    "potion_healing": 1
+   },
+   "badge": 35
+  },
+  {
+   "id": "rat_catcher",
+   "cat": "Monsters",
+   "name": "Rat Catcher",
+   "desc": "Defeat 50 rats.",
+   "stat": "kill:rat",
+   "goal": 50,
+   "reward": {
+    "seeds": 1
+   },
+   "badge": 6
+  },
+  {
+   "id": "snake_charmer",
+   "cat": "Monsters",
+   "name": "Snake Charmer",
+   "desc": "Defeat 20 sewer snakes.",
+   "stat": "kill:snake",
+   "goal": 20,
+   "reward": {
+    "dew": 6
+   },
+   "badge": 6
+  },
+  {
+   "id": "gnoll_hunter",
+   "cat": "Monsters",
+   "name": "Gnoll Hunter",
+   "desc": "Defeat 40 gnolls (scouts, shamans and brutes).",
+   "stat": "kill:gnoll,shaman,brute",
+   "goal": 40,
+   "reward": {
+    "iron_ore": 1
+   },
+   "badge": 34
+  },
+  {
+   "id": "crab_cracker",
+   "cat": "Monsters",
+   "name": "Crab Cracker",
+   "desc": "Defeat 25 sewer crabs.",
+   "stat": "kill:crab",
+   "goal": 25,
+   "reward": {
+    "ration": 1
+   },
+   "badge": 6
+  },
+  {
+   "id": "bone_collector",
+   "cat": "Monsters",
+   "name": "Bone Collector",
+   "desc": "Defeat 25 skeletons.",
+   "stat": "kill:skeleton",
+   "goal": 25,
+   "reward": {
+    "iron_ore": 2
+   },
+   "badge": 34
+  },
+  {
+   "id": "thief_taker",
+   "cat": "Monsters",
+   "name": "Thief Taker",
+   "desc": "Defeat 10 crazy thieves.",
+   "stat": "kill:thief",
+   "goal": 10,
+   "reward": {
+    "gold": 25
+   },
+   "badge": 34
+  },
+  {
+   "id": "dwarf_bane",
+   "cat": "Monsters",
+   "name": "Dwarf Bane",
+   "desc": "Defeat 30 of the city's dwarves, ghouls and golems.",
+   "stat": "kill:ghoul,warlock,monk,golem",
+   "goal": 30,
+   "reward": {
+    "dark_gold": 1,
+    "iron_ore": 1
+   },
+   "badge": 69
+  },
+  {
+   "id": "demon_hunter",
+   "cat": "Monsters",
+   "name": "Demon Hunter",
+   "desc": "Defeat 30 demons in the Halls.",
+   "stat": "kill:succubus,ripper,eye,scorpio,larva",
+   "goal": 30,
+   "reward": {
+    "arcane_resin": 2
+   },
+   "badge": 69
+  },
+  {
+   "id": "ambusher",
+   "cat": "Monsters",
+   "name": "Ambusher",
+   "desc": "Land 25 surprise attacks.",
+   "stat": "surprises",
+   "goal": 25,
+   "reward": {
+    "torch": 1,
+    "dew": 5
+   },
+   "badge": 66
+  },
+  {
+   "id": "ambusher_2",
+   "cat": "Monsters",
+   "name": "Ambusher II",
+   "desc": "Land 150 surprise attacks.",
+   "stat": "surprises",
+   "goal": 150,
+   "reward": {
+    "iron_ore": 2
+   },
+   "badge": 84
+  },
+  {
+   "id": "gold_1",
+   "cat": "Wealth",
+   "name": "Gold Collected I",
+   "desc": "Bank 500 gold at Camp (extractions and patrols).",
+   "stat": "gold_banked",
+   "goal": 500,
+   "reward": {
+    "iron_ore": 1
+   },
+   "badge": 8
+  },
+  {
+   "id": "gold_2",
+   "cat": "Wealth",
+   "name": "Gold Collected II",
+   "desc": "Bank 2500 gold at Camp.",
+   "stat": "gold_banked",
+   "goal": 2500,
+   "reward": {
+    "iron_ore": 2
+   },
+   "badge": 36
+  },
+  {
+   "id": "gold_3",
+   "cat": "Wealth",
+   "name": "Gold Collected III",
+   "desc": "Bank 10000 gold at Camp.",
+   "stat": "gold_banked",
+   "goal": 10000,
+   "reward": {
+    "dark_gold": 1,
+    "arcane_resin": 1
+   },
+   "badge": 70
+  },
+  {
+   "id": "spender_1",
+   "cat": "Wealth",
+   "name": "Big Spender I",
+   "desc": "Spend 1000 gold.",
+   "stat": "gold_spent",
+   "goal": 1000,
+   "reward": {
+    "torch": 1
+   },
+   "badge": 9
+  },
+  {
+   "id": "spender_2",
+   "cat": "Wealth",
+   "name": "Big Spender II",
+   "desc": "Spend 5000 gold.",
+   "stat": "gold_spent",
+   "goal": 5000,
+   "reward": {
+    "iron_ore": 3
+   },
+   "badge": 37
+  },
+  {
+   "id": "item_level_1",
+   "cat": "Crafting",
+   "name": "Item Level I",
+   "desc": "Upgrade gear 5 times.",
+   "stat": "items_upgraded",
+   "goal": 5,
+   "reward": {
+    "iron_ore": 1
+   },
+   "badge": 10
+  },
+  {
+   "id": "fine_steel",
+   "cat": "Crafting",
+   "name": "Fine Steel",
+   "desc": "Own a +3 item.",
+   "stat": "max_gear_lvl",
+   "goal": 3,
+   "reward": {
+    "iron_ore": 2
+   },
+   "badge": 71
+  },
+  {
+   "id": "masterwork",
+   "cat": "Crafting",
+   "name": "Masterwork",
+   "desc": "Own a +5 item.",
+   "stat": "max_gear_lvl",
+   "goal": 5,
+   "reward": {
+    "dark_gold": 1,
+    "arcane_resin": 1
+   },
+   "badge": 97
+  },
+  {
+   "id": "forged",
+   "cat": "Crafting",
+   "name": "Forged in Fire",
+   "desc": "Forge 3 items at the Blacksmith.",
+   "stat": "items_forged",
+   "goal": 3,
+   "reward": {
+    "iron_ore": 1
+   },
+   "badge": 47
+  },
+  {
+   "id": "brewer",
+   "cat": "Crafting",
+   "name": "Master Brewer",
+   "desc": "Brew 10 potions.",
+   "stat": "potions_brewed",
+   "goal": 10,
+   "reward": {
+    "seeds": 5,
+    "potion_healing": 1
+   },
+   "badge": 14
+  },
+  {
+   "id": "brewer_2",
+   "cat": "Crafting",
+   "name": "Items Crafted II",
+   "desc": "Brew 40 potions.",
+   "stat": "potions_brewed",
+   "goal": 40,
+   "reward": {
+    "seeds": 2,
+    "dew": 8
+   },
+   "badge": 46
+  },
+  {
+   "id": "treasure_seeker",
+   "cat": "Items",
+   "name": "Treasure Seeker",
+   "desc": "Find 10 pieces of gear in the dungeon.",
+   "stat": "items_found",
+   "goal": 10,
+   "reward": {
+    "torch": 1
+   },
+   "badge": 16
+  },
+  {
+   "id": "researcher_1",
+   "cat": "Items",
+   "name": "Researcher I",
+   "desc": "Identify 5 items, potions or scrolls.",
+   "stat": "items_identified",
+   "goal": 5,
+   "reward": {
+    "seeds": 1
+   },
+   "badge": 22
+  },
+  {
+   "id": "researcher_2",
+   "cat": "Items",
+   "name": "Researcher II",
+   "desc": "Identify 25 items, potions or scrolls.",
+   "stat": "items_identified",
+   "goal": 25,
+   "reward": {
+    "seeds": 1,
+    "dew": 5
+   },
+   "badge": 55
+  },
+  {
+   "id": "thirsty",
+   "cat": "Items",
+   "name": "Potion Drinker",
+   "desc": "Drink 15 potions.",
+   "stat": "potions_drunk",
+   "goal": 15,
+   "reward": {
+    "dew": 6
+   },
+   "badge": 50
+  },
+  {
+   "id": "scroll_reader",
+   "cat": "Items",
+   "name": "Scroll Reader",
+   "desc": "Read 10 scrolls.",
+   "stat": "scrolls_read",
+   "goal": 10,
+   "reward": {
+    "arcane_resin": 1
+   },
+   "badge": 85
+  },
+  {
+   "id": "food_1",
+   "cat": "Items",
+   "name": "Food Eaten I",
+   "desc": "Eat 20 rations.",
+   "stat": "rations_eaten",
+   "goal": 20,
+   "reward": {
+    "ration": 1
+   },
+   "badge": 13
+  },
+  {
+   "id": "collector",
+   "cat": "Items",
+   "name": "Collector",
+   "desc": "Own 3 different artifacts.",
+   "stat": "artifacts_owned",
+   "goal": 3,
+   "reward": {
+    "dew": 8
+   },
+   "badge": 68
+  },
+  {
+   "id": "bestiary",
+   "cat": "Items",
+   "name": "Bestiary",
+   "desc": "Discover 20 kinds of monster.",
+   "stat": "seen:mob:",
+   "goal": 20,
+   "reward": {
+    "seeds": 1
+   },
+   "badge": 80
+  },
+  {
+   "id": "on_patrol",
+   "cat": "Patrols",
+   "name": "On Patrol",
+   "desc": "Bring a hero back from patrol.",
+   "stat": "patrols",
+   "goal": 1,
+   "reward": {
+    "iron_ore": 1
+   },
+   "badge": 111
+  },
+  {
+   "id": "patrol_captain",
+   "cat": "Patrols",
+   "name": "Patrol Captain",
+   "desc": "Complete 10 patrols.",
+   "stat": "patrols",
+   "goal": 10,
+   "reward": {
+    "iron_ore": 2
+   },
+   "badge": 126
+  },
+  {
+   "id": "night_watch",
+   "cat": "Patrols",
+   "name": "Night Watch",
+   "desc": "Patrol for 24 hours in total.",
+   "stat": "patrol_hours",
+   "goal": 24,
+   "reward": {
+    "iron_ore": 1
+   },
+   "badge": 111
+  },
+  {
+   "id": "curio_hunter",
+   "cat": "Patrols",
+   "name": "Curio Hunter",
+   "desc": "Bring back 10 curios from patrols.",
+   "stat": "patrol_curios",
+   "goal": 10,
+   "reward": {
+    "arcane_resin": 1
+   },
+   "badge": 96
+  },
+  {
+   "id": "well_equipped",
+   "cat": "Patrols",
+   "name": "Well Equipped",
+   "desc": "Have one hero wear 10 gear levels.",
+   "stat": "patrol_gear_best",
+   "goal": 10,
+   "reward": {
+    "iron_ore": 2
+   },
+   "badge": 39
+  },
+  {
+   "id": "armed",
+   "cat": "Patrols",
+   "name": "Armed to the Teeth",
+   "desc": "Have one hero wear 20 gear levels.",
+   "stat": "patrol_gear_best",
+   "goal": 20,
+   "reward": {
+    "dark_gold": 1,
+    "iron_ore": 2
+   },
+   "badge": 97
+  },
+  {
+   "id": "builder",
+   "cat": "Camp",
+   "name": "Builder",
+   "desc": "Upgrade a Camp facility.",
+   "stat": "facility_ups",
+   "goal": 1,
+   "reward": {
+    "iron_ore": 1
+   },
+   "badge": 107
+  },
+  {
+   "id": "thriving_camp",
+   "cat": "Camp",
+   "name": "Thriving Camp",
+   "desc": "Make 8 facility upgrades.",
+   "stat": "facility_ups",
+   "goal": 8,
+   "reward": {
+    "dark_gold": 1,
+    "iron_ore": 2
+   },
+   "badge": 107
+  },
+  {
+   "id": "scroll_mason",
+   "cat": "Camp",
+   "name": "Scroll Mason",
+   "desc": "Raise a facility's cap with a Scroll of Upgrade.",
+   "stat": "facility_caps",
+   "goal": 1,
+   "reward": {
+    "arcane_resin": 1
+   },
+   "badge": 121
+  },
+  {
+   "id": "camp_master",
+   "cat": "Camp",
+   "name": "Master of the Camp",
+   "desc": "Raise every facility's cap to the maximum.",
+   "stat": "facility_caps",
+   "goal": 8,
+   "reward": {
+    "gold": 100,
+    "arcane_resin": 2
+   },
+   "badge": 122
+  },
+  {
+   "id": "full_camp",
+   "cat": "Camp",
+   "name": "Full Camp",
+   "desc": "Unlock all four heroes.",
+   "stat": "heroes_unlocked",
+   "goal": 4,
+   "reward": {
+    "seeds": 1,
+    "torch": 1
+   },
+   "badge": 103
+  },
+  {
+   "id": "level_1",
+   "cat": "Heroes",
+   "name": "Level Reached I",
+   "desc": "Reach level 5 with any hero.",
+   "stat": "best_level",
+   "goal": 5,
+   "reward": {
+    "potion_healing": 1
+   },
+   "badge": 11
+  },
+  {
+   "id": "level_2",
+   "cat": "Heroes",
+   "name": "Level Reached II",
+   "desc": "Reach level 10 with any hero.",
+   "stat": "best_level",
+   "goal": 10,
+   "reward": {
+    "iron_ore": 2
+   },
+   "badge": 40
+  },
+  {
+   "id": "talented",
+   "cat": "Heroes",
+   "name": "Talented",
+   "desc": "Have one hero hold 4 talents.",
+   "stat": "talents_max",
+   "goal": 4,
+   "reward": {
+    "dew": 6
+   },
+   "badge": 98
+  },
+  {
+   "id": "masked",
+   "cat": "Heroes",
+   "name": "Masked",
+   "desc": "Choose a subclass with Tengu's Mask.",
+   "stat": "subclasses",
+   "goal": 1,
+   "reward": {
+    "torch": 1,
+    "seeds": 1
+   },
+   "badge": 100
+  },
+  {
+   "id": "all_masks",
+   "cat": "Heroes",
+   "name": "All Masks",
+   "desc": "Choose a subclass for all four heroes.",
+   "stat": "subclasses",
+   "goal": 4,
+   "reward": {
+    "dark_gold": 1,
+    "iron_ore": 2
+   },
+   "badge": 101
+  },
+  {
+   "id": "untouchable",
+   "cat": "Feats",
+   "name": "Untouchable",
+   "desc": "Defeat a boss without losing any HP.",
+   "stat": "feat_flawless_boss",
+   "goal": 1,
+   "reward": {
+    "gold": 50,
+    "arcane_resin": 1
+   },
+   "badge": 106
+  },
+  {
+   "id": "by_hand",
+   "cat": "Feats",
+   "name": "By Hand",
+   "desc": "Defeat a boss without Auto Battle.",
+   "stat": "feat_manual_boss",
+   "goal": 1,
+   "reward": {
+    "gold": 30,
+    "iron_ore": 1
+   },
+   "badge": 83
+  },
+  {
+   "id": "teetotaller",
+   "cat": "Feats",
+   "name": "Teetotaller",
+   "desc": "Defeat a boss without drinking a potion.",
+   "stat": "feat_dry_boss",
+   "goal": 1,
+   "reward": {
+    "iron_ore": 1
+   },
+   "badge": 32
+  },
+  {
+   "id": "close_call",
+   "cat": "Feats",
+   "name": "Close Call",
+   "desc": "Win a fight with 10% HP or less.",
+   "stat": "feat_close_call",
+   "goal": 1,
+   "reward": {
+    "potion_healing": 1
+   },
+   "badge": 104
+  },
+  {
+   "id": "crowd_control",
+   "cat": "Feats",
+   "name": "Crowd Control",
+   "desc": "Defeat 6 or more enemies in one fight.",
+   "stat": "feat_crowd",
+   "goal": 1,
+   "reward": {
+    "dew": 6,
+    "iron_ore": 1
+   },
+   "badge": 68
+  },
+  {
+   "id": "heavy_pockets",
+   "cat": "Feats",
+   "name": "Heavy Pockets",
+   "desc": "Extract with 300 or more gold in the pack.",
+   "stat": "feat_big_haul",
+   "goal": 1,
+   "reward": {
+    "dark_gold": 1
+   },
+   "badge": 120
   }
  ]
 }

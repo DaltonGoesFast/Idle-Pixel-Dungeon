@@ -44,11 +44,17 @@ var traps_found := 0
 var trap_ids_seen: Array = []   # codex: trap types revealed or triggered
 var dmg_in := 0                 # post-DR damage + chip taken by the hero (for balance telemetry)
 var absorbed_total := 0         # how much of dmg_in was absorbed by Barrier
+var hp_lost := 0                # HP (not Barrier) the hero lost this fight, poison included ("Untouchable")
+var surprises := 0              # surprise hits landed by the hero (milestones, DECISIONS #195)
+var kill_ids := {}              # mob id -> kills this fight (milestones)
+var potions_drunk := 0          # healing potions drunk this fight, kept through a mid-fight save (Teetotaller)
+var auto_used := false          # set by the combat screen once Auto Battle acts (the "By Hand" feat)
 
 ## room_rows: Array[String] of equal length (8/10/12); hs: GameState.hero_stats(); mob_ids fill slots 1..8 (B = boss).
 func setup(room_rows: Array, hs: Dictionary, hp: int, mob_ids: Array, darkness := false, pool := []) -> void:
 	terrain.clear(); units.clear(); danger.clear(); log_lines.clear(); events.clear(); traps.clear()
 	kills = 0; traps_found = 0; trap_ids_seen = []; dmg_in = 0; absorbed_total = 0
+	surprises = 0; kill_ids = {}; auto_used = false; hp_lost = 0; potions_drunk = 0
 	remains = {}
 	if not pool.is_empty(): trap_pool = pool
 	time = 0.0; loot = 0; fallen_loot = 0; xp = 0; over = false; won = false; boss_killed = false; _uid = 0
@@ -106,7 +112,8 @@ func to_dict() -> Dictionary:
 	var tr := []
 	for k in traps: tr.append({"pos": [k.x, k.y], "id": traps[k].id, "hidden": traps[k].hidden})
 	return {"terrain": terrain, "w": w, "h": h, "units": us, "danger": dz, "traps": tr, "trap_pool": trap_pool, "kills": kills, "traps_found": traps_found, "trap_ids_seen": trap_ids_seen, "time": time, "log": Array(log_lines), "loot": loot,
-		"fallen_loot": fallen_loot, "xp": xp, "over": over, "won": won, "boss_killed": boss_killed, "uid": _uid, "remains": remains.keys().map(func(k): return [k.x, k.y]), "trampled": trampled.keys().map(func(k): return [k.x, k.y])}
+		"fallen_loot": fallen_loot, "xp": xp, "over": over, "won": won, "boss_killed": boss_killed, "uid": _uid,
+		"surprises": surprises, "kill_ids": kill_ids, "auto_used": auto_used, "hp_lost": hp_lost, "potions_drunk": potions_drunk, "dmg_in": dmg_in, "absorbed_total": absorbed_total, "remains": remains.keys().map(func(k): return [k.x, k.y]), "trampled": trampled.keys().map(func(k): return [k.x, k.y])}
 
 func from_dict(d: Dictionary) -> void:
 	trampled = {}
@@ -134,6 +141,11 @@ func from_dict(d: Dictionary) -> void:
 	for t in d.get("traps", []): traps[Vector2i(int(t.pos[0]), int(t.pos[1]))] = {"id": t.id, "hidden": t.hidden}
 	trap_pool = Array(d.get("trap_pool", trap_pool))
 	kills = int(d.get("kills", 0)); traps_found = int(d.get("traps_found", 0)); trap_ids_seen = Array(d.get("trap_ids_seen", []))
+	surprises = int(d.get("surprises", 0)); auto_used = bool(d.get("auto_used", false)); hp_lost = int(d.get("hp_lost", 0)); potions_drunk = int(d.get("potions_drunk", 0))
+	dmg_in = int(d.get("dmg_in", 0)); absorbed_total = int(d.get("absorbed_total", 0))
+	kill_ids = {}
+	var ki: Dictionary = d.get("kill_ids", {})
+	for k in ki: kill_ids[String(k)] = int(ki[k])
 	time = float(d.time); log_lines = PackedStringArray(d.log); loot = int(d.loot); fallen_loot = int(d.fallen_loot)
 	xp = int(d.xp); over = d.over; won = d.won; boss_killed = d.boss_killed; _uid = int(d.uid); events = []
 
@@ -372,7 +384,7 @@ func hit_hero(raw: int, src: String, pierce := false) -> void:
 		return
 	var absorbed := mini(dmg, int(hero.barrier))
 	hero.barrier -= absorbed; dmg_in += dmg; absorbed_total += absorbed
-	hero.hp -= dmg - absorbed
+	hero.hp -= dmg - absorbed; hp_lost += dmg - absorbed
 	_log("%s hits for %d (%d Barrier, %d HP)." % [src, dmg, absorbed, dmg - absorbed])
 	_ev({"t": "hit", "uid": hero.uid, "amount": dmg, "kind": "hp" if dmg > absorbed else "barrier", "pos": hero.pos})
 	if hero.hp <= 0:
@@ -410,6 +422,7 @@ func hit_mob(m: Dictionary, raw: int, surprise := false, magic := false, ranged 
 		if p in [1, 2] and m.hp < floor_hp:
 			m.hp = floor_hp
 		_yog_phase(m)
+	if surprise: surprises += 1
 	_log("%s%s takes %d." % ["SURPRISE! " if surprise else "", m.name, dmg])
 	_ev({"t": "hit", "uid": m.uid, "amount": dmg, "kind": "surprise" if surprise else ("magic" if magic else "hp"), "pos": m.pos})
 	if m.hp <= 0:
@@ -541,7 +554,7 @@ func _tick_poison(u: Dictionary) -> void:
 	if int(u.get("poison", 0)) <= 0: return
 	u.poison -= 1
 	if u == hero:
-		hero.hp -= 1
+		hero.hp -= 1; hp_lost += 1
 		_ev({"t": "hit", "uid": hero.uid, "amount": 1, "kind": "poison", "pos": hero.pos})
 		if hero.hp <= 0:
 			hero.hp = 0; over = true; won = false; _log("%s succumbs to poison..." % hero.name)
@@ -583,6 +596,7 @@ func _farthest_free(from: Vector2i) -> Vector2i:
 func _kill(m: Dictionary, chasm: bool) -> void:
 	m.hp = 0
 	kills += 1
+	kill_ids[String(m.id)] = int(kill_ids.get(String(m.id), 0)) + 1
 	if not chasm and tile(m.pos) == T.DOOR: remains[m.pos] = true
 	var l := int(m.loot) + int(m.get("stolen", 0))
 	xp += int(m.exp)
@@ -1343,3 +1357,8 @@ func _free_tile_near(p: Vector2i) -> Vector2i:
 				var c := Vector2i(x, y)
 				if passable(c) and unit_at(c) == null: return c
 	return p
+
+## Milestone fields for a fight result dict (DECISIONS #195): kills per mob, surprise hits, HP actually lost
+## (damage Barrier soaked doesn't count, poison does), and whether Auto Battle ever acted.
+func milestone_result() -> Dictionary:
+	return {"kill_ids": kill_ids.duplicate(), "surprises": surprises, "hp_lost": hp_lost, "auto_used": auto_used, "potions_fight": potions_drunk}

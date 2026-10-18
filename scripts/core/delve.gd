@@ -16,6 +16,8 @@ const BOSS_RATIONS := 2       # rations every boss kill adds to the belt (DECISI
 const CAMPFIRE_REST := 50.0  # torch and satiety restored when pressing on from a boss campfire
 const SEARCH_CHANCE := 50     # % to find a hidden door (Rogue: always)
 const AUTO_STOP_HP := 0.3     # at or below this HP fraction Auto Battle turns off for manual control / Scroll of Passage
+const CLOSE_CALL_HP := 0.1    # "Close Call" feat: win a fight at or below this HP fraction (DECISIONS #195)
+const CROWD_KILLS := 6        # "Crowd Control" feat: kills in one fight
 
 static func biome(run: Dictionary) -> Dictionary:
 	return DB.biomes[run.biome]
@@ -59,7 +61,7 @@ static func advance(gs, pct: float) -> Dictionary:
 	if run.torch < 20.0 and int(run.supplies.get("torch", 0)) > 0:
 		run.supplies.torch -= 1; run.torch = minf(100.0, run.torch + TORCH_RESTORE); gs.say("Lit a fresh torch.")
 	if run.satiety < 20.0 and int(run.supplies.get("ration", 0)) > 0:
-		run.supplies.ration -= 1; run.satiety = minf(100.0, run.satiety + RATION_RESTORE); gs.say("Ate a ration.")
+		run.supplies.ration -= 1; run.satiety = minf(100.0, run.satiety + RATION_RESTORE); gs.say("Ate a ration."); gs.add_stat("rations_eaten", 1)
 	# passive gathering: +1 gold every 4%, +1 dew every 12%
 	# counted on the pinned haul line; individual drips are not logged
 	var step := int(run.progress / 4.0)
@@ -286,6 +288,7 @@ static func pay(gs, cost: Dictionary) -> bool:
 		var from_pack := mini(n, int(run.pack.get(k, 0)))
 		if from_pack > 0: run.pack[k] -= from_pack; n -= from_pack
 		if n > 0: gs.add_mat(k, -n)
+		if k == "gold": gs.add_stat("gold_spent", int(cost[k]))
 	return true
 
 ## Rewards go into the pack (lost on death). item_unknown spawns an un-ID'd ring/wand.
@@ -450,6 +453,7 @@ static func _stow(gs, g: Dictionary) -> void:
 	else: gs.run.pack_gear.append(g)
 
 static func _new_gear(gs, id: String, known: bool) -> Dictionary:
+	gs.add_stat("items_found", 1)
 	var g := {"uid": gs.next_uid, "id": id, "lvl": 0, "cracked": false, "known": known}
 	if known: gs.discover("item:" + id)
 	gs.next_uid += 1
@@ -508,6 +512,7 @@ static func descend(gs) -> void:
 static func apply_fight_result(gs, ev: Dictionary, res: Dictionary, reward: Dictionary) -> bool:
 	var run: Dictionary = gs.run
 	gs.add_stat("kills", int(res.get("kills", 0))); gs.add_stat("traps_found", int(res.get("traps_found", 0)))
+	record_fight_stats(gs, ev, res)
 	for t in res.get("trap_ids", []): gs.discover("trap:" + t)
 	if int(res.get("traps_found", 0)) > 0: gs.log_line("Spotted %d trap%s." % [res.traps_found, "" if int(res.traps_found) == 1 else "s"], "warning")
 	var taken := maxi(0, int(run.hp) - int(res.hp))
@@ -544,6 +549,25 @@ static func apply_fight_result(gs, ev: Dictionary, res: Dictionary, reward: Dict
 		if gs.record_boss_kill(run.hero, run.biome): gs.say("First %s kill for this class: Scroll of Upgrade!" % DB.mobs[ev.mobs[0]].name)
 	gs.touch()
 	return true
+
+## Milestone counters from one fight (DECISIONS #195): kills per mob, surprise attacks, potions drunk, and the feats.
+## Feats need a won fight: a boss with no HP lost (Barrier soaking a hit is fine), a boss with no Auto Battle,
+## a boss with no potion, a win at 10% HP or less, or 6+ kills in one fight.
+static func record_fight_stats(gs, ev: Dictionary, res: Dictionary) -> void:
+	var ids: Dictionary = res.get("kill_ids", {})
+	for mob in ids: gs.add_stat("kill_" + String(mob), int(ids[mob]))
+	gs.add_stat("surprises", int(res.get("surprises", 0)))
+	# potions_fight comes from the Combat state, so it survives an app kill mid-fight; potions_used is the screen's own count
+	var pots := int(res.get("potions_fight", res.get("potions_used", 0)))
+	gs.add_stat("potions_drunk", pots)
+	if not res.get("won", false): return
+	if res.get("boss_killed", false):
+		if res.has("hp_lost") and int(res.hp_lost) <= 0: gs.add_stat("feat_flawless_boss", 1)
+		if res.has("auto_used") and not res.auto_used: gs.add_stat("feat_manual_boss", 1)
+		if pots == 0: gs.add_stat("feat_dry_boss", 1)
+	var ht: int = int(gs.hero_stats(gs.run.hero).ht) if not gs.run.is_empty() else 0
+	if ht > 0 and int(res.hp) > 0 and float(res.hp) <= ht * CLOSE_CALL_HP: gs.add_stat("feat_close_call", 1)
+	if int(res.get("kills", 0)) >= CROWD_KILLS: gs.add_stat("feat_crowd", 1)
 
 ## True when the hero's HP in the run is at or below the low-HP danger threshold (30% of max HP).
 static func close_to_dying(gs) -> bool:

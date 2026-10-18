@@ -22,3 +22,5 @@ Tips:
 Screenshots: `SHOTS=caves,dm300` (comma list of step names) renders only those steps; long full runs on software GL can drop textures in later shots (DECISIONS #60).
 
 `[talents]` and `[backpack]` cover tier points, picks, mid-delve HP, death reset, equip/unequip/drop, owned items, overflow, potions outside fights and the in-combat swap. tools/build.sh fails on any "SCRIPT ERROR" in either suite.
+
+`[milestones]` (DECISIONS #195) checks the milestone data (unique ids, categories, material rewards, 40-80 entries, total gold, exactly 2 Scrolls of Upgrade), that a reached milestone waits for Claim and pays once, Claim all, live totals staying reached after a death, the save round trip, old saves (paid stays paid, newly earned becomes claimable, no double pay), and the fight counters and feats. `ui_smoke` checks the Journal count badge, the Claim button and Claim all through the real UI.

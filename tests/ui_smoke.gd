@@ -36,6 +36,7 @@ func _process(_d: float) -> void:
 			_check(UIKit.font_size > 0, "text size change relayouts")
 			main.screen.close_page()
 			_gear_ownership_ui()
+			_milestones_ui()
 			main.screen.chosen_hero = classes[0]
 			main.screen._start()
 		8:
@@ -249,6 +250,28 @@ func _find_tip(n: Node, prefix: String):
 		var r = _find_tip(ch, prefix)
 		if r: return r
 	return null
+
+## DECISIONS #195: reached milestones show a count on the Journal button and a Claim button; nothing pays until tapped.
+func _milestones_ui() -> void:
+	var gs = GameState
+	var cs = main.screen
+	gs.stats.extractions = maxi(1, int(gs.stats.extractions)); gs.stats.kills = maxi(25, int(gs.stats.kills)); gs.touch()
+	var ready: Array = gs.claimable_milestones()
+	_check(ready.size() >= 2, "two milestones reached for the Claim UI")
+	_check(cs.journal_btn != null and cs.journal_btn.find_child("ClaimDot", true, false) != null, "Journal button shows the unclaimed count")
+	cs.journal_view = "milestones"; cs.open_page("Journal")
+	var page: Control = cs.pages["Journal"]
+	_check(UIKit.collapsing_labels(page).is_empty() and UIKit.collapsing_flows(page).is_empty(), "milestone cards keep their text and reward rows")
+	var gold0: int = gs.mat("gold")
+	var claim = _find_button(page, "Claim")
+	_check(claim != null and gs.mat("gold") == gold0, "Claim button shown and nothing paid yet")
+	claim.emit_signal("pressed")
+	_check(gs.claimable_milestones().size() == ready.size() - 1, "Claim pays one milestone")
+	var all = _find_button(cs.win_layer, "Claim all")
+	if gs.claimable_milestones().size() > 1: _check(all != null, "Claim all offered for 2+")
+	gs.claim_all_milestones()
+	_check(cs.journal_btn.find_child("ClaimDot", true, false) == null or cs.journal_btn.find_child("ClaimDot", true, false).is_queued_for_deletion(), "count badge clears once everything is claimed")
+	cs.close_page()
 
 func _find_button(n: Node, prefix: String):
 	if n is Button and n.text.begins_with(prefix): return n

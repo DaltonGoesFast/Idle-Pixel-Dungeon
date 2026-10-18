@@ -44,6 +44,93 @@ Worn ring, artifact and the Mage's staff wand, at +0; the step is per item level
 | Sandals of Nature | artifact | +1 seeds/h (+0.5/lvl), +1 dew/h (+0.5/lvl) |
 | Master Thieves' Armband | artifact | +15% gold (+5/lvl) |
 
+### Milestones (DECISIONS #195)
+
+80 milestones. A reached milestone waits in the Journal until the player taps Claim. All rewards together: 555 gold, 3 ration, 2 scroll of passage, 72 iron ore, 13 torch, 19 dark gold, 15 arcane resin, 2 iron key, 21 seeds, 63 dew, 2 scroll of upgrade, 4 healing potion.
+
+| Category | Milestone | Goal | Reward |
+|---|---|---|---|
+| Delving | First Steps | Complete an expedition (extract). | 30 gold, 1 ration |
+| Delving | Veteran | Complete 10 expeditions. | 1 scroll of passage, 100 gold |
+| Delving | Seasoned Delver | Complete 25 expeditions. | 2 iron ore, 1 scroll of passage |
+| Delving | Deep Dive | Reach floor 6 (the Prison). | 2 torch, 40 gold |
+| Delving | Into the Caves | Reach floor 11 (the Caves). | 1 torch, 2 iron ore |
+| Delving | Dwarven Metropolis | Reach floor 16 (the City). | 1 dark gold, 1 torch |
+| Delving | Demon Halls | Reach floor 21 (the Halls). | 1 dark gold, 3 iron ore |
+| Delving | Trap Sense | Find 10 hidden traps. | 2 arcane resin |
+| Delving | Secret Keeper | Discover 3 hidden doors. | 2 iron key, 1 dark gold |
+| Delving | Explorer | Explore 10 special rooms. | 1 seeds, 5 dew |
+| Delving | Treasure Hunter | Open 10 chests behind doors. | 8 dew |
+| Bosses | Slime Time | Defeat Goo. | 5 iron ore, 3 seeds |
+| Bosses | Jailbreak | Defeat Tengu. | 3 dark gold, 1 scroll of upgrade |
+| Bosses | Clockwork Breaker | Defeat DM-300. | 1 dark gold, 3 iron ore |
+| Bosses | Regicide | Defeat the King of Dwarves. | 1 dark gold, 3 iron ore |
+| Bosses | Happy End | Defeat Yog-Dzewa. | 3 dark gold, 3 arcane resin, 100 gold |
+| Bosses | Full Roster | Clear the Sewers with all four heroes. | 1 scroll of upgrade |
+| Bosses | Full Roster II | Clear the Prison with all four heroes. | 1 dark gold, 2 iron ore |
+| Bosses | Goo Slayer: Warrior | Defeat Goo with the Warrior. | 1 iron ore, 1 seeds |
+| Bosses | Goo Slayer: Mage | Defeat Goo with the Mage. | 1 iron ore, 1 seeds |
+| Bosses | Goo Slayer: Rogue | Defeat Goo with the Rogue. | 1 iron ore, 1 seeds |
+| Bosses | Goo Slayer: Huntress | Defeat Goo with the Huntress. | 1 iron ore, 1 seeds |
+| Bosses | Tengu Slayer: Warrior | Defeat Tengu with the Warrior. | 1 iron ore, 1 torch |
+| Bosses | Tengu Slayer: Mage | Defeat Tengu with the Mage. | 1 iron ore, 1 torch |
+| Bosses | Tengu Slayer: Rogue | Defeat Tengu with the Rogue. | 1 iron ore, 1 torch |
+| Bosses | Tengu Slayer: Huntress | Defeat Tengu with the Huntress. | 1 iron ore, 1 torch |
+| Monsters | Monsters Slain I | Defeat 20 monsters. | 1 iron ore |
+| Monsters | Exterminator | Defeat 100 monsters. | 80 gold, 6 iron ore |
+| Monsters | Monsters Slain III | Defeat 500 monsters. | 3 iron ore, 1 healing potion |
+| Monsters | Rat Catcher | Defeat 50 rats. | 1 seeds |
+| Monsters | Snake Charmer | Defeat 20 sewer snakes. | 6 dew |
+| Monsters | Gnoll Hunter | Defeat 40 gnolls (scouts, shamans and brutes). | 1 iron ore |
+| Monsters | Crab Cracker | Defeat 25 sewer crabs. | 1 ration |
+| Monsters | Bone Collector | Defeat 25 skeletons. | 2 iron ore |
+| Monsters | Thief Taker | Defeat 10 crazy thieves. | 25 gold |
+| Monsters | Dwarf Bane | Defeat 30 of the city's dwarves, ghouls and golems. | 1 dark gold, 1 iron ore |
+| Monsters | Demon Hunter | Defeat 30 demons in the Halls. | 2 arcane resin |
+| Monsters | Ambusher | Land 25 surprise attacks. | 1 torch, 5 dew |
+| Monsters | Ambusher II | Land 150 surprise attacks. | 2 iron ore |
+| Wealth | Gold Collected I | Bank 500 gold at Camp (extractions and patrols). | 1 iron ore |
+| Wealth | Gold Collected II | Bank 2500 gold at Camp. | 2 iron ore |
+| Wealth | Gold Collected III | Bank 10000 gold at Camp. | 1 dark gold, 1 arcane resin |
+| Wealth | Big Spender I | Spend 1000 gold. | 1 torch |
+| Wealth | Big Spender II | Spend 5000 gold. | 3 iron ore |
+| Crafting | Item Level I | Upgrade gear 5 times. | 1 iron ore |
+| Crafting | Fine Steel | Own a +3 item. | 2 iron ore |
+| Crafting | Masterwork | Own a +5 item. | 1 dark gold, 1 arcane resin |
+| Crafting | Forged in Fire | Forge 3 items at the Blacksmith. | 1 iron ore |
+| Crafting | Master Brewer | Brew 10 potions. | 5 seeds, 1 healing potion |
+| Crafting | Items Crafted II | Brew 40 potions. | 2 seeds, 8 dew |
+| Items | Treasure Seeker | Find 10 pieces of gear in the dungeon. | 1 torch |
+| Items | Researcher I | Identify 5 items, potions or scrolls. | 1 seeds |
+| Items | Researcher II | Identify 25 items, potions or scrolls. | 1 seeds, 5 dew |
+| Items | Potion Drinker | Drink 15 potions. | 6 dew |
+| Items | Scroll Reader | Read 10 scrolls. | 1 arcane resin |
+| Items | Food Eaten I | Eat 20 rations. | 1 ration |
+| Items | Collector | Own 3 different artifacts. | 8 dew |
+| Items | Bestiary | Discover 20 kinds of monster. | 1 seeds |
+| Patrols | On Patrol | Bring a hero back from patrol. | 1 iron ore |
+| Patrols | Patrol Captain | Complete 10 patrols. | 2 iron ore |
+| Patrols | Night Watch | Patrol for 24 hours in total. | 1 iron ore |
+| Patrols | Curio Hunter | Bring back 10 curios from patrols. | 1 arcane resin |
+| Patrols | Well Equipped | Have one hero wear 10 gear levels. | 2 iron ore |
+| Patrols | Armed to the Teeth | Have one hero wear 20 gear levels. | 1 dark gold, 2 iron ore |
+| Camp | Builder | Upgrade a Camp facility. | 1 iron ore |
+| Camp | Thriving Camp | Make 8 facility upgrades. | 1 dark gold, 2 iron ore |
+| Camp | Scroll Mason | Raise a facility's cap with a Scroll of Upgrade. | 1 arcane resin |
+| Camp | Master of the Camp | Raise every facility's cap to the maximum. | 100 gold, 2 arcane resin |
+| Camp | Full Camp | Unlock all four heroes. | 1 seeds, 1 torch |
+| Heroes | Level Reached I | Reach level 5 with any hero. | 1 healing potion |
+| Heroes | Level Reached II | Reach level 10 with any hero. | 2 iron ore |
+| Heroes | Talented | Have one hero hold 4 talents. | 6 dew |
+| Heroes | Masked | Choose a subclass with Tengu's Mask. | 1 torch, 1 seeds |
+| Heroes | All Masks | Choose a subclass for all four heroes. | 1 dark gold, 2 iron ore |
+| Feats | Untouchable | Defeat a boss without losing any HP. | 50 gold, 1 arcane resin |
+| Feats | By Hand | Defeat a boss without Auto Battle. | 30 gold, 1 iron ore |
+| Feats | Teetotaller | Defeat a boss without drinking a potion. | 1 iron ore |
+| Feats | Close Call | Win a fight with 10% HP or less. | 1 healing potion |
+| Feats | Crowd Control | Defeat 6 or more enemies in one fight. | 6 dew, 1 iron ore |
+| Feats | Heavy Pockets | Extract with 300 or more gold in the pack. | 1 dark gold |
+
 ### Recipes
 
 | Facility | Recipe | Cost | Output | Min level |

@@ -16,6 +16,7 @@ var doors: Array
 var specials: Array
 var traps: Dictionary
 var milestones: Array
+var milestone_categories: Array   # display order of milestone categories (DECISIONS #195)
 var tips: Dictionary
 var talents: Dictionary
 var biome_rooms: Dictionary
@@ -35,7 +36,8 @@ func reload() -> void:
 	var r := _load("rooms")
 	rooms = r.rooms; boss_rooms = r.boss_rooms; biome_rooms = r.get("biome_rooms", {})
 	traps = _strip(_load("traps"))
-	milestones = _load("milestones").get("milestones", [])
+	var ms: Dictionary = _load("milestones")
+	milestones = ms.get("milestones", []); milestone_categories = ms.get("categories", [])
 	tips = _load("tutorial").get("tips", {})
 	talents = _load("talents")
 	biomes = _load("biomes")
