@@ -23,6 +23,7 @@ GameState="*res://scripts/autoload/game_state.gd"
 SaveSystem="*res://scripts/autoload/save_system.gd"
 Sfx="*res://scripts/autoload/sfx.gd"
 Updater="*res://scripts/autoload/updater.gd"
+Telemetry="*res://scripts/autoload/telemetry.gd"
 
 [editor_plugins]
 

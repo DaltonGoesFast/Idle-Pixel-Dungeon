@@ -138,10 +138,12 @@ func can_afford(cost: Dictionary) -> bool:
 		if mat(k) < int(cost[k]): return false
 	return true
 
-func pay(cost: Dictionary) -> bool:
+## sink names where the gold went, for telemetry (DECISIONS #197).
+func pay(cost: Dictionary, sink := "other") -> bool:
 	if not can_afford(cost): return false
 	for k in cost: mats[k] = mat(k) - int(cost[k])
-	if int(cost.get("gold", 0)) > 0: add_stat("gold_spent", int(cost.gold))
+	if int(cost.get("gold", 0)) > 0:
+		add_stat("gold_spent", int(cost.gold)); Telemetry.spend(sink, int(cost.gold))
 	return true
 
 static func cost_text(cost: Dictionary) -> String:
@@ -726,7 +728,7 @@ func can_train(c: String) -> String:
 
 func train(c: String) -> bool:
 	if can_train(c) != "": return false
-	pay(train_cost(c))
+	pay(train_cost(c), "train")
 	var h: Dictionary = heroes[c]
 	grant_xp(c, xp_to_next(int(h.level)) - int(h.xp))
 	say("%s trains at the Guild: Lv %d." % [DB.heroes[c].name, h.level]); touch(); return true
@@ -763,7 +765,9 @@ func can_upgrade_facility(id: String) -> String:
 func upgrade_facility(id: String) -> bool:
 	if can_upgrade_facility(id) != "": return false
 	var id_old := identify_seconds()
-	pay(facility_upgrade_cost(id)); facilities[id].level += 1
+	var fcost := facility_upgrade_cost(id)
+	pay(fcost, "facility_upgrade"); facilities[id].level += 1
+	Telemetry.track("facility_upgrade", {"facility": id, "level": int(facilities[id].level), "cost": fcost})
 	if id == "enchanter": rescale_identify(id_old, identify_seconds())
 	say("%s upgraded to level %d." % [DB.facilities[id].name, facilities[id].level]); touch(); return true
 
@@ -816,7 +820,7 @@ func can_craft(fac: String, rid: String) -> String:
 func craft(fac: String, rid: String) -> bool:
 	if can_craft(fac, rid) != "": return false
 	var r := recipe(fac, rid)
-	pay(r.cost)
+	pay(r.cost, "craft_" + fac)
 	# brewing with an unidentified potion/scroll reveals what it was (SPD alchemy, DECISIONS #85)
 	for k in r.cost:
 		if DB.materials.get(k, {}).get("unknown", false) and not is_mat_known(k): identify_mat(k)
@@ -862,7 +866,7 @@ func can_upgrade_item(uid: int) -> String:
 
 func upgrade_item(uid: int) -> bool:
 	if can_upgrade_item(uid) != "": return false
-	pay(item_upgrade_cost(uid)); gear_by_uid(uid).lvl += 1; add_stat("items_upgraded", 1)
+	pay(item_upgrade_cost(uid), "item_upgrade"); gear_by_uid(uid).lvl += 1; add_stat("items_upgraded", 1)
 	say("Upgraded " + gear_name(gear_by_uid(uid)) + "."); touch(); return true
 
 func repair_cost(uid: int) -> Dictionary:
@@ -882,7 +886,7 @@ func can_repair(uid: int) -> String:
 
 func repair(uid: int) -> bool:
 	var g := gear_by_uid(uid)
-	if can_repair(uid) != "" or not pay(repair_cost(uid)): return false
+	if can_repair(uid) != "" or not pay(repair_cost(uid), "repair"): return false
 	g.cracked = false; say("Repaired " + gear_name(g) + "."); touch(); return true
 
 # ---------------------------------------------------------------- rings, wands, artifacts (DECISIONS #158)
@@ -941,7 +945,7 @@ func can_upgrade_staff_wand() -> String:
 
 func upgrade_staff_wand() -> bool:
 	if can_upgrade_staff_wand() != "": return false
-	pay(staff_wand_cost()); heroes.mage.wand_lvl = int(heroes.mage.get("wand_lvl", 0)) + 1; add_stat("items_upgraded", 1)
+	pay(staff_wand_cost(), "staff_wand"); heroes.mage.wand_lvl = int(heroes.mage.get("wand_lvl", 0)) + 1; add_stat("items_upgraded", 1)
 	say("Upgraded %s to +%d." % [DB.item(heroes.mage.wand).name, heroes.mage.wand_lvl]); touch(); return true
 
 func staff_wand_repair_cost() -> Dictionary:
@@ -955,7 +959,7 @@ func can_repair_staff_wand() -> String:
 
 func repair_staff_wand() -> bool:
 	if can_repair_staff_wand() != "": return false
-	pay(staff_wand_repair_cost()); heroes.mage.wand_cracked = false
+	pay(staff_wand_repair_cost(), "repair"); heroes.mage.wand_cracked = false
 	say("Repaired the staff's %s." % DB.item(heroes.mage.wand).name); touch(); return true
 
 # ---------------------------------------------------------------- bulk Forge/Guild actions (DECISIONS #97)
@@ -1275,10 +1279,14 @@ func patrol_fee(biome: String, c := "") -> Dictionary:
 ## change by swapping or levelling gear while they are away (DECISIONS #188).
 func start_patrol(c: String, biome: String) -> bool:
 	if can_patrol(c, biome) != "": return false
-	pay(patrol_fee(biome, c))
+	var fee := patrol_fee(biome, c)
+	pay(fee, "patrol_fee")
 	var pk := patrol_perks(c)
 	heroes[c].patrol = {"biome": biome, "start": now(), "v": 2, "eff": patrol_efficiency(c, biome), "gear_mult": patrol_gear_mult(c),
 		"gear_lvl": patrol_gear_level(c), "fx": pk.fx.duplicate(true), "lines": pk.lines.duplicate(), "max_h": patrol_max_hours(c)}
+	Telemetry.track("patrol_start", {"class": c, "biome": biome, "max_hours": float(heroes[c].patrol.max_h), "eff": float(heroes[c].patrol.eff),
+		"gear_level": int(heroes[c].patrol.gear_lvl), "gear_mult": float(heroes[c].patrol.gear_mult), "perks": pk.fx.keys(), "fee_gold": int(fee.get("gold", 0)),
+		"hero_level": int(heroes[c].level)})
 	say("%s sets out to patrol the %s." % [DB.heroes[c].name, DB.biomes[biome].name]); touch(); return true
 
 ## Efficiency: hero power (plus patrol power perks) vs biome strength gate, clamped 0.25..1.25.
@@ -1440,6 +1448,11 @@ func collect_patrol(c: String) -> Dictionary:
 	for i in y._curios:
 		var id: String = pool[(next_uid + i) % pool.size()] if pool.size() == 2 else pool[rng.randi() % pool.size()]
 		add_gear(id, known, 1 if plus > 0.0 and rng.randf() < plus else 0)
+	var yld := {}
+	for k in y:
+		if not String(k).begins_with("_"): yld[String(k)] = int(y[k])
+	Telemetry.track("patrol_end", {"class": c, "biome": String(p.biome), "hours": float(y._hours), "curios": int(y._curios), "yield": yld,
+		"perks": fx.keys(), "gear_level": int(p.get("gear_lvl", 0)), "eff": float(p.get("eff", 0.0))})
 	heroes[c].patrol = {}
 	add_stat("patrols", 1); add_stat("patrol_hours", int(float(y._hours))); add_stat("patrol_curios", int(y._curios))
 	add_stat("gold_banked", int(y.get("gold", 0)))
@@ -1490,6 +1503,11 @@ func start_run(c: String, loadout: Dictionary, biome := "sewers", seed := -1) ->
 		"events": [], "next_event": 0, "gather": 0, "starve": 0, "milestones_done": [], "pending_loot": 0, "boss_dead": false,
 		"haul": {}}
 	stats.runs += 1; note_floor(f0)
+	var team := {}
+	for hc in heroes:
+		if heroes[hc].unlocked: team[hc] = int(heroes[hc].level)
+	Telemetry.track("run_start", {"class": c, "biome": biome, "floor": f0, "hero_level": int(heroes[c].level), "gear_level": patrol_gear_level(c),
+		"power": power_rating(c), "heroes": team, "supplies": sup, "runs": int(stats.runs)})
 	say("%s descends into the %s." % [s.name, DB.biomes[biome].name]); touch(); return true
 
 func pack_add(id: String, n: int) -> void:
@@ -1524,6 +1542,7 @@ func end_run(result: String) -> void:
 	last_result = result
 	var c: String = run.hero
 	var h: Dictionary = heroes[c]
+	_track_run_end(result)
 	# unused supplies always go back to the stash (they were never "found")
 	for k in run.supplies: add_mat(k, int(run.supplies[k]))
 	match result:
@@ -1566,6 +1585,22 @@ func end_run(result: String) -> void:
 			say("Expedition abandoned. Unbanked loot lost.")
 	run = {}
 	touch()
+
+## Telemetry (DECISIONS #197): extract / death / abandon with the run's numbers, sent before end_run changes them.
+func _track_run_end(result: String) -> void:
+	var c: String = run.hero
+	var base := {"class": c, "biome": String(run.biome), "floor": int(run.floor), "hero_level": int(heroes[c].level),
+		"gear_level": patrol_gear_level(c), "fights_won": int(run.get("fights_won", 0))}
+	match result:
+		"extract":
+			var loot := {}
+			for k in run.pack:
+				if int(run.pack[k]) > 0: loot[String(k)] = int(run.pack[k])
+			Telemetry.track("extract", base.merged({"gold": int(run.pack.get("gold", 0)), "loot": loot, "gear_found": run.pack_gear.size()}))
+		"death":
+			Telemetry.track("death", base.merged({"cause": String(run.get("death_cause", "unknown")), "gold_lost": int(run.pack.get("gold", 0))}))
+		_:
+			Telemetry.track("abandon", base.merged({"gold_lost": int(run.pack.get("gold", 0))}))
 
 ## Scrolls of Upgrade in the pack when a run ends without extracting (death or abandon) are owed and come back
 ## on the next boss kill. Every Scroll is a one-time drop and maxing the Camp needs all of them (DECISIONS #150, #169).
@@ -1695,6 +1730,7 @@ func claim_milestone(id: String) -> bool:
 	if not milestone_claimable(id): return false
 	var m := milestone_def(id)
 	milestones_claimed.append(id)
+	Telemetry.track("milestone_claimed", {"milestone": id, "category": String(m.get("cat", "")), "reward": m.reward})
 	for k in m.reward: add_mat(k, int(m.reward[k]))
 	log_line("Milestone claimed: %s. %s" % [m.name, cost_text(m.reward)], "positive")
 	Sfx.play("gold")

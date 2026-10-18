@@ -13,6 +13,7 @@
 | `DB` | `scripts/autoload/db.gd` | Loads JSON content. `DB.item(id)`, `DB.icon_index(id)`, `DB.display_name(id)` |
 | `GameState` | `scripts/autoload/game_state.gd` | Account state: stash `mats`, `gear` instances, `heroes`, `facilities`, `id_queue`, `boss_kills`, `run`. All camp rules (craft, upgrade, repair, break down spare rings, identify, patrol, equip, start/end run). Emits `changed` and `toast` |
 | `SaveSystem` | `scripts/autoload/save_system.gd` | Saves `GameState.to_dict()` to `user://save.json` on every `changed` (atomic tmp+rename). `SAVE_VERSION` + `migrate()` for future layouts |
+| `Telemetry` | `scripts/autoload/telemetry.gd` | Anonymous gameplay events to PostHog `/batch/` (key in `data/telemetry.json`), offline queue in `user://`, off in tests/headless (DECISIONS #197, docs/PRIVACY.md) |
 | `Sfx` | `scripts/autoload/sfx.gd` | SPD sound effects pool + looping music; silent when headless |
 
 ## Core (scripts/core)

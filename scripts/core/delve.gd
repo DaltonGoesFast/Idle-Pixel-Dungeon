@@ -493,6 +493,8 @@ static func descend(gs) -> void:
 	var run: Dictionary = gs.run
 	run.floor += 1
 	gs.note_floor(int(run.floor))
+	Telemetry.track("floor_reached", {"class": String(run.hero), "biome": String(run.biome), "floor": int(run.floor), "hp": int(run.hp),
+		"torch": int(float(run.torch)), "satiety": int(float(run.satiety)), "gold": int(run.pack.get("gold", 0))})
 	var ht: int = gs.hero_stats(run.hero).ht
 	gs.log_line("You descend to floor %d." % int(run.floor), "highlight")
 	# a guaranteed scrap of iron per floor: repair ore always trickles in, even on Sewers 1-5 (DECISIONS #104)
@@ -513,6 +515,7 @@ static func apply_fight_result(gs, ev: Dictionary, res: Dictionary, reward: Dict
 	var run: Dictionary = gs.run
 	gs.add_stat("kills", int(res.get("kills", 0))); gs.add_stat("traps_found", int(res.get("traps_found", 0)))
 	record_fight_stats(gs, ev, res)
+	track_fight(gs, ev, res)
 	for t in res.get("trap_ids", []): gs.discover("trap:" + t)
 	if int(res.get("traps_found", 0)) > 0: gs.log_line("Spotted %d trap%s." % [res.traps_found, "" if int(res.traps_found) == 1 else "s"], "warning")
 	var taken := maxi(0, int(run.hp) - int(res.hp))
@@ -549,6 +552,28 @@ static func apply_fight_result(gs, ev: Dictionary, res: Dictionary, reward: Dict
 		if gs.record_boss_kill(run.hero, run.biome): gs.say("First %s kill for this class: Scroll of Upgrade!" % DB.mobs[ev.mobs[0]].name)
 	gs.touch()
 	return true
+
+## Telemetry for one fight (DECISIONS #197): fight_end always, boss_fight for bosses, and the death cause.
+static func track_fight(gs, ev: Dictionary, res: Dictionary) -> void:
+	var run: Dictionary = gs.run
+	if run.is_empty(): return
+	var c := String(run.hero)
+	var mobs: Array = ev.get("mobs", [])
+	var won := bool(res.get("won", false))
+	var boss: bool = bool(ev.get("boss", false)) or (not mobs.is_empty() and bool(DB.mobs.get(String(mobs[0]), {}).get("boss", false)))
+	var gl: int = gs.patrol_gear_level(c)
+	var p := {"class": c, "biome": String(run.biome), "floor": int(run.floor), "enemies": mobs, "result": "win" if won else "loss",
+		"turns": int(res.get("turns", 0)), "hp_before": int(run.hp), "hp_after": int(res.get("hp", 0)), "hp_lost": int(res.get("hp_lost", 0)),
+		"dmg_in": int(res.get("dmg_in", 0)), "dmg_out": int(res.get("dmg_out", 0)), "auto_battle": bool(res.get("auto_used", false)),
+		"surprises": int(res.get("surprises", 0)), "potions": int(res.get("potions_fight", res.get("potions_used", 0))),
+		"kills": int(res.get("kills", 0)), "boss": boss, "hero_level": int(gs.heroes[c].level), "gear_level": gl}
+	Telemetry.track("fight_end", p)
+	if boss and not mobs.is_empty():
+		var key := "boss_tries_%s_%s" % [String(mobs[0]), c]
+		gs.add_stat(key, 1)
+		Telemetry.track("boss_fight", {"class": c, "boss": String(mobs[0]), "biome": String(run.biome), "result": p.result, "gear_level": gl,
+			"hero_level": p.hero_level, "attempt": int(gs.stats.get(key, 1)), "turns": p.turns, "hp_lost": p.hp_lost, "auto_battle": p.auto_battle})
+	if not won: run.death_cause = ("boss:" if boss else "fight:") + ",".join(mobs.map(func(m): return String(m)))
 
 ## Milestone counters from one fight (DECISIONS #195): kills per mob, surprise attacks, potions drunk, and the feats.
 ## Feats need a won fight: a boss with no HP lost (Barrier soaking a hit is fine), a boss with no Auto Battle,
