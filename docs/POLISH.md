@@ -92,6 +92,7 @@ Priority: **P1** fix before a public build, **P2** next polish pass, **P3** nice
 | 67 | ~~Prison torch glow spilled into the black above the battle arena; City smoke read as dark squares in stills; battle hit flash lasted 0.18 s vs SPD's 0.05 s~~ **Done** (#186) | playtest 2026-10-17 | P3 | S |
 | 68 | ~~v0.44.0 phone: left-facing sprites drawn a cell right of their tile, delve hero stuck white, Piranha Pool piranha a broken blob, dim behind event windows~~ **Done** (#187) | user phone 2026-10-17 | P1 | S |
 | 69 | ~~Delve wall tops had a rim and a black band over every face; Suspicious Wall showed a drain and rubble; barricade sat under a door and didn't block the corridor; door bones~~ **Done** (#187) | user phone 2026-10-17 | P1 | S |
+| 70 | Defeat is only saved when OK is pressed: quitting the app on the Defeat window restores the run from before the fight. Minimal fix: when the hero dies, persist the defeat right away (end the run, or save a `pending_defeat` with the loss list that relaunch re-shows and then ends), then save | user phone 2026-10-17 | P1 | S |
 
 ## Code / docs hygiene (no player impact)
 | # | Item | Source | Pri | Effort |
