@@ -1,6 +1,8 @@
 # Changelog
 
 ## Unreleased
+
+## 0.46.0
 - Session length now reaches the gameplay data. The browser version sends `session_end` with `navigator.sendBeacon` when the tab is hidden or closed (it never got the engine's pause or close signal, and a normal request dies with the tab), Android also ends a session when the app loses focus, and a session end that can't be sent stays queued for the next launch (DECISIONS #204, +test).
 - Identifying at the Enchanter's Desk is no longer a long wait per item. As in SPD, a ring or wand type is learned once: the first Garnet Ring takes the Desk's timer and every other Garnet Ring finishes with it, and a type you already know identifies the moment it's queued (its name shows the type, e.g. "Ring of Might", until then). The timer is 3 / 2 / 1 min at Desk Lv1 / 2 / 3 (was 10 / 7 / 4), each level works on one more type at the same time (1 / 2 / 3), and any item with its own timer has a "Finish 45g" button (15 gold per minute left, at least 5). A queue of 7 Garnet + 2 Ruby Rings at Lv1 now takes 6 minutes instead of 90. Old queues carry over. Patrol curios also alternate Ring of Might and Ring of Tenacity again; a bug made every curio from one patrol the same ring (DECISIONS #203, +tests).
 - Reading a Scroll of Passage now asks first: a confirm with "Read" / "Cancel" from the delve Menu, an ambush card, and mid-fight, so a stray tap no longer burns it. Cancel leaves the scroll and spends no turn (DECISIONS #202, +test).
