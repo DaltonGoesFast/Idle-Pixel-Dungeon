@@ -116,6 +116,7 @@ func _ready() -> void:
 	test_verify_apk_java()
 	await test_touch_scroll()
 	await test_tip_fit()
+	await test_window_dim(gs)
 	await test_hero_window_wide(gs)
 	print("TESTS: %d passed, %d failed -> %s" % [passes, fails, "PASS" if fails == 0 else "FAIL"])
 	get_tree().quit(1 if fails else 0)
@@ -997,7 +998,7 @@ func test_sprite_draw(gs) -> void:
 	check(int(pm.fw) == 12 and int(pm.fh) == 16, "delve: the piranha uses SPD's 12x16 frames")
 	check(DelveScene.frame_rect(256, 12, 16, 1) == Rect2(12, 0, 12, 16) and DelveScene.frame_rect(256, 12, 16, 21) == Rect2(0, 16, 12, 16), "delve: piranha frame rects step 12 px and wrap after 21 frames")
 	var dsc = load("res://scripts/ui/delve_screen.gd").new(); dsc._build_window()
-	check(dsc.win_dim.color.a == 0.0 and dsc.win_dim.mouse_filter == Control.MOUSE_FILTER_STOP, "delve: no darkening behind an event window, but taps behind it are still blocked")
+	check(dsc.win_dim.color.a == 0.0 and dsc.win_dim.mouse_filter == Control.MOUSE_FILTER_STOP and dsc.panel_dim({"kind": "door"}) == 0.0, "delve: no darkening behind an event window, but taps behind it are still blocked")
 	dsc.free()
 	var dr := DelveScene.sprite_rect(16, 15, Vector2(100, 200), 4.0)
 	check(dr.size == Vector2(64, 60) and dr.get_center().x == 100.0 and dr.end.y == 200.0, "delve: a sprite is bottom-centred on its feet, flipped or not")
@@ -4057,4 +4058,51 @@ func test_hero_window_wide(gs) -> void:
 	gs.end_run("abandon")
 	main.queue_free()
 	win.size = old
+	await get_tree().process_frame
+
+
+## DECISIONS #194: only event and result windows leave the scene undimmed. The delve's own panels (Bag, Talents, Menu,
+## Settings, Abandon) dim it like before #187, the Defeat window and the combat Bag keep their dim, and every window
+## still blocks taps behind it.
+func test_window_dim(gs) -> void:
+	print("[window dim]")
+	gs.new_game(); gs.settings.tutorial = false; gs.add_mat("ration", 1); gs.add_mat("torch", 1)
+	gs.start_run("warrior", {"ration": 1, "torch": 1}, "sewers", 5)
+	gs.run.talent_prompted = true
+	var host := ToastHost.new()
+	var box := VBoxContainer.new(); host.toast_box = box; host.add_child(box)
+	var holder := Control.new(); holder.size = Vector2(968, 2376); add_child(holder)
+	holder.add_child(host)
+	var d = load("res://scripts/ui/delve_screen.gd").new(); d.main = host
+	holder.add_child(d); d.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT); d.size = holder.size
+	await get_tree().process_frame
+	var cases := [[{"kind": "backpack"}, true], [{"kind": "talents"}, true], [{"kind": "menu"}, true],
+		[{"kind": "settings"}, true], [{"kind": "confirm_abandon"}, true],
+		[Delve.combat_event(gs.run, Delve.rng_for(gs.run, 1), ["rat"]), false], [{"kind": "door", "door": DB.doors[0]}, false],
+		[{"kind": "special", "special": DB.specials[0]}, false], [{"kind": "floor_done"}, false], [{"kind": "campfire"}, false]]
+	for cs in cases:
+		d.pending = cs[0]; d._show_card()
+		var a: float = d.win_dim.color.a
+		check(d.win_layer.visible and d.win_dim.mouse_filter == Control.MOUSE_FILTER_STOP, "%s window blocks taps behind it" % cs[0].kind)
+		if cs[1]: check(a >= 0.3, "%s panel dims the scene (a=%.2f)" % [cs[0].kind, a])
+		else: check(a == 0.0, "%s event window keeps the scene undimmed (a=%.2f)" % [cs[0].kind, a])
+	# result windows: clear; the Defeat window keeps its dim
+	d.pending = {}; d._show_card()
+	d._open_summary("Open the chest", PackedStringArray(["+14 Gold"]), PackedStringArray())
+	var sh: ColorRect = d.find_child("SummaryShield", true, false)
+	check(sh != null and sh.color.a == 0.0 and sh.mouse_filter == Control.MOUSE_FILTER_STOP, "result window keeps the scene undimmed and blocks taps")
+	d._accept_summary()
+	d._open_summary("Defeat", PackedStringArray(), PackedStringArray(), Callable(), true)
+	sh = d.find_child("SummaryShield", true, false)
+	check(sh != null and sh.color.a > 0.3, "Defeat window still dims the scene")
+	d._summary_on = false
+	holder.queue_free()
+	# the combat Bag keeps its dim
+	var ev := Delve.combat_event(gs.run, Delve.rng_for(gs.run, 1), ["rat"])
+	var cb = load("res://scripts/ui/combat_screen.gd").new(); cb.setup(ev, func(_r): pass); add_child(cb); cb.size = Vector2(968, 2376)
+	cb.apply_layout(true, cb.size); cb.bag_open = true; cb._refresh()
+	var dims: Array = cb.bag_layer.get_children().filter(func(n): return n is ColorRect) if cb.bag_layer else []
+	check(not dims.is_empty() and dims[0].color.a >= 0.3, "combat Bag still dims the fight")
+	cb.bag_open = false; cb._refresh(); cb.queue_free()
+	gs.end_run("abandon")
 	await get_tree().process_frame

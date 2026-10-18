@@ -50,12 +50,21 @@ func _build_window() -> void:
 	win_layer = Control.new(); win_layer.name = "DelveWindow"; win_layer.z_index = 20
 	win_layer.set_anchors_and_offsets_preset(PRESET_FULL_RECT); win_layer.mouse_filter = MOUSE_FILTER_IGNORE
 	win_layer.visible = false; add_child(win_layer)
-	# a clear input shield (DECISIONS #187): taps behind an event window are still blocked, but the scene keeps its
-	# full brightness, so the room it describes stays readable
+	# an input shield (DECISIONS #187): taps behind a window are always blocked. Event windows keep the scene at full
+	# brightness so the room they describe stays readable; the delve's own panels dim it (panel_dim, DECISIONS #194)
 	win_dim = ColorRect.new(); win_dim.color = Color(0, 0, 0, 0.0); win_dim.mouse_filter = MOUSE_FILTER_STOP; win_layer.add_child(win_dim)
 	win_panel = PanelContainer.new(); win_layer.add_child(win_panel)
 	var sc := ScrollContainer.new(); sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED; win_panel.add_child(sc)
 	card_host = UIKit.vbox(sc); card_host.size_flags_horizontal = SIZE_EXPAND_FILL
+
+## The delve's own panels (Bag, Talents, Menu, Settings, Abandon) darken the scene behind them as they did before #187.
+## Only event and result windows (encounters, doors, special rooms, floor menu, campfire, results) keep the scene at
+## full brightness; taps behind any window are blocked either way (DECISIONS #194).
+const PANEL_KINDS := ["backpack", "talents", "menu", "settings", "confirm_abandon"]
+const PANEL_DIM := 0.35
+
+static func panel_dim(p: Dictionary) -> float:
+	return PANEL_DIM if String(p.get("kind", "")) in PANEL_KINDS else 0.0
 
 ## Fits the window to its contents, in the lower middle between the corridor and the toolbar. A tall window
 ## (bag, talents) grows up over the corridor, never over the status pane or the toolbar.
@@ -463,6 +472,7 @@ func _show_card() -> void:
 	_log_box = null
 	_haul_label = null
 	win_layer.visible = not pending.is_empty()
+	win_dim.color.a = panel_dim(pending)
 	# remember the open card in the save (an app kill must not skip an encounter, even one set aside)
 	if not GameState.run.is_empty():
 		var remembered := pending if _is_encounter(pending) else (_under if _is_encounter(_under) else {})
