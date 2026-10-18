@@ -4209,6 +4209,14 @@ func test_milestones(gs, ss) -> void:
 	check(int(mr.kill_ids.get("rat", 0)) == c.kills and mr.has("hp_lost") and mr.has("surprises"), "Combat.milestone_result lists kills per mob")
 	var c2 := Combat.new(); c2.from_dict(JSON.parse_string(JSON.stringify(c.to_dict())))
 	check(c2.milestone_result().kill_ids == mr.kill_ids and c2.hp_lost == c.hp_lost, "milestone fields survive a mid-fight save")
+	# a potion drunk before an app kill still voids Teetotaller after the resume (Bugbot on #88)
+	c.potions_drunk = 1
+	var c3 := Combat.new(); c3.from_dict(JSON.parse_string(JSON.stringify(c.to_dict())))
+	var dry0 := int(gs.stats.feat_dry_boss)
+	var rr := {"won": true, "hp": 20, "boss_killed": true, "kills": 1, "potions_used": 0}
+	rr.merge(c3.milestone_result())
+	Delve.record_fight_stats(gs, {"kind": "combat", "mobs": ["goo"]}, rr)
+	check(int(gs.stats.feat_dry_boss) == dry0, "a potion drunk before a resume still counts against Teetotaller")
 	# extraction banks gold and counts Heavy Pockets
 	gs.run.pack.gold = 320; gs.end_run("extract")
 	check(int(gs.stats.gold_banked) == 320 and int(gs.stats.feat_big_haul) == 1, "extraction banks gold and counts Heavy Pockets")

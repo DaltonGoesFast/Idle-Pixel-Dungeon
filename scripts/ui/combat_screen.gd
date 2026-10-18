@@ -330,6 +330,7 @@ func _use_passage() -> void:
 func _drink() -> void:
 	if potions - potions_used <= 0: return
 	potions_used += 1
+	combat.potions_drunk += 1   # saved with the fight, so a resume still knows (DECISIONS #195)
 	GameState.run.supplies.potion_healing = maxi(0, int(GameState.run.supplies.get("potion_healing", 0)) - 1)
 	_act(func(): combat.hero_heal(heal))
 

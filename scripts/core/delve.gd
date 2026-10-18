@@ -557,12 +557,14 @@ static func record_fight_stats(gs, ev: Dictionary, res: Dictionary) -> void:
 	var ids: Dictionary = res.get("kill_ids", {})
 	for mob in ids: gs.add_stat("kill_" + String(mob), int(ids[mob]))
 	gs.add_stat("surprises", int(res.get("surprises", 0)))
-	gs.add_stat("potions_drunk", int(res.get("potions_used", 0)))
+	# potions_fight comes from the Combat state, so it survives an app kill mid-fight; potions_used is the screen's own count
+	var pots := int(res.get("potions_fight", res.get("potions_used", 0)))
+	gs.add_stat("potions_drunk", pots)
 	if not res.get("won", false): return
 	if res.get("boss_killed", false):
 		if res.has("hp_lost") and int(res.hp_lost) <= 0: gs.add_stat("feat_flawless_boss", 1)
 		if res.has("auto_used") and not res.auto_used: gs.add_stat("feat_manual_boss", 1)
-		if int(res.get("potions_used", 0)) == 0: gs.add_stat("feat_dry_boss", 1)
+		if pots == 0: gs.add_stat("feat_dry_boss", 1)
 	var ht: int = int(gs.hero_stats(gs.run.hero).ht) if not gs.run.is_empty() else 0
 	if ht > 0 and int(res.hp) > 0 and float(res.hp) <= ht * CLOSE_CALL_HP: gs.add_stat("feat_close_call", 1)
 	if int(res.get("kills", 0)) >= CROWD_KILLS: gs.add_stat("feat_crowd", 1)

@@ -51,7 +51,7 @@ static func play(gs, hero: String, loadout: Dictionary, seed: int, deep := false
 		var r := CombatBot.play(c, pots, gs.potion_heal(hero))
 		run.supplies.potion_healing = pots - int(r.potions_used)
 		var res := {"won": c.won, "hp": c.hero.hp, "loot": c.loot, "fallen_loot": c.fallen_loot, "xp": c.xp, "boss_killed": c.boss_killed, "kills": c.kills, "traps_found": c.traps_found, "trap_ids": c.trap_ids_seen}
-		c.auto_used = true; res.merge(c.milestone_result()); res.potions_used = int(r.potions_used)
+		c.auto_used = true; c.potions_drunk = int(r.potions_used); res.merge(c.milestone_result()); res.potions_used = int(r.potions_used)
 		if not res.won and OS.has_environment("SIM_DEBUG"):  # SIM_DEBUG=1 godot ... run_tests.tscn: explain every death
 			print("    died f%d L%d vs %s hp_in=%d torch=%d sat=%d pots=%d" % [run.floor, gs.heroes[hero].level, ev.mobs, int(run.hp), int(run.torch), int(run.satiety), pots])
 			if OS.get_environment("SIM_DEBUG") == "2": print("      ", "\n      ".join(c.log_lines.slice(-30)))
