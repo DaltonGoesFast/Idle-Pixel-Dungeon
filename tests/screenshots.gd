@@ -193,6 +193,13 @@ func _ready() -> void:
 				Delve.reward(GameState, {"item": "mace"}); Delve.reward(GameState, {"item": "mail_armor"}); Delve.reward(GameState, {"item_unknown": "ring"})
 				GameState.run.pack["potion_toxic"] = 1; GameState.run.pack["scroll_upgrade"] = 1
 			main.show_delve(); main.delve._open_panel("backpack")])
+		# v0.44.1 phone report (Fold inner): the Rogue's artifact slot with a pack swap must not squeeze into a sliver
+		plan.append([sz, "hero_swap_delve", func():
+			_rogue_swap_run(); Paperdoll.sel_slot = "artifact"
+			main.show_delve(); main.delve._open_panel("backpack"); _scroll_to_doll.call_deferred()])
+		plan.append([sz, "hero_swap_camp", func():
+			GameState.end_run("abandon"); _rogue_swap_camp(); Paperdoll.sel_slot = "artifact"
+			main.show_camp(); main.screen.chosen_hero = "rogue"; main.screen.open_page("Heroes")])
 		plan.append([sz, "talents", func():
 			GameState.heroes.warrior.level = 9; GameState.heroes.warrior.talents = ["hearty_meal"]
 			main.show_delve(); main.delve._open_panel("talents")])
@@ -348,3 +355,21 @@ func _fresh_warrior_run() -> void:
 	if GameState.run.is_empty():
 		for k in ["ration", "torch", "potion_healing"]: GameState.add_mat(k, 1)
 		GameState.start_run("warrior", {"ration": 1, "torch": 1, "potion_healing": 1}, "sewers", 5)
+
+
+## A Lv10 Rogue on Prison 10 wearing the Cape of Thorns, with a Horn of Plenty in the pack (the phone report).
+func _rogue_swap_run() -> void:
+	GameState.run = {}; _rogue_swap_camp()
+	GameState.start_run("rogue", {}, "prison", 10)
+	GameState.run.pack_gear.append({"uid": 9300, "id": "horn_plenty", "lvl": 0, "cracked": false, "known": true, "owned": false})
+
+func _rogue_swap_camp() -> void:
+	var h: Dictionary = GameState.heroes.rogue
+	h.unlocked = true; h.level = 10
+	if int(h.get("artifact", 0)) == 0: GameState.equip("rogue", GameState.add_gear("cape_thorns", true, 2))
+	if not GameState.gear.any(func(g): return g.id == "horn_plenty" and GameState.equipped_by(g.uid) == ""): GameState.add_gear("horn_plenty")
+	if not GameState.gear.any(func(g): return g.id == "chalice_blood"): GameState.equip("warrior", GameState.add_gear("chalice_blood", true, 1))
+
+func _scroll_to_doll() -> void:
+	var pd = main.delve.card_host.find_child("Paperdoll", true, false)
+	if pd: (main.delve.card_host.get_parent() as ScrollContainer).scroll_vertical = int(pd.position.y)
