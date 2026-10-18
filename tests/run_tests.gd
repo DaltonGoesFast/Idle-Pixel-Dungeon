@@ -96,6 +96,7 @@ func _ready() -> void:
 	test_item_badges(gs)
 	test_equipped_owner_marks(gs)
 	test_gear_ownership(gs)
+	test_staff_empty_warning(gs)
 	test_owner_plate_fit(gs)
 	test_forge_bulk(gs)
 	test_break_rings(gs)
@@ -1810,6 +1811,42 @@ func test_gear_ownership(gs) -> void:
 	gs.heroes.mage.patrol = {}
 	acts = cs.gear_actions(gs.gear_by_uid(rr))
 	check(String(acts[0][2]) == "" and String(acts[1][2]) == "", "back from patrol, both actions are open")
+	cs.queue_free()
+	UIKit.make_theme(fs0)
+
+## DECISIONS #193: a Mage whose staff wand was unequipped at Camp is told she has no Bolt, in the Expedition
+## window and on the Stats panel; both go away once a wand is imbued again.
+func test_staff_empty_warning(gs) -> void:
+	print("[staff empty warning]")
+	gs.new_game()
+	for c in gs.heroes: gs.heroes[c].unlocked = true
+	var fs0 := UIKit.font_size
+	UIKit.make_theme(20)
+	var cs = load("res://scripts/ui/camp_screen.gd").new(); add_child(cs)
+	cs.chosen_hero = "mage"; cs.open_page("Delve")
+	check(not gs.staff_empty("mage") and cs.win_layer.find_child("NoWandWarn", true, false) == null, "a Mage with her wand: no warning")
+	check(gs.unequip("mage", "staff") and gs.staff_empty("mage"), "the staff's wand comes out")
+	cs.open_page("Delve")
+	var nw = cs.win_layer.find_child("NoWandWarn", true, false)
+	check(nw != null and String(nw.text).contains("no Bolt"), "the Expedition window warns about the empty Staff")
+	check(not gs.staff_empty("warrior") and not gs.staff_empty("huntress"), "only bolt casters can have an empty staff")
+	cs.chosen_hero = "warrior"; cs.open_page("Delve")
+	check(cs.win_layer.find_child("NoWandWarn", true, false) == null, "no warning for the Warrior")
+	var host := VBoxContainer.new(); add_child(host)
+	Paperdoll.build(host, "mage", true, "camp", func(): pass)
+	var nb = host.find_child("NoBolt", true, false)
+	check(nb != null and String(nb.text).begins_with("Bolt: none"), "the Mage's Stats panel says Bolt: none")
+	host.free()
+	var wu := 0
+	for g in gs.gear:
+		if DB.item(g.id).type == "wand": wu = int(g.uid)
+	check(gs.imbue_wand(wu) and not gs.staff_empty("mage"), "imbued again")
+	cs.chosen_hero = "mage"; cs.open_page("Delve")
+	check(cs.win_layer.find_child("NoWandWarn", true, false) == null, "the warning is gone once the Staff holds a wand")
+	host = VBoxContainer.new(); add_child(host)
+	Paperdoll.build(host, "mage", true, "camp", func(): pass)
+	check(host.find_child("NoBolt", true, false) == null, "and the Stats panel shows the bolt again")
+	host.free()
 	cs.queue_free()
 	UIKit.make_theme(fs0)
 
