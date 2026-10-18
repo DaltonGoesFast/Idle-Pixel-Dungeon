@@ -88,6 +88,7 @@ func _ready() -> void:
 	test_owed_sou(gs)
 	await test_icon_sizes(gs)
 	test_full_auto(gs)
+	test_passage_confirm(gs)
 	test_encounter_dismiss(gs)
 	await test_encounter_summary(gs)
 	await test_info_fit_out_of_tree(gs)
@@ -2016,9 +2017,83 @@ func test_full_auto(gs) -> void:
 	var pbtn: Button = _find_btn(cs_low.buttons, "Scroll of Passage")
 	check(pbtn != null, "Scroll of Passage button remains ready in combat after Auto Battle stops")
 	var gold_before: int = gs.mat("gold")
+	var time_before: float = cs_low.combat.time
 	pbtn.pressed.emit()
-	check(gs.run.is_empty() and gs.last_result == "extract" and gs.mat("iron_ore") == 7 and gs.mat("gold") >= gold_before + 25 and gs.mat("scroll_passage") == 0, "using Scroll of Passage in combat extracts and banks the pack")
+	check(cs_low.passage_confirm and cs_low.passage_layer != null and not gs.run.is_empty(), "combat Passage opens a confirm and does not extract yet")
+	check(int(gs.run.supplies.get("scroll_passage", 0)) == 1, "confirm keeps the scroll until Read")
+	var cancel: Button = _find_btn(cs_low.passage_layer, "Cancel")
+	check(cancel != null, "combat Passage confirm has Cancel")
+	cancel.pressed.emit()
+	check(not cs_low.passage_confirm and int(gs.run.supplies.get("scroll_passage", 0)) == 1 and is_equal_approx(cs_low.combat.time, time_before), "Cancel keeps the scroll and spends no turn")
+	pbtn = _find_btn(cs_low.buttons, "Scroll of Passage")
+	pbtn.pressed.emit()
+	var read: Button = _find_btn(cs_low.passage_layer, "Read")
+	check(read != null, "combat Passage confirm has Read")
+	read.pressed.emit()
+	check(gs.run.is_empty() and gs.last_result == "extract" and gs.mat("iron_ore") == 7 and gs.mat("gold") >= gold_before + 25 and gs.mat("scroll_passage") == 0, "Read on combat Passage extracts and banks the pack")
 	cs_low.queue_free()
+
+## DECISIONS #202: Scroll of Passage asks Read/Cancel from the Menu, an ambush card, and mid-fight.
+## Cancel keeps the scroll and spends no turn; Read extracts and banks the pack.
+func test_passage_confirm(gs) -> void:
+	print("[passage confirm]")
+	gs.new_game(); gs.settings.tutorial = false; gs.add_mat("ration", 1); gs.add_mat("torch", 1); gs.add_mat("scroll_passage", 2)
+	gs.start_run("warrior", {"ration": 1, "torch": 1, "scroll_passage": 1}, "sewers", 5)
+	gs.run.talent_prompted = true
+	gs.run.pack["gold"] = 12
+	var d = load("res://scripts/ui/delve_screen.gd").new()
+	add_child(d)
+	# Menu path
+	d._open_panel("menu")
+	var pbtn: Button = _find_btn(d.card_host, "Read Scroll of Passage (extract)")
+	check(pbtn != null, "Menu offers Scroll of Passage when carried")
+	pbtn.pressed.emit()
+	check(d.pending.get("kind", "") == "confirm_passage", "Menu Passage opens the confirm card")
+	check(_find_btn(d.card_host, "Read") != null and _find_btn(d.card_host, "Cancel") != null, "confirm has Read and Cancel")
+	var title_ok := false
+	for n in d.card_host.find_children("*", "Label", true, false):
+		if n.text == "Scroll of Passage": title_ok = true; break
+	check(title_ok, "confirm title is Scroll of Passage")
+	var body_ok := false
+	for n in d.card_host.find_children("*", "Label", true, false):
+		if n.text == Delve.passage_text(): body_ok = true; break
+	check(body_ok, "confirm body explains the extract")
+	_find_btn(d.card_host, "Cancel").pressed.emit()
+	check(int(gs.run.supplies.get("scroll_passage", 0)) == 1 and not gs.run.is_empty(), "Cancel from Menu confirm keeps the scroll")
+	# Ambush card path
+	var fight := Delve.combat_event(gs.run, Delve.rng_for(gs.run, 1), ["rat"])
+	d.pending = fight; d._under = {}; d._show_card()
+	pbtn = _find_btn(d.card_host, "Read Scroll of Passage (extract)")
+	check(pbtn != null, "ambush card offers Scroll of Passage")
+	pbtn.pressed.emit()
+	check(d.pending.get("kind", "") == "confirm_passage" and d._under.get("kind", "") == "combat", "ambush Passage confirm keeps the fight under it")
+	_find_btn(d.card_host, "Cancel").pressed.emit()
+	check(d.pending.get("kind", "") == "combat" and int(gs.run.supplies.get("scroll_passage", 0)) == 1, "Cancel from ambush confirm returns to the fight with the scroll")
+	# Read extracts
+	d._confirm_passage()
+	var gold_before: int = gs.mat("gold")
+	_find_btn(d.card_host, "Read").pressed.emit()
+	check(gs.run.is_empty() and gs.last_result == "extract" and gs.mat("gold") >= gold_before + 12 and gs.mat("scroll_passage") == 1, "Read extracts, banks the pack, and consumes one Passage")
+	d.queue_free()
+	# Mid-fight path (toolbar)
+	gs.start_run("warrior", {"ration": 1, "torch": 1, "scroll_passage": 1}, "sewers", 5)
+	gs.run.talent_prompted = true
+	gs.run.pack["iron_ore"] = 3
+	fight = Delve.combat_event(gs.run, Delve.rng_for(gs.run, 2), ["rat"])
+	var cs = load("res://scripts/ui/combat_screen.gd").new()
+	cs.setup(fight, func(_r): pass)
+	add_child(cs)
+	cs.apply_layout(true, Vector2(484, 1188))
+	var time0: float = cs.combat.time
+	_find_btn(cs.buttons, "Scroll of Passage").pressed.emit()
+	check(cs.passage_confirm and _find_btn(cs.passage_layer, "Cancel") != null, "combat toolbar Passage opens confirm")
+	_find_btn(cs.passage_layer, "Cancel").pressed.emit()
+	check(not cs.passage_confirm and int(gs.run.supplies.get("scroll_passage", 0)) == 1 and is_equal_approx(cs.combat.time, time0), "combat Cancel keeps scroll and spends no turn")
+	_find_btn(cs.buttons, "Scroll of Passage").pressed.emit()
+	var ore_before: int = gs.mat("iron_ore")
+	_find_btn(cs.passage_layer, "Read").pressed.emit()
+	check(gs.run.is_empty() and gs.last_result == "extract" and gs.mat("iron_ore") == ore_before + 3, "combat Read extracts and banks the pack")
+	cs.queue_free()
 
 ## Closing an encounter card sets it aside so the bag and settings work; the bar cannot skip it.
 func test_encounter_dismiss(gs) -> void:
@@ -4095,7 +4170,7 @@ func test_hero_window_wide(gs) -> void:
 
 
 ## DECISIONS #194: only event and result windows leave the scene undimmed. The delve's own panels (Bag, Talents, Menu,
-## Settings, Abandon) dim it like before #187, the Defeat window and the combat Bag keep their dim, and every window
+## Settings, Abandon, Passage confirm) dim it like before #187, the Defeat window and the combat Bag keep their dim, and every window
 ## still blocks taps behind it.
 func test_window_dim(gs) -> void:
 	print("[window dim]")
@@ -4110,7 +4185,7 @@ func test_window_dim(gs) -> void:
 	holder.add_child(d); d.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT); d.size = holder.size
 	await get_tree().process_frame
 	var cases := [[{"kind": "backpack"}, true], [{"kind": "talents"}, true], [{"kind": "menu"}, true],
-		[{"kind": "settings"}, true], [{"kind": "confirm_abandon"}, true],
+		[{"kind": "settings"}, true], [{"kind": "confirm_abandon"}, true], [{"kind": "confirm_passage"}, true],
 		[Delve.combat_event(gs.run, Delve.rng_for(gs.run, 1), ["rat"]), false], [{"kind": "door", "door": DB.doors[0]}, false],
 		[{"kind": "special", "special": DB.specials[0]}, false], [{"kind": "floor_done"}, false], [{"kind": "campfire"}, false]]
 	for cs in cases:

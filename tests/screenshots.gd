@@ -208,6 +208,11 @@ func _ready() -> void:
 			_fresh_warrior_run(); main.show_delve(); _clear_pops()
 			GameState.run.supplies["scroll_passage"] = 1
 			main.delve.pending = {}; main.delve._open_panel("menu")])
+		# DECISIONS #202: Scroll of Passage Read/Cancel confirm (phone portrait is the cover size)
+		plan.append([sz, "passage_confirm", func():
+			_fresh_warrior_run(); main.show_delve(); _clear_pops()
+			GameState.run.supplies["scroll_passage"] = 1
+			main.delve.pending = {}; main.delve._confirm_passage()])
 		plan.append([sz, "delve_low_hp", func():
 			_fresh_warrior_run(); main.show_delve(); _clear_pops()
 			main.delve.pending = {}; main.delve.running = false

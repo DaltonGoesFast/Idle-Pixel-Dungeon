@@ -605,6 +605,10 @@ static func scroll_passage_count(gs) -> int:
 	if gs.run.is_empty(): return 0
 	return int(gs.run.get("supplies", {}).get("scroll_passage", 0)) + int(gs.run.get("pack", {}).get("scroll_passage", 0))
 
+## Confirm body for reading a Scroll of Passage (DECISIONS #202).
+static func passage_text() -> String:
+	return "This returns you to Camp and banks everything in your pack."
+
 ## Consume a Scroll of Passage and extract to Camp (works from the delve bar, an encounter card, or mid-fight).
 static func use_scroll_passage(gs) -> bool:
 	if scroll_passage_count(gs) <= 0: return false
