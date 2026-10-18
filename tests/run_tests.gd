@@ -3010,6 +3010,9 @@ func test_patrol_perks(gs) -> void:
 	gs.from_dict(old)
 	y = gs.patrol_preview("warrior")
 	check(is_equal_approx(float(y._hours), 2.0) and int(y.gold) == int(base.gold), "old-save patrol works out like before (%s)" % y)
+	var ou: int = gs.add_gear("timekeepers_hourglass", true, 0); gs.heroes.warrior.artifact = ou
+	check(is_equal_approx(float(gs.patrol_preview("warrior")._hours), 3.0), "an old-save patrol gets the Hourglass hours too")
+	gs.heroes.warrior.artifact = 0
 	var gold_b: int = gs.mat("gold")
 	gs.collect_patrol("warrior")
 	check(gs.mat("gold") == gold_b + int(base.gold) and gs.heroes.warrior.patrol.is_empty(), "old-save patrol collects")

@@ -1261,7 +1261,7 @@ func patrol_preview(c: String) -> Dictionary:
 	var b: Dictionary = DB.biomes[p.biome]
 	var snap := int(p.get("v", 1)) >= 2
 	var fx: Dictionary = p.get("fx", {}) if snap else patrol_perks(c).fx
-	var max_h := float(p.get("max_h", patrol_max_hours())) if snap else patrol_max_hours()
+	var max_h := float(p.get("max_h", patrol_max_hours(c))) if snap else patrol_max_hours(c)
 	var eff := float(p.get("eff", 1.0)) if snap else patrol_efficiency(c, p.biome)
 	var gm := float(p.get("gear_mult", 1.0)) if snap else patrol_gear_mult(c)
 	var hours := clampf((now() - float(p.start)) / 3600.0, 0.0, max_h)
