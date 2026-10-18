@@ -1941,6 +1941,20 @@ func test_encounter_summary(gs) -> void:
 	var bar := list.get_v_scroll_bar()
 	check(bar.max_value <= bar.page + 1.0, "a short summary fits without a scrollbar")
 	scr._accept_summary()
+	# v0.44.0 phone softlock: a long defeat list grew the window past the screen and hid OK (DECISIONS #187)
+	var old_root := get_tree().root.size; var old_sz: Vector2 = scr.size
+	get_tree().root.size = Vector2i(968, 2376); scr.size = Vector2(968, 2376)
+	var long_lost := PackedStringArray()
+	for i in 34: long_lost.append("Ring of Item %d cracks" % i)
+	scr._open_summary("Defeat", PackedStringArray(), long_lost, Callable(), true, "Unused supplies return to the stash. Scrolls of Upgrade return on the next boss kill.")
+	for i in 4: await get_tree().process_frame
+	var okb: Control = scr.get_node("EncounterSummary").find_child("SummaryOK", true, false)
+	var okr := okb.get_global_rect()
+	check(Rect2(0, 0, 968, 2376).encloses(okr) and okr.size.y > 0.0, "a 34-line defeat list keeps OK inside the 968x2376 phone screen (OK at %s)" % okr)
+	var llist: ScrollContainer = scr.get_node("EncounterSummary").find_child("SummaryList", true, false)
+	check(llist.get_v_scroll_bar().max_value > llist.get_v_scroll_bar().page, "the long loss list scrolls instead")
+	scr._accept_summary()
+	get_tree().root.size = old_root; scr.size = old_sz
 	gs.settings.full_auto = true
 	scr._open_summary("Free cache", PackedStringArray(), PackedStringArray())
 	scr._process(2.0)

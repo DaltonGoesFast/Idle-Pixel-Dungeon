@@ -182,6 +182,11 @@ func _ready() -> void:
 			for e in cb.enemies():
 				if cb.can_bolt(e.pos): main.screen._act(func(): cb.hero_bolt(e.pos)); break])
 		plan.append([sz, "mage_bolt_late", func(): pass])
+		plan.append([sz, "defeat_long", func():   # v0.44.0 phone softlock: a 30+ line defeat list must keep OK on screen
+			_fresh_warrior_run(); main.show_delve(); _clear_pops(); main.delve.running = false
+			var lost := PackedStringArray()
+			for i in 34: lost.append("Ring of Item %d cracks" % i)
+			main.delve._open_summary("Defeat", PackedStringArray(), lost, Callable(), true, "Unused supplies return to the stash. Scrolls of Upgrade return on the next boss kill.")])
 		plan.append([sz, "combat", func():
 			main.start_combat(Delve.combat_event(GameState.run, Delve.rng_for(GameState.run, 3), ["gnoll", "crab"]), func(_r): pass)
 			for i in 3: main.screen._do_bot()])
