@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Closing or reloading the game while an encounter window is open (an Ambush, a boss, a door or a special room, even one set aside with Close) no longer skips it: the window is back after the restart and the Delve Bar waits for it. Before, a reload let the bar walk past the encounter (DECISIONS #205, +test).
 
 ## 0.46.0
 - Session length now reaches the gameplay data. The browser version sends `session_end` with `navigator.sendBeacon` when the tab is hidden or closed (it never got the engine's pause or close signal, and a normal request dies with the tab), Android also ends a session when the app loses focus, and a session end that can't be sent stays queued for the next launch (DECISIONS #204, +test).
