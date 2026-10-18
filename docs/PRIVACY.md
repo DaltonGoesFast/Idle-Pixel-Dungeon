@@ -22,6 +22,8 @@ Events are sent over HTTPS to [PostHog](https://posthog.com) (US cloud, `us.i.po
 analytics service the developer uses. Like any web request, PostHog receives your IP address in
 transit; the game asks it not to derive a location from it. While offline, events wait in a small
 local file (`user://telemetry_queue.json`, at most 1000 events) and are sent later.
+Only the released game sends: copies run from the source code, automated tests and automated
+browsers (`navigator.webdriver`) send nothing.
 
 ## Every property sent
 Each event carries: `version` (game version), `platform` (android / windows / web), `class` (the hero

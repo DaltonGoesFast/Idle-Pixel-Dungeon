@@ -5,7 +5,8 @@
 ## - Config: data/telemetry.json {api_key, host}. Empty api_key = no-op (debug builds print events instead).
 ## - Never blocks or breaks play: one HTTPRequest at a time, errors only back off, events queue to a capped
 ##   file (user://telemetry_queue.json, IndexedDB on the web build) and go out on a later flush.
-## - Off in tests, the sims and any headless run (`suppressed`), so balance runs never send anything.
+## - Off in tests, the sims, any headless run, any run from source (the editor binary: dev sessions, the playtest
+##   harness under xvfb) and automated or headless browsers on the web build (`suppressed`, DECISIONS #198).
 extends Node
 
 const CONFIG_PATH := "res://data/telemetry.json"
@@ -32,7 +33,8 @@ var privacy_url := DEFAULT_PRIVACY_URL
 var distinct_id := ""
 var session_id := ""
 var notice_seen := false
-var suppressed := false          # tests / sims / headless: nothing is queued, nothing is sent
+var suppressed := false          # tests / sims / headless / source / bot browsers: nothing is queued, nothing is sent
+var suppressed_by := ""          # suppress_reason() at launch ("" = a player's game)
 var queue: Array = []
 var dropped := 0                 # events refused by the rate limit or the queue cap this session
 var sent_ok := 0
@@ -60,7 +62,8 @@ var _scene_checked := false
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	suppressed = is_test_run()
+	suppressed_by = suppress_reason()
+	suppressed = suppressed_by != ""
 	load_config()
 	_load_identity()
 	_load_queue()
@@ -72,17 +75,45 @@ func _ready() -> void:
 	_new_session()
 	track("app_open", {"returning": notice_seen, "queued": queue.size()})
 
-## Tests, sims and headless runs (CI, balance sims, playtest harness) never collect anything.
+## Tests, sims, headless runs, runs from source and automated browsers never collect anything.
 static func is_test_run() -> bool:
-	if DisplayServer.get_name() == "headless": return true
-	if OS.has_environment("SPD_NO_TELEMETRY"): return true
+	return suppress_reason() != ""
+
+## Why this run must not collect ("" = a player's exported game). DECISIONS #197/#198: only exported builds (APK, EXE,
+## the GitHub Pages build) in a real browser or on a real device send. Runs from source use the editor binary (the
+## developer's own sessions, the playtest harness and its probes under xvfb, which aren't headless and don't live
+## in res://tests/), and an automated browser (navigator.webdriver) is a check of the web build, not a player.
+## SPD_TELEMETRY_FROM_SOURCE=1 lets a deliberate check from the editor send (never headless or tests).
+static func suppress_reason() -> String:
+	var tests := false
 	for a in OS.get_cmdline_args():
-		if String(a).ends_with(".tscn") and String(a).contains("tests/"): return true
+		if String(a).ends_with(".tscn") and String(a).contains("tests/"): tests = true
 	var ml := Engine.get_main_loop()
 	if ml is SceneTree:
 		var cs: Node = (ml as SceneTree).current_scene
-		if cs != null and cs.scene_file_path.begins_with("res://tests/"): return true
-	return false
+		if cs != null and cs.scene_file_path.begins_with("res://tests/"): tests = true
+	var bot := false
+	if OS.has_feature("web"):
+		# Only navigator.webdriver (Playwright/Puppeteer/Selenium). Do not key on user-agent strings —
+		# real browsers set those, and HeadlessChrome alone must not suppress a player's export.
+		var wd = JavaScriptBridge.eval("navigator.webdriver === true", true)
+		bot = automated_browser(typeof(wd) == TYPE_BOOL and wd)
+	return classify(OS.has_environment("SPD_NO_TELEMETRY"), DisplayServer.get_name() == "headless", tests,
+		OS.has_feature("editor"), OS.has_environment("SPD_TELEMETRY_FROM_SOURCE"), bot)
+
+## The decision itself, from plain facts about the run (so tests can cover every case).
+static func classify(env_off: bool, headless: bool, tests: bool, from_source: bool, source_allowed: bool, automated: bool) -> String:
+	if env_off: return "env"
+	if headless: return "headless"
+	if tests: return "tests"
+	if from_source and not source_allowed: return "source"
+	if automated: return "automated_browser"
+	return ""
+
+## A browser driven by a test tool (Playwright, Puppeteer, Selenium set navigator.webdriver).
+## User-agent strings are ignored: real players' browsers set them, and must still send.
+static func automated_browser(webdriver: bool) -> bool:
+	return webdriver
 
 func load_config(path := CONFIG_PATH) -> void:
 	api_key = ""; host = DEFAULT_HOST; privacy_url = DEFAULT_PRIVACY_URL
@@ -245,7 +276,7 @@ func track(event: String, props := {}) -> void:
 		var cs := get_tree().current_scene if is_inside_tree() else null
 		if cs != null:
 			_scene_checked = true
-			if cs.scene_file_path.begins_with("res://tests/"): suppressed = true; queue = []; return
+			if cs.scene_file_path.begins_with("res://tests/"): suppressed = true; suppressed_by = "tests"; queue = []; return
 	var e := build_event(event, props)
 	if api_key == "":
 		if OS.is_debug_build(): print("[telemetry] ", JSON.stringify(e.properties.merged({"event": event})))
