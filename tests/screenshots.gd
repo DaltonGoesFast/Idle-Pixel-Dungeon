@@ -212,7 +212,11 @@ func _ready() -> void:
 		plan.append([sz, "mage_ambush", func():
 			GameState.end_run("abandon")
 			for c in GameState.heroes: GameState.heroes[c].unlocked = true
-			GameState.start_run("mage", {}, "sewers", 1); main.show_delve(); _clear_pops(); main.delve.running = false
+			# camp_guild_patrols (#188) leaves the Mage out on patrol, and a hero on patrol can't start a run: without
+			# this start_run failed, these four shots showed an empty delve and logged 24 SCRIPT ERRORs
+			GameState.heroes.mage.patrol = {}
+			if not GameState.start_run("mage", {}, "sewers", 1): push_error("mage_ambush: start_run failed: " + GameState.can_start_run("mage"))
+			main.show_delve(); _clear_pops(); main.delve.running = false
 			main.delve.pending = Delve.combat_event(GameState.run, Delve.rng_for(GameState.run, 4), ["rat", "rat"]); main.delve._show_card()])
 		plan.append([sz, "mage_ambush_late", func(): pass])   # the same scene ~0.2 s later (foes arrived, lunging)
 		plan.append([sz, "mage_bolt", func():
@@ -226,6 +230,9 @@ func _ready() -> void:
 			var lost := PackedStringArray()
 			for i in 34: lost.append("Ring of Item %d cracks" % i)
 			main.delve._open_summary("Defeat", PackedStringArray(), lost, Callable(), true, "Unused supplies return to the stash. Scrolls of Upgrade return on the next boss kill.")])
+		plan.append([sz, "event_result", func():   # an event's result window: no dim behind it, like the event card (DECISIONS #191)
+			main.delve._accept_summary()
+			main.delve._open_summary("Open the chest", PackedStringArray(["+14 Gold", "Potion of Healing"]), PackedStringArray(["-1 Iron Key"]))])
 		plan.append([sz, "combat", func():
 			main.start_combat(Delve.combat_event(GameState.run, Delve.rng_for(GameState.run, 3), ["gnoll", "crab"]), func(_r): pass)
 			for i in 3: main.screen._do_bot()])
