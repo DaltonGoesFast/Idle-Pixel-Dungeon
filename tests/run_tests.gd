@@ -2169,6 +2169,23 @@ func test_encounter_summary(gs) -> void:
 	check(scr._summary_open(), "a defeat stays up until OK, even with auto battle off")
 	scr._accept_summary()
 	check(gs.run.is_empty() and gs.last_result == "death", "OK after a defeat ends the expedition")
+	# POLISH #70: the defeat is saved as soon as the window opens, so quitting on it can't bring the run back
+	gs.start_run("warrior", {}, "sewers", 5); gs.run.talent_prompted = true; gs.run.pack = {"gold": 4}; gs.run.hp = 10
+	var deaths0 := int(gs.stats.deaths)
+	scr._after_fight({"kind": "combat", "mobs": ["rat"]}, {"won": false, "hp": 0, "loot": 0, "fallen_loot": 0, "xp": 0, "boss_killed": false, "kills": 0, "traps_found": 0, "trap_ids": [], "potions_used": 0}, {})
+	var saved = JSON.parse_string(FileAccess.get_file_as_string(SaveSystem.path))
+	var srun: Dictionary = saved.get("state", {}).get("run", {}) if saved is Dictionary else {}
+	check(srun.has("pending_defeat") and str(srun.pending_defeat.get("lost", [])).contains("-4 Gold"), "a defeat is in the save before OK is pressed")
+	scr._summary_on = false; scr._summary_ok = Callable()   # the app is killed with the Defeat window up
+	if is_instance_valid(scr._summary_layer): scr._summary_layer.free()
+	check(SaveSystem.load_game() and gs.run.has("pending_defeat"), "relaunch loads the pending defeat")
+	var host := ToastHost.new(); add_child(host); scr.main = host
+	scr.on_shown()   # what main.gd does on launch with a run in the save
+	scr.main = null; host.queue_free()
+	txt = _node_text(scr.get_node("EncounterSummary"))
+	check(scr._summary_open() and txt.contains("Defeat") and txt.contains("-10 HP") and txt.contains("-4 Gold"), "relaunch re-shows the Defeat window with the same losses")
+	scr._accept_summary()
+	check(gs.run.is_empty() and gs.last_result == "death" and int(gs.stats.deaths) == deaths0 + 1, "OK on the re-shown Defeat ends the run once")
 	scr.queue_free()
 
 ## Camp item windows fit themselves one frame later. If the Camp screen leaves the tree first (a delve starts in the

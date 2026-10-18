@@ -2,6 +2,7 @@
 
 ## Unreleased
 - Milestones are now 80 SPD-style badges across ten categories (Delving, Bosses with per-hero Goo and Tengu kills, Monsters by type, Wealth, Crafting, Items, Patrols, Camp, Heroes and Feats like Untouchable or By Hand), each with its SPD badge icon and "37 / 50" progress in the Journal's new Milestones tab. Rewards are no longer handed out automatically: a reached milestone waits for a Claim tap (Claim all when two or more are ready), and the Journal button shows how many are waiting. Old saves keep everything already paid, and anything they've already earned under the new list becomes claimable. Rewards stay small (mostly materials; all 80 together give 555 gold) (DECISIONS #195, +tests).
+- Closing the app on the Defeat window no longer brings the run back from before the fight. The defeat is saved as soon as the window opens, and it shows again on the next launch (DECISIONS #190, POLISH #70, +test).
 
 ## 0.44.2
 - The delve's own panels darken the scene behind them again, as they did before v0.44.1: the Bag, Talents, Menu, Settings and the Abandon prompt (DECISIONS #194). Only event and result windows (encounters, doors, special rooms, the floor menu, the campfire and their results) leave the scene at full brightness. The combat Bag, Camp windows, tips and the Defeat window keep their dim (+test).
