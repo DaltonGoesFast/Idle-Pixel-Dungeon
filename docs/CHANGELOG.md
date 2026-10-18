@@ -1,6 +1,8 @@
 # Changelog
 
 ## Unreleased
+
+## 0.44.2
 - The delve's own panels darken the scene behind them again, as they did before v0.44.1: the Bag, Talents, Menu, Settings and the Abandon prompt (DECISIONS #194). Only event and result windows (encounters, doors, special rooms, the floor menu, the campfire and their results) leave the scene at full brightness. The combat Bag, Camp windows, tips and the Defeat window keep their dim (+test).
 - After taking the wand out of the Mage's Staff, the Expedition window warns that she has no Bolt, and her Stats panel shows "Bolt: none" until a wand is imbued again (DECISIONS #193, +test).
 - The hero window no longer squeezes on wide screens like the unfolded Fold (DECISIONS #192). The slot detail now spans the full window under the hero and Stats, instead of a narrow third column, so "Swap from pack" names stay readable and Equip, Swap and Take are normal one-line buttons in the delve backpack and the Camp Heroes window. The window look is unchanged (+test).
