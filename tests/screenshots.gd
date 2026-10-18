@@ -10,6 +10,8 @@ var SIZES := {"cover": Vector2i(484, 1188), "inner": Vector2i(928, 1080)}   # SH
 ## ("i", ":", ".") that are fine on device. Render at 2x and downsample (SHOT_NATIVE=1 keeps the 2x image) (DECISIONS #112).
 const RENDER_SCALE := 2
 var plan := []
+var mage_was_unlocked := false   # expedition_no_wand unlocks the Mage and takes her wand out; camp_heroes puts both back
+var mage_wand_uid := 0
 
 func _ready() -> void:
 	if OS.has_environment("SHOT_DIR"): out = OS.get_environment("SHOT_DIR")
@@ -46,7 +48,18 @@ func _ready() -> void:
 			for c in GameState.heroes: hr.add_child(main.screen._hero_slot(c))
 			Paperdoll.build(v, "warrior", not main.screen.portrait, "camp", func(): pass)])
 		plan.append([sz, "camp_expedition", func(): main.show_camp(); main.screen.open_page("Delve")])
-		plan.append([sz, "camp_heroes", func(): main.show_camp(); main.screen.open_page("Heroes")])
+		# DECISIONS #193: the Mage's wand taken out of the Staff - the Expedition window and Stats panel say "no Bolt"
+		plan.append([sz, "expedition_no_wand", func():
+			mage_was_unlocked = GameState.heroes.mage.unlocked
+			GameState.heroes.mage.unlocked = true
+			mage_wand_uid = 0
+			if GameState.unequip("mage", "staff"): mage_wand_uid = int(GameState.gear[-1].uid)
+			main.show_camp(); main.screen.chosen_hero = "mage"; main.screen.open_page("Delve")])
+		plan.append([sz, "heroes_no_wand", func(): main.show_camp(); main.screen.chosen_hero = "mage"; main.screen.open_page("Heroes")])
+		plan.append([sz, "camp_heroes", func():
+			if mage_wand_uid: GameState.imbue_wand(mage_wand_uid); mage_wand_uid = 0   # the usual Mage for the later shots
+			GameState.heroes.mage.unlocked = mage_was_unlocked
+			main.show_camp(); main.screen.chosen_hero = "warrior"; main.screen.open_page("Heroes")])
 		plan.append([sz, "camp_paperdoll", func():
 			GameState.add_gear("shortsword"); GameState.add_gear("mace"); GameState.add_gear("ring_wealth"); GameState.add_gear("chalice_blood")
 			Paperdoll.sel_slot = "weapon"; main.show_camp(); main.screen.open_page("Heroes")])
@@ -225,6 +238,9 @@ func _ready() -> void:
 			main.delve._open_summary("Defeat", PackedStringArray(), lost, Callable(), true, "Unused supplies return to the stash. Scrolls of Upgrade return on the next boss kill.")])
 		plan.append([sz, "event_result", func():   # an event's result window: no dim behind it, like the event card (DECISIONS #191)
 			main.delve._accept_summary()
+			# like the real chest/special-room flow (_card_special: pending = {}; _show_card() before _show_trade), the
+			# event card is closed first, so the shot shows the scene, not the fresh run's encounter card, behind it
+			main.delve.pending = {}; main.delve._show_card()
 			main.delve._open_summary("Open the chest", PackedStringArray(["+14 Gold", "Potion of Healing"]), PackedStringArray(["-1 Iron Key"]))])
 		plan.append([sz, "combat", func():
 			main.start_combat(Delve.combat_event(GameState.run, Delve.rng_for(GameState.run, 3), ["gnoll", "crab"]), func(_r): pass)
@@ -309,6 +325,18 @@ func _ready() -> void:
 			GameState.run.biome = "sewers"; GameState.run.floor = 1
 			main.start_combat({"kind": "combat", "boss": true, "room": DB.boss_rooms[0], "mobs": ["goo"]}, func(_r): pass)
 			for i in 3: main.screen._do_bot()])
+	# v0.44.1 phone report (Fold inner): the Rogue's artifact slot with a pack swap must not squeeze into a sliver.
+	# After every other shot at every size: these replace the Warrior run, end it and level the Rogue, which the
+	# shots above (and the next size's) would otherwise pick up
+	for sz in SIZES:
+		plan.append([sz, "hero_swap_delve", func():
+			_rogue_swap_run(); Paperdoll.sel_slot = "artifact"
+			# event_result left its result window open on the reused delve screen; close it so it doesn't cover the bag
+			if main.delve != null and is_instance_valid(main.delve): main.delve._accept_summary()
+			main.show_delve(); main.delve._open_panel("backpack"); _scroll_to_doll.call_deferred()])
+		plan.append([sz, "hero_swap_camp", func():
+			GameState.end_run("abandon"); _rogue_swap_camp(); Paperdoll.sel_slot = "artifact"
+			main.show_camp(); main.screen.chosen_hero = "rogue"; main.screen.open_page("Heroes")])
 
 func _process(_d: float) -> void:
 	if f == 0 and OS.has_environment("SHOTS"):  # SHOTS=caves,dm300 -> only those steps
@@ -355,3 +383,21 @@ func _fresh_warrior_run() -> void:
 	if GameState.run.is_empty():
 		for k in ["ration", "torch", "potion_healing"]: GameState.add_mat(k, 1)
 		GameState.start_run("warrior", {"ration": 1, "torch": 1, "potion_healing": 1}, "sewers", 5)
+
+
+## A Lv10 Rogue on Prison 10 wearing the Cape of Thorns, with a Horn of Plenty in the pack (the phone report).
+func _rogue_swap_run() -> void:
+	GameState.run = {}; _rogue_swap_camp()
+	GameState.start_run("rogue", {}, "prison", 10)
+	GameState.run.pack_gear.append({"uid": 9300, "id": "horn_plenty", "lvl": 0, "cracked": false, "known": true, "owned": false})
+
+func _rogue_swap_camp() -> void:
+	var h: Dictionary = GameState.heroes.rogue
+	h.unlocked = true; h.level = 10
+	if int(h.get("artifact", 0)) == 0: GameState.equip("rogue", GameState.add_gear("cape_thorns", true, 2))
+	if not GameState.gear.any(func(g): return g.id == "horn_plenty" and GameState.equipped_by(g.uid) == ""): GameState.add_gear("horn_plenty")
+	if not GameState.gear.any(func(g): return g.id == "chalice_blood"): GameState.equip("warrior", GameState.add_gear("chalice_blood", true, 1))
+
+func _scroll_to_doll() -> void:
+	var pd = main.delve.card_host.find_child("Paperdoll", true, false)
+	if pd: (main.delve.card_host.get_parent() as ScrollContainer).scroll_vertical = int(pd.position.y)

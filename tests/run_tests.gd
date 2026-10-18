@@ -89,12 +89,14 @@ func _ready() -> void:
 	test_full_auto(gs)
 	test_encounter_dismiss(gs)
 	await test_encounter_summary(gs)
+	await test_info_fit_out_of_tree(gs)
 	await test_menu_toast(gs)
 	test_log_and_sounds(gs)
 	test_ring_contexts(gs)
 	test_item_badges(gs)
 	test_equipped_owner_marks(gs)
 	test_gear_ownership(gs)
+	test_staff_empty_warning(gs)
 	test_owner_plate_fit(gs)
 	test_forge_bulk(gs)
 	test_break_rings(gs)
@@ -114,6 +116,8 @@ func _ready() -> void:
 	test_verify_apk_java()
 	await test_touch_scroll()
 	await test_tip_fit()
+	await test_window_dim(gs)
+	await test_hero_window_wide(gs)
 	print("TESTS: %d passed, %d failed -> %s" % [passes, fails, "PASS" if fails == 0 else "FAIL"])
 	get_tree().quit(1 if fails else 0)
 
@@ -994,7 +998,7 @@ func test_sprite_draw(gs) -> void:
 	check(int(pm.fw) == 12 and int(pm.fh) == 16, "delve: the piranha uses SPD's 12x16 frames")
 	check(DelveScene.frame_rect(256, 12, 16, 1) == Rect2(12, 0, 12, 16) and DelveScene.frame_rect(256, 12, 16, 21) == Rect2(0, 16, 12, 16), "delve: piranha frame rects step 12 px and wrap after 21 frames")
 	var dsc = load("res://scripts/ui/delve_screen.gd").new(); dsc._build_window()
-	check(dsc.win_dim.color.a == 0.0 and dsc.win_dim.mouse_filter == Control.MOUSE_FILTER_STOP, "delve: no darkening behind an event window, but taps behind it are still blocked")
+	check(dsc.win_dim.color.a == 0.0 and dsc.win_dim.mouse_filter == Control.MOUSE_FILTER_STOP and dsc.panel_dim({"kind": "door"}) == 0.0, "delve: no darkening behind an event window, but taps behind it are still blocked")
 	dsc.free()
 	var dr := DelveScene.sprite_rect(16, 15, Vector2(100, 200), 4.0)
 	check(dr.size == Vector2(64, 60) and dr.get_center().x == 100.0 and dr.end.y == 200.0, "delve: a sprite is bottom-centred on its feet, flipped or not")
@@ -1811,6 +1815,42 @@ func test_gear_ownership(gs) -> void:
 	cs.queue_free()
 	UIKit.make_theme(fs0)
 
+## DECISIONS #193: a Mage whose staff wand was unequipped at Camp is told she has no Bolt, in the Expedition
+## window and on the Stats panel; both go away once a wand is imbued again.
+func test_staff_empty_warning(gs) -> void:
+	print("[staff empty warning]")
+	gs.new_game()
+	for c in gs.heroes: gs.heroes[c].unlocked = true
+	var fs0 := UIKit.font_size
+	UIKit.make_theme(20)
+	var cs = load("res://scripts/ui/camp_screen.gd").new(); add_child(cs)
+	cs.chosen_hero = "mage"; cs.open_page("Delve")
+	check(not gs.staff_empty("mage") and cs.win_layer.find_child("NoWandWarn", true, false) == null, "a Mage with her wand: no warning")
+	check(gs.unequip("mage", "staff") and gs.staff_empty("mage"), "the staff's wand comes out")
+	cs.open_page("Delve")
+	var nw = cs.win_layer.find_child("NoWandWarn", true, false)
+	check(nw != null and String(nw.text).contains("no Bolt"), "the Expedition window warns about the empty Staff")
+	check(not gs.staff_empty("warrior") and not gs.staff_empty("huntress"), "only bolt casters can have an empty staff")
+	cs.chosen_hero = "warrior"; cs.open_page("Delve")
+	check(cs.win_layer.find_child("NoWandWarn", true, false) == null, "no warning for the Warrior")
+	var host := VBoxContainer.new(); add_child(host)
+	Paperdoll.build(host, "mage", true, "camp", func(): pass)
+	var nb = host.find_child("NoBolt", true, false)
+	check(nb != null and String(nb.text).begins_with("Bolt: none"), "the Mage's Stats panel says Bolt: none")
+	host.free()
+	var wu := 0
+	for g in gs.gear:
+		if DB.item(g.id).type == "wand": wu = int(g.uid)
+	check(gs.imbue_wand(wu) and not gs.staff_empty("mage"), "imbued again")
+	cs.chosen_hero = "mage"; cs.open_page("Delve")
+	check(cs.win_layer.find_child("NoWandWarn", true, false) == null, "the warning is gone once the Staff holds a wand")
+	host = VBoxContainer.new(); add_child(host)
+	Paperdoll.build(host, "mage", true, "camp", func(): pass)
+	check(host.find_child("NoBolt", true, false) == null, "and the Stats panel shows the bolt again")
+	host.free()
+	cs.queue_free()
+	UIKit.make_theme(fs0)
+
 func _first_of_type(t: String) -> String:
 	for k in DB.items:
 		if DB.items[k].get("type", "") == t and not DB.items[k].get("heirloom", false): return k
@@ -2145,6 +2185,24 @@ func test_encounter_summary(gs) -> void:
 	scr._accept_summary()
 	check(gs.run.is_empty() and gs.last_result == "death" and int(gs.stats.deaths) == deaths0 + 1, "OK on the re-shown Defeat ends the run once")
 	scr.queue_free()
+
+## Camp item windows fit themselves one frame later. If the Camp screen leaves the tree first (a delve starts in the
+## same frame, as the UI smoke does after its gear checks), that deferred fit must skip instead of asking a detached
+## node for its viewport ("!is_inside_tree()" engine error). In the tree it still fits the window.
+func test_info_fit_out_of_tree(gs) -> void:
+	print("[info fit out of tree]")
+	gs.new_game()
+	var cs = load("res://scripts/ui/camp_screen.gd").new(); add_child(cs)
+	cs.info("ring_might", "Ring of Might", ["one line"], [])
+	var pc: Control = cs.info_layer.find_children("*", "PanelContainer", true, false)[0]
+	await get_tree().process_frame
+	var vs := get_viewport().get_visible_rect().size
+	check(pc.size.y > 0.0 and pc.size.y <= vs.y * 0.8 + 1.0, "in the tree, the item window still fits itself (%.0f)" % pc.size.y)
+	cs.info("ring_might", "Ring of Might", ["one line"], [])
+	remove_child(cs)
+	await get_tree().process_frame
+	check(not cs.is_inside_tree() and is_instance_valid(cs), "out of the tree, the deferred fit is skipped without touching the viewport")
+	cs.free()
 
 ## A reward toast emitted before the floor menu opens must sit in the card, above the buttons.
 func test_menu_toast(gs) -> void:
@@ -3964,3 +4022,104 @@ func test_lose_enemies(gs) -> void:
 	c.drain_events(); c.hero_tap(rat.pos, "bolt")
 	check(c.drain_events().any(func(e): return e.get("kind", "") == "surprise"), "the first arrow at it is a Surprise")
 	check(rat.seen_hero and rat.state == "hunting" and rat.aim == c.hero.pos, "and the shot reveals you: it hunts your cell")
+
+
+## DECISIONS #192: on the Fold inner screen (1856x2160) the hero window's slot detail spans the full width under the
+## doll and Stats. Swap rows keep a readable name (the v0.44.1 phone report wrapped "Horn of Plenty" one letter
+## column wide), a normal-height button, and every button fits inside the viewport, in the delve and at Camp.
+func test_hero_window_wide(gs) -> void:
+	print("[hero window wide]")
+	var win := get_window(); var old := win.size
+	gs.new_game(); gs.settings.tutorial = false
+	var h: Dictionary = gs.heroes.rogue; h.unlocked = true; h.level = 10
+	gs.equip("rogue", gs.add_gear("cape_thorns", true, 2)); gs.add_gear("horn_plenty")
+	gs.equip("warrior", gs.add_gear("chalice_blood", true, 1))
+	var main = load("res://scenes/main.tscn").instantiate(); add_child(main)
+	for sz in [Vector2i(1856, 2160), Vector2i(484, 1188)]:
+		win.size = sz
+		await get_tree().process_frame
+		main._relayout()
+		for where in ["delve", "camp"]:
+			Paperdoll.sel_slot = "artifact"
+			if where == "delve":
+				gs.run = {}; gs.start_run("rogue", {}, "prison", 10)
+				gs.run.pack_gear.append({"uid": 9300, "id": "horn_plenty", "lvl": 0, "cracked": false, "known": true, "owned": false})
+				main.show_delve(); main.delve._open_panel("backpack")
+			else:
+				gs.end_run("abandon"); main.show_camp(); main.screen.chosen_hero = "rogue"; main.screen.open_page("Heroes")
+			for i in 3: await get_tree().process_frame
+			var host: Control = main.delve.win_panel if where == "delve" else main.screen.win_layer
+			var vr: Rect2 = main.get_viewport_rect()
+			var tag := "%s %s" % [sz, where]
+			var det: Control = host.find_child("SlotDetail", true, false)
+			var doll: Control = host.find_child("Paperdoll", true, false)
+			check(det != null and doll != null and det.size.x >= doll.size.x - 1.0, "%s: slot detail spans the hero window (%s of %s)" % [tag, det.size.x if det else -1.0, doll.size.x if doll else -1.0])
+			var names: Array = host.find_children("SwapName", "Label", true, false)
+			check(names.size() >= 1, "%s: swap rows render (%d)" % [tag, names.size()])
+			var sc: ScrollContainer = null
+			var p: Node = det
+			while p != null and sc == null:
+				if p is ScrollContainer: sc = p
+				p = p.get_parent()
+			for l in names:
+				var six: float = l.get_theme_font("font").get_string_size("Horn o", HORIZONTAL_ALIGNMENT_LEFT, -1, l.get_theme_font_size("font_size")).x
+				check(l.size.x >= six, "%s: '%s' gets at least 6 letters of width (%.0f >= %.0f)" % [tag, l.text, l.size.x, six])
+				check(l.size.y < l.get_line_height() * 2.6, "%s: '%s' wraps to at most two lines (h %.0f)" % [tag, l.text, l.size.y])
+			for b in host.find_children("SwapButton", "Button", true, false):
+				if sc: sc.ensure_control_visible(b)
+				await get_tree().process_frame
+				var br: Rect2 = b.get_global_rect()
+				check(br.size.y <= UIKit.btn_height() * 1.5, "%s: swap button '%s' is a normal height (%.0f)" % [tag, b.text, br.size.y])
+				check(vr.encloses(br), "%s: swap button '%s' is inside the viewport (%s in %s)" % [tag, b.text, br, vr])
+	Paperdoll.sel_slot = ""
+	gs.end_run("abandon")
+	main.queue_free()
+	win.size = old
+	await get_tree().process_frame
+
+
+## DECISIONS #194: only event and result windows leave the scene undimmed. The delve's own panels (Bag, Talents, Menu,
+## Settings, Abandon) dim it like before #187, the Defeat window and the combat Bag keep their dim, and every window
+## still blocks taps behind it.
+func test_window_dim(gs) -> void:
+	print("[window dim]")
+	gs.new_game(); gs.settings.tutorial = false; gs.add_mat("ration", 1); gs.add_mat("torch", 1)
+	gs.start_run("warrior", {"ration": 1, "torch": 1}, "sewers", 5)
+	gs.run.talent_prompted = true
+	var host := ToastHost.new()
+	var box := VBoxContainer.new(); host.toast_box = box; host.add_child(box)
+	var holder := Control.new(); holder.size = Vector2(968, 2376); add_child(holder)
+	holder.add_child(host)
+	var d = load("res://scripts/ui/delve_screen.gd").new(); d.main = host
+	holder.add_child(d); d.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT); d.size = holder.size
+	await get_tree().process_frame
+	var cases := [[{"kind": "backpack"}, true], [{"kind": "talents"}, true], [{"kind": "menu"}, true],
+		[{"kind": "settings"}, true], [{"kind": "confirm_abandon"}, true],
+		[Delve.combat_event(gs.run, Delve.rng_for(gs.run, 1), ["rat"]), false], [{"kind": "door", "door": DB.doors[0]}, false],
+		[{"kind": "special", "special": DB.specials[0]}, false], [{"kind": "floor_done"}, false], [{"kind": "campfire"}, false]]
+	for cs in cases:
+		d.pending = cs[0]; d._show_card()
+		var a: float = d.win_dim.color.a
+		check(d.win_layer.visible and d.win_dim.mouse_filter == Control.MOUSE_FILTER_STOP, "%s window blocks taps behind it" % cs[0].kind)
+		if cs[1]: check(a >= 0.3, "%s panel dims the scene (a=%.2f)" % [cs[0].kind, a])
+		else: check(a == 0.0, "%s event window keeps the scene undimmed (a=%.2f)" % [cs[0].kind, a])
+	# result windows: clear; the Defeat window keeps its dim
+	d.pending = {}; d._show_card()
+	d._open_summary("Open the chest", PackedStringArray(["+14 Gold"]), PackedStringArray())
+	var sh: ColorRect = d.find_child("SummaryShield", true, false)
+	check(sh != null and sh.color.a == 0.0 and sh.mouse_filter == Control.MOUSE_FILTER_STOP, "result window keeps the scene undimmed and blocks taps")
+	d._accept_summary()
+	d._open_summary("Defeat", PackedStringArray(), PackedStringArray(), Callable(), true)
+	sh = d.find_child("SummaryShield", true, false)
+	check(sh != null and sh.color.a > 0.3, "Defeat window still dims the scene")
+	d._summary_on = false
+	holder.queue_free()
+	# the combat Bag keeps its dim
+	var ev := Delve.combat_event(gs.run, Delve.rng_for(gs.run, 1), ["rat"])
+	var cb = load("res://scripts/ui/combat_screen.gd").new(); cb.setup(ev, func(_r): pass); add_child(cb); cb.size = Vector2(968, 2376)
+	cb.apply_layout(true, cb.size); cb.bag_open = true; cb._refresh()
+	var dims: Array = cb.bag_layer.get_children().filter(func(n): return n is ColorRect) if cb.bag_layer else []
+	check(not dims.is_empty() and dims[0].color.a >= 0.3, "combat Bag still dims the fight")
+	cb.bag_open = false; cb._refresh(); cb.queue_free()
+	gs.end_run("abandon")
+	await get_tree().process_frame

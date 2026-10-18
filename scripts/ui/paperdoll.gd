@@ -1,12 +1,14 @@
 ## Paperdoll: Diablo-style character screen (DECISIONS #84), used by the Camp Heroes window and the in-delve backpack.
 ## A big hero sprite (its row picks the armor tier, as SPD's HeroSprite does) sits between two columns of SPD item slots:
 ## weapon/ring/staff on the left, armor/artifact/class item on the right, with no spare misc slot (removed in v0.22.0, DECISIONS #85). A derived-stats panel
-## goes beside the doll (inner) or under it (cover). Tapping a slot shows its item and a swap list filtered to that
+## goes beside the doll (inner) or under it (cover); the slot detail always spans the full width below. Tapping a slot shows its item and a swap list filtered to that
 ## slot, with stat deltas: from the stash at Camp, from the pack mid-delve.
 class_name Paperdoll
 extends RefCounted
 
 static var sel_slot := ""
+## Swap-row name column floor, in font sizes (about 8 pixel-font letters) (DECISIONS #192).
+const MIN_NAME_EM := 4.5
 const LEFT := ["weapon", "ring", "staff"]
 const RIGHT := ["armor", "artifact", "class"]
 const EMPTY_ICON := {"weapon": "WEAPON_HOLDER", "armor": "ARMOR_HOLDER", "ring": "RING_HOLDER", "artifact": "ARTIFACT_HOLDER",
@@ -19,10 +21,17 @@ const CLASS_ITEM := {"warrior": ["SEAL", "Broken Seal", "The Warrior's seal: his
 ## mode: "camp" (swap from the stash) or "delve" (swap from the pack; in_combat costs the turn).
 static func build(parent: Control, c: String, wide: bool, mode: String, refresh: Callable, on_talents := Callable(), on_equip_in_combat := Callable()) -> void:
 	var h: Dictionary = GameState.heroes[c]
-	var outer: BoxContainer = HBoxContainer.new() if wide else VBoxContainer.new()
+	# Wide: the doll and Stats share a row and the slot detail spans the full width under them. The detail used to be
+	# a third of a ~30-font-size window beside the doll, which squeezed swap rows into one letter per line on the
+	# Fold inner screen (v0.44.1 phone report, DECISIONS #192).
+	var outer := VBoxContainer.new(); outer.name = "Paperdoll"
 	outer.add_theme_constant_override("separation", int(UIKit.font_size * 0.6)); parent.add_child(outer)
+	var top: BoxContainer = outer
+	if wide:
+		top = HBoxContainer.new(); top.name = "DollRow"; outer.add_child(top)
+		top.add_theme_constant_override("separation", int(UIKit.font_size * 0.6))
 	# --- doll
-	var doll_card := UIKit.card(); outer.add_child(doll_card)
+	var doll_card := UIKit.card(); top.add_child(doll_card)
 	doll_card.size_flags_horizontal = Control.SIZE_EXPAND_FILL if not wide else Control.SIZE_FILL
 	var dv := UIKit.vbox(doll_card)
 	var name_l := UIKit.label("%s  Lv%d" % [DB.heroes[c].name, h.level] + ("  -  " + DB.heroes[c].subclasses[h.subclass].name if h.get("subclass", "") != "" else ""), 1.0, Color("ffd27a"))
@@ -43,9 +52,10 @@ static func build(parent: Control, c: String, wide: bool, mode: String, refresh:
 	var rc := UIKit.vbox(); row.add_child(rc)
 	for s in RIGHT: rc.add_child(_slot(c, s, mode, refresh))
 	# --- stats
-	var right := UIKit.vbox(); right.size_flags_horizontal = Control.SIZE_EXPAND_FILL; outer.add_child(right)
+	var right := UIKit.vbox(); right.size_flags_horizontal = Control.SIZE_EXPAND_FILL; top.add_child(right)
 	right.add_child(stats_panel(c, on_talents))
-	if sel_slot != "": right.add_child(_detail(c, sel_slot, mode, refresh, on_equip_in_combat))
+	if sel_slot != "":
+		var det := _detail(c, sel_slot, mode, refresh, on_equip_in_combat); det.name = "SlotDetail"; outer.add_child(det)
 	else: right.add_child(UIKit.label("Tap a slot to inspect or swap it.", 0.8, Color("9a9488")))
 
 static func hero_tex(c: String) -> Texture2D:
@@ -102,6 +112,8 @@ static func stats_panel(c: String, on_talents: Callable) -> Control:
 		var kl := UIKit.label(r[0], 0.8, Color("bdb3a0")); kl.autowrap_mode = TextServer.AUTOWRAP_OFF; g.add_child(kl)
 		var vl := UIKit.label(r[1], 0.9); vl.autowrap_mode = TextServer.AUTOWRAP_OFF; g.add_child(vl)
 	if s.has("bolt"): v.add_child(UIKit.label("Bolt: %s %d dmg, %d charges" % [s.bolt.name, s.bolt.dmg, s.bolt.charges], 0.8, Color("c8a0ff")))
+	elif GameState.staff_empty(c):   # DECISIONS #193
+		var nb := UIKit.label("Bolt: none - no wand in the Staff", 0.8, Color("ffb060")); nb.name = "NoBolt"; v.add_child(nb)
 	if s.has("sub_name"): v.add_child(UIKit.label("%s: %s" % [s.sub_name, DB.heroes[c].subclasses[s.sub].desc], 0.8, Color("9fd3ff")))
 	elif h.get("mask", false): v.add_child(UIKit.label("Tengu's Mask: choose a subclass.", 0.8, Color("9fd3ff")))
 	if on_talents.is_valid():
@@ -189,8 +201,10 @@ static func _detail(c: String, s: String, mode: String, refresh: Callable, on_eq
 		var r := UIKit.hbox(v)
 		var bdg := UIKit.gear_badge(g)
 		r.add_child(UIKit.icon(g.id, -1, bdg if bdg != "" else "NONE"))
+		r.name = "SwapRow"; r.add_theme_constant_override("separation", int(UIKit.font_size * 0.4))
 		var cv := UIKit.vbox(r); cv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		cv.add_child(UIKit.label(GameState.gear_name(g), 0.85))
+		cv.custom_minimum_size.x = UIKit.font_size * MIN_NAME_EM   # a name never gets less than a short word's width
+		var nl := UIKit.label(GameState.gear_name(g), 0.85); nl.name = "SwapName"; cv.add_child(nl)
 		var who2: String = cd[4] if cd.size() > 4 else ""
 		if who2 != "":   # worn by another hero: say who, and what happens to their slot
 			var back := GameState.equip_swap_back(c, int(g.uid))
@@ -201,5 +215,8 @@ static func _detail(c: String, s: String, mode: String, refresh: Callable, on_eq
 		var cb: Callable = cd[3]
 		var verb := "Equip" if who2 == "" else ("Swap" if GameState.equip_swap_back(c, int(g.uid)) != 0 else "Take")
 		var eb := UIKit.button(verb, func(): cb.call(); refresh.call(), cd[2] == "", cd[2])
-		eb.size_flags_horizontal = Control.SIZE_SHRINK_END; eb.custom_minimum_size.x = UIKit.font_size * 5; r.add_child(eb)
+		# a normal one-line button, centred on the row: it no longer stretches to the row's full height
+		eb.autowrap_mode = TextServer.AUTOWRAP_OFF; eb.name = "SwapButton"
+		eb.size_flags_horizontal = Control.SIZE_SHRINK_END; eb.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		eb.custom_minimum_size.x = UIKit.font_size * 5; r.add_child(eb)
 	return card

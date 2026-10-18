@@ -342,7 +342,8 @@ func info(id: String, title: String, lines: Array, actions: Array = [], badge :=
 		body.add_child(UIKit.action(a[0], func(): a[1].call(); _close_info(), a[2]))
 	# fit the popup to its content
 	(func():
-		if not is_instance_valid(w[2]): return
+		# the window may be gone, or the Camp screen swapped out (a delve started) before this deferred fit runs
+		if not is_instance_valid(w[2]) or not is_inside_tree(): return
 		var pc: PanelContainer = w[2]; var vs := get_viewport_rect().size
 		var hh := minf(vs.y * 0.8, body.get_combined_minimum_size().y + UIKit.font_size * 4.0)
 		pc.size.y = hh; pc.position.y = floorf((vs.y - hh) / 2.0)).call_deferred()
@@ -472,6 +473,9 @@ func _page_delve() -> void:
 		gh.name = "GuildCapHint"; gh.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART; v.add_child(gh)
 	var floors := int(b.floors[1]) - int(b.floors[0]) + 1
 	if loadout.torch < mini(floors - 2, int(caps.torch)): v.add_child(UIKit.label("Tip: about one torch per floor (%d floors)." % floors, 0.75, Color("ffb060")))
+	if GameState.staff_empty(chosen_hero):   # DECISIONS #193: the staff's wand was taken out at Camp
+		var nw := UIKit.label("No wand in the Staff: the %s has no Bolt on this delve. Imbue one from Heroes." % DB.heroes[chosen_hero].name, 0.75, Color("ffb060"))
+		nw.name = "NoWandWarn"; nw.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART; v.add_child(nw)
 	if GameState.mat("elixir_starter") > 0 and GameState.heroes[chosen_hero].level < 3:
 		v.add_child(UIKit.button("Drink Starter Elixir (boost to Lv3)", func(): GameState.use_elixir(chosen_hero)))
 	var go := UIKit.action("Descend into the %s" % b.name, _start, GameState.can_start_run(chosen_hero))
