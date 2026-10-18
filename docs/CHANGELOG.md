@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Gear can come off and move between heroes at Camp (DECISIONS #189). Every equipped weapon, armor, ring, artifact and the Mage's staff wand has an Unequip button (heirlooms stay put), and it goes back to the stash. The Heroes swap list now also shows gear other heroes wear, labeled "Worn by Mage" with what happens to their slot, and Take or Swap moves it over. The Stash item window can unequip a piece or move or swap it to the selected hero, and the Wands list shows the wand in the Mage's Staff. A hero out on patrol (or on the current delve) keeps everything they wear: Unequip, Take and Swap are greyed out with "<Hero> is on patrol", and the gear can't be pulled off them by equipping it on someone else. Old saves load with one wearer per item (+tests).
 - An event's result window (after opening a chest or choosing in a special room) no longer darkens the scene behind it either; taps behind it are still blocked. The Defeat window keeps its dim (DECISIONS #191, +test).
 
 ## 0.44.1

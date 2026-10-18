@@ -27,6 +27,10 @@ static func build(parent: Control, c: String, wide: bool, mode: String, refresh:
 	var dv := UIKit.vbox(doll_card)
 	var name_l := UIKit.label("%s  Lv%d" % [DB.heroes[c].name, h.level] + ("  -  " + DB.heroes[c].subclasses[h.subclass].name if h.get("subclass", "") != "" else ""), 1.0, Color("ffd27a"))
 	name_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER; dv.add_child(name_l)
+	var lock := GameState.gear_lock(c) if mode == "camp" else ""
+	if lock != "":   # patrol / expedition: nothing comes off or goes on until they're back (DECISIONS #189)
+		var ll := UIKit.label(lock + " - gear locked", 0.75, Color("c9a96e")); ll.name = "GearLock"
+		ll.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER; dv.add_child(ll)
 	var row := HBoxContainer.new(); row.alignment = BoxContainer.ALIGNMENT_CENTER; dv.add_child(row)
 	row.add_theme_constant_override("separation", int(UIKit.font_size * 0.5))
 	var lc := UIKit.vbox(); row.add_child(lc)
@@ -147,6 +151,11 @@ static func _detail(c: String, s: String, mode: String, refresh: Callable, on_eq
 		if it.get("cracked", false): v.add_child(UIKit.label("Cracked - repair at the Forge.", 0.8, Color("ff6a5a")))
 		if mode == "delve" and not d.get("heirloom", false):
 			v.add_child(UIKit.button("Unequip", func(): GameState.delve_unequip(s); refresh.call(), not GameState.backpack_full(), "backpack full"))
+	# Camp: take it off into the stash, unless it's an heirloom or the hero is out (DECISIONS #189)
+	if mode == "camp" and not it.is_empty() and s != "class" and not (not it.has("pseudo") and DB.item(it.id).get("heirloom", false)):
+		var why_off := GameState.can_unequip(c, s)
+		var ub := UIKit.action("Unequip", func(): GameState.unequip(c, s); refresh.call(), why_off); ub.name = "UnequipAction"
+		v.add_child(ub)
 	if s == "class": return card
 	# swap candidates, filtered to this slot
 	var want := "wand" if s == "staff" else s
@@ -155,12 +164,17 @@ static func _detail(c: String, s: String, mode: String, refresh: Callable, on_eq
 	if mode == "camp":
 		if s == "staff": return card   # wands are imbued from the Heroes page button
 		var base := GameState.hero_stats(c)
+		var worn_list: Array = []
 		for g in GameState.gear:
-			if DB.item(g.id).type != want or GameState.equipped_by(g.uid) != "": continue
+			var who := GameState.equipped_by(g.uid)
+			if DB.item(g.id).type != want or who == c: continue
 			var why := GameState.can_equip(c, g.uid)
 			if why.begins_with("heirloom"): continue
 			var dt: Array = _delta_text(base, _stats_with(c, s, g.uid)) if why == "" else [why, 0]
-			cands.append([g, dt, why, func(): GameState.equip(c, g.uid)])
+			var cd := [g, dt, why, func(): GameState.equip(c, g.uid), who]
+			if who == "": cands.append(cd)
+			else: worn_list.append(cd)   # gear other heroes wear comes after the free pieces
+		cands.append_array(worn_list)
 	else:
 		for g in GameState.run.pack_gear:
 			if DB.item(g.id).type != want: continue
@@ -168,7 +182,8 @@ static func _detail(c: String, s: String, mode: String, refresh: Callable, on_eq
 			var dt := [GameState.compare_text(GameState.compare_equip(int(g.uid))) if why == "" else why, 0]
 			cands.append([g, dt, why, func():
 				if GameState.delve_equip(int(g.uid)) and on_equip_in_combat.is_valid(): on_equip_in_combat.call()])
-	v.add_child(UIKit.label(("Swap from stash" if mode == "camp" else "Swap from pack") + (" - nothing fits" if cands.is_empty() else ""), 0.85, Color("c9a96e")))
+	var any_worn := cands.any(func(cd): return cd.size() > 4 and String(cd[4]) != "")
+	v.add_child(UIKit.label(("Swap from stash" + (" or another hero" if any_worn else "") if mode == "camp" else "Swap from pack") + (" - nothing fits" if cands.is_empty() else ""), 0.85, Color("c9a96e")))
 	for cd in cands:
 		var g: Dictionary = cd[0]
 		var r := UIKit.hbox(v)
@@ -176,9 +191,15 @@ static func _detail(c: String, s: String, mode: String, refresh: Callable, on_eq
 		r.add_child(UIKit.icon(g.id, -1, bdg if bdg != "" else "NONE"))
 		var cv := UIKit.vbox(r); cv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		cv.add_child(UIKit.label(GameState.gear_name(g), 0.85))
+		var who2: String = cd[4] if cd.size() > 4 else ""
+		if who2 != "":   # worn by another hero: say who, and what happens to their slot
+			var back := GameState.equip_swap_back(c, int(g.uid))
+			var wl := UIKit.label("Worn by %s - %s" % [DB.heroes[who2].name, ("they get your " + GameState.gear_name(GameState.gear_by_uid(back))) if back != 0 else "their slot goes empty"], 0.75, Color("c9a96e"))
+			wl.name = "WornBy"; cv.add_child(wl)
 		var col := Color("9a8f7c") if cd[2] != "" else (Color("6bff6b") if int(cd[1][1]) > 0 else (Color("ff6a5a") if int(cd[1][1]) < 0 else Color("9fd3ff")))
 		cv.add_child(UIKit.label(String(cd[1][0]), 0.75, col))
 		var cb: Callable = cd[3]
-		var eb := UIKit.button("Equip", func(): cb.call(); refresh.call(), cd[2] == "", cd[2])
+		var verb := "Equip" if who2 == "" else ("Swap" if GameState.equip_swap_back(c, int(g.uid)) != 0 else "Take")
+		var eb := UIKit.button(verb, func(): cb.call(); refresh.call(), cd[2] == "", cd[2])
 		eb.size_flags_horizontal = Control.SIZE_SHRINK_END; eb.custom_minimum_size.x = UIKit.font_size * 5; r.add_child(eb)
 	return card
