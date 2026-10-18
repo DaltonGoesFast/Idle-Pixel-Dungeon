@@ -6,7 +6,8 @@
 ## - Never blocks or breaks play: one HTTPRequest at a time, errors only back off, events queue to a capped
 ##   file (user://telemetry_queue.json, IndexedDB on the web build) and go out on a later flush.
 ## - Off in tests, the sims, any headless run, any run from source (the editor binary: dev sessions, the playtest
-##   harness under xvfb) and automated or headless browsers on the web build (`suppressed`, DECISIONS #198).
+##   harness under xvfb) and automated browsers (navigator.webdriver) on the web build (`suppressed`, DECISIONS #198).
+##   A headless browser without webdriver still counts as a player and sends.
 extends Node
 
 const CONFIG_PATH := "res://data/telemetry.json"
@@ -96,8 +97,7 @@ static func suppress_reason() -> String:
 	if OS.has_feature("web"):
 		# Only navigator.webdriver (Playwright/Puppeteer/Selenium). Do not key on user-agent strings —
 		# real browsers set those, and HeadlessChrome alone must not suppress a player's export.
-		var wd = JavaScriptBridge.eval("navigator.webdriver === true", true)
-		bot = automated_browser(typeof(wd) == TYPE_BOOL and wd)
+		bot = automated_browser(JavaScriptBridge.eval("navigator.webdriver === true", true))
 	return classify(OS.has_environment("SPD_NO_TELEMETRY"), DisplayServer.get_name() == "headless", tests,
 		OS.has_feature("editor"), OS.has_environment("SPD_TELEMETRY_FROM_SOURCE"), bot)
 
@@ -112,8 +112,14 @@ static func classify(env_off: bool, headless: bool, tests: bool, from_source: bo
 
 ## A browser driven by a test tool (Playwright, Puppeteer, Selenium set navigator.webdriver).
 ## User-agent strings are ignored: real players' browsers set them, and must still send.
-static func automated_browser(webdriver: bool) -> bool:
-	return webdriver
+## `webdriver` is the raw JavaScriptBridge.eval() result. Godot's web build hands a JS boolean back as an int
+## (true -> 1), so a TYPE_BOOL check never matched and webdriver browsers still sent (DECISIONS #198).
+## Only a real true (bool true or a non-zero number) counts; null, strings and anything else are a player.
+static func automated_browser(webdriver: Variant) -> bool:
+	match typeof(webdriver):
+		TYPE_BOOL: return webdriver
+		TYPE_INT, TYPE_FLOAT: return webdriver != 0
+	return false
 
 func load_config(path := CONFIG_PATH) -> void:
 	api_key = ""; host = DEFAULT_HOST; privacy_url = DEFAULT_PRIVACY_URL
