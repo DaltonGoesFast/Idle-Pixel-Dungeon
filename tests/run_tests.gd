@@ -4277,8 +4277,9 @@ func test_telemetry(gs) -> void:
 	for v in [OS.get_environment("USER"), OS.get_environment("USERNAME"), OS.get_unique_id(), OS.get_model_name()]:
 		if String(v).length() >= 3 and String(v) != "GenericDevice" and js.contains(String(v)): pii.append(v)
 	check(pii.is_empty(), "telemetry: no user name or device id in the payload " + str(pii))
-	var allowed := ["event", "distinct_id", "timestamp", "properties"]
-	check(e.keys().all(func(k): return k in allowed), "telemetry: only event/distinct_id/timestamp/properties at the top level")
+	var allowed := ["event", "uuid", "distinct_id", "timestamp", "properties"]
+	check(re.search(String(e.get("uuid", ""))) != null and t.build_event("x", {}).uuid != e.uuid, "telemetry: each event has its own uuid (PostHog dedup)")
+	check(e.keys().all(func(k): return k in allowed), "telemetry: only event/uuid/distinct_id/timestamp/properties at the top level")
 	# rate limit + queue cap
 	for i in 100: t.enqueue(t.build_event("x", {"i": i}))
 	check(t.queue.size() == T.RATE_PER_MIN and t.dropped == 100 - T.RATE_PER_MIN, "telemetry: rate limit (%d queued, %d dropped)" % [t.queue.size(), t.dropped])
@@ -4313,6 +4314,9 @@ func test_telemetry(gs) -> void:
 	t._in_flight = t.queue.slice(0, 10); t.queue = []
 	t._on_request_completed(HTTPRequest.RESULT_SUCCESS, 200, PackedStringArray(), PackedByteArray())
 	check(t.queue.is_empty() and t.sent_ok == 10 and t._backoff == 0.0, "telemetry: 200 clears the batch")
+	var qf = JSON.parse_string(FileAccess.get_file_as_string(t.queue_path))
+	check(typeof(qf) == TYPE_ARRAY and qf.is_empty(), "telemetry: a sent batch leaves the queue file at once (no resend after a kill)")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(t.queue_path))
 	# empty key: no-op (nothing queued, nothing sent)
 	t.api_key = ""; t.queue = []
 	t.track("app_open", {})

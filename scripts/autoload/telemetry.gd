@@ -206,7 +206,8 @@ func build_event(event: String, props: Dictionary, unix := -1.0) -> Dictionary:
 	p["$geoip_disable"] = true             # no IP-derived location
 	p["distinct_id"] = distinct_id
 	var t := Time.get_unix_time_from_system() if unix < 0.0 else unix
-	return {"event": event, "distinct_id": distinct_id, "timestamp": Time.get_datetime_string_from_unix_time(int(t)) + "Z", "properties": p}
+	# uuid lets PostHog drop a duplicate if a sent batch is ever resent (e.g. killed before the queue file updated)
+	return {"event": event, "uuid": new_uuid(), "distinct_id": distinct_id, "timestamp": Time.get_datetime_string_from_unix_time(int(t)) + "Z", "properties": p}
 
 ## JSON-safe copy limited to numbers, bools, short strings and small containers (depth 2).
 static func _clean(v, depth: int):
@@ -315,13 +316,16 @@ func _on_request_completed(result: int, code: int, _headers: PackedStringArray, 
 	_busy = false
 	last_status = code if result == HTTPRequest.RESULT_SUCCESS else 0
 	if result == HTTPRequest.RESULT_SUCCESS and code >= 200 and code < 300:
-		sent_ok += _in_flight.size(); _in_flight = []; _backoff = 0.0; _dirty = true
+		sent_ok += _in_flight.size(); _in_flight = []; _backoff = 0.0
+		_save_queue()   # right away: _process doesn't run while paused, and a stale file would resend this batch
 		return
 	if result == HTTPRequest.RESULT_SUCCESS and code >= 400 and code < 500 and code != 429:
 		# a bad key or payload never succeeds on retry: drop the batch instead of looping on it
-		dropped += _in_flight.size(); _in_flight = []; _dirty = true; _fail()
+		dropped += _in_flight.size(); _in_flight = []; _fail()
+		_save_queue()
 		return
 	_requeue(); _fail()
+	_save_queue()
 
 # ------------------------------------------------------------------ offline queue
 func _save_queue() -> void:
