@@ -22,6 +22,7 @@ fi
 find "$TMP" -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
 cp -a "$OUT"/. "$TMP"/
 git -C "$TMP" add -A
-git -C "$TMP" commit -q -m "Publish web build v$VER ($SRC_SHA)" || { echo "No changes"; exit 0; }
+if git -C "$TMP" diff --cached --quiet; then echo "No changes"; exit 0; fi
+git -C "$TMP" commit -q -m "Publish web build v$VER ($SRC_SHA)"
 git -C "$TMP" push -q origin gh-pages
 echo "Published v$VER ($SRC_SHA) to gh-pages"
