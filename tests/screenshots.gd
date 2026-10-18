@@ -10,6 +10,8 @@ var SIZES := {"cover": Vector2i(484, 1188), "inner": Vector2i(928, 1080)}   # SH
 ## ("i", ":", ".") that are fine on device. Render at 2x and downsample (SHOT_NATIVE=1 keeps the 2x image) (DECISIONS #112).
 const RENDER_SCALE := 2
 var plan := []
+var mage_was_unlocked := false   # expedition_no_wand unlocks the Mage and takes her wand out; camp_heroes puts both back
+var mage_wand_uid := 0
 
 func _ready() -> void:
 	if OS.has_environment("SHOT_DIR"): out = OS.get_environment("SHOT_DIR")
@@ -46,7 +48,18 @@ func _ready() -> void:
 			for c in GameState.heroes: hr.add_child(main.screen._hero_slot(c))
 			Paperdoll.build(v, "warrior", not main.screen.portrait, "camp", func(): pass)])
 		plan.append([sz, "camp_expedition", func(): main.show_camp(); main.screen.open_page("Delve")])
-		plan.append([sz, "camp_heroes", func(): main.show_camp(); main.screen.open_page("Heroes")])
+		# DECISIONS #192: the Mage's wand taken out of the Staff - the Expedition window and Stats panel say "no Bolt"
+		plan.append([sz, "expedition_no_wand", func():
+			mage_was_unlocked = GameState.heroes.mage.unlocked
+			GameState.heroes.mage.unlocked = true
+			mage_wand_uid = 0
+			if GameState.unequip("mage", "staff"): mage_wand_uid = int(GameState.gear[-1].uid)
+			main.show_camp(); main.screen.chosen_hero = "mage"; main.screen.open_page("Delve")])
+		plan.append([sz, "heroes_no_wand", func(): main.show_camp(); main.screen.chosen_hero = "mage"; main.screen.open_page("Heroes")])
+		plan.append([sz, "camp_heroes", func():
+			if mage_wand_uid: GameState.imbue_wand(mage_wand_uid); mage_wand_uid = 0   # the usual Mage for the later shots
+			GameState.heroes.mage.unlocked = mage_was_unlocked
+			main.show_camp(); main.screen.chosen_hero = "warrior"; main.screen.open_page("Heroes")])
 		plan.append([sz, "camp_paperdoll", func():
 			GameState.add_gear("shortsword"); GameState.add_gear("mace"); GameState.add_gear("ring_wealth"); GameState.add_gear("chalice_blood")
 			Paperdoll.sel_slot = "weapon"; main.show_camp(); main.screen.open_page("Heroes")])
