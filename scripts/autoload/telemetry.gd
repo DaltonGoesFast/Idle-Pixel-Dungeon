@@ -27,6 +27,7 @@ const SAVE_EVERY := 5.0          # queue file write debounce
 const HTTP_TIMEOUT := 15.0
 const NEW_SESSION_AFTER := 1800.0  # back in the app after 30+ minutes away = a new session
 const SPEND_EVERY := 300.0       # gold_spent is summed per sink and sent at most every 5 minutes
+const BEACON_MAX := 60000        # bytes per sendBeacon / keepalive body (browsers cap both at 64 KiB)
 
 var api_key := ""
 var host := DEFAULT_HOST
@@ -60,6 +61,8 @@ var _spend := {}                 # sink -> {gold, n}
 var _spend_t := 0.0
 var _ended := false
 var _scene_checked := false
+var _js_cb: Variant = null       # JavaScriptObject callbacks for visibilitychange / pagehide (kept alive here)
+var beacons_sent := 0            # events handed to navigator.sendBeacon / fetch keepalive this session
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -75,6 +78,7 @@ func _ready() -> void:
 	_http.request_completed.connect(_on_request_completed)
 	_new_session()
 	track("app_open", {"returning": notice_seen, "queued": queue.size()})
+	_hook_web()
 
 ## Tests, sims, headless runs, runs from source and automated browsers never collect anything.
 static func is_test_run() -> bool:
@@ -186,27 +190,114 @@ func _new_session() -> void:
 func session_seconds() -> float:
 	return _session_active + (0.0 if _ended else _now_s() - _session_start)
 
+## session_end, then get it out (DECISIONS #204). The queue file is written first, so if the send can't finish
+## (Windows quits right after WM_CLOSE_REQUEST, Android may kill a paused app) it goes out on the next launch.
+## On the web build an ordinary HTTPRequest is cancelled when the tab closes and the IndexedDB copy of the queue
+## file syncs asynchronously, so the queue goes out through navigator.sendBeacon (fetch keepalive as a fallback).
 func _end_session(reason: String) -> void:
-	if _ended: return
+	if _ended: return   # pagehide after visibilitychange, focus out after pause: one session_end
+	_paused_at = _now_s()
 	_flush_spend()
 	track("session_end", {"duration_s": int(round(session_seconds())), "reason": reason, "dropped": dropped})
 	_session_active = session_seconds(); _ended = true
 	_save_queue()
-	flush(true)
+	if OS.has_feature("web"): beacon_flush()
+	else: flush(true)
+
+## Back in the app: the same session if it was away briefly (the time away doesn't count), else a new one.
+func _resume() -> void:
+	if not _ended: return
+	if _now_s() - _paused_at >= NEW_SESSION_AFTER:
+		_new_session(); track("app_open", {"returning": true, "resume": true, "queued": queue.size()})
+	else:
+		_session_start = _now_s(); _ended = false
+
+## Which notifications end or resume a session on which platform: "" = ignore, "resume", or a session_end reason.
+## Android: paused or focus lost (the app switcher). Desktop: the window closing (focus out is just alt-tab).
+## The web build gets neither from the engine when a tab closes; it uses the page events in _hook_web().
+static func session_event(what: int, os_name: String) -> String:
+	match what:
+		NOTIFICATION_APPLICATION_PAUSED: return "background"
+		NOTIFICATION_WM_CLOSE_REQUEST: return "close"
+		NOTIFICATION_APPLICATION_RESUMED: return "resume"
+		NOTIFICATION_APPLICATION_FOCUS_OUT: return "background" if os_name in ["Android", "iOS"] else ""
+		NOTIFICATION_APPLICATION_FOCUS_IN: return "resume" if os_name in ["Android", "iOS"] else ""
+	return ""
+
+## A page event on the web build: "pagehide" or "visibilitychange" with the document's visibilityState.
+static func page_event(type: String, visibility: String) -> String:
+	if type == "pagehide": return "close"
+	if type == "visibilitychange": return "background" if visibility == "hidden" else ("resume" if visibility == "visible" else "")
+	return ""
+
+func _session_signal(ev: String) -> void:
+	if ev == "": return
+	if ev == "resume": _resume()
+	else: _end_session(ev)
 
 func _notification(what: int) -> void:
-	match what:
-		NOTIFICATION_APPLICATION_PAUSED, NOTIFICATION_WM_CLOSE_REQUEST:
-			_paused_at = _now_s()
-			_end_session("close" if what == NOTIFICATION_WM_CLOSE_REQUEST else "background")
-		NOTIFICATION_APPLICATION_RESUMED:
-			if not _ended: return
-			if _now_s() - _paused_at >= NEW_SESSION_AFTER:
-				_new_session(); track("app_open", {"returning": true, "resume": true, "queued": queue.size()})
-			else:
-				_session_start = _now_s(); _ended = false   # same session, the time away doesn't count
-		NOTIFICATION_PREDELETE:
-			if _dirty: _save_queue()
+	if what == NOTIFICATION_PREDELETE:
+		if _dirty: _save_queue()
+		return
+	if suppressed: return
+	_session_signal(session_event(what, OS.get_name()))
+
+# ------------------------------------------------------------------ web page lifecycle
+const _JS_BEACON := """window.__spdTelemetryBeacon = function (url, body) {
+	try { if (navigator.sendBeacon && navigator.sendBeacon(url, new Blob([body], {type: 'text/plain'}))) return true; } catch (e) {}
+	// Refused (64 KiB quota used up): try a keepalive fetch, but report false so the events stay queued. A fetch can
+	// fail later without throwing; if it did get through, PostHog drops the resend by each event's uuid.
+	try { fetch(url, {method: 'POST', body: body, keepalive: true, mode: 'no-cors', credentials: 'omit', headers: {'Content-Type': 'text/plain'}}).catch(function () {}); } catch (e) {}
+	return false;
+};"""
+
+func _hook_web() -> void:
+	if not OS.has_feature("web") or not enabled(): return
+	JavaScriptBridge.eval(_JS_BEACON, true)
+	_js_cb = JavaScriptBridge.create_callback(_on_page_event)
+	var win = JavaScriptBridge.get_interface("window")
+	var doc = JavaScriptBridge.get_interface("document")
+	if win == null or doc == null: return
+	doc.addEventListener("visibilitychange", _js_cb)
+	win.addEventListener("pagehide", _js_cb)
+
+func _on_page_event(args: Array) -> void:
+	var type := ""
+	if not args.is_empty() and args[0] != null: type = str(args[0].type)
+	var vis := str(JavaScriptBridge.eval("document.visibilityState", true))
+	_session_signal(page_event(type, vis))
+
+## The /batch/ bodies for the beacon: as many queued events per body as fit under max_bytes (at least one).
+func beacon_bodies(events: Array, max_bytes := BEACON_MAX) -> Array:
+	var out := []
+	var cur := []
+	for e in events:
+		cur.append(e)
+		if cur.size() > 1 and JSON.stringify(build_batch(cur)).to_utf8_buffer().size() > max_bytes:
+			cur.pop_back()
+			out.append(cur); cur = [e]
+	if not cur.is_empty(): out.append(cur)
+	return out
+
+## Hand the whole queue to the browser, which sends it even as the tab closes. Only bodies sendBeacon accepted leave
+## the queue; from the first refused body on, everything stays queued (and on disk) for the next launch. A batch already in flight is left
+## to its HTTPRequest. Returns the number of events handed over.
+func beacon_flush(send: Callable = Callable()) -> int:
+	if not enabled() or queue.is_empty(): return 0
+	if not send.is_valid(): send = _js_beacon
+	var n := 0
+	for batch in beacon_bodies(queue):
+		if not send.call(batch_url(), JSON.stringify(build_batch(batch))): break
+		n += batch.size()
+	queue = queue.slice(n)
+	beacons_sent += n
+	_save_queue()
+	return n
+
+func _js_beacon(url: String, body: String) -> bool:
+	var win = JavaScriptBridge.get_interface("window")
+	if win == null: return false
+	return automated_browser(win.__spdTelemetryBeacon(url, body))   # a JS true comes back as 1 (DECISIONS #198)
 
 # ------------------------------------------------------------------ events
 static func platform() -> String:
