@@ -597,6 +597,7 @@ func _choose_door(o: Dictionary) -> void:
 			if Delve.pay(GameState, o.get("cost", {})):
 				var mid := Delve.ledger(GameState)
 				Sfx.play("unlock")
+				GameState.add_stat("chests", 1)
 				GameState.say("Chest: " + Delve.reward(GameState, o.reward))
 				var after := Delve.ledger(GameState)
 				pending = {}; _show_card(); GameState.touch()
@@ -624,6 +625,7 @@ func _card_special() -> void:
 
 func _special_option(o: Dictionary) -> void:
 	GameState.log_line("Chose: " + String(o.text), "info")
+	if not o.has("cost") or Delve.pay_possible(GameState, o.cost): GameState.add_stat("rooms", 1)   # milestones (DECISIONS #195)
 	if o.has("fight"):
 		# "biome": a regular encounter of this biome/floor (garden grass, sacrificial fire - DECISIONS #91)
 		var ev := Delve.special_fight_event(GameState.run, o)   # optional own map (DECISIONS #151)

@@ -8,6 +8,7 @@ D = lambda n: json.load(open(os.path.join(ROOT, "data", n + ".json")))
 mobs, items, heroes, biomes, events, recipes, fac, rooms = (D(n) for n in
     ["mobs", "items", "heroes", "biomes", "events", "recipes", "facilities", "rooms"])
 traps = D("traps")
+milestones = D("milestones")
 
 def table(head, rows):
     out = "| " + " | ".join(head) + " |\n|" + "---|" * len(head) + "\n"
@@ -64,6 +65,12 @@ def content():
     s = "### Patrol perks (DECISIONS #188)\n\nWorn ring, artifact and the Mage's staff wand, at +0; the step is per item level. Perks are locked in when the patrol starts.\n\n"
     s += table(["Item", "Type", "On patrol"], [[i["name"], i["type"], ", ".join(perk_text(k, v) for k, v in i["patrol"].items())]
          for k, i in items.items() if not k.startswith("_") and "patrol" in i])
+    ms = milestones["milestones"]
+    tot = {}
+    for m in ms:
+        for k, v in m["reward"].items(): tot[k] = tot.get(k, 0) + v
+    s += f"\n### Milestones (DECISIONS #195)\n\n{len(ms)} milestones. A reached milestone waits in the Journal until the player taps Claim. All rewards together: " + ", ".join(f"{v} {matw(k)}" for k, v in tot.items()) + ".\n\n"
+    s += table(["Category", "Milestone", "Goal", "Reward"], [[m["cat"], m["name"], m["desc"], ", ".join(f"{v} {matw(k)}" for k, v in m["reward"].items())] for m in ms])
     s += "\n### Recipes\n\n"
     rows = []
     for facn, lst in recipes.items():

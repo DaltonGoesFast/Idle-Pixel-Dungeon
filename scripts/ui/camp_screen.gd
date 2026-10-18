@@ -22,6 +22,7 @@ var open_name := ""          # page shown in the window ("" = hub)
 var win_layer: Control       # page window
 var info_layer: Control      # item info popup (on top of the window)
 var _update_btn: Button      # Camp header Update control (Android / Windows)
+var journal_btn: Button      # Camp header Journal button: carries the unclaimed-milestone count (DECISIONS #195)
 const PAGE_ORDER := ["Delve", "Heroes", "Stash", "Forge", "Alchemy", "Enchanter", "Guild", "Journal", "Settings"]
 const TAB_ORDER := PAGE_ORDER   # kept for older tests/tools
 const PAGE_ICONS := {"Delve": "enter", "Heroes": "rankings", "Stash": "backpack_lrg", "Forge": "challenge", "Alchemy": "alchemy",
@@ -81,6 +82,8 @@ func _build_shell() -> void:
 		var b := UIKit.as_toolbar(UIKit.button("", func(): open_page(p)), PAGE_ICONS[p])
 		b.tooltip_text = p; b.custom_minimum_size = Vector2.ONE * UIKit.btn_height()
 		b.size_flags_horizontal = SIZE_SHRINK_END; b.size_flags_vertical = SIZE_SHRINK_CENTER; b.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		b.name = p + "Button"
+		if p == "Journal": journal_btn = b
 		top.add_child(b)
 	# resource strip in an SPD toast frame: one row that scrolls sideways, so it never pushes the scene down
 	var rp := PanelContainer.new(); rp.add_theme_stylebox_override("panel", UIKit.chrome("toast", Color.WHITE, UIKit.font_size * 0.35)); outer.add_child(rp)
@@ -105,6 +108,7 @@ func _build_shell() -> void:
 
 func rebuild() -> void:
 	if not is_inside_tree() or summary == null: return
+	_journal_dot()
 	UIKit.clear(summary)
 	for k in ["gold", "iron_ore", "dark_gold", "seeds", "arcane_resin", "dew", "scroll_upgrade", "torch", "ration", "potion_healing"]:
 		if GameState.mat(k) > 0 or k in ["gold", "iron_ore", "seeds"]:
@@ -114,6 +118,15 @@ func rebuild() -> void:
 	scene.hero = chosen_hero
 	_build_side()
 	if open_name != "": _fill_window()
+
+## Refresh the Journal button's count badge: milestones reached but not yet claimed.
+func _journal_dot() -> void:
+	if journal_btn == null or not is_instance_valid(journal_btn): return
+	for c in journal_btn.get_children():
+		if c.name == "ClaimDot": journal_btn.remove_child(c); c.queue_free()
+	var n := GameState.claimable_milestones().size()
+	_count_dot(journal_btn, n)
+	journal_btn.tooltip_text = "Journal" if n == 0 else "Journal (%d milestone%s to claim)" % [n, "" if n == 1 else "s"]
 
 # ------------------------------------------------------------ hub controls
 func _build_side() -> void:
@@ -1443,25 +1456,98 @@ static func _hours_text(h: float) -> String:
 	return str(int(h)) if is_equal_approx(h, roundf(h)) else "%.1f" % h
 
 # ------------------------------------------------------------ Journal (meta-progression + codex)
-var journal_view := "progress"
+var journal_view := "milestones"
+const BADGE_PX := 16   # SPD badges.png cell (8 per row)
+static var _badges_tex: Texture2D
 
+## Milestones (DECISIONS #195): reached ones wait for a Claim tap at the top; the rest are grouped by category
+## with progress like "37 / 50" and their reward. Claimed ones fold into one line per category.
 func _page_journal() -> void:
 	var v := _p("Journal")
 	var sw := HFlowContainer.new(); v.add_child(sw)
-	for t in [["progress", "Progress"], ["codex", "Codex"]]:
-		var b := UIKit.button(t[1], func(): journal_view = t[0]; _fill_window())
+	sw.add_theme_constant_override("h_separation", int(UIKit.font_size * 0.3))
+	var ready_n := GameState.claimable_milestones().size()
+	for t in [["milestones", "Milestones"], ["progress", "Progress"], ["codex", "Codex"]]:
+		var b := UIKit.button(t[1], func(): journal_view = t[0]; top_next = true; _fill_window())
 		if journal_view != t[0]: UIKit.secondary(b)
-		b.custom_minimum_size.x = UIKit.font_size * 7; sw.add_child(b)
+		b.custom_minimum_size.x = UIKit.font_size * 7; b.autowrap_mode = TextServer.AUTOWRAP_OFF
+		if t[0] == "milestones": _count_dot(b, ready_n)
+		sw.add_child(b)
 	if journal_view == "codex": CodexView.build(v, portrait); return
-	var done := GameState.milestones_claimed.size()
-	v.add_child(UIKit.header("Milestones  %d / %d" % [done, DB.milestones.size()]))
-	# open milestones as cards; finished ones collapse to one line of names
-	var finished: PackedStringArray = []
-	for m in DB.milestones:
-		if m.id in GameState.milestones_claimed: finished.append(m.name); continue
-		v.add_child(_progress_card(m.name, m.desc, GameState.stat_value(m.stat), int(m.goal), "Reward: " + GameState.cost_text(m.reward), false))
-	if not finished.is_empty():
-		v.add_child(UIKit.label("Completed (%d): %s" % [finished.size(), ", ".join(finished)], 0.8, Color("6bff6b")))
+	if journal_view == "progress": _journal_progress(v); return
+	_journal_milestones(v)
+
+func _journal_milestones(v: VBoxContainer) -> void:
+	var ready := GameState.claimable_milestones()
+	v.add_child(UIKit.header("Milestones  %d / %d" % [GameState.milestones_claimed.size(), DB.milestones.size()]))
+	if not ready.is_empty():
+		v.add_child(UIKit.label("Ready to claim (%d)" % ready.size(), 1.0, GameState.LOG_COLORS.highlight))
+		for id in ready: v.add_child(_milestone_card(GameState.milestone_def(id)))
+		if ready.size() > 1:
+			var all := UIKit.button("Claim all (%d)" % ready.size(), func(): GameState.claim_all_milestones())
+			all.name = "ClaimAll"; _foot().add_child(all)
+	for cat in DB.milestone_categories:
+		var list: Array = DB.milestones.filter(func(m): return String(m.get("cat", "")) == cat)
+		if list.is_empty(): continue
+		var claimed: Array = list.filter(func(m): return m.id in GameState.milestones_claimed)
+		v.add_child(UIKit.label("%s  %d / %d" % [cat, claimed.size(), list.size()], 1.1, Color("ffd27a")))
+		for m in list:
+			if m.id in GameState.milestones_claimed or GameState.milestone_claimable(m.id): continue
+			v.add_child(_milestone_card(m))
+		if not claimed.is_empty():
+			v.add_child(UIKit.label("Claimed: " + ", ".join(claimed.map(func(m): return m.name)), 0.8, Color("6bff6b")))
+
+## SPD badge icon for a milestone (badges.png); greyed until reached, like SPD's locked badges.
+static func badge_icon(m: Dictionary, lit: bool, k: int) -> Control:
+	if _badges_tex == null: _badges_tex = load("res://assets/ui/badges.png")
+	var i := int(m.get("badge", 0))
+	var at := AtlasTexture.new(); at.atlas = _badges_tex
+	at.region = Rect2((i % 8) * BADGE_PX, (i / 8) * BADGE_PX, BADGE_PX, BADGE_PX)
+	var ic := UIKit.pixel(at, k)
+	ic.size_flags_vertical = SIZE_SHRINK_CENTER
+	if not lit: ic.modulate = Color(0.35, 0.35, 0.35, 0.9)
+	return ic
+
+## One milestone: badge, name, what to do, a bar with "have / goal", the reward chips, and Claim when reached.
+func _milestone_card(m: Dictionary) -> Control:
+	var ready := GameState.milestone_claimable(m.id)
+	var card := UIKit.card(); card.set_meta("milestone", m.id)
+	var row := UIKit.hbox(card); row.add_theme_constant_override("separation", int(UIKit.font_size * 0.4))
+	row.add_child(badge_icon(m, ready, maxi(2, int(UIKit.font_size * 2.2 / BADGE_PX))))
+	var cv := UIKit.vbox(); cv.size_flags_horizontal = SIZE_EXPAND_FILL; row.add_child(cv)
+	cv.add_theme_constant_override("separation", int(UIKit.font_size * 0.15))
+	cv.add_child(UIKit.label(m.name, 1.0, GameState.LOG_COLORS.highlight if ready else Color("ffd27a")))
+	cv.add_child(UIKit.label(m.desc, 0.8, Color("bdb3a0")))
+	var pr := GameState.milestone_progress(m)
+	if not ready:
+		var bar := ProgressBar.new(); bar.max_value = int(pr[1]); bar.value = int(pr[0]); bar.show_percentage = false
+		bar.custom_minimum_size.y = UIKit.font_size * 0.5; cv.add_child(bar)
+	var rf := HFlowContainer.new(); cv.add_child(rf); rf.size_flags_horizontal = SIZE_EXPAND_FILL
+	rf.add_theme_constant_override("h_separation", int(UIKit.font_size * 0.5))
+	var prog := UIKit.chip_label("%d / %d" % [int(pr[0]), int(pr[1])], 0.8, Color("6bff6b") if ready else Color("e8e0d0"))
+	prog.name = "Progress"; rf.add_child(prog)
+	for k in m.reward: rf.add_child(UIKit.res_chip(k, str(int(m.reward[k])), 0.8))
+	if ready:
+		var claim := UIKit.button("Claim", func(): GameState.claim_milestone(m.id))
+		claim.name = "Claim"; claim.autowrap_mode = TextServer.AUTOWRAP_OFF
+		claim.size_flags_horizontal = SIZE_SHRINK_END; claim.size_flags_vertical = SIZE_SHRINK_CENTER
+		claim.custom_minimum_size.x = UIKit.font_size * 4.2
+		row.add_child(claim)
+	return card
+
+## A small count badge in the top-right corner of a button (Journal toolbar, Milestones tab): milestones to claim.
+func _count_dot(b: Control, n: int) -> void:
+	if n <= 0: return
+	var dot := PanelContainer.new(); dot.name = "ClaimDot"; dot.mouse_filter = MOUSE_FILTER_IGNORE
+	dot.add_theme_stylebox_override("panel", UIKit.chrome("red_button", Color.WHITE, UIKit.font_size * 0.12))
+	var l := UIKit.chip_label(str(n) if n < 100 else "99+", 0.75, Color.WHITE); l.mouse_filter = MOUSE_FILTER_IGNORE
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER; dot.add_child(l)
+	dot.set_anchors_preset(PRESET_TOP_RIGHT)
+	dot.grow_horizontal = GROW_DIRECTION_BEGIN
+	dot.offset_left = 0; dot.offset_right = 0; dot.offset_top = 0   # inside the corner: never clipped at the screen top
+	b.add_child(dot)
+
+func _journal_progress(v: VBoxContainer) -> void:
 	v.add_child(UIKit.header("Heroes"))
 	for c in GameState.heroes:
 		var h: Dictionary = GameState.heroes[c]
@@ -1474,8 +1560,13 @@ func _page_journal() -> void:
 	v.add_child(UIKit.header("Lifetime"))
 	var st: Dictionary = GameState.stats
 	var lines := ["Expeditions: %d (%d extracted, %d deaths)" % [st.runs, st.extractions, st.deaths], "Deepest floor: %d" % st.deepest_floor,
-		"Monsters defeated: %d   Goo: %d   Tengu: %d" % [st.kills, st.goo_kills, st.tengu_kills],
-		"Hidden traps found: %d   Hidden doors: %d   Potions brewed: %d" % [st.traps_found, st.hidden_doors, st.potions_brewed]]
+		"Monsters defeated: %d   Surprise attacks: %d" % [st.kills, int(st.get("surprises", 0))],
+		"Bosses: Goo %d   Tengu %d   DM-300 %d   King %d   Yog %d" % [GameState.stat_value("boss:goo"), GameState.stat_value("boss:tengu"),
+			GameState.stat_value("boss:dm300"), GameState.stat_value("boss:dking"), GameState.stat_value("boss:yog")],
+		"Gold banked: %d   Gold spent: %d" % [int(st.get("gold_banked", 0)), int(st.get("gold_spent", 0))],
+		"Hidden traps found: %d   Hidden doors: %d   Special rooms: %d" % [st.traps_found, st.hidden_doors, int(st.get("rooms", 0))],
+		"Potions brewed: %d   Gear upgrades: %d   Items identified: %d" % [st.potions_brewed, int(st.get("items_upgraded", 0)), int(st.get("items_identified", 0))],
+		"Patrols: %d (%d hours)" % [int(st.get("patrols", 0)), int(st.get("patrol_hours", 0))]]
 	for l in lines: v.add_child(UIKit.label(l, 0.85))
 
 func _progress_card(title: String, desc: String, have: int, goal: int, reward: String, done: bool) -> Control:

@@ -8,6 +8,7 @@ signal toast(text: String)
 signal settings_changed
 
 const PACK_MATS := ["gold","dew","iron_ore","dark_gold","seeds","arcane_resin","iron_key","potion_strength","scroll_upgrade"]
+const BIG_HAUL_GOLD := 300        # "Heavy Pockets": extract with this much gold in the pack (DECISIONS #195)
 const BACKPACK_SLOTS := 8          # found gear + unequipped owned gear carried on a delve (DECISIONS #67)
 const SUPPLY_KEYS := ["ration","torch","potion_healing","scroll_passage","elixir_starter"]
 
@@ -22,9 +23,15 @@ var boss_kills: Dictionary = {}    # class -> [biome ids]  (first kill per class
 var settings := {"sfx": 0.8, "music": 0.5, "haptics": true, "text_scale": 1.0, "dev_tools": false, "tutorial": true,
 	"delve_speed": 1.0, "lighting": true, "full_auto": false}
 const STATS_DEFAULT := {"potions_brewed": 0, "deepest_floor": 0, "runs": 0, "deaths": 0, "extractions": 0, "kills": 0,
-	"traps_found": 0, "hidden_doors": 0, "goo_kills": 0, "tengu_kills": 0, "goo_losses": 0}
+	"traps_found": 0, "hidden_doors": 0, "goo_kills": 0, "tengu_kills": 0, "goo_losses": 0,
+	# milestone counters (DECISIONS #195); per-mob kills are "kill_<mob>" keys added as they happen
+	"dm300_kills": 0, "dking_kills": 0, "yog_kills": 0, "gold_banked": 0, "gold_spent": 0, "items_upgraded": 0, "items_forged": 0,
+	"items_found": 0, "items_identified": 0, "potions_drunk": 0, "scrolls_read": 0, "rations_eaten": 0, "surprises": 0,
+	"patrols": 0, "patrol_hours": 0, "patrol_curios": 0, "chests": 0, "rooms": 0, "feat_flawless_boss": 0, "feat_manual_boss": 0,
+	"feat_dry_boss": 0, "feat_close_call": 0, "feat_crowd": 0, "feat_big_haul": 0}
 var stats := STATS_DEFAULT.duplicate()
-var milestones_claimed: Array = []  # milestone ids already rewarded
+var milestones_claimed: Array = []  # milestone ids already rewarded (paid)
+var milestones_reached: Array = []  # milestone ids whose goal was met; claimable until also in milestones_claimed (DECISIONS #195)
 var seen: Dictionary = {}          # codex discoveries: "mob:rat", "trap:worn_dart", "item:dagger" -> true
 var tutorial_done: Array = []      # onboarding steps already shown
 var last_result := ""              # "extract" / "death" / "abandon" of the run that just ended (not saved)
@@ -83,7 +90,7 @@ func grant_owed_sou() -> int:
 func new_game() -> void:
 	mats = {"gold": 30, "ration": 2, "torch": 2, "potion_healing": 1, "iron_key": 1, "seeds": 2}
 	gear = []; next_uid = 1; id_queue = []; boss_kills = {}; run = {}; time_offset = 0.0
-	stats = STATS_DEFAULT.duplicate(); milestones_claimed = []; seen = {}; tutorial_done = []; owed_sou = 0
+	stats = STATS_DEFAULT.duplicate(); milestones_claimed = []; milestones_reached = []; seen = {}; tutorial_done = []; owed_sou = 0
 	_roll_appearances()
 	facilities = {}
 	for f in DB.facilities: facilities[f] = {"level": 1, "cap": 1}
@@ -134,6 +141,7 @@ func can_afford(cost: Dictionary) -> bool:
 func pay(cost: Dictionary) -> bool:
 	if not can_afford(cost): return false
 	for k in cost: mats[k] = mat(k) - int(cost[k])
+	if int(cost.get("gold", 0)) > 0: add_stat("gold_spent", int(cost.gold))
 	return true
 
 static func cost_text(cost: Dictionary) -> String:
@@ -441,7 +449,7 @@ func _ensure_look(k: String) -> void:
 	looks[k] = choices[r.randi() % choices.size()]
 
 func identify_mat(k: String) -> void:
-	if not ided.has(k): ided[k] = true; say("It was a %s!" % DB.materials[k].name)
+	if not ided.has(k): ided[k] = true; add_stat("items_identified", 1); say("It was a %s!" % DB.materials[k].name)
 
 ## Use an unknown-kind potion/scroll from the pack mid-delve (identifies it).
 func delve_use_pack(k: String) -> bool:
@@ -449,6 +457,7 @@ func delve_use_pack(k: String) -> bool:
 	var c: String = run.hero
 	run.pack[k] = int(run.pack[k]) - 1
 	identify_mat(k)
+	add_stat("potions_drunk" if k.begins_with("potion_") else "scrolls_read", 1)
 	match k:
 		"potion_experience":
 			var need := xp_to_next(int(heroes[c].level))
@@ -462,6 +471,7 @@ func delve_use_pack(k: String) -> bool:
 			var n := 0
 			for g in run.pack_gear:
 				if not g.known: g.known = true; seen["item:" + g.id] = true; n += 1
+			add_stat("items_identified", n)
 			say("Identified %d item(s)." % n if n > 0 else "Nothing to identify.")
 		"scroll_mapping":
 			run.progress = minf(99.0, float(run.get("progress", 0.0)) + 40.0); say("The floor's layout floods your mind (+40%).")
@@ -490,7 +500,7 @@ func delve_use_pack(k: String) -> bool:
 				gg.id = pool[(int(gg.uid) + int(run.get("floor", 0))) % pool.size()]
 				say("Your %s twists into something else." % t); done = true; break
 			if not done: say("Nothing to transmute.")
-		_: run.pack[k] = int(run.pack[k]) + 1; return false
+		_: run.pack[k] = int(run.pack[k]) + 1; add_stat("potions_drunk" if k.begins_with("potion_") else "scrolls_read", -1); return false
 	touch(); return true
 
 func _next_fx(k: String, v: float) -> void:
@@ -503,10 +513,10 @@ func delve_use(k: String) -> bool:
 		"potion_healing":
 			var ht := int(hero_stats(run.hero).ht)
 			if int(run.hp) >= ht: return false
-			run.hp = mini(ht, int(run.hp) + potion_heal(run.hero)); say("Drank a Potion of Healing.")
+			run.hp = mini(ht, int(run.hp) + potion_heal(run.hero)); say("Drank a Potion of Healing."); add_stat("potions_drunk", 1)
 		"ration":
 			if float(run.satiety) >= 90.0: return false
-			run.satiety = minf(100.0, float(run.satiety) + 60.0); say("Ate a ration.")
+			run.satiety = minf(100.0, float(run.satiety) + 60.0); say("Ate a ration."); add_stat("rations_eaten", 1)
 		"torch":
 			if float(run.torch) >= 90.0: return false
 			run.torch = minf(100.0, float(run.torch) + 60.0); say("Lit a fresh torch.")
@@ -811,7 +821,7 @@ func craft(fac: String, rid: String) -> bool:
 	for k in r.cost:
 		if DB.materials.get(k, {}).get("unknown", false) and not is_mat_known(k): identify_mat(k)
 	var n := int(r.get("out_n", 1))
-	if r.has("out"): add_gear(r.out); say("Forged " + DB.display_name(r.out) + ".")
+	if r.has("out"): add_gear(r.out); add_stat("items_forged", 1); say("Forged " + DB.display_name(r.out) + ".")
 	else: add_mat(r.out_mat, n); say("Made %s%s." % [DB.mat_name(r.out_mat), " x%d" % n if n > 1 else ""])
 	if fac == "alchemy": stats.potions_brewed += 1
 	check_unlocks()
@@ -852,7 +862,7 @@ func can_upgrade_item(uid: int) -> String:
 
 func upgrade_item(uid: int) -> bool:
 	if can_upgrade_item(uid) != "": return false
-	pay(item_upgrade_cost(uid)); gear_by_uid(uid).lvl += 1
+	pay(item_upgrade_cost(uid)); gear_by_uid(uid).lvl += 1; add_stat("items_upgraded", 1)
 	say("Upgraded " + gear_name(gear_by_uid(uid)) + "."); touch(); return true
 
 func repair_cost(uid: int) -> Dictionary:
@@ -931,7 +941,7 @@ func can_upgrade_staff_wand() -> String:
 
 func upgrade_staff_wand() -> bool:
 	if can_upgrade_staff_wand() != "": return false
-	pay(staff_wand_cost()); heroes.mage.wand_lvl = int(heroes.mage.get("wand_lvl", 0)) + 1
+	pay(staff_wand_cost()); heroes.mage.wand_lvl = int(heroes.mage.get("wand_lvl", 0)) + 1; add_stat("items_upgraded", 1)
 	say("Upgraded %s to +%d." % [DB.item(heroes.mage.wand).name, heroes.mage.wand_lvl]); touch(); return true
 
 func staff_wand_repair_cost() -> Dictionary:
@@ -1233,7 +1243,7 @@ func tick_identify() -> Array:
 		if float(q.ready_at) <= now():
 			var g := gear_by_uid(q.uid)
 			if not g.is_empty():
-				g.known = true; seen["item:" + g.id] = true; done.append(q.uid); say("Identified: " + gear_name(g))
+				g.known = true; seen["item:" + g.id] = true; done.append(q.uid); add_stat("items_identified", 1); say("Identified: " + gear_name(g))
 			id_queue.erase(q)
 	if not done.is_empty(): touch()
 	return done
@@ -1431,6 +1441,8 @@ func collect_patrol(c: String) -> Dictionary:
 		var id: String = pool[(next_uid + i) % pool.size()] if pool.size() == 2 else pool[rng.randi() % pool.size()]
 		add_gear(id, known, 1 if plus > 0.0 and rng.randf() < plus else 0)
 	heroes[c].patrol = {}
+	add_stat("patrols", 1); add_stat("patrol_hours", int(float(y._hours))); add_stat("patrol_curios", int(y._curios))
+	add_stat("gold_banked", int(y.get("gold", 0)))
 	say("%s returns from patrol (%.1fh)." % [DB.heroes[c].name, y._hours]); touch()
 	return y
 
@@ -1516,6 +1528,9 @@ func end_run(result: String) -> void:
 	for k in run.supplies: add_mat(k, int(run.supplies[k]))
 	match result:
 		"extract":
+			var banked := int(run.pack.get("gold", 0))
+			add_stat("gold_banked", banked)
+			if banked >= BIG_HAUL_GOLD: add_stat("feat_big_haul", 1)
 			for k in run.pack: add_mat(k, int(run.pack[k]))
 			for g in run.pack_gear:
 				g.erase("owned"); gear.append(g)
@@ -1570,8 +1585,7 @@ func record_boss_kill(c: String, biome: String) -> bool:
 	if DB.biomes[biome].boss == "tengu" and not heroes[c].get("mask", false):
 		heroes[c].mask = true
 		say("Tengu's Mask! Choose a subclass for the %s in Camp -> Heroes." % DB.heroes[c].name)
-	var key: String = DB.biomes[biome].boss + "_kills"
-	if stats.has(key): stats[key] += 1
+	add_stat(DB.biomes[biome].boss + "_kills", 1)
 	check_unlocks()
 	return first
 
@@ -1585,24 +1599,114 @@ func check_unlocks() -> void:
 			say("The %s has joined the Camp!" % DB.heroes[c].name)
 
 # ---------------------------------------------------------------- meta-progression
-## Progress toward a milestone stat (see data/milestones.json).
+## Progress toward a milestone stat (see data/milestones.json, DECISIONS #195). Plain names read GameState.stats;
+## the prefixed and live forms below are worked out from the account, so old saves count what they already have.
 func stat_value(stat: String) -> int:
-	if stat.begins_with("boss:"): return int(stats.get(stat.substr(5) + "_kills", 0))
+	if stat.begins_with("boss:"):
+		var mob := stat.substr(5)
+		# saves from before every boss had a counter: each class's first kill of that boss still counts
+		var firsts := 0
+		for b in DB.biomes:
+			if DB.biomes[b] is Dictionary and String(DB.biomes[b].get("boss", "")) == mob:
+				for c in boss_kills: firsts += 1 if b in boss_kills[c] else 0
+		return maxi(int(stats.get(mob + "_kills", 0)), firsts)
 	if stat.begins_with("cleared:"):
 		var b := stat.substr(8)
 		return heroes.values().filter(func(h): return b in h.cleared).size()
+	if stat.begins_with("class_boss:"):
+		var parts := stat.split(":")
+		var c := parts[1]; var biome := parts[2]
+		return 1 if heroes.has(c) and (biome in boss_kills.get(c, []) or biome in heroes[c].cleared) else 0
+	if stat.begins_with("kill:"):
+		var n := 0
+		for mob in stat.substr(5).split(","): n += int(stats.get("kill_" + mob, 0))
+		return n
+	if stat.begins_with("seen:"):
+		var pre := stat.substr(5)
+		return seen.keys().filter(func(k): return String(k).begins_with(pre)).size()
+	match stat:
+		"best_level":
+			var best := 0
+			for c in heroes: best = maxi(best, maxi(int(heroes[c].level), int(heroes[c].get("best_level", 1))))
+			return best
+		"heroes_unlocked": return heroes.values().filter(func(h): return h.unlocked).size()
+		"talents_max":
+			var t := 0
+			for c in heroes: t = maxi(t, Array(heroes[c].get("talents", [])).size())
+			return t
+		"subclasses": return heroes.values().filter(func(h): return String(h.get("subclass", "")) != "").size()
+		"facility_ups":
+			var u := 0
+			for f in facilities: u += maxi(0, int(facilities[f].level) - 1)
+			return u
+		"facility_caps":
+			var cp := 0
+			for f in facilities: cp += maxi(0, int(facilities[f].cap) - 1)
+			return cp
+		"max_gear_lvl":
+			var mx := 0
+			for g in gear: if g.get("known", true): mx = maxi(mx, int(g.lvl))
+			return maxi(mx, int(heroes.get("mage", {}).get("wand_lvl", 0)))
+		"patrol_gear_best":
+			var pg := 0
+			for c in heroes: pg = maxi(pg, patrol_gear_level(c))
+			return pg
+		"artifacts_owned":
+			var ids := {}
+			for g in gear: if DB.item(g.id).get("type", "") == "artifact": ids[g.id] = true
+			return ids.size()
 	return int(stats.get(stat, 0))
 
-## Grant every newly reached milestone (once). Returns the ids granted.
+func milestone_def(id: String) -> Dictionary:
+	for m in DB.milestones:
+		if m.id == id: return m
+	return {}
+
+## [have, goal] for a milestone's progress bar; a reached one stays full even if a live total later drops
+## (a death resets level and talents, gear can be broken down).
+func milestone_progress(m: Dictionary) -> Array:
+	var goal := int(m.goal)
+	if m.id in milestones_reached or m.id in milestones_claimed: return [goal, goal]
+	return [mini(stat_value(m.stat), goal), goal]
+
+func milestone_claimable(id: String) -> bool:
+	return id in milestones_reached and not (id in milestones_claimed)
+
+## Ids waiting for the player's Claim tap, in data order.
+func claimable_milestones() -> Array:
+	return DB.milestones.filter(func(m): return milestone_claimable(m.id)).map(func(m): return m.id)
+
+## Latch every newly reached milestone as claimable. Nothing is paid here: the reward waits for claim_milestone
+## (DECISIONS #195). Returns the ids that were newly reached.
 func check_milestones() -> Array:
 	var got := []
 	for m in DB.milestones:
-		if m.id in milestones_claimed or stat_value(m.stat) < int(m.goal): continue
-		milestones_claimed.append(m.id); got.append(m.id)
-		for k in m.reward: add_mat(k, int(m.reward[k]))
-		say("Milestone: %s! Reward: %s" % [m.name, cost_text(m.reward)])
-		Sfx.play("badge")
+		if m.id in milestones_reached or m.id in milestones_claimed: continue
+		if stat_value(m.stat) < int(m.goal): continue
+		milestones_reached.append(m.id); got.append(m.id)
+	if got.size() == 1:
+		say("Milestone: %s! Claim it in the Journal." % milestone_def(got[0]).name, "highlight"); Sfx.play("badge")
+	elif got.size() > 1:
+		say("%d milestones reached! Claim them in the Journal." % got.size(), "highlight"); Sfx.play("badge")
 	return got
+
+## Pay one reached milestone into the Camp stash. False if it isn't claimable (not reached, or already paid).
+func claim_milestone(id: String) -> bool:
+	if not milestone_claimable(id): return false
+	var m := milestone_def(id)
+	milestones_claimed.append(id)
+	for k in m.reward: add_mat(k, int(m.reward[k]))
+	log_line("Milestone claimed: %s. %s" % [m.name, cost_text(m.reward)], "positive")
+	Sfx.play("gold")
+	changed.emit()
+	return true
+
+## Claim everything waiting. Returns how many were paid.
+func claim_all_milestones() -> int:
+	var n := 0
+	for id in claimable_milestones():
+		if claim_milestone(id): n += 1
+	return n
 
 func add_stat(k: String, n: int) -> void:
 	stats[k] = int(stats.get(k, 0)) + n
@@ -1627,7 +1731,7 @@ func note_floor(f: int) -> void:
 func to_dict() -> Dictionary:
 	return {"mats": mats, "gear": gear, "next_uid": next_uid, "heroes": heroes, "facilities": facilities,
 		"id_queue": id_queue, "boss_kills": boss_kills, "settings": settings, "run": run, "stats": stats,
-		"milestones_claimed": milestones_claimed, "seen": seen, "tutorial_done": tutorial_done, "looks": looks, "ided": ided, "owed_sou": owed_sou,
+		"milestones_claimed": milestones_claimed, "milestones_reached": milestones_reached, "seen": seen, "tutorial_done": tutorial_done, "looks": looks, "ided": ided, "owed_sou": owed_sou,
 		"time_offset": time_offset}
 
 func from_dict(d: Dictionary) -> void:
@@ -1647,6 +1751,11 @@ func from_dict(d: Dictionary) -> void:
 	settings.merge(d.get("settings", {}), true); run = d.get("run", {})
 	stats.merge(d.get("stats", {}), true)
 	milestones_claimed = Array(d.get("milestones_claimed", [])); seen = d.get("seen", {}); tutorial_done = Array(d.get("tutorial_done", []))
+	# saves from before Claim (DECISIONS #195) paid every reached milestone on the spot: those stay paid, and anything
+	# reached under the new list but never paid becomes claimable on the touch() below
+	milestones_reached = Array(d.get("milestones_reached", []))
+	for id in milestones_claimed:
+		if not (id in milestones_reached): milestones_reached.append(id)
 	settings.text_scale = float(settings.text_scale); settings.delve_speed = float(settings.delve_speed)
 	for k in stats: stats[k] = int(stats[k])
 	time_offset = float(d.get("time_offset", 0.0))   # older saves: no fast-forward

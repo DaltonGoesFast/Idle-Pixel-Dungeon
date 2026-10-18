@@ -343,6 +343,7 @@ func _do_bot() -> void:
 		_refresh()
 		return
 	var s := CombatBot.suggest(combat, potions - potions_used, heal)
+	combat.auto_used = true   # this fight no longer counts for "By Hand" (DECISIONS #195)
 	match s.act:
 		"heal": _drink()
 		"wait": _act(func(): combat.hero_wait())
@@ -412,9 +413,11 @@ func _result_section(parent: Node, heading: String, lines: PackedStringArray, co
 		parent.add_child(UIKit.label(s, 0.9, color))
 
 func result() -> Dictionary:
-	return {"won": combat.won, "hp": combat.hero.hp, "loot": combat.loot, "fallen_loot": combat.fallen_loot, "xp": combat.xp,
+	var r := {"won": combat.won, "hp": combat.hero.hp, "loot": combat.loot, "fallen_loot": combat.fallen_loot, "xp": combat.xp,
 		"boss_killed": combat.boss_killed, "potions_used": potions_used, "kills": combat.kills, "traps_found": combat.traps_found,
 		"trap_ids": combat.trap_ids_seen, "applied": _applied, "pause_after": _pause_after}
+	r.merge(combat.milestone_result())
+	return r
 
 func _finish() -> void:
 	GameState.run.erase("active_fight")

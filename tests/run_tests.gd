@@ -58,6 +58,7 @@ func _ready() -> void:
 	test_goo_spd(gs)
 	test_level_cap(gs)
 	test_dew_sink(gs)
+	test_milestones(gs, ss)
 	test_old_run_load(gs)
 	test_goo_spiral(gs)
 	test_food_sources(gs)
@@ -477,9 +478,10 @@ func test_meta(gs, ss) -> void:
 	gs.new_game()
 	var gold0: int = gs.mat("gold")
 	gs.stats.extractions = 1; gs.touch()
-	check("first_steps" in gs.milestones_claimed and gs.mat("gold") == gold0 + 30, "milestone grants its reward once reached")
+	check(gs.milestone_claimable("first_steps") and not ("first_steps" in gs.milestones_claimed) and gs.mat("gold") == gold0, "a reached milestone waits for Claim (no auto reward)")
+	check(gs.claim_milestone("first_steps") and gs.mat("gold") == gold0 + 30, "Claim pays the milestone's reward")
 	gs.touch()
-	check(gs.mat("gold") == gold0 + 30, "milestone rewards are only granted once")
+	check(not gs.claim_milestone("first_steps") and gs.mat("gold") == gold0 + 30, "milestone rewards are only granted once")
 	check(gs.stat_value("cleared:sewers") == 0, "cleared:<biome> counts heroes")
 	gs.heroes.warrior.cleared.append("sewers"); gs.heroes.mage.cleared.append("sewers")
 	check(gs.stat_value("cleared:sewers") == 2, "cleared:<biome> counts every hero that cleared it")
@@ -4106,3 +4108,90 @@ func test_window_dim(gs) -> void:
 	cb.bag_open = false; cb._refresh(); cb.queue_free()
 	gs.end_run("abandon")
 	await get_tree().process_frame
+
+## DECISIONS #195: milestones latch as claimable, pay only on Claim, never twice; old saves keep what was paid.
+func test_milestones(gs, ss) -> void:
+	print("[milestones]")
+	gs.new_game()
+	var ids := {}
+	var gold_total := 0; var sou := 0
+	for m in DB.milestones:
+		check(not ids.has(m.id), "milestone id unique: " + String(m.id)); ids[m.id] = true
+		check(String(m.get("cat", "")) in DB.milestone_categories, "milestone has a known category: " + String(m.id))
+		check(int(m.goal) > 0 and not m.reward.is_empty() and m.has("badge"), "milestone has goal, reward, badge: " + String(m.id))
+		for k in m.reward: check(DB.materials.has(k), "milestone reward is a material: %s %s" % [m.id, k])
+		check(not m.reward.has("potion_strength"), "no Strength potions from milestones: " + String(m.id))
+		gold_total += int(m.reward.get("gold", 0)); sou += int(m.reward.get("scroll_upgrade", 0))
+	check(DB.milestones.size() >= 40 and DB.milestones.size() <= 80, "40-80 milestones (%d)" % DB.milestones.size())
+	check(gold_total <= 600, "all milestone gold together stays modest (%d)" % gold_total)
+	# the economy sim put dark gold / resin / keys from an earlier draft at 40-70% of their income: keep them scarce
+	var tot := {}
+	for m in DB.milestones:
+		for k in m.reward: tot[k] = int(tot.get(k, 0)) + int(m.reward[k])
+	check(int(tot.get("dark_gold", 0)) <= 20 and int(tot.get("arcane_resin", 0)) <= 15 and int(tot.get("iron_key", 0)) <= 2 and int(tot.get("iron_ore", 0)) <= 80, "milestone materials stay scarce: %s" % [tot])
+	check(sou == 2, "milestones still hand out exactly 2 Scrolls of Upgrade (DECISIONS #150 supply)")
+	check(gs.claimable_milestones().is_empty() and gs.milestones_reached.is_empty(), "a new game has nothing to claim")
+	# every stat kind resolves
+	gs.stats["kill_rat"] = 30; gs.stats["kill_snake"] = 5
+	check(gs.stat_value("kill:rat") == 30 and gs.stat_value("kill:rat,snake") == 35, "kill:<mob>[,<mob>] sums per-mob kills")
+	gs.boss_kills = {"warrior": ["sewers", "prison", "caves"], "mage": ["caves"]}
+	check(gs.stat_value("boss:dm300") == 2 and gs.stat_value("class_boss:warrior:prison") == 1 and gs.stat_value("class_boss:mage:prison") == 0, "boss / class_boss read first kills")
+	gs.facilities.blacksmith.level = 3; gs.facilities.guild.level = 2
+	check(gs.stat_value("facility_ups") == 3, "facility_ups sums levels past 1")
+	gs.discover("mob:rat"); gs.discover("mob:crab"); gs.discover("trap:worn_dart")
+	check(gs.stat_value("seen:mob:") == 2, "seen:<prefix> counts codex entries")
+	# live totals stay reached after they drop (death resets level)
+	gs.new_game()
+	gs.heroes.warrior.level = 5; gs.touch()
+	check(gs.milestone_claimable("level_1"), "Level 5 latches Level Reached I")
+	gs.heroes.warrior.level = 1; gs.heroes.warrior.best_level = 1; gs.touch()
+	check(gs.milestone_claimable("level_1") and gs.milestone_progress(gs.milestone_def("level_1"))[0] == 5, "a reached milestone stays claimable and full after the level resets")
+	# Claim All pays each once
+	gs.stats.kills = 120; gs.touch()
+	var ready: Array = gs.claimable_milestones()
+	check("monsters_1" in ready and "exterminator" in ready, "kills latch both kill tiers")
+	var g0: int = gs.mat("gold"); var ore0: int = gs.mat("iron_ore"); var pots0: int = gs.mat("potion_healing")
+	var n: int = gs.claim_all_milestones()
+	check(n == ready.size() and gs.claimable_milestones().is_empty(), "Claim all pays every ready milestone")
+	check(gs.mat("gold") == g0 + 80 and gs.mat("iron_ore") == ore0 + 3 + 6 and gs.mat("potion_healing") == pots0 + 1, "Claim all pays the summed rewards")
+	check(gs.claim_all_milestones() == 0 and gs.mat("gold") == g0 + 80, "nothing pays twice")
+	# save round trip keeps reached + claimed apart
+	gs.stats.extractions = 1; gs.touch()
+	var d: Dictionary = JSON.parse_string(JSON.stringify(gs.to_dict()))
+	gs.new_game(); gs.from_dict(d)
+	check(gs.milestone_claimable("first_steps") and "exterminator" in gs.milestones_claimed, "reached and claimed milestones persist")
+	# old save (before Claim): everything in milestones_claimed was already paid; a new milestone it qualifies for becomes claimable
+	var old := {"mats": {"gold": 100}, "stats": {"kills": 120, "extractions": 1}, "milestones_claimed": ["first_steps", "exterminator"]}
+	gs.new_game(); gs.from_dict(old)
+	check("first_steps" in gs.milestones_reached and not gs.milestone_claimable("first_steps") and not gs.milestone_claimable("exterminator"), "old save: paid milestones stay paid")
+	check(gs.milestone_claimable("monsters_1"), "old save: a newly added milestone it already earned is claimable")
+	var gold_before: int = gs.mat("gold")
+	gs.claim_all_milestones()
+	check(gs.mat("gold") == gold_before, "old save: no double pay for First Steps / Exterminator gold")
+	# fight results feed the counters and feats
+	gs.new_game()
+	gs.start_run("warrior", {}, "sewers", 5)
+	var ev := {"kind": "combat", "mobs": ["goo"], "boss": true}
+	var res := {"won": true, "hp": 1, "loot": 0, "fallen_loot": 0, "xp": 0, "boss_killed": true, "kills": 6, "traps_found": 0, "trap_ids": [],
+		"kill_ids": {"goo": 1, "rat": 5}, "surprises": 3, "hp_lost": 0, "auto_used": false, "potions_used": 0}
+	Delve.record_fight_stats(gs, ev, res)
+	check(gs.stat_value("kill:rat") == 5 and int(gs.stats.surprises) == 3, "fight result adds per-mob kills and surprises")
+	check(int(gs.stats.feat_flawless_boss) == 1 and int(gs.stats.feat_manual_boss) == 1 and int(gs.stats.feat_dry_boss) == 1 and int(gs.stats.feat_crowd) == 1 and int(gs.stats.feat_close_call) == 1, "boss feats, crowd and close call count")
+	res.auto_used = true; res.hp_lost = 4; res.potions_used = 1; res.hp = 30; res.kills = 1
+	Delve.record_fight_stats(gs, ev, res)
+	check(int(gs.stats.feat_flawless_boss) == 1 and int(gs.stats.feat_manual_boss) == 1 and int(gs.stats.feat_dry_boss) == 1 and int(gs.stats.potions_drunk) == 1, "Auto Battle, lost HP or a potion void the feats")
+	# a real fight reports surprises and per-mob kills, and the combat state keeps them through a save
+	var cev := Delve.combat_event(gs.run, Delve.rng_for(gs.run, 1), ["rat", "rat"])
+	var c := Delve.new_combat(gs, cev)
+	CombatBot.play(c)
+	var mr: Dictionary = c.milestone_result()
+	check(int(mr.kill_ids.get("rat", 0)) == c.kills and mr.has("hp_lost") and mr.has("surprises"), "Combat.milestone_result lists kills per mob")
+	var c2 := Combat.new(); c2.from_dict(JSON.parse_string(JSON.stringify(c.to_dict())))
+	check(c2.milestone_result().kill_ids == mr.kill_ids and c2.hp_lost == c.hp_lost, "milestone fields survive a mid-fight save")
+	# extraction banks gold and counts Heavy Pockets
+	gs.run.pack.gold = 320; gs.end_run("extract")
+	check(int(gs.stats.gold_banked) == 320 and int(gs.stats.feat_big_haul) == 1, "extraction banks gold and counts Heavy Pockets")
+	var spent0 := int(gs.stats.gold_spent)
+	gs.add_mat("gold", 50); gs.pay({"gold": 30})
+	check(int(gs.stats.gold_spent) == spent0 + 30, "Camp spending counts gold spent")
+	gs.new_game()

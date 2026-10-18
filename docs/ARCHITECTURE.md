@@ -27,8 +27,9 @@
 - `scripts/core/codex.gd` (class `Codex`) turns mob data into player-facing ability text (inspect toasts, Codex tab).
 
 ## Meta-progression, settings, codex
-- `GameState.stats` (lifetime counters), `milestones_claimed`, `seen` (codex), `tutorial_done`, `settings` are all in the save (format v2, see `SaveSystem.migrate`).
-- `GameState.stat_value(stat)` understands plain stats, `boss:<mob>` and `cleared:<biome>`; milestones and hero `unlock_rule`s both use it.
+- `GameState.stats` (lifetime counters), `milestones_reached`, `milestones_claimed`, `seen` (codex), `tutorial_done`, `settings` are all in the save (format v2, see `SaveSystem.migrate`).
+- `GameState.stat_value(stat)` understands plain stats, `boss:<mob>`, `cleared:<biome>`, `class_boss:<class>:<biome>`, `kill:<mob>[,<mob>]`, `seen:<prefix>` and live Camp totals (`best_level`, `facility_ups`, `patrol_gear_best`...); milestones and hero `unlock_rule`s both use it.
+- Milestones (DECISIONS #195): `check_milestones()` (on every `touch()`) only latches ids into `milestones_reached`; `claim_milestone(id)` / `claim_all_milestones()` pay the reward into the stash and add the id to `milestones_claimed`. Fight counters come from `Combat.milestone_result()` (kills per mob, surprises, HP lost, Auto Battle used) through `Delve.record_fight_stats`. The Camp Journal's Milestones tab lists them; the Journal button carries the unclaimed count.
 - `scripts/ui/settings_panel.gd` (class `SettingsPanel`) builds the settings UI into any container; `scripts/ui/codex_view.gd` (class `CodexView`) builds the Codex. `Sfx.buzz()` = haptics, `Sfx.biome_track()` = per-floor music.
 
 ## Tutorial
