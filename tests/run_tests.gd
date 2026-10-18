@@ -94,6 +94,7 @@ func _ready() -> void:
 	test_ring_contexts(gs)
 	test_item_badges(gs)
 	test_equipped_owner_marks(gs)
+	test_gear_ownership(gs)
 	test_owner_plate_fit(gs)
 	test_forge_bulk(gs)
 	test_break_rings(gs)
@@ -1631,6 +1632,7 @@ func test_equipped_owner_marks(gs) -> void:
 	var worn := 0
 	for g in gs.gear:
 		if gs.equipped_by(int(g.uid)) != "": worn += 1
+	if String(gs.heroes.mage.get("wand", "")) != "": worn += 1   # the staff's imbued wand is listed too (DECISIONS #189)
 	check(bars.size() == worn, "stash marks every worn piece and no spare (%d bars, %d worn)" % [bars.size(), worn])
 	var spare_slot: Button = _slot_uid(cs.win_layer, spare)
 	check(spare_slot != null and spare_slot.get_node_or_null("OwnerBar") == null, "an unworn sword has no owner plate")
@@ -1670,6 +1672,156 @@ func test_equipped_owner_marks(gs) -> void:
 	check(_slot_uid(cs.win_layer, rw) != null and _slot_uid(cs.win_layer, rw).get_node_or_null("OwnerBar/OwnerName") != null, "attune names who wears a ring")
 	cs.queue_free()
 	UIKit.make_theme(fs0)
+
+## DECISIONS #189: unequip at Camp, who-holds-what data, moving/swapping between heroes, the patrol lock (direct and
+## indirect routes), and old saves with broken ownership.
+func test_gear_ownership(gs) -> void:
+	print("[gear ownership]")
+	gs.new_game()
+	for c in gs.heroes: gs.heroes[c].unlocked = true
+	var w: Dictionary = gs.heroes.warrior; var m: Dictionary = gs.heroes.mage; var r: Dictionary = gs.heroes.rogue
+	# --- unequip
+	var ring: int = gs.add_gear("ring_might", true)
+	check(gs.equip("warrior", ring) and int(w.ring) == ring, "ring equips")
+	check(gs.can_unequip("warrior", "ring") == "" and gs.unequip("warrior", "ring") and int(w.ring) == 0, "ring unequips into the stash")
+	check(not gs.gear_by_uid(ring).is_empty() and gs.equipped_by(ring) == "", "the unequipped ring stays owned, worn by nobody")
+	check(gs.can_unequip("warrior", "ring") == "empty slot" and not gs.unequip("warrior", "ring"), "an empty slot can't be unequipped")
+	var art: int = gs.add_gear("chalice_of_blood" if DB.items.has("chalice_of_blood") else _first_of_type("artifact"), true)
+	check(gs.equip("rogue", art) and gs.unequip("rogue", "artifact") and int(r.artifact) == 0, "artifact unequips")
+	var arm: int = int(w.armor)
+	check(gs.unequip("warrior", "armor") and int(w.armor) == 0 and bool(gs.hero_stats("warrior").starter_armor), "armor unequips; the starter armor stands in")
+	check(gs.equip("warrior", arm), "and goes back on")
+	check(gs.can_unequip("mage", "weapon").begins_with("heirloom") and not gs.unequip("mage", "weapon"), "the Mage's Staff (heirloom) stays put")
+	var wand0 := String(m.wand); var n0: int = gs.gear.size()
+	check(gs.unequip("mage", "staff") and String(m.wand) == "" and gs.gear.size() == n0 + 1 and gs.gear[-1].id == wand0, "the staff's wand comes out into the stash")
+	check(not gs.hero_stats("mage").has("bolt"), "no wand, no bolt")
+	check(gs.imbue_wand(int(gs.gear[-1].uid)) and String(m.wand) == wand0 and gs.gear.size() == n0, "and imbues back")
+	# --- ownership display data
+	gs.equip("warrior", ring)
+	var own: Dictionary = gs.gear_owner(ring)
+	check(own.get("hero", "") == "warrior" and own.get("slot", "") == "ring" and own.get("locked", "x") == "", "gear_owner names hero, slot and no lock")
+	check(gs.gear_owner(gs.add_gear("ring_might", true)).is_empty(), "a stash ring has no owner")
+	# --- move and swap
+	check(gs.equip_verb("mage", ring) == "Take from Warrior", "verb: take when the taker has no ring (%s)" % gs.equip_verb("mage", ring))
+	check(gs.can_equip("mage", ring) == "" and gs.equip("mage", ring), "the Mage can take the Warrior's ring")
+	check(int(m.ring) == ring and int(w.ring) == 0 and gs.equipped_by(ring) == "mage", "the ring moved: one wearer, the Warrior's slot is empty")
+	var ring2: int = gs.add_gear("ring_tenacity" if DB.items.has("ring_tenacity") else "ring_might", true)
+	gs.equip("warrior", ring2)
+	check(gs.equip_verb("warrior", ring) == "Swap with Mage", "verb: swap when the taker has a ring to hand back")
+	check(gs.equip("warrior", ring) and int(w.ring) == ring and int(m.ring) == ring2, "swap: each hero ends up with the other's ring")
+	var holders := 0
+	for c in gs.heroes:
+		for sl in gs.GEAR_SLOTS:
+			if int(gs.heroes[c][sl]) == ring: holders += 1
+	check(holders == 1, "a swapped ring is never worn twice")
+	var cr: int = gs.add_gear("ring_might", true); gs.equip("rogue", cr); gs.gear_by_uid(cr).cracked = true
+	check(gs.equip_swap_back("rogue", ring) == 0 and gs.equip("rogue", ring) and int(w.ring) == 0, "a cracked ring isn't handed back: the wearer's slot goes empty")
+	var sword: int = gs.add_gear("shortsword", true); gs.equip("warrior", sword)
+	check(gs.equip_swap_back("mage", sword) == 0, "the Mage's Staff (heirloom) is never handed to the Warrior")
+	check(gs.equip("mage", sword) and int(w.weapon) == 0 and int(m.weapon) == sword, "the Mage takes the sword; the Warrior falls back to the starter weapon")
+	# --- patrol lock
+	gs.equip("warrior", ring); gs.equip("warrior", sword)
+	gs.heroes.warrior.cleared = ["sewers"]
+	w.patrol = {"biome": "sewers", "start": gs.now()}
+	check(gs.gear_lock("warrior") == "Warrior is on patrol", "patrolling hero's gear is locked")
+	check(gs.can_unequip("warrior", "ring") == "Warrior is on patrol" and not gs.unequip("warrior", "ring") and int(w.ring) == ring, "can't unequip from a patrolling hero")
+	check(gs.can_equip("warrior", ring2) == "Warrior is on patrol" and not gs.equip("warrior", ring2), "can't equip onto a patrolling hero")
+	check(gs.can_equip("mage", ring) == "Warrior is on patrol" and not gs.equip("mage", ring) and int(w.ring) == ring, "indirect: another hero can't take a patrolling hero's ring")
+	check(not gs.equip("rogue", sword) and int(w.weapon) == sword, "indirect: nor their weapon")
+	check(gs.gear_owner(ring).locked == "Warrior is on patrol", "owner data carries the lock reason")
+	gs.gear_by_uid(ring).known = true
+	check(gs.can_break_ring(ring) != "" and not gs.break_ring(ring), "indirect: a patrolling hero's ring can't be broken down")
+	m.patrol = {"biome": "sewers", "start": gs.now()}
+	var spare_w: int = gs.add_gear(wand0, true)
+	check(gs.can_unequip("mage", "staff") == "Mage is on patrol" and gs.can_imbue_wand(spare_w) == "Mage is on patrol" and not gs.imbue_wand(spare_w), "the Mage's staff wand is locked while she patrols")
+	m.patrol = {}; w.patrol = {}
+	check(gs.unequip("warrior", "ring"), "back from patrol: unlocked")
+	gs.equip("warrior", ring)
+	# expedition hero: same lock from Camp, both ways
+	gs.start_run("warrior", {}, "sewers", 1)
+	check(gs.can_equip("mage", ring) == "Warrior is on an expedition" and not gs.unequip("warrior", "ring"), "the delving hero's gear can't be pulled from Camp")
+	gs.end_run("abandon")
+	# --- old save migration
+	gs.new_game()
+	var d: Dictionary = JSON.parse_string(JSON.stringify(gs.to_dict()))
+	var dup_ring := {"uid": 500, "id": "ring_might", "lvl": 1, "cracked": false, "known": true}
+	d.gear.append(dup_ring); d.gear.append(dup_ring.duplicate())                       # same item listed twice
+	d.gear.append({"uid": 500, "id": "shortsword", "lvl": 0, "cracked": false, "known": true})   # another item on its uid
+	d.next_uid = 3   # older bug: next_uid behind the gear
+	d.heroes.warrior.ring = 500; d.heroes.mage.ring = 500    # one ring worn by two heroes
+	d.heroes.rogue.artifact = 9999                            # points at nothing
+	d.heroes.huntress.ring = int(d.heroes.huntress.weapon)    # a weapon in the ring slot
+	d.heroes.rogue.wand = "wand_magic_missile"                # only the Mage holds a wand
+	gs.from_dict(d)
+	var rings500: Array = gs.gear.filter(func(g): return int(g.uid) == 500)
+	check(rings500.size() == 1 and rings500[0].id == "ring_might", "a gear entry listed twice loads once")
+	check(gs.gear.filter(func(g): return g.id == "shortsword").size() == 1 and int(gs.gear.filter(func(g): return g.id == "shortsword")[0].uid) != 500, "a second item on the same uid gets its own uid")
+	var uids := {}
+	var unique := true
+	for g in gs.gear:
+		if uids.has(int(g.uid)): unique = false
+		uids[int(g.uid)] = true
+		if int(g.uid) >= gs.next_uid: unique = false
+	check(unique, "every uid is unique and below next_uid after load")
+	check(int(gs.heroes.warrior.ring) == 500 and int(gs.heroes.mage.ring) == 0, "a ring worn by two heroes stays with the first; the other's slot goes empty")
+	check(int(gs.heroes.rogue.artifact) == 0 and int(gs.heroes.huntress.ring) == 0, "slots pointing at missing or wrong-kind gear are cleared")
+	check(String(gs.heroes.rogue.wand) == "" and gs.gear.filter(func(g): return g.id == "wand_magic_missile").size() == 1, "a non-Mage wand goes to the stash")
+	check(int(gs.heroes.warrior.weapon) != 0 and gs.equipped_by(int(gs.heroes.warrior.weapon)) == "warrior", "valid gear stays equipped after the migration")
+	var nu: int = gs.add_gear("ring_might", true)
+	check(gs.gear.filter(func(g): return int(g.uid) == nu).size() == 1, "new gear after an old save never reuses a uid")
+	# a clean save round-trips without changes
+	gs.new_game()
+	check(gs._fix_ownership() == 0, "a fresh game needs no ownership fixes")
+	# --- UI: paperdoll unequip + worn-by list + lock label, stash actions
+	var fs0 := UIKit.font_size
+	UIKit.make_theme(20)
+	for c in gs.heroes: gs.heroes[c].unlocked = true
+	var rr: int = gs.add_gear("ring_might", true); gs.equip("mage", rr)
+	var host := VBoxContainer.new(); add_child(host)
+	Paperdoll.sel_slot = "ring"
+	Paperdoll.build(host, "warrior", true, "camp", func(): pass)
+	var worn_lab = host.find_child("WornBy", true, false)
+	check(worn_lab != null and String(worn_lab.text).begins_with("Worn by Mage"), "the ring picker says the Mage wears that ring")
+	check(_btn_text(host, "Take") != null, "and offers Take")
+	host.free()
+	host = VBoxContainer.new(); add_child(host)
+	Paperdoll.build(host, "mage", true, "camp", func(): pass)
+	var ua = host.find_child("UnequipAction", true, false)
+	check(ua != null and not (ua.get_child(0) as Button).disabled, "Camp paperdoll has an Unequip button")
+	host.free()
+	gs.heroes.mage.cleared = ["sewers"]; gs.heroes.mage.patrol = {"biome": "sewers", "start": gs.now()}
+	host = VBoxContainer.new(); add_child(host)
+	Paperdoll.build(host, "mage", true, "camp", func(): pass)
+	ua = host.find_child("UnequipAction", true, false)
+	check(host.find_child("GearLock", true, false) != null, "the paperdoll shows the patrol lock")
+	check(ua != null and (ua.get_child(0) as Button).disabled and ua.get_child_count() == 2 and String(ua.get_child(1).text) == "Mage is on patrol", "Unequip is disabled with the patrol reason")
+	host.free()
+	Paperdoll.sel_slot = ""
+	var cs = load("res://scripts/ui/camp_screen.gd").new(); add_child(cs)
+	cs.chosen_hero = "warrior"
+	var acts: Array = cs.gear_actions(gs.gear_by_uid(rr))
+	check(acts.size() == 2 and String(acts[0][0]) == "Unequip from Mage" and String(acts[0][2]) == "Mage is on patrol", "stash ring: Unequip from Mage, locked by the patrol")
+	check(String(acts[1][0]) == "Move to Warrior" and String(acts[1][2]) == "Mage is on patrol", "stash ring: Move to Warrior, locked too")
+	cs.section["Stash"] = "gear"; cs.open_page("Stash")
+	var iw = cs.win_layer.find_child("ImbuedWand", true, false)
+	check(iw != null and iw.get_node_or_null("OwnerBar") != null, "the staff's wand is listed in the stash, marked Mage")
+	gs.heroes.mage.patrol = {}
+	acts = cs.gear_actions(gs.gear_by_uid(rr))
+	check(String(acts[0][2]) == "" and String(acts[1][2]) == "", "back from patrol, both actions are open")
+	cs.queue_free()
+	UIKit.make_theme(fs0)
+
+func _first_of_type(t: String) -> String:
+	for k in DB.items:
+		if DB.items[k].get("type", "") == t and not DB.items[k].get("heirloom", false): return k
+	return ""
+
+func _btn_text(n: Node, t: String):
+	if n is Button and n.text == t: return n
+	for ch in n.get_children():
+		var r = _btn_text(ch, t)
+		if r: return r
+	return null
 
 ## DECISIONS #174: the owner name is fitted to the slot it sits on, so it never clips, at every font size the
 ## app picks (14..60: small desktop windows, PC 1280x720 = 30, Fold cover ~37-40, Fold inner = 60). Faces on a

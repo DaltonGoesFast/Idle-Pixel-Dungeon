@@ -35,6 +35,7 @@ func _process(_d: float) -> void:
 			GameState.set_setting("text_scale", 1.3); GameState.set_setting("text_scale", 1.0)
 			_check(UIKit.font_size > 0, "text size change relayouts")
 			main.screen.close_page()
+			_gear_ownership_ui()
 			main.screen.chosen_hero = classes[0]
 			main.screen._start()
 		8:
@@ -208,6 +209,39 @@ func _drive() -> void:
 		print("UI SMOKE: PASS (fights=%d, stash gold=%d)" % [stage, GameState.mat("gold")])
 		SaveSystem.wipe()
 		get_tree().quit(0)
+
+## DECISIONS #189: the Heroes paperdoll and the Stash item window show who wears a piece, move it between heroes,
+## unequip it, and lock it while its wearer is on patrol. Leaves the save as it found it.
+func _gear_ownership_ui() -> void:
+	var gs = GameState
+	var cs = main.screen
+	var ring: int = gs.add_gear("ring_might", true)
+	gs.equip("mage", ring)
+	cs.chosen_hero = "warrior"; Paperdoll.sel_slot = "ring"; cs.open_page("Heroes")
+	var take = _find_button(cs.win_layer, "Take")
+	_check(take != null and not take.disabled, "Heroes ring picker offers the Mage's ring with Take")
+	take.emit_signal("pressed")
+	_check(int(gs.heroes.warrior.ring) == ring and int(gs.heroes.mage.ring) == 0, "Take moves the ring from the Mage to the Warrior")
+	cs.open_page("Heroes")
+	var ub = _find_button(cs.win_layer, "Unequip")
+	_check(ub != null and not ub.disabled, "Heroes paperdoll offers Unequip at Camp")
+	ub.emit_signal("pressed")
+	_check(int(gs.heroes.warrior.ring) == 0 and not gs.gear_by_uid(ring).is_empty(), "Unequip puts the ring back in the stash")
+	gs.equip("mage", ring)
+	gs.heroes.mage.patrol = {"biome": "sewers", "start": gs.now()}
+	cs.chosen_hero = "mage"; cs.open_page("Heroes")
+	ub = _find_button(cs.win_layer, "Unequip")
+	_check(ub != null and ub.disabled and cs.win_layer.find_child("GearLock", true, false) != null, "a patrolling Mage's Unequip is locked")
+	cs.chosen_hero = "warrior"; cs.section["Stash"] = "gear"; cs.open_page("Stash")
+	_check(cs.win_layer.find_child("ImbuedWand", true, false) != null, "Stash lists the staff's wand as the Mage's")
+	cs.info("ring_might", "Ring", cs.gear_lines(gs.gear_by_uid(ring)), cs.gear_actions(gs.gear_by_uid(ring)))
+	var mv = _find_button(cs.info_layer, "Move to Warrior")
+	_check(mv != null and mv.disabled and _find_button(cs.info_layer, "Unequip from Mage").disabled, "Stash item window: move/unequip locked while the Mage patrols")
+	cs._close_info()
+	gs.heroes.mage.patrol = {}
+	gs.unequip("mage", "ring")
+	Paperdoll.sel_slot = ""; cs.close_page()
+	print("  gear ownership UI OK")
 
 func _find_tip(n: Node, prefix: String):
 	if n is Button and n.tooltip_text.begins_with(prefix): return n
