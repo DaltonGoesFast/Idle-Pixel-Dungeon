@@ -245,7 +245,9 @@ func _notification(what: int) -> void:
 # ------------------------------------------------------------------ web page lifecycle
 const _JS_BEACON := """window.__spdTelemetryBeacon = function (url, body) {
 	try { if (navigator.sendBeacon && navigator.sendBeacon(url, new Blob([body], {type: 'text/plain'}))) return true; } catch (e) {}
-	try { fetch(url, {method: 'POST', body: body, keepalive: true, mode: 'no-cors', credentials: 'omit', headers: {'Content-Type': 'text/plain'}}); return true; } catch (e) {}
+	// Refused (64 KiB quota used up): try a keepalive fetch, but report false so the events stay queued. A fetch can
+	// fail later without throwing; if it did get through, PostHog drops the resend by each event's uuid.
+	try { fetch(url, {method: 'POST', body: body, keepalive: true, mode: 'no-cors', credentials: 'omit', headers: {'Content-Type': 'text/plain'}}).catch(function () {}); } catch (e) {}
 	return false;
 };"""
 
@@ -277,8 +279,8 @@ func beacon_bodies(events: Array, max_bytes := BEACON_MAX) -> Array:
 	if not cur.is_empty(): out.append(cur)
 	return out
 
-## Hand the whole queue to the browser, which sends it even as the tab closes. Events the browser accepted leave
-## the queue; anything refused stays queued (and on disk) for the next launch. A batch already in flight is left
+## Hand the whole queue to the browser, which sends it even as the tab closes. Only bodies sendBeacon accepted leave
+## the queue; from the first refused body on, everything stays queued (and on disk) for the next launch. A batch already in flight is left
 ## to its HTTPRequest. Returns the number of events handed over.
 func beacon_flush(send: Callable = Callable()) -> int:
 	if not enabled() or queue.is_empty(): return 0
