@@ -93,6 +93,7 @@ func apply_layout(p: bool, s: Vector2) -> void:
 func on_shown() -> void:
 	if pending.is_empty() and GameState.run.has("pending_card"): pending = GameState.run.pending_card
 	_refresh(); _show_card()
+	if GameState.run.has("pending_defeat") and not _summary_on: _resume_defeat()
 	main.tip("delve_bar")
 
 var _save_t := 0.0
@@ -537,6 +538,10 @@ func _after_fight(ev: Dictionary, res: Dictionary, reward: Dictionary) -> void:
 			Sfx.play("death")
 			if main: main.end_combat()
 			var loss: Dictionary = Delve.defeat_changes(GameState, before, res)
+			# saved before the window shows (POLISH #70): quitting on the Defeat window used to bring back the run
+			# from before the fight, because only OK ended it. Relaunch re-shows this window (on_shown).
+			GameState.run.pending_defeat = {"got": Array(loss.got), "lost": Array(loss.lost), "note": String(loss.note)}
+			SaveSystem.save_game()
 			_open_summary("Defeat", loss.got, loss.lost, _defeat_ok, true, loss.note)
 			return
 		if GameState.heroes[GameState.run.hero].level > lvl:
@@ -561,6 +566,12 @@ func _pause_after_fight() -> void:
 func _defeat_ok() -> void:
 	GameState.end_run("death")
 	if main: main.show_camp()
+
+## The app was closed on the Defeat window (POLISH #70): the save holds the loss, so the window comes back and its
+## OK ends the run. The run is never resumed as if the fight had not happened.
+func _resume_defeat() -> void:
+	var d: Dictionary = GameState.run.pending_defeat
+	_open_summary("Defeat", PackedStringArray(d.get("got", [])), PackedStringArray(d.get("lost", [])), _defeat_ok, true, String(d.get("note", "")))
 
 func _card_door() -> void:
 	var d: Dictionary = pending.door

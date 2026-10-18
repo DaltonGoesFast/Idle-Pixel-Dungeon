@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Closing the app on the Defeat window no longer brings the run back from before the fight. The defeat is saved as soon as the window opens, and it shows again on the next launch (DECISIONS #190, POLISH #70, +test).
 
 ## 0.44.1
 - A long Defeat list no longer pushes the OK button off the screen (a softlock on phones). The list scrolls, and the window always fits on screen (DECISIONS #187, +test).
