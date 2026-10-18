@@ -4170,8 +4170,12 @@ func test_milestones(gs, ss) -> void:
 	var g0: int = gs.mat("gold"); var ore0: int = gs.mat("iron_ore"); var pots0: int = gs.mat("potion_healing")
 	var n: int = gs.claim_all_milestones()
 	check(n == ready.size() and gs.claimable_milestones().is_empty(), "Claim all pays every ready milestone")
-	check(gs.mat("gold") == g0 + 80 and gs.mat("iron_ore") == ore0 + 3 + 6 and gs.mat("potion_healing") == pots0 + 1, "Claim all pays the summed rewards")
-	check(gs.claim_all_milestones() == 0 and gs.mat("gold") == g0 + 80, "nothing pays twice")
+	var want := {}
+	for id in ready:
+		var rw: Dictionary = gs.milestone_def(id).reward
+		for k in rw: want[k] = int(want.get(k, 0)) + int(rw[k])
+	check(gs.mat("gold") == g0 + int(want.get("gold", 0)) and gs.mat("iron_ore") == ore0 + int(want.get("iron_ore", 0)) and gs.mat("potion_healing") == pots0 + int(want.get("potion_healing", 0)), "Claim all pays the summed rewards")
+	check(gs.claim_all_milestones() == 0 and gs.mat("gold") == g0 + int(want.get("gold", 0)), "nothing pays twice")
 	# save round trip keeps reached + claimed apart
 	gs.stats.extractions = 1; gs.touch()
 	var d: Dictionary = JSON.parse_string(JSON.stringify(gs.to_dict()))
