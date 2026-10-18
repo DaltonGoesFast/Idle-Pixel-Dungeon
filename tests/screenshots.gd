@@ -315,6 +315,8 @@ func _ready() -> void:
 	for sz in SIZES:
 		plan.append([sz, "hero_swap_delve", func():
 			_rogue_swap_run(); Paperdoll.sel_slot = "artifact"
+			# event_result left its result window open on the reused delve screen; close it so it doesn't cover the bag
+			if main.delve != null and is_instance_valid(main.delve): main.delve._accept_summary()
 			main.show_delve(); main.delve._open_panel("backpack"); _scroll_to_doll.call_deferred()])
 		plan.append([sz, "hero_swap_camp", func():
 			GameState.end_run("abandon"); _rogue_swap_camp(); Paperdoll.sel_slot = "artifact"
