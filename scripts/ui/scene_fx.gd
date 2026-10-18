@@ -8,6 +8,18 @@ static var _light: GradientTexture2D
 static var _glow: GradientTexture2D
 
 static func _frac(x: float) -> float: return x - floorf(x)
+
+## Mirror a sprite in place (DECISIONS #187). A negative destination width, used since #182/#183, is drawn one
+## sprite width to the right by some Android GLES drivers (v0.44.0 phone report: every left-facing foe stood a
+## cell right of its tile), so mirroring goes through a canvas transform that maps `r` onto itself: x -> 2*x0+w-x.
+static func mirror_xform(r: Rect2) -> Transform2D:
+	return Transform2D(Vector2(-1, 0), Vector2(0, 1), Vector2(r.position.x * 2.0 + r.size.x, 0.0))
+
+## Draw a texture region into `r` (always a positive-size rect), mirrored horizontally in place when `flip`.
+static func blit(ci: CanvasItem, tex: Texture2D, r: Rect2, src: Rect2, mod: Color, flip: bool) -> void:
+	if flip: ci.draw_set_transform_matrix(mirror_xform(r))
+	ci.draw_texture_rect_region(tex, r, src, mod)
+	if flip: ci.draw_set_transform_matrix(Transform2D.IDENTITY)
 static func _rnd(i: int, salt: int) -> float: return _frac(sin(float(i) * 12.9898 + float(salt) * 78.233) * 43758.5453)
 
 ## Darkness with a soft round hole: transparent in the middle, `dark` at the rim (outside it the caller fills

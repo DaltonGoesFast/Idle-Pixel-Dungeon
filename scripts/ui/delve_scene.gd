@@ -35,7 +35,8 @@ var glow := 0.0
 var _last_combat := {}            # the combat on screen (ids, boss, world column), for its death scene
 var _vis_left := 0                # leftmost visible world column (set each draw)
 var _dying := {}                  # foes playing their SPD die frames after a won fight; age in seconds
-var hit_flash := 0.0              # hero white flash when a foe's lunge lands (0..1)
+var hit_flash := 0.0              # hero white flash this frame (0 or 1), recomputed every draw from the foes' blows
+const FLASH_S := 0.05             # SPD CharSprite.FLASH_INTERVAL: full white for 0.05 s, no fade (DECISIONS #187)
 var _snd_t := {}
 
 func _pickup(idx: int, n: int, snd: String) -> void:
@@ -100,7 +101,6 @@ func _process(delta: float) -> void:
 	for p in pops: p.age += delta
 	pops = pops.filter(func(p): return p.age < 1.1)
 	glow = maxf(0.0, glow - delta * 2.5)
-	hit_flash = maxf(0.0, hit_flash - delta * 8.0)
 	if not _dying.is_empty():
 		_dying.age = float(_dying.age) + delta
 		# kept until the fight's columns scroll off the left edge, so its cleared ground never pops props in view
@@ -118,9 +118,12 @@ func _encounter_wall(ev: Dictionary, dx: int, idx: int) -> int:
 			if dx == 2: return DOOR_LOCKED if d.get("b", {}).has("cost") else DOOR_CLOSED
 			if dx == 1: return 80
 		"special":
-			if dx == 0: return DOOR_CLOSED
 			for op in ROOM_SCENES.get(String(ev.special.get("id", "")), []):   # room tiles set into the wall (bookshelves)
 				if String(op[0]) == "t" and float(op[3]) == 1.0 and int(op[2]) == dx: return int(op[1])
+				# a plain face (SPD SECRET_DOOR looks like a bare wall; the barricade's stretch has no door): never a
+				# door or a random biome wall deco
+				if String(op[0]) == "plain" and int(op[2]) == dx: return 96 if idx in [96, 100] else 80
+			if dx == 0: return DOOR_CLOSED
 	return idx
 
 ## The fight on screen was won (DelveScreen._after_fight): its foes play their SPD die animation and fade.
@@ -158,18 +161,27 @@ func _lm(p: Vector2, strength := 1.0) -> Color:
 
 func _sprite(spr: String, fw: int, fh: int, frame: int, row: int, feet: Vector2, k: float, flip := false, shadow := true, flash := 0.0, alpha := 1.0) -> void:
 	var tx := _t("res://assets/sprites/%s.png" % spr)
-	var cols := maxi(1, tx.get_width() / fw)
-	var src := Rect2((frame % cols) * fw, (frame / cols + row) * fh, fw, fh)
-	var sz := Vector2(fw, fh) * k
-	var pos := (feet - Vector2(sz.x / 2.0, sz.y)).floor()
+	var src := frame_rect(tx.get_width(), fw, fh, frame, row)
+	var dst := sprite_rect(fw, fh, feet, k)
+	var sz := dst.size; var pos := dst.position
 	if shadow: draw_texture_rect_region(_t("res://assets/ui/shadow.png"), Rect2((Vector2(pos.x + sz.x * 0.15, feet.y - k * 2)).floor(), Vector2(sz.x * 0.7, k * 3).floor()), Rect2(0, 0, 6, 6), Color(1, 1, 1, 0.5 * alpha))
 	var lm := _lm(feet - Vector2(0, sz.y * 0.5)); lm.a = alpha
-	# mirror through a negative destination width: a negative source width dropped some frames (e.g. gnoll die 10)
-	var dst := Rect2(pos.x + sz.x, pos.y, -sz.x, sz.y) if flip else Rect2(pos, sz)
-	draw_texture_rect_region(tx, dst, src, lm)
-	if flash > 0.0:   # white flash: the same frame again, overbright (modulate > 1 saturates to white), fading
+	# mirrored in place by a canvas transform: a negative destination width was drawn a sprite width to the right
+	# on some Android GLES drivers, and a negative source width dropped frames (DECISIONS #187)
+	SceneFX.blit(self, tx, dst, src, lm, flip)
+	if flash > 0.0:   # white flash: the same frame again, overbright (modulate > 1 saturates to white)
 		var f := 1.0 + 4.0 * flash
-		draw_texture_rect_region(tx, dst, src, Color(f, f, f, flash * alpha))
+		SceneFX.blit(self, tx, dst, src, Color(f, f, f, flash * alpha), flip)
+
+## Where a fw x fh sprite standing at `feet` is drawn: bottom-centred, positive size, whole pixels (flip or not).
+static func sprite_rect(fw: int, fh: int, feet: Vector2, k: float) -> Rect2:
+	var sz := Vector2(fw, fh) * k
+	return Rect2((feet - Vector2(sz.x / 2.0, sz.y)).floor(), sz)
+
+## SPD CharSprite.flash() for a blow whose lunge peaks at win / 2 of its window: 1 for FLASH_S after the peak.
+static func blow_flash(ph: float, win: float) -> float:
+	var since := ph - win * 0.5
+	return 1.0 if since >= 0.0 and since < FLASH_S else 0.0
 
 ## Tall grass clumps on the near floor row, seeded per column (never where an encounter stands).
 ## Corridor puddles (DECISIONS #182): at most one per 11-column block, 2-3 columns wide on one or both floor
@@ -219,13 +231,11 @@ func _face_tile(wall: Dictionary, cx: int) -> int:
 	if w in DOORS or w < 80 or w >= 112 or w in [92, 108]: return w
 	return w + (1 if int(wall.get(cx + 1, 80)) in DOORS else 0) + (2 if int(wall.get(cx - 1, 80)) in DOORS else 0)
 
-## The cell above the wall row is void, so SPD's walls layer draws the wall's top there (DungeonWallsTilemap):
-## WALL_OVERHANG 192 (+1 open down-right, +2 open down-left, i.e. a door beside it), WALL_INTERNAL_WOODEN over a
-## bookshelf, or over a door its lintel:
+## The cell above the wall row is more wall, so SPD's walls layer draws its internal top there (DungeonWallsTilemap):
+## WALL_INTERNAL 144 (black), WALL_INTERNAL_WOODEN over a bookshelf, or over a door its lintel:
 ## DOOR_OVERHANG 224 (closed and locked), DOOR_OVERHANG_OPEN 225, DOOR_OVERHANG_CRYSTAL 226.
 func _top_tile(wall: Dictionary, cx: int) -> int:
 	var w: int = wall.get(cx, 80)
-	var side := (1 if int(wall.get(cx + 1, 80)) in DOORS else 0) + (2 if int(wall.get(cx - 1, 80)) in DOORS else 0)
 	match w:
 		92, 108:   # SPD LibraryRoom: shelves stand against the room wall, so the cell above is that wall's top,
 			# WALL_INTERNAL_WOODEN 176 (stitchInternalWallTile). Its left/right neighbours are wall tops too (every
@@ -237,7 +247,12 @@ func _top_tile(wall: Dictionary, cx: int) -> int:
 		112, 114: return 224
 		113: return 225
 		115: return 226
-	return 192 + side   # WALL_OVERHANG (208+ is DOOR_SIDEWAYS_OVERHANG: door-frame caps, not a wall top)
+	# The row above is outside the corridor, i.e. more wall, not floor: SPD draws WALL_INTERNAL 144 there (all
+	# black), so the face's own light cap rows sit flush under the dark, like a SPD room's top wall. WALL_OVERHANG
+	# (a rim plus a 3 px black line) is only for a floor cell above a wall, which the corridor never has; drawing it
+	# here put a rim and a black band over every face (DECISIONS #187). The +2 / +4 door-side posts are left off,
+	# as for shelves, so nothing pokes up into the void.
+	return 144
 
 const CHASM_FLOOR := 25; const CHASM_WATER := 28   # DungeonTileSheet CHASM + 1 / + 4
 
@@ -291,8 +306,12 @@ func _draw() -> void:
 			var rc := Rect2(x, y0 + row * cs, cs, cs)
 			var idx := 0
 			match row:
-				0:   # void above the wall: SPD draws the wall's top (WALL_OVERHANG) or the door's lintel here
-					_tile_at(tiles, rc, _top_tile(wall, cx)); continue
+				0:   # void above the wall: the wall's top (SPD WALL_INTERNAL, all black) or a door's lintel / shelf top.
+					# The plain black top is left undrawn: the void behind it is already dark, and an opaque black tile
+					# over the scene's vignette showed as boxes.
+					var top := _top_tile(wall, cx)
+					if top != WALL_INTERNAL: _tile_at(tiles, rc, top)
+					continue
 				1: idx = _face_tile(wall, cx)
 				4:   # the floor's edge dropping into the void below (SPD CHASM_FLOOR / CHASM_WATER)
 					if not busy and _puddle_spills(cx):
@@ -358,6 +377,7 @@ func _draw() -> void:
 	# encounter ahead: each foe on its own whole column, alternating floor rows, facing the hero; they run in on arrival.
 	# Characters are collected and drawn back to front by their feet (z-order), the hero included.
 	var actors := []
+	hit_flash = 0.0
 	var h_atk := -1.0; var h_win := 0.3; var h_tgt := -1
 	if not ev.is_empty() and ev.kind == "combat":
 		var ids: Array = ev.get("mobs", [])
@@ -389,13 +409,13 @@ func _draw() -> void:
 				if not a.is_empty():
 					var afl: Array = a.frames; fr = int(afl[mini(int(ph * float(a.fps)), afl.size() - 1)])
 				lunge = -sin(ph / win * PI) * cs * 0.25
-				# SPD CharSprite.flash(): the hero blinks white for a moment as the blow lands (lunge peak)
-				if absf(ph - win * 0.5) < 0.06: hit_flash = 1.0
+				# SPD CharSprite.flash(): the hero turns white for FLASH_S as the blow lands (lunge peak), no fade
+				hit_flash = maxf(hit_flash, blow_flash(ph, win))
 			var fflash := 0.0
 			if j == h_tgt:   # struck by the hero: white flash and a small knockback, easing back
 				var kt := h_atk - h_win * 0.5
 				if kt >= 0.0 and kt < 0.25: lunge += sin(kt / 0.25 * PI) * cs * 0.12
-				if kt >= 0.0 and kt < 0.12: fflash = 1.0 - kt / 0.12
+				fflash = blow_flash(kt, 0.0)   # SPD flash: full white for FLASH_S, no fade
 			actors.append({"spr": spr, "fw": int(m.fw), "fh": int(m.fh), "fr": fr, "row": 0, "feet": Vector2(colx + dx + lunge, fy).floor(), "k": sk(boss), "flip": true, "flash": fflash, "alpha": 1.0})
 	# foes that fell in the fight just won: SPD die frames where they stood, then a fade (DECISIONS #182)
 	if not _dying.is_empty():
@@ -457,18 +477,37 @@ func _draw() -> void:
 ## Special-room scenes (DECISIONS #180): each room is built on the corridor floor ahead of its door from SPD's own
 ## tiles. Ops are [kind, what, dx, row]: "t" level tile (biome sheet), "f" terrain_features.png, "w" animated water,
 ## "speck" SPD Speck from effects/specks.png over the cell (0 HEALING, 3 QUESTION).
+## "plain" [_, dx, 1]: that wall face stays a bare wall (no biome wall deco), e.g. SPD's secret door.
 ## "i" item sprite, "m" mob sprite (idle anim, facing the hero), "fire"/"spark" SPD-style particles (what = colour).
 ## "r" SPD raised terrain (base tile in the cell, overhang tile in the cell above; DungeonTileSheet RAISED_* and
 ## *_OVERHANG): "grass" 122/234, "grass2" 125/237, "pot" 120/232, "barricade" 121/233. "f" props are bottom-aligned in their cell.
 ## dx is in tiles from the door column, row 2 = far floor row, 3 = near floor row (fractions allowed for sprites).
+## Room-only sprites that are not combat mobs (no DB.mobs entry), with SPD's own frame sizes: PiranhaSprite cuts
+## piranha.png into 12x16 frames. Without this the piranha fell back to 16x16 and drew a broken blob (DECISIONS #187).
+const WALL_INTERNAL := 144   # SPD DungeonTileSheet.WALL_INTERNAL (all black in every biome)
+
+const ROOM_SPRITES := {"piranha": {"sprite": "piranha", "fw": 12, "fh": 16}}
+static func room_mob(mid: String) -> Dictionary:
+	if DB.mobs.has(mid): return DB.mobs[mid]
+	return ROOM_SPRITES.get(mid, {"sprite": mid, "fw": 16, "fh": 16})
+
+## The source rect of frame `frame` (row offset `row`) on a sheet `tex_w` px wide cut into fw x fh frames.
+static func frame_rect(tex_w: int, fw: int, fh: int, frame: int, row := 0) -> Rect2:
+	var cols := maxi(1, tex_w / fw)
+	return Rect2((frame % cols) * fw, (frame / cols + row) * fh, fw, fh)
+
 const ROOM_SCENES := {
 	"piranha": [["w", 0, 0, 2], ["w", 0, 1, 2], ["w", 0, 2, 2], ["w", 0, 0, 3], ["w", 0, 1, 3], ["w", 0, 2, 3], ["m", "piranha", 0.5, 3.6], ["m", "piranha", 2.0, 3.1]],
-	"sacrificial_fire": [["t", 20, 1, 2], ["fire", "", 1.5, 2.75], ["f", 216, 0, 3], ["f", 217, 2, 3]],
-	"statue": [["t", 20, 1, 2], ["m", "statue", 1.5, 2.85], ["f", 216, 2, 3]],
-	"barricade": [["r", "barricade", 0, 3], ["r", "barricade", 1, 3], ["f", 216, 2, 3]],
+	"sacrificial_fire": [["t", 20, 1, 2], ["fire", "", 1.5, 2.75]],
+	"statue": [["t", 20, 1, 2], ["m", "statue", 1.5, 2.85]],
+	# SPD RAISED_BARRICADE (121, overhang 233) in one column across both floor rows: a wall-to-edge line the hero has
+	# to get through, two columns clear of the door, on a bare wall face (DECISIONS #187)
+	# the barricade itself is the way on: one SPD barricade tile (121 + overhang 233) per floor row, a line across the
+	# corridor, under bare wall with no door beside it, near enough to stay on screen at the Fold's cover size
+	"barricade": [["plain", 0, 0, 1], ["plain", 0, 1, 1], ["plain", 0, 2, 1], ["r", "barricade", 1, 2], ["r", "barricade", 1, 3]],
 	"garden": [["t", 2, 0, 2], ["t", 2, 1, 2], ["t", 2, 2, 2], ["t", 2, 0, 3], ["t", 2, 1, 3], ["r", "grass", 0, 3], ["r", "grass2", 1, 3], ["f", 115, 1, 2], ["f", 113, 2, 2], ["f", 112, 2, 3], ["i", "SEED_SUNGRASS", 0, 2]],
 	"trapped_hall": [["f", 0, 0, 2], ["f", 18, 1, 3], ["f", 33, 2, 2], ["f", 68, 3, 3]],
-	"odd_wall": [["f", 216, 1, 3], ["f", 217, 2, 3], ["spark", "c8c8ff", 1.5, 1.5]],
+	"odd_wall": [["plain", 0, 1, 1], ["plain", 0, 2, 1], ["spark", "c8c8ff", 1.5, 1.5]],   # SPD secret walls carry no deco or rubble
 	"cell_block": [["m", "thief", 0.5, 2.85], ["f", 153, 0, 2], ["f", 154, 1, 2], ["i", "IRON_KEY", 2, 3]],
 	"armory": [["f", 137, 0, 2], ["i", "SWORD", 1, 2], ["i", "ARMOR_MAIL", 2, 2], ["i", "MACE", 1, 3], ["f", 138, 3, 2]],
 	"crystal_vein": [["f", 210, 0, 2], ["f", 211, 1, 2], ["f", 210, 2, 3], ["spark", "8ad8ff", 1.0, 2.5]],
@@ -477,7 +516,7 @@ const ROOM_SCENES := {
 	"well_health": [["w", 0, 1, 2], ["t", 18, 1, 2], ["spark", "ff7070", 1.5, 2.4], ["speck", 0, 1, 2]],
 	"well_awareness": [["w", 0, 1, 2], ["t", 18, 1, 2], ["spark", "80c8ff", 1.5, 2.4], ["speck", 3, 1, 2]],
 	"laboratory": [["r", "pot", 1, 3], ["i", "POTION_CRIMSON", 2, 2], ["i", "POTION_AZURE", 2, 3], ["i", "SEED_ROTBERRY", 0, 3], ["spark", "c0ff80", 1.5, 2.3]],
-	"treasury": [["f", 216, 0, 2], ["f", 218, 1, 2], ["i", "GOLD", 1, 3], ["i", "GOLD", 2, 2], ["f", 217, 3, 3]],
+	"treasury": [["i", "GOLD", 1, 3], ["i", "GOLD", 2, 2]],
 	"shrine": [["t", 20, 1, 2], ["i", "ARTIFACT_CHALICE1", 1, 1.85], ["spark", "ffd27a", 1.5, 2.2]],
 	"larder": [["f", 137, 0, 2], ["f", 138, 1, 2], ["i", "RATION", 1, 3], ["i", "PASTY", 2, 3]],
 	"trap_vault": [["f", 0, 0, 2], ["f", 34, 0, 3], ["f", 65, 2, 3], ["t", 4, 1, 2], ["i", "CRYSTAL_CHEST", 1, 2], ["spark", "a0e8ff", 1.5, 2.4]],
@@ -534,7 +573,7 @@ func _room_scene(id: String, x0: float, y0: float, cs: float, k: float, biome: D
 				draw_texture_rect_region(items, Rect2((c - isz / 2.0).floor(), isz), ir, _lm(c))
 			"m":
 				var mid := String(op[1])
-				var m: Dictionary = DB.mobs.get(mid, {"sprite": mid, "fw": 16, "fh": 16})
+				var m := room_mob(mid)
 				var bob := roundf(sin(t * 3.0 + mi)) * k if mid == "piranha" else 0.0
 				# piranhas: SPD's submerged idle, with one leaping out of the water every few seconds
 				var fr := _frame(String(m.sprite), "idle", mi * 0.41)
