@@ -187,7 +187,11 @@ func _ready() -> void:
 		plan.append([sz, "mage_ambush", func():
 			GameState.end_run("abandon")
 			for c in GameState.heroes: GameState.heroes[c].unlocked = true
-			GameState.start_run("mage", {}, "sewers", 1); main.show_delve(); _clear_pops(); main.delve.running = false
+			# camp_guild_patrols (#188) leaves the Mage out on patrol, and a hero on patrol can't start a run: without
+			# this start_run failed, these four shots showed an empty delve and logged 24 SCRIPT ERRORs
+			GameState.heroes.mage.patrol = {}
+			if not GameState.start_run("mage", {}, "sewers", 1): push_error("mage_ambush: start_run failed: " + GameState.can_start_run("mage"))
+			main.show_delve(); _clear_pops(); main.delve.running = false
 			main.delve.pending = Delve.combat_event(GameState.run, Delve.rng_for(GameState.run, 4), ["rat", "rat"]); main.delve._show_card()])
 		plan.append([sz, "mage_ambush_late", func(): pass])   # the same scene ~0.2 s later (foes arrived, lunging)
 		plan.append([sz, "mage_bolt", func():
