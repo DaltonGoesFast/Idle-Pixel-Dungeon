@@ -32,6 +32,9 @@ var _pause_after := false
 var bag_open := false
 var bag_layer: Control
 var bag_host: VBoxContainer
+## Mid-fight Scroll of Passage confirm (DECISIONS #202). Open = Auto Battle waits; Cancel spends no turn.
+var passage_confirm := false
+var passage_layer: Control
 var guide := 0
 var guide_label: Label
 
@@ -104,6 +107,7 @@ func apply_layout(portrait: bool, s: Vector2) -> void:
 func _process(d: float) -> void:
 	if main and main.tip_open(): return
 	if finished: return
+	if passage_confirm: return
 	if auto:
 		_auto_t += d
 		if _auto_t > 0.35:
@@ -158,7 +162,7 @@ func _refresh() -> void:
 		if combat.traps.values().any(func(t): return not t.hidden): main.tip("trap")
 	UIKit.clear(buttons)
 	if finished:
-		_result_buttons(); _refresh_log(); _refresh_bag(); return
+		_result_buttons(); _refresh_log(); _refresh_bag(); _refresh_passage(); return
 	_btn("Wait", func(): _act(func(): combat.hero_wait()))
 	if "shove" in h.abilities:
 		_btn("Shove: ON" if mode == "shove" else "Shove", func(): mode = "" if mode == "shove" else "shove"; grid.mode = mode; _refresh())
@@ -171,12 +175,13 @@ func _refresh() -> void:
 	_btn("Search" if not h.get("searched", false) else "Search again", func(): _act(func(): combat.hero_search()))
 	_btn("Potion (%d)" % (potions - potions_used), _drink, potions - potions_used > 0 and h.hp < h.ht)
 	if Delve.scroll_passage_count(GameState) > 0:
-		_btn("Scroll of Passage", _use_passage)
+		_btn("Scroll of Passage", _ask_passage)
 	_btn("Bag", func(): bag_open = not bag_open; set_meta("bag_scroll", 0); _refresh())
 	_btn("Hint", _hint)
 	_btn("Auto: ON" if auto else "Auto", func(): auto = not auto; _refresh())
 	_refresh_log()
 	_refresh_bag()
+	_refresh_passage()
 
 ## In-combat Bag: swap weapon/armor/ring/wand from the backpack; costs the hero's turn (1 tick).
 ## Opens as a modal window clamped to the viewport (DECISIONS #143): it used to be appended under the
@@ -320,11 +325,56 @@ func _stop_auto_low_hp() -> void:
 	combat._log(msg)
 	GameState.log_line(msg, "warning")
 
+func _ask_passage() -> void:
+	if Delve.scroll_passage_count(GameState) <= 0: return
+	passage_confirm = true
+	auto = false
+	bag_open = false
+	_refresh()
+
+func _cancel_passage() -> void:
+	passage_confirm = false
+	_refresh()
+
 func _use_passage() -> void:
-	if not Delve.use_scroll_passage(GameState): return
+	passage_confirm = false
+	if not Delve.use_scroll_passage(GameState):
+		_refresh()
+		return
 	finished = true; auto = false
 	if main: main.show_camp()
 	else: _refresh()
+
+## Mid-fight Passage confirm: same SPD window look as the delve card (title, body, Read / Cancel).
+func _refresh_passage() -> void:
+	if passage_layer and is_instance_valid(passage_layer):
+		passage_layer.queue_free()
+	passage_layer = null
+	if not passage_confirm or finished or GameState.run.is_empty(): return
+	if Delve.scroll_passage_count(GameState) <= 0:
+		passage_confirm = false
+		return
+	var close := _cancel_passage
+	passage_layer = Control.new(); passage_layer.name = "PassageLayer"
+	passage_layer.set_anchors_and_offsets_preset(PRESET_FULL_RECT); add_child(passage_layer)
+	var dim := ColorRect.new(); dim.color = Color(0, 0, 0, 0.6)
+	dim.set_anchors_and_offsets_preset(PRESET_FULL_RECT); passage_layer.add_child(dim)
+	dim.gui_input.connect(func(e: InputEvent):
+		if (e is InputEventMouseButton and e.button_index == MOUSE_BUTTON_LEFT and e.pressed) or (e is InputEventScreenTouch and e.pressed):
+			dim.accept_event(); close.call())
+	var pc := PanelContainer.new(); pc.name = "PassagePanel"; passage_layer.add_child(pc)
+	pc.add_theme_stylebox_override("panel", UIKit.chrome("window", Color.WHITE, UIKit.font_size * 0.6))
+	var vs := size if size.x > 0 and size.y > 0 else get_viewport_rect().size
+	var w := minf(vs.x * 0.9, UIKit.font_size * 28.0)
+	var h := UIKit.font_size * 12.0
+	pc.position = ((vs - Vector2(w, h)) / 2.0).floor(); pc.size = Vector2(w, h); pc.custom_minimum_size = Vector2(w, 0)
+	var v := UIKit.vbox(pc)
+	var tr := UIKit.hbox(v)
+	var ic := UIKit.pixel(UIKit.spd_icon("scroll"), 1); ic.size_flags_vertical = SIZE_SHRINK_CENTER; tr.add_child(ic)
+	var tl := UIKit.header("Scroll of Passage"); tl.size_flags_horizontal = SIZE_EXPAND_FILL; tr.add_child(tl)
+	v.add_child(UIKit.label(Delve.passage_text()))
+	v.add_child(UIKit.button("Read", _use_passage))
+	v.add_child(UIKit.button("Cancel", close))
 
 ## Potions are consumed from the run supplies immediately (so a lost fight doesn't refund them).
 func _drink() -> void:
