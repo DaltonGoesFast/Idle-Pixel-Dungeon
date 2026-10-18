@@ -193,13 +193,6 @@ func _ready() -> void:
 				Delve.reward(GameState, {"item": "mace"}); Delve.reward(GameState, {"item": "mail_armor"}); Delve.reward(GameState, {"item_unknown": "ring"})
 				GameState.run.pack["potion_toxic"] = 1; GameState.run.pack["scroll_upgrade"] = 1
 			main.show_delve(); main.delve._open_panel("backpack")])
-		# v0.44.1 phone report (Fold inner): the Rogue's artifact slot with a pack swap must not squeeze into a sliver
-		plan.append([sz, "hero_swap_delve", func():
-			_rogue_swap_run(); Paperdoll.sel_slot = "artifact"
-			main.show_delve(); main.delve._open_panel("backpack"); _scroll_to_doll.call_deferred()])
-		plan.append([sz, "hero_swap_camp", func():
-			GameState.end_run("abandon"); _rogue_swap_camp(); Paperdoll.sel_slot = "artifact"
-			main.show_camp(); main.screen.chosen_hero = "rogue"; main.screen.open_page("Heroes")])
 		plan.append([sz, "talents", func():
 			GameState.heroes.warrior.level = 9; GameState.heroes.warrior.talents = ["hearty_meal"]
 			main.show_delve(); main.delve._open_panel("talents")])
@@ -316,6 +309,16 @@ func _ready() -> void:
 			GameState.run.biome = "sewers"; GameState.run.floor = 1
 			main.start_combat({"kind": "combat", "boss": true, "room": DB.boss_rooms[0], "mobs": ["goo"]}, func(_r): pass)
 			for i in 3: main.screen._do_bot()])
+	# v0.44.1 phone report (Fold inner): the Rogue's artifact slot with a pack swap must not squeeze into a sliver.
+	# After every other shot at every size: these replace the Warrior run, end it and level the Rogue, which the
+	# shots above (and the next size's) would otherwise pick up
+	for sz in SIZES:
+		plan.append([sz, "hero_swap_delve", func():
+			_rogue_swap_run(); Paperdoll.sel_slot = "artifact"
+			main.show_delve(); main.delve._open_panel("backpack"); _scroll_to_doll.call_deferred()])
+		plan.append([sz, "hero_swap_camp", func():
+			GameState.end_run("abandon"); _rogue_swap_camp(); Paperdoll.sel_slot = "artifact"
+			main.show_camp(); main.screen.chosen_hero = "rogue"; main.screen.open_page("Heroes")])
 
 func _process(_d: float) -> void:
 	if f == 0 and OS.has_environment("SHOTS"):  # SHOTS=caves,dm300 -> only those steps
