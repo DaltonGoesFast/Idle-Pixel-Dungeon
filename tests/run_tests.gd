@@ -4363,6 +4363,43 @@ func test_telemetry(gs) -> void:
 	var sp := {}
 	for q in t.queue: sp[q.properties.sink] = [q.properties.gold, q.properties.count]
 	check(sp.get("craft_guild") == [15, 2] and sp.get("repair") == [7, 1] and t.queue.size() == 2, "telemetry: gold_spent summed per sink " + str(sp))
+	# DECISIONS #200: session_end on every platform. Which notifications end/resume a session where:
+	check(T.session_event(NOTIFICATION_APPLICATION_PAUSED, "Android") == "background" and T.session_event(NOTIFICATION_APPLICATION_FOCUS_OUT, "Android") == "background", "session_end: Android pause / focus out end the session")
+	check(T.session_event(NOTIFICATION_APPLICATION_RESUMED, "Android") == "resume" and T.session_event(NOTIFICATION_APPLICATION_FOCUS_IN, "Android") == "resume", "session_end: Android resume / focus in resume it")
+	check(T.session_event(NOTIFICATION_WM_CLOSE_REQUEST, "Windows") == "close" and T.session_event(NOTIFICATION_APPLICATION_FOCUS_OUT, "Windows") == "", "session_end: Windows closing ends it, alt-tab doesn't")
+	check(T.page_event("pagehide", "hidden") == "close" and T.page_event("visibilitychange", "hidden") == "background" and T.page_event("visibilitychange", "visible") == "resume" and T.page_event("click", "visible") == "", "session_end: web page events (pagehide, visibilitychange)")
+	# end -> one session_end with the duration, queued to disk first; a second signal (pagehide after hidden) adds nothing
+	t.queue = []; t._rate = []; t._dirty = false; t._http = HTTPRequest.new(); t._backoff = 0.0; t._busy = false
+	t._new_session(); t._session_start -= 42.0
+	var sid: String = t.session_id
+	t._session_signal("background"); t._session_signal("close")
+	var ends: Array = t.queue.filter(func(q): return q.event == "session_end")
+	check(ends.size() == 1 and int(ends[0].properties.duration_s) == 42 and ends[0].properties.reason == "background" and ends[0].properties.session_id == sid, "session_end: one event with duration_s and reason, no duplicate")
+	var qd = JSON.parse_string(FileAccess.get_file_as_string(t.queue_path))
+	check(typeof(qd) == TYPE_ARRAY and qd.any(func(q): return q.event == "session_end"), "session_end: written to the offline queue file before any send (goes out next launch if the app dies)")
+	# brief time away: same session; 30+ min away: a new session with app_open
+	t._session_signal("resume")
+	check(not t._ended and t.session_id == sid, "session_end: back within 30 min resumes the same session")
+	t._session_signal("background"); t._paused_at -= T.NEW_SESSION_AFTER + 1.0; t._session_signal("resume")
+	check(not t._ended and t.session_id != sid and t.queue.back().event == "app_open", "session_end: back after 30+ min starts a new session")
+	t._http.free()
+	# web: the queue goes out through sendBeacon in bodies under 64 KiB; refused bodies stay queued
+	t.queue = []
+	for i in 200: t.queue.append(t.build_event("fight_end", {"i": i, "enemies": ["rat", "gnoll", "crab"]}))
+	var bodies: Array = t.beacon_bodies(t.queue, 8000)
+	var sizes_ok: bool = bodies.all(func(bb): return JSON.stringify(t.build_batch(bb)).to_utf8_buffer().size() <= 8000)
+	check(bodies.size() > 1 and sizes_ok and bodies.reduce(func(a, bb): return a + bb.size(), 0) == 200, "session_end: beacon bodies stay under the size cap and carry every event")
+	var got := []
+	var ok_send := func(url: String, body: String) -> bool: got.append([url, body]); return true
+	var n: int = t.beacon_flush(ok_send)
+	var first = JSON.parse_string(got[0][1])
+	check(n == 200 and t.queue.is_empty() and got[0][0] == "https://us.i.posthog.com/batch/" and first.api_key == "phc_test" and first.batch.size() > 0, "session_end: beacon sends the whole queue to /batch/ and clears it")
+	t.queue = [t.build_event("session_end", {"duration_s": 5})]
+	n = t.beacon_flush(func(_u, _b): return false)
+	var qr = JSON.parse_string(FileAccess.get_file_as_string(t.queue_path))
+	check(n == 0 and t.queue.size() == 1 and typeof(qr) == TYPE_ARRAY and qr.size() == 1, "session_end: a refused beacon keeps the event queued on disk for the next launch")
+	check(Telemetry.beacon_flush(ok_send) == 0, "session_end: the live (suppressed) autoload never beacons")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(t.queue_path))
 	h.free(); t.free()
 	# the combat counters fight_end reads
 	var c := Combat.new()

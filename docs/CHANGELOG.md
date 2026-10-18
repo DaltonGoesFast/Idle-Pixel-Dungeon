@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Session length now reaches the gameplay data. The browser version sends `session_end` with `navigator.sendBeacon` when the tab is hidden or closed (it never got the engine's pause or close signal, and a normal request dies with the tab), Android also ends a session when the app loses focus, and a session end that can't be sent stays queued for the next launch (DECISIONS #200, +test).
 - The browser version no longer has developer options: the "Developer tools" toggle and its Developer section (unlock all heroes, +100 gold and materials, fast-forward timers, wipe save) are gone from Settings on the web. Android, Windows and source runs keep them (DECISIONS #199, +test).
 - The game now runs in a browser at https://daltongoesfast.github.io/spd-tactics-builds/ on PC and phones, including both Fold screens. Saves stay in the browser (clearing site data erases them), and sound starts after the first tap. `tools/deploy_web.sh` publishes it with each release (DECISIONS #196, +test).
 - The game now sends anonymous gameplay data (fights, floors, deaths, bosses, extracts, patrols, milestones, gold spent, session length) to PostHog so balance can be tuned from real play. A random id only, no names or device ids; it queues offline and never slows play. The first launch shows a one-time notice with a Privacy link; docs/PRIVACY.md lists every event and property. Off in tests and sims (DECISIONS #197, +test).

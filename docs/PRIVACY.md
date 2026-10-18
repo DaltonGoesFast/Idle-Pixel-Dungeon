@@ -45,7 +45,7 @@ class on the current expedition, or empty at Camp), `session_id`, the random `di
 | `milestone_claimed` | Claim on a milestone | `milestone` (id), `category`, `reward` |
 | `facility_upgrade` | a Camp building levels up | `facility`, `level`, `cost` |
 | `gold_spent` | summed every 5 minutes and at session end | `sink` (`craft_guild`, `item_upgrade`, `repair`, `train`, `facility_upgrade`, `patrol_fee`, `staff_wand`…), `gold`, `count` |
-| `session_end` | the app goes to the background or closes | `duration_s` (time in the app), `reason`, `dropped` (events skipped by the rate limit) |
+| `session_end` | the app goes to the background or closes (in the browser: the tab is hidden or closed) | `duration_s` (time in the app), `reason`, `dropped` (events skipped by the rate limit) |
 
 All values are game numbers, booleans or ids from the game's own data files. The game sends at most
 30 events a minute and at most 50 per request.
