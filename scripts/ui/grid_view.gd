@@ -299,16 +299,6 @@ func _t(c: Vector2i) -> int:
 
 func _is_wall(c: Vector2i) -> bool: return _t(c) == Combat.T.WALL
 func _is_door(c: Vector2i) -> bool: return _t(c) == Combat.T.DOOR
-## Item sprite drawn on a door cell held open by remains (SPD Heap on an open door): BONES, else -1.
-## Remains clear once someone passes through, and the door then shuts (DECISIONS #176), so the bones go too.
-func remains_visual(c: Vector2i) -> int:
-	if combat == null or not _is_door(c) or not combat.remains.has(c): return -1
-	return DB.icon_index("BONES")
-
-var _items: Texture2D
-func _items_tex() -> Texture2D:
-	if _items == null: _items = load("res://assets/sprites/items.png")
-	return _items
 
 func _door_open(c: Vector2i) -> bool:
 	if combat == null or not _is_door(c): return false
@@ -517,8 +507,7 @@ func _draw() -> void:
 			_draw_sprite(dd.sprite, dd.fw, dd.fh, dfr + int(dd.get("row", 0)) * 1000, dd.pos, dd.flip, scale, Color(1, 1, 1, dk))
 			continue
 		var u: Dictionary = ac.u
-		var p: Vector2 = disp.get(u.uid, Vector2(u.pos))
-		if lunge.has(u.uid): p += lunge[u.uid].dir * 0.25 * sin(lunge[u.uid].t / 0.16 * PI)
+		var p := unit_draw_pos(u)
 		var st: Dictionary = ustate.get(u.uid, {"anim": "idle", "t": 0.0, "flip": false})
 		var fr := _frame(u.sprite, st.anim, st.t + (0.0 if st.anim != "idle" else u.uid * 0.37))
 		var mod := Color(1, 1, 1)
@@ -526,7 +515,7 @@ func _draw() -> void:
 		if u.has("hero") and combat.hidden(): mod.a = 0.45
 		if not u.has("hero") and lighting and p.distance_to(hero_disp) > lr: mod = mod * Color(0.55, 0.55, 0.6)
 		# SPD CharSprite.flash(): the struck sprite is drawn fully white for FLASH_INTERVAL, with no fade
-		var fl := 1.0 if float(flash.get(u.uid, 0.0)) > 0.0 else 0.0
+		var fl := flash_white(u.uid)
 		var top := _draw_sprite(u.sprite, u.fw, u.fh, fr + int(u.get("row", 0)) * 1000, p, st.flip, scale, mod, fl)
 		_health_bar(u, top, scale)
 		_status_icons(u, top, scale)
@@ -535,15 +524,7 @@ func _draw() -> void:
 		for x in range(lo, hi_x + 1):
 			var wv := wall_visual(Vector2i(x, y))
 			if wv >= 0: _tile(cell_rect(Vector2(x, y)), wv)
-	# 5b. remains holding a door open (DECISIONS #176, #184): SPD draws the heap on the open door. Drawn after the
-	# walls layer so a sideways door's frame does not hide it, and only once the doorway is empty and the death
-	# animation there has faded, so it never covers a character
-	for k in combat.remains:
-		var bi := remains_visual(k)
-		if bi < 0 or combat.unit_at(k) != null or dying.any(func(dd): return Vector2(dd.pos).round() == Vector2(k)): continue
-		var br := UIKit.item_rect(bi); var bsz := br.size * scale
-		var cr := cell_rect(Vector2(k))
-		draw_texture_rect_region(_items_tex(), Rect2((cr.position + (cr.size - bsz) / 2.0).floor(), bsz), br)
+	# a door held open by remains (DECISIONS #176) shows just the open door, like SPD; no bones (DECISIONS #187)
 	# 5c. SPD region visuals: drips from drains, Prison wall torches, cave ore sparkles, City smoke, Halls embers.
 	# Drawn under the fog, so out-of-sight walls dim like everything else.
 	var bio := biome()
@@ -599,17 +580,31 @@ func _draw_sprite(spr: String, fw: int, fh: int, frame: int, p: Vector2, flip: b
 	var cols := maxi(1, t.get_width() / fw)
 	var row := frame / 1000; frame = frame % 1000   # armor-tier row packed by the caller (SPD HeroSprite)
 	var src := Rect2((frame % cols) * fw, (frame / cols + row) * fh, fw, fh)
+	var dst := sprite_rect(fw, fh, p, scale)
+	# mirrored in place by a canvas transform, never a negative-size rect (DECISIONS #187)
+	SceneFX.blit(self, t, dst, src, mod, flip)
+	if white > 0.0:   # overbright copy of the same frame: modulate > 1 saturates to white
+		var f := 1.0 + 4.0 * white
+		SceneFX.blit(self, t, dst, src, Color(f, f, f, white * mod.a), flip)
+	return dst.position
+
+## Where a fw x fh sprite at grid position `p` is drawn: bottom-centred on its cell, positive size, whole pixels.
+## Flipped sprites use the same rect (DECISIONS #187).
+func sprite_rect(fw: int, fh: int, p: Vector2, scale: float) -> Rect2:
 	var sz := Vector2(fw, fh) * scale
 	var cs := cell_size()
 	var r := cell_rect(p)
-	var pos := (r.position + Vector2((cs - sz.x) / 2.0, cs - sz.y)).floor()
-	# mirrored through a negative destination width (a negative source width drops some frames, DECISIONS #182)
-	var dst := Rect2(pos.x + sz.x, pos.y, -sz.x, sz.y) if flip else Rect2(pos, sz)
-	draw_texture_rect_region(t, dst, src, mod)
-	if white > 0.0:   # overbright copy of the same frame: modulate > 1 saturates to white
-		var f := 1.0 + 4.0 * white
-		draw_texture_rect_region(t, dst, src, Color(f, f, f, white * mod.a))
-	return pos
+	return Rect2((r.position + Vector2((cs - sz.x) / 2.0, cs - sz.y)).floor(), sz)
+
+## A unit's drawn grid position: its tweened cell plus any attack lunge (0 once the lunge is over).
+func unit_draw_pos(u: Dictionary) -> Vector2:
+	var p: Vector2 = disp.get(u.uid, Vector2(u.pos))
+	if lunge.has(u.uid): p += lunge[u.uid].dir * 0.25 * sin(lunge[u.uid].t / 0.16 * PI)
+	return p
+
+## The white hit-flash strength a unit is drawn with right now: 1 for SPD's FLASH_INTERVAL after a hit, else 0.
+func flash_white(uid: int) -> float:
+	return 1.0 if float(flash.get(uid, 0.0)) > 0.0 else 0.0
 
 ## SPD HealthBar: thin red bg, green hp, pale shield; above the sprite; mobs only when hurt.
 func _health_bar(u: Dictionary, top: Vector2, scale: float) -> void:
