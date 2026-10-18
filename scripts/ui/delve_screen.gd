@@ -45,12 +45,14 @@ func _ready() -> void:
 	GameState.settings_changed.connect(func(): if pending.get("kind", "") == "settings": _show_card())
 	_refresh_controls()
 
-## SPD-style window over the corridor. The dim stops above the toolbar, so the bag and menu stay in reach.
+## SPD-style window over the corridor. The (clear) input shield stops above the toolbar, so the bag and menu stay in reach.
 func _build_window() -> void:
 	win_layer = Control.new(); win_layer.name = "DelveWindow"; win_layer.z_index = 20
 	win_layer.set_anchors_and_offsets_preset(PRESET_FULL_RECT); win_layer.mouse_filter = MOUSE_FILTER_IGNORE
 	win_layer.visible = false; add_child(win_layer)
-	win_dim = ColorRect.new(); win_dim.color = Color(0, 0, 0, 0.35); win_dim.mouse_filter = MOUSE_FILTER_STOP; win_layer.add_child(win_dim)
+	# a clear input shield (DECISIONS #187): taps behind an event window are still blocked, but the scene keeps its
+	# full brightness, so the room it describes stays readable
+	win_dim = ColorRect.new(); win_dim.color = Color(0, 0, 0, 0.0); win_dim.mouse_filter = MOUSE_FILTER_STOP; win_layer.add_child(win_dim)
 	win_panel = PanelContainer.new(); win_layer.add_child(win_panel)
 	var sc := ScrollContainer.new(); sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED; win_panel.add_child(sc)
 	card_host = UIKit.vbox(sc); card_host.size_flags_horizontal = SIZE_EXPAND_FILL
