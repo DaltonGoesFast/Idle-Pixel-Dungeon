@@ -1107,8 +1107,11 @@ func tick_identify() -> Array:
 	return done
 
 # ---------------------------------------------------------------- Offline Patrols
-func patrol_max_hours() -> float:
-	return [2.0, 4.0, 8.0][clampi(facility_level("guild") - 1, 0, 2)]
+## Guild hours cap; a hero's own cap adds their Timekeeper's Hourglass (DECISIONS #188).
+func patrol_max_hours(c := "") -> float:
+	var base: float = [2.0, 4.0, 8.0][clampi(facility_level("guild") - 1, 0, 2)]
+	if c == "" or not heroes.has(c): return base
+	return base + float(patrol_perks(c).fx.get("max_hours", 0.0))
 
 func can_patrol(c: String, biome: String) -> String:
 	var h: Dictionary = heroes[c]
@@ -1116,41 +1119,185 @@ func can_patrol(c: String, biome: String) -> String:
 	if not h.patrol.is_empty(): return "already patrolling"
 	if not run.is_empty() and run.hero == c: return "on an expedition"
 	if not (biome in h.cleared): return "clear %s first" % DB.biomes[biome].name
-	if not can_afford(patrol_fee(biome)): return "need " + cost_text(patrol_fee(biome))
+	if not can_afford(patrol_fee(biome, c)): return "need " + cost_text(patrol_fee(biome, c))
 	return ""
 
 ## Gold sink (DECISIONS #130): provisioning a patrol costs half the gold a full-length patrol of that biome yields.
-func patrol_fee(biome: String) -> Dictionary:
-	return {"gold": int(float(DB.biomes[biome].patrol_yield_per_hour.get("gold", 0)) * patrol_max_hours() / 2.0)}
+## With a hero, their Ring of Elements cuts it (DECISIONS #188).
+func patrol_fee(biome: String, c := "") -> Dictionary:
+	var g := float(DB.biomes[biome].patrol_yield_per_hour.get("gold", 0)) * patrol_max_hours() / 2.0
+	if c != "" and heroes.has(c): g *= 1.0 - minf(PATROL_FEE_CUT_MAX, float(patrol_perks(c).fx.get("fee_cut_pct", 0.0))) / 100.0
+	return {"gold": int(g)}
 
+## The patrol remembers what the hero set out with (efficiency, gear bonus, perks, hours cap), so the haul can't
+## change by swapping or levelling gear while they are away (DECISIONS #188).
 func start_patrol(c: String, biome: String) -> bool:
 	if can_patrol(c, biome) != "": return false
-	pay(patrol_fee(biome))
-	heroes[c].patrol = {"biome": biome, "start": now()}
+	pay(patrol_fee(biome, c))
+	var pk := patrol_perks(c)
+	heroes[c].patrol = {"biome": biome, "start": now(), "v": 2, "eff": patrol_efficiency(c, biome), "gear_mult": patrol_gear_mult(c),
+		"gear_lvl": patrol_gear_level(c), "fx": pk.fx.duplicate(true), "lines": pk.lines.duplicate(), "max_h": patrol_max_hours(c)}
 	say("%s sets out to patrol the %s." % [DB.heroes[c].name, DB.biomes[biome].name]); touch(); return true
 
-## Efficiency: hero power vs biome strength gate, clamped 0.25..1.25.
+## Efficiency: hero power (plus patrol power perks) vs biome strength gate, clamped 0.25..1.25.
 func patrol_efficiency(c: String, biome: String) -> float:
-	return clampf(float(power_rating(c)) / (float(DB.biomes[biome].str_gate) + 2.0), 0.25, 1.25)
+	var pw := float(power_rating(c)) + float(patrol_perks(c).fx.get("power", 0.0))
+	return clampf(pw / (float(DB.biomes[biome].str_gate) + 2.0), 0.25, 1.25)
 
+# --- gear on patrol (DECISIONS #188)
+const PATROL_GEAR_K := 0.15          # gear bonus = 1 + K * sqrt(total gear level): +15% at 1, +34% at 5, +47% at 10, +67% at 20
+const PATROL_GOLD_GEAR_SHARE := 0.0  # gold gets none of it: gold is the scarce sink (only Wealth / Armband raise it)
+const PATROL_FEE_CUT_MAX := 50.0
+
+## Sum of upgrade levels the hero actually uses: weapon, armor, ring, artifact and the staff's wand. Cracked
+## pieces don't count (they do nothing in a fight either).
+func patrol_gear_level(c: String) -> int:
+	var h: Dictionary = heroes[c]
+	var n := 0
+	for s in ["weapon", "armor", "ring", "artifact"]:
+		var g := gear_by_uid(int(h.get(s, 0)))
+		if not g.is_empty() and not g.get("cracked", false): n += int(g.get("lvl", 0))
+	if String(h.get("wand", "")) != "" and not h.get("wand_cracked", false): n += int(h.get("wand_lvl", 0))
+	return n
+
+## Diminishing returns, no ceiling: each extra level still adds a little.
+static func patrol_gear_mult_for(lvl: int) -> float:
+	return 1.0 + PATROL_GEAR_K * sqrt(float(maxi(0, lvl)))
+
+func patrol_gear_mult(c: String) -> float:
+	return patrol_gear_mult_for(patrol_gear_level(c))
+
+## The worn pieces that carry a patrol perk: [{name, id, lvl}]. Ring, artifact, then the staff's wand.
+func _patrol_perk_items(c: String) -> Array:
+	var h: Dictionary = heroes[c]
+	var out := []
+	for s in ["ring", "artifact"]:
+		var g := gear_by_uid(int(h.get(s, 0)))
+		if g.is_empty() or g.get("cracked", false) or not g.get("known", true): continue
+		if DB.item(g.id).has("patrol"): out.append({"id": g.id, "lvl": int(g.get("lvl", 0)), "name": gear_name(g)})
+	var w := String(h.get("wand", ""))
+	if w != "" and not h.get("wand_cracked", false) and DB.item(w).has("patrol"):
+		var wl := int(h.get("wand_lvl", 0))
+		out.append({"id": w, "lvl": wl, "name": DB.item(w).name + (" +%d" % wl if wl > 0 else "")})
+	return out
+
+## Value of one perk entry at an item level: [base, per_level] or, for "_every", [hours, per_level, min hours].
+static func patrol_perk_value(spec, lvl: int) -> float:
+	if spec is Array:
+		var v := float(spec[0]) + float(spec[1]) * lvl
+		return maxf(float(spec[2]), v) if spec.size() > 2 else v
+	return 1.0 if spec else 0.0
+
+## Player-facing text for one perk entry, e.g. "+20% gold", "+1 potion per 4h", "curios: any ring".
+static func patrol_perk_text(key: String, v) -> String:
+	var n := func(x: float) -> String: return str(int(x)) if is_equal_approx(x, roundf(x)) else "%.1f" % x
+	if key.ends_with("_per_hour"): return "+%s %s/h" % [n.call(v), _patrol_mat_word(key.trim_suffix("_per_hour"))]
+	if key.ends_with("_every"): return "+1 %s per %sh" % [_patrol_mat_word(key.trim_suffix("_every")), n.call(v)]
+	match key:
+		"all_pct": return "+%s%% materials" % n.call(v)
+		"time_pct": return "+%s%% patrol time" % n.call(v)
+		"curio_pct": return "+%s%% curios" % n.call(v)
+		"fee_cut_pct": return "-%s%% fee" % n.call(v)
+		"power": return "+%s patrol power" % n.call(v)
+		"max_hours": return "+%sh max" % n.call(v)
+		"curio_plus_pct": return "%s%% of curios come +1" % n.call(v)
+		"curio_known": return "curios arrive identified"
+		"curio_pool": return "curios: any ring"
+	if key.ends_with("_pct"): return "+%s%% %s" % [n.call(v), _patrol_mat_word(key.trim_suffix("_pct"))]
+	return key
+
+static func _patrol_mat_word(m: String) -> String:
+	match m:
+		"dew": return "dew"
+		"potion_healing": return "healing potion"
+	return DB.mat_name(m).to_lower()
+
+## Active patrol perks for this hero's current gear: {"fx": merged effects, "lines": ["Ring of Wealth +2: +20% gold", ...]}.
+## Percent / flat effects add up; for "_every" drops the shortest interval wins; flags just turn on.
+func patrol_perks(c: String) -> Dictionary:
+	var fx := {}
+	var lines := []
+	for it in _patrol_perk_items(c):
+		var spec: Dictionary = DB.item(it.id).patrol
+		var parts := []
+		for k in spec:
+			if k == "curio_pool" or k == "curio_known":
+				fx[k] = spec[k]; parts.append(patrol_perk_text(k, spec[k])); continue
+			var v := patrol_perk_value(spec[k], int(it.lvl))
+			if k.ends_with("_every"): fx[k] = minf(float(fx.get(k, 999.0)), v)
+			else: fx[k] = float(fx.get(k, 0.0)) + v
+			parts.append(patrol_perk_text(k, v))
+		lines.append("%s: %s" % [it.name, ", ".join(parts)])
+	return {"fx": fx, "lines": lines}
+
+## What gear does on this hero's patrols, for the Guild card: the gear-level line first, then one line per perk.
+## A hero already out shows what they left with.
+func patrol_bonus_lines(c: String) -> Array:
+	var p: Dictionary = heroes[c].patrol
+	var snap := not p.is_empty() and int(p.get("v", 1)) >= 2
+	var lvl := int(p.get("gear_lvl", 0)) if snap else patrol_gear_level(c)
+	var gm := float(p.get("gear_mult", 1.0)) if snap else patrol_gear_mult(c)
+	var out := []
+	if lvl > 0:
+		var gold := roundi((gm - 1.0) * PATROL_GOLD_GEAR_SHARE * 100.0)
+		out.append("Gear Lv %d: +%d%% materials" % [lvl, roundi((gm - 1.0) * 100.0)] + (", +%d%% gold" % gold if gold > 0 else ""))
+	out.append_array(p.get("lines", []) if snap else patrol_perks(c).lines)
+	return out
+
+## Curio table: Might/Tenacity by default; a Ring of Wealth opens every ring in the game.
+func patrol_curio_pool(fx: Dictionary) -> Array:
+	if String(fx.get("curio_pool", "")) != "rings": return ["ring_might", "ring_tenacity"]
+	var out := []
+	for k in DB.items:
+		var d = DB.items[k]
+		if d is Dictionary and d.get("type", "") == "ring" and not d.get("heirloom", false): out.append(k)
+	return out
+
+## What the patrol would bring back if recalled now. Patrols started before #188 (no "v") are worked out from the
+## hero's gear today, the way they always were.
 func patrol_preview(c: String) -> Dictionary:
 	var p: Dictionary = heroes[c].patrol
 	if p.is_empty(): return {}
 	var b: Dictionary = DB.biomes[p.biome]
-	var hours := clampf((now() - float(p.start)) / 3600.0, 0.0, patrol_max_hours())
-	var eff := patrol_efficiency(c, p.biome)
+	var snap := int(p.get("v", 1)) >= 2
+	var fx: Dictionary = p.get("fx", {}) if snap else patrol_perks(c).fx
+	var max_h := float(p.get("max_h", patrol_max_hours())) if snap else patrol_max_hours()
+	var eff := float(p.get("eff", 1.0)) if snap else patrol_efficiency(c, p.biome)
+	var gm := float(p.get("gear_mult", 1.0)) if snap else patrol_gear_mult(c)
+	var hours := clampf((now() - float(p.start)) / 3600.0, 0.0, max_h)
+	var worked := hours * (1.0 + float(fx.get("time_pct", 0.0)) / 100.0)   # Ring of Haste: more ground per hour
+	var allp := float(fx.get("all_pct", 0.0))
 	var out := {}
-	for k in b.patrol_yield_per_hour: out[k] = int(floor(float(b.patrol_yield_per_hour[k]) * hours * eff))
-	out["_curios"] = int(floor(hours / float(b.patrol_curio_every_hours)))
+	for k in b.patrol_yield_per_hour:
+		var g := gm if k != "gold" else 1.0 + (gm - 1.0) * PATROL_GOLD_GEAR_SHARE
+		var bonus := 1.0 + ((allp if k != "gold" else 0.0) + float(fx.get(k + "_pct", 0.0))) / 100.0   # "materials" never means gold
+		out[k] = float(b.patrol_yield_per_hour[k]) * worked * eff * g * bonus
+	for k in fx:   # flat finds (Sandals, Regrowth): per hour, scaled by efficiency and the material's own bonus
+		if not String(k).ends_with("_per_hour"): continue
+		var m := String(k).trim_suffix("_per_hour")
+		out[m] = float(out.get(m, 0.0)) + float(fx[k]) * worked * eff * (1.0 + (allp + float(fx.get(m + "_pct", 0.0))) / 100.0)
+	for k in out.keys(): out[k] = int(floor(out[k]))
+	for k in fx:   # drops on a timer (Chalice: healing potions, Horn: rations)
+		if String(k).ends_with("_every"): out[String(k).trim_suffix("_every")] = int(out.get(String(k).trim_suffix("_every"), 0)) + int(floor(worked / maxf(0.5, float(fx[k]))))
+	out["_curios"] = int(floor(worked * (1.0 + float(fx.get("curio_pct", 0.0)) / 100.0) / float(b.patrol_curio_every_hours)))
 	out["_hours"] = hours
+	out["_max_h"] = max_h
 	return out
 
 func collect_patrol(c: String) -> Dictionary:
 	var y := patrol_preview(c)
 	if y.is_empty(): return {}
+	var p: Dictionary = heroes[c].patrol
+	var fx: Dictionary = p.get("fx", {}) if int(p.get("v", 1)) >= 2 else patrol_perks(c).fx
 	for k in y:
-		if not String(k).begins_with("_"): add_mat(k, y[k])
-	for i in y._curios: add_gear(["ring_might", "ring_tenacity"][(next_uid + i) % 2], false)
+		if not String(k).begins_with("_") and int(y[k]) > 0: add_mat(k, y[k])
+	var pool := patrol_curio_pool(fx)
+	var known: bool = fx.get("curio_known", false)
+	var plus := float(fx.get("curio_plus_pct", 0.0)) / 100.0
+	var rng := RandomNumberGenerator.new(); rng.seed = hash("%s|%s|%d" % [c, p.biome, int(float(p.start))])
+	for i in y._curios:
+		var id: String = pool[(next_uid + i) % pool.size()] if pool.size() == 2 else pool[rng.randi() % pool.size()]
+		add_gear(id, known, 1 if plus > 0.0 and rng.randf() < plus else 0)
 	heroes[c].patrol = {}
 	say("%s returns from patrol (%.1fh)." % [DB.heroes[c].name, y._hours]); touch()
 	return y
