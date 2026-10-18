@@ -4274,7 +4274,7 @@ func test_telemetry(gs) -> void:
 	check(typeof(cfg) == TYPE_DICTIONARY and (String(cfg.get("api_key", "")) == "" or String(cfg.api_key).begins_with("phc_")), "telemetry: key is empty or a public phc_ project key")
 	var T: GDScript = load("res://scripts/autoload/telemetry.gd")
 	# DECISIONS #198: only a player's exported game sends. Runs from source (the editor binary: dev sessions, the
-	# playtest harness under xvfb outside res://tests/) and automated or headless browsers never do.
+	# playtest harness under xvfb outside res://tests/) and automated browsers (navigator.webdriver) never do.
 	check(Telemetry.suppressed_by in ["headless", "tests", "env"], "telemetry: this suite records why it is off (%s)" % Telemetry.suppressed_by)
 	check(T.classify(false, false, false, false, false, false) == "", "telemetry: an exported game on a device or in a real browser sends")
 	check(T.classify(false, false, false, true, false, false) == "source", "telemetry: a run from source with a display (xvfb probe, editor play) sends nothing")
@@ -4285,6 +4285,10 @@ func test_telemetry(gs) -> void:
 	check(T.classify(false, false, false, false, false, true) == "automated_browser", "telemetry: an automated browser on the web build sends nothing")
 	check(not T.automated_browser(false), "telemetry: a real browser (no navigator.webdriver) is a player")
 	check(T.automated_browser(true), "telemetry: navigator.webdriver (Playwright, Puppeteer, Selenium) is a bot")
+	# Godot's web build returns the JS boolean from JavaScriptBridge.eval() as an int (true -> 1, false -> 0).
+	check(T.automated_browser(1), "telemetry: navigator.webdriver read back as the int 1 (how the web build returns a JS true) is a bot")
+	check(not T.automated_browser(0), "telemetry: navigator.webdriver read back as the int 0 is a player")
+	check(not T.automated_browser(null) and not T.automated_browser("true") and not T.automated_browser(""), "telemetry: a missing or odd navigator.webdriver value (null, string) is a player")
 	# UUIDs
 	var u: String = T.new_uuid()
 	var re := RegEx.new(); re.compile("^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")
