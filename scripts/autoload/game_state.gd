@@ -1147,6 +1147,11 @@ func use_elixir(c: String) -> bool:
 	add_mat("elixir_starter", -1); h.level = 3; h.xp = 0
 	say(DB.heroes[c].name + " drinks a Starter Elixir (Lv3)."); touch(); return true
 
+## A bolt-casting hero (the Mage) whose Staff holds no wand: since gear can come off at Camp (DECISIONS #189) she
+## can set out with no Bolt at all. The Expedition window and the Stats panel say so (DECISIONS #192).
+func staff_empty(c: String) -> bool:
+	return heroes.has(c) and "bolt" in DB.heroes[c].get("abilities", []) and String(heroes[c].get("wand", "")) == ""
+
 func can_imbue_wand(uid: int) -> String:
 	var g := gear_by_uid(uid)
 	if g.is_empty() or DB.item(g.id).type != "wand": return "not a wand"

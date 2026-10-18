@@ -102,6 +102,8 @@ static func stats_panel(c: String, on_talents: Callable) -> Control:
 		var kl := UIKit.label(r[0], 0.8, Color("bdb3a0")); kl.autowrap_mode = TextServer.AUTOWRAP_OFF; g.add_child(kl)
 		var vl := UIKit.label(r[1], 0.9); vl.autowrap_mode = TextServer.AUTOWRAP_OFF; g.add_child(vl)
 	if s.has("bolt"): v.add_child(UIKit.label("Bolt: %s %d dmg, %d charges" % [s.bolt.name, s.bolt.dmg, s.bolt.charges], 0.8, Color("c8a0ff")))
+	elif GameState.staff_empty(c):   # DECISIONS #192
+		var nb := UIKit.label("Bolt: none - no wand in the Staff", 0.8, Color("ffb060")); nb.name = "NoBolt"; v.add_child(nb)
 	if s.has("sub_name"): v.add_child(UIKit.label("%s: %s" % [s.sub_name, DB.heroes[c].subclasses[s.sub].desc], 0.8, Color("9fd3ff")))
 	elif h.get("mask", false): v.add_child(UIKit.label("Tengu's Mask: choose a subclass.", 0.8, Color("9fd3ff")))
 	if on_talents.is_valid():
