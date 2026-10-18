@@ -125,6 +125,14 @@ func _ready() -> void:
 		plan.append([sz, "camp_enchanter", func():
 			var u: int = GameState.add_gear("ring_wealth", false); GameState.add_gear("ring_evasion", false); GameState.enqueue_identify(u)
 			main.show_camp(); main.screen.section["Enchanter"] = "identify"; main.screen.open_page("Enchanter")])
+		# DECISIONS #203: the user's queue (7 Garnet + 2 Ruby at a Lv1 Desk), right after Queue all
+		plan.append([sz, "enchanter_queue", func():
+			GameState.id_queue = []
+			for g in GameState.gear.filter(func(x): return not x.known): GameState.gear.erase(g)
+			for i in 7: GameState.add_gear("ring_might", false)
+			for i in 2: GameState.add_gear("ring_tenacity", false)
+			GameState.mats.gold = 1369; GameState.enqueue_identify_all()
+			main.show_camp(); main.screen.section["Enchanter"] = "identify"; main.screen.open_page("Enchanter")])
 		plan.append([sz, "camp_guild", func():
 			GameState.add_mat("gold", 200); GameState.facilities.guild.level = 2
 			main.show_camp(); main.screen.open_page("Guild")])

@@ -909,7 +909,7 @@ func _page_stash() -> void:
 			gg.add_child(_mark_worn(slot, int(g.uid)))
 
 # ------------------------------------------------------------ Facilities
-const NEXT_TEXT := {"blacksmith": "Gear upgrade cap +%d", "alchemy": "Potion belt %d slots", "enchanter": "Faster identification, ring/wand cap +%d", "guild": "Patrols up to %dh"}
+const NEXT_TEXT := {"blacksmith": "Gear upgrade cap +%d", "alchemy": "Potion belt %d slots", "enchanter": "Faster identification, +1 identify slot, ring/wand cap +%d", "guild": "Patrols up to %dh"}
 
 func _preview(id: String, lvl: int) -> String:
 	match id:
@@ -1369,18 +1369,28 @@ func _attune_section(v: VBoxContainer) -> void:
 		g2.add_child(_mark_worn(slot, uid))
 
 func _identify_section(v: VBoxContainer) -> void:
-	v.add_child(UIKit.header("Identifying (%d min each)" % int(GameState.identify_seconds() / 60)))
+	var secs := int(GameState.identify_seconds())
+	v.add_child(UIKit.header("Identifying (%d at a time, %d min)" % [GameState.identify_slots(), secs / 60]))
 	if GameState.id_queue.is_empty(): v.add_child(UIKit.label("Nothing queued. Tap an unknown item below.", 0.8, Color("9a9488")))
+	else: v.add_child(UIKit.label("Once one is identified, the rest of its type are too.", 0.8, Color("9a9488")))
 	for q in GameState.id_queue:
 		var g := GameState.gear_by_uid(q.uid)
 		var left := maxf(0.0, float(q.ready_at) - GameState.now())
+		var st := GameState.identify_state(q)
 		var row := UIKit.hbox(v)
 		row.add_child(UIKit.icon(gear_icon(g), -1, "NONE"))
 		var cv := UIKit.vbox(row); cv.size_flags_horizontal = SIZE_EXPAND_FILL
-		cv.add_child(UIKit.label("%s   %d:%02d" % [GameState.gear_name(g), int(left) / 60, int(left) % 60], 0.85))
+		var tail := "" if st == "running" else ("  (same type)" if st == "same type" else "  (waiting)")
+		cv.add_child(UIKit.label("%s   %d:%02d%s" % [GameState.gear_name(g), int(left) / 60, int(left) % 60, tail], 0.85))
 		var pb := ProgressBar.new(); pb.name = "IdentifyBar"; pb.max_value = 1.0; pb.step = 0.0; pb.show_percentage = false
 		pb.value = GameState.identify_progress(q); pb.custom_minimum_size.y = UIKit.font_size * 0.5
 		cv.add_child(pb)
+		if st == "same type": continue   # it finishes with the item learning its type
+		var uid := int(q.uid)
+		var why := GameState.can_rush_identify(uid)
+		var rb := UIKit.button("Finish %dg" % int(GameState.identify_rush_cost(uid).get("gold", 0)), func(): if GameState.rush_identify(uid): _fill_window(), why == "", why)
+		rb.name = "IdentifyRush"; rb.autowrap_mode = TextServer.AUTOWRAP_OFF; rb.size_flags_horizontal = 0; rb.size_flags_vertical = SIZE_SHRINK_CENTER
+		UIKit.secondary(rb); row.add_child(rb)
 	var unk := GameState.identify_candidates()
 	var uh := UIKit.hbox(v)
 	var uhl := UIKit.header("Unknown items"); uhl.size_flags_horizontal = SIZE_EXPAND_FILL; uh.add_child(uhl)
