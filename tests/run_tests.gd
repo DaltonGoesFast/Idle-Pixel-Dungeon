@@ -1812,7 +1812,7 @@ func test_gear_ownership(gs) -> void:
 	cs.queue_free()
 	UIKit.make_theme(fs0)
 
-## DECISIONS #192: a Mage whose staff wand was unequipped at Camp is told she has no Bolt, in the Expedition
+## DECISIONS #193: a Mage whose staff wand was unequipped at Camp is told she has no Bolt, in the Expedition
 ## window and on the Stats panel; both go away once a wand is imbued again.
 func test_staff_empty_warning(gs) -> void:
 	print("[staff empty warning]")

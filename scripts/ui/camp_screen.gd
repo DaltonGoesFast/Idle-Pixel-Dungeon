@@ -472,7 +472,7 @@ func _page_delve() -> void:
 		gh.name = "GuildCapHint"; gh.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART; v.add_child(gh)
 	var floors := int(b.floors[1]) - int(b.floors[0]) + 1
 	if loadout.torch < mini(floors - 2, int(caps.torch)): v.add_child(UIKit.label("Tip: about one torch per floor (%d floors)." % floors, 0.75, Color("ffb060")))
-	if GameState.staff_empty(chosen_hero):   # DECISIONS #192: the staff's wand was taken out at Camp
+	if GameState.staff_empty(chosen_hero):   # DECISIONS #193: the staff's wand was taken out at Camp
 		var nw := UIKit.label("No wand in the Staff: the %s has no Bolt on this delve. Imbue one from Heroes." % DB.heroes[chosen_hero].name, 0.75, Color("ffb060"))
 		nw.name = "NoWandWarn"; nw.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART; v.add_child(nw)
 	if GameState.mat("elixir_starter") > 0 and GameState.heroes[chosen_hero].level < 3:

@@ -48,7 +48,7 @@ func _ready() -> void:
 			for c in GameState.heroes: hr.add_child(main.screen._hero_slot(c))
 			Paperdoll.build(v, "warrior", not main.screen.portrait, "camp", func(): pass)])
 		plan.append([sz, "camp_expedition", func(): main.show_camp(); main.screen.open_page("Delve")])
-		# DECISIONS #192: the Mage's wand taken out of the Staff - the Expedition window and Stats panel say "no Bolt"
+		# DECISIONS #193: the Mage's wand taken out of the Staff - the Expedition window and Stats panel say "no Bolt"
 		plan.append([sz, "expedition_no_wand", func():
 			mage_was_unlocked = GameState.heroes.mage.unlocked
 			GameState.heroes.mage.unlocked = true
