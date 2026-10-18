@@ -169,6 +169,19 @@ func _ready() -> void:
 			GameState.settings.tutorial = true; GameState.tutorial_done = ["first_fight", "welcome", "delve_bar"]
 			main.start_combat(Delve.combat_event(GameState.run, Delve.rng_for(GameState.run, 3), ["rat"]), func(_r): pass)
 			GameState.settings.tutorial = false])
+		# v0.44.0 phone regression (fix8): Mage on Sewers 1, ambush by two rats, then a wand bolt in the fight
+		plan.append([sz, "mage_ambush", func():
+			GameState.end_run("abandon")
+			for c in GameState.heroes: GameState.heroes[c].unlocked = true
+			GameState.start_run("mage", {}, "sewers", 1); main.show_delve(); _clear_pops(); main.delve.running = false
+			main.delve.pending = Delve.combat_event(GameState.run, Delve.rng_for(GameState.run, 4), ["rat", "rat"]); main.delve._show_card()])
+		plan.append([sz, "mage_ambush_late", func(): pass])   # the same scene ~0.2 s later (foes arrived, lunging)
+		plan.append([sz, "mage_bolt", func():
+			main.start_combat(Delve.combat_event(GameState.run, Delve.rng_for(GameState.run, 4), ["rat", "rat"]), func(_r): pass)
+			var cb = main.screen.combat
+			for e in cb.enemies():
+				if cb.can_bolt(e.pos): main.screen._act(func(): cb.hero_bolt(e.pos)); break])
+		plan.append([sz, "mage_bolt_late", func(): pass])
 		plan.append([sz, "combat", func():
 			main.start_combat(Delve.combat_event(GameState.run, Delve.rng_for(GameState.run, 3), ["gnoll", "crab"]), func(_r): pass)
 			for i in 3: main.screen._do_bot()])
