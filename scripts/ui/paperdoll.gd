@@ -107,7 +107,7 @@ static func stats_panel(c: String, on_talents: Callable) -> Control:
 	var g := GridContainer.new(); g.columns = 4; v.add_child(g)
 	g.add_theme_constant_override("h_separation", int(UIKit.font_size * 0.6))
 	var rows := [["HP", str(s.ht)], ["Dmg", str(s.dmg)], ["DR", str(s.dr)], ["Barrier", str(s.barrier_max)],
-		["Speed", "%.1f" % (1.0 / maxf(0.1, float(s.delay))) + "x"], ["Str", str(h.str)], ["XP", "%d/%d" % [h.xp, GameState.xp_to_next(h.level)]], ["Search", str(1 + int(s.get("search_add", 0)))]]
+		["Speed", Weapons.num(1.0 / maxf(0.1, float(s.delay)), 1) + "x"], ["Str", str(h.str)], ["XP", "%d/%d" % [h.xp, GameState.xp_to_next(h.level)]], ["Search", str(1 + int(s.get("search_add", 0)))]]
 	if int(s.get("reach", 1)) > 1: rows.append(["Reach", str(int(s.reach))])   # Spear, Glaive, Whip (DECISIONS #207)
 	for r in rows:
 		var kl := UIKit.label(r[0], 0.8, Color("bdb3a0")); kl.autowrap_mode = TextServer.AUTOWRAP_OFF; g.add_child(kl)

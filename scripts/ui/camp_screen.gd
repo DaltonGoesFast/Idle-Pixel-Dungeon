@@ -529,10 +529,13 @@ func _unlock_card(c: String) -> Control:
 ## SPD inventory slot: dark translucent square, item sprite, count bottom-right, "+N" top-left.
 ## A caption adds a name strip under the sprite and widens the slot (recipe grids, CAPTION_CELL).
 const CAPTION_CELL := 4.4
-func item_slot(id: String, br: String, tl: String, cb: Callable, tint := Color.WHITE, frame := "", gear := {}, badge := "", caption := "") -> Button:
+func item_slot(id: String, br: String, tl: String, cb: Callable, tint := Color.WHITE, frame := "", gear := {}, badge := "", caption := "", cap_lines := 1) -> Button:
 	var b := Button.new(); b.focus_mode = FOCUS_NONE
 	var sz := UIKit.font_size * 3.0
-	var cap_h := UIKit.font_size * 0.95 if caption != "" else 0.0
+	cap_lines = clampi(cap_lines, 1, 2)
+	# one line keeps the 0.95 em strip; two get two full pixel-font line heights (DECISIONS #215)
+	var cap_h := 0.0
+	if caption != "": cap_h = UIKit.font_size * 0.95 if cap_lines == 1 else cap_lines * _caption_line_h() + UIKit.font_size * 0.1
 	b.custom_minimum_size = Vector2(UIKit.font_size * (CAPTION_CELL - 0.2) if caption != "" else sz, sz + cap_h)
 	var bg := StyleBoxFlat.new(); bg.bg_color = Color(0.33, 0.34, 0.30, 0.6)
 	if frame != "": bg.border_color = Color(frame); bg.set_border_width_all(maxi(2, int(UIKit.font_size * 0.12)))
@@ -558,7 +561,11 @@ func item_slot(id: String, br: String, tl: String, cb: Callable, tint := Color.W
 		l.autowrap_mode = TextServer.AUTOWRAP_OFF; l.offset_right = -UIKit.font_size * 0.15; l.mouse_filter = MOUSE_FILTER_IGNORE; b.add_child(l)
 		l.offset_bottom -= cap_h; l.offset_top -= cap_h
 	if caption != "":
-		var cl := UIKit.label(caption, 0.75, Color("e8e0c8")); cl.autowrap_mode = TextServer.AUTOWRAP_OFF
+		var cl := UIKit.label(caption, 0.75, Color("e8e0c8"))
+		cl.name = "Caption"
+		# a name too wide for one line wraps onto a second one in a two-line strip (DECISIONS #215)
+		cl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART if cap_lines > 1 else TextServer.AUTOWRAP_OFF
+		cl.max_lines_visible = cap_lines
 		cl.clip_text = true; cl.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 		cl.set_anchors_and_offsets_preset(PRESET_BOTTOM_WIDE); cl.offset_top = -cap_h
 		cl.offset_left = UIKit.font_size * 0.1; cl.offset_right = -UIKit.font_size * 0.1
@@ -734,6 +741,14 @@ func gear_stats(g: Dictionary) -> Dictionary:
 			else: out[lab] = snappedf(v, 0.01)
 	return out
 
+## Rows the compare window shows: this item's stats, then any the equipped item adds. Reach is dropped when
+## neither side reaches past the next tile ("Reach 1 / 1" said nothing; DECISIONS #215).
+static func compare_keys(a: Dictionary, c: Dictionary) -> Array:
+	var keys := a.keys()
+	for k in c.keys(): if not (k in keys): keys.append(k)
+	if int(a.get("Reach", 1)) <= 1 and int(c.get("Reach", 1)) <= 1: keys.erase("Reach")
+	return keys
+
 ## Side-by-side compare window: the item vs the selected hero's equipped item of the same kind.
 func compare(g: Dictionary) -> void:
 	var t: String = DB.item(g.id).type
@@ -745,8 +760,7 @@ func compare(g: Dictionary) -> void:
 	var nl := func(t: String, sc: float, col: Color) -> Label:
 		var l := UIKit.label(t, sc, col); l.autowrap_mode = TextServer.AUTOWRAP_OFF; return l
 	for txt in ["", "This", "Equipped"]: grid.add_child(nl.call(txt, 0.85, Color("ffd27a")))
-	var keys := a.keys()
-	for k in c.keys(): if not (k in keys): keys.append(k)
+	var keys := compare_keys(a, c)
 	for k in keys:
 		grid.add_child(nl.call(String(k), 0.85, Color("bdb3a0")))
 		var av = a.get(k, null); var cv = c.get(k, null)
@@ -1046,7 +1060,22 @@ func _recipe_slots(v: VBoxContainer, id: String, title: String) -> void:
 	if rs.is_empty(): return
 	v.add_child(UIKit.header(title))
 	var g := slot_grid(v, CAPTION_CELL)
-	for r in rs: g.add_child(recipe_slot(id, r))
+	var lines := 1
+	for r in rs: lines = maxi(lines, caption_lines(short_name(r.name)))
+	for r in rs: g.add_child(recipe_slot(id, r, lines))
+
+## Caption text px and the room a CAPTION_CELL slot's strip gives it (the label's 0.1 em insets each side).
+static func _caption_px() -> int:
+	return UIKit.font_px(UIKit.font_size * 0.75)
+
+func _caption_line_h() -> float:
+	return _owner_font().get_height(_caption_px())
+
+## Lines a slot caption needs: 1, or 2 when the name is wider than the slot ("Worn Shortsword" was cut to
+## "Worn Short..."). A recipe grid gives every slot the most any of its captions needs, so rows stay even.
+func caption_lines(text: String) -> int:
+	var room := UIKit.font_size * (CAPTION_CELL - 0.2) - UIKit.font_size * 0.2
+	return 1 if _owner_font().get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, _caption_px()).x <= room else 2
 
 ## Slot caption for a recipe: its name without the verb ("Forge Mace" -> "Mace", "Buy Ration Crate" -> "Ration Crate").
 static func short_name(full: String) -> String:
@@ -1062,13 +1091,13 @@ static func recipe_qty(r: Dictionary) -> String:
 
 ## One recipe/supply slot: stash count bottom-right, pack size top-left (like the Alchemy "=> x2" slot), so the
 ## Guild ration crate is not a second, identical Ration slot (DECISIONS #115).
-func recipe_slot(id: String, r: Dictionary) -> Button:
+func recipe_slot(id: String, r: Dictionary, cap_lines := 1) -> Button:
 	var out: String = r.get("out", r.get("out_mat", ""))
 	var why: String = GameState.can_craft(id, r.id)
 	var have := "" if r.has("out") else str(GameState.mat(out))
 	# build the cost row on click: the popup frees it when you click away, so a stored node is dead next time
 	return item_slot(out, have, recipe_qty(r), func(): _recipe_info(id, r, out, _recipe_lines(r), GameState.can_craft(id, r.id)),
-		Color.WHITE if why == "" else Color(1, 1, 1, 0.45), "6bff6b" if why == "" else "", {}, "", short_name(r.name))
+		Color.WHITE if why == "" else Color(1, 1, 1, 0.45), "6bff6b" if why == "" else "", {}, "", short_name(r.name), cap_lines)
 
 ## Fresh cost row + stat lines. Never keep the Control: closing the popup frees it.
 func _recipe_lines(r: Dictionary) -> Array:

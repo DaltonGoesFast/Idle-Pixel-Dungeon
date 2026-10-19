@@ -148,7 +148,7 @@ func _refresh() -> void:
 		else: line += "\nStaff charges %d/%d (%s, %d dmg, ignores DR)" % [h.charges, h.bolt.charges, h.bolt.name, h.bolt.dmg]
 	if combat.hidden(): line += "\nHIDDEN in shadows - enemies can't find you"
 	if int(h.get("poison", 0)) > 0: line += "\nPOISONED: -1 HP per turn for %d turns" % int(h.poison)
-	if combat.surprise_now(): line += "\nThey lost sight of you: next attack is a SURPRISE (x%.1f, no DR, knockback)" % float(h.surprise_mult)
+	if combat.surprise_now(): line += "\nThey lost sight of you: next attack is a SURPRISE (x%s, no DR, knockback)" % Weapons.num(float(h.surprise_mult), 1)
 	if combat.enemies().any(func(e): return e.get("evade_unless_surprise", false)):
 		line += "\nSnake: melee needs a Surprise; magic always hits, bows after the first shot"
 	status.text = line
@@ -282,7 +282,7 @@ func _persist() -> void:
 		SaveSystem.save_game()
 
 func _inspect(u: Dictionary) -> void:
-	var spd := "fast (%.1f ticks)" % u.delay if float(u.delay) < 1.0 else "normal"
+	var spd := "fast (%s ticks)" % Weapons.num(float(u.delay), 1) if float(u.delay) < 1.0 else "normal"
 	var extra := ""
 	match u.get("ability", ""):
 		"throw": extra = " Throws a spear at range %d-%d (red tile, %d dmg)." % [u.throw_range[0], u.throw_range[1], int(u.dmg) + int(u.throw_bonus)]
