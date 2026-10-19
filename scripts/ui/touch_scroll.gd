@@ -29,7 +29,7 @@ var _hov: Control
 func control_at(n: Node, p: Vector2) -> Control:
 	for i in range(n.get_child_count() - 1, -1, -1):
 		var ch := n.get_child(i)
-		if ch is CanvasItem and not ch.visible: continue
+		if (ch is CanvasItem or ch is CanvasLayer) and not ch.visible: continue
 		var hit := control_at(ch, p)
 		if hit: return hit
 	if n is Control and n.is_visible_in_tree() and n.mouse_filter != Control.MOUSE_FILTER_IGNORE and n.get_global_rect().has_point(p):

@@ -124,6 +124,8 @@ func _ready() -> void:
 	await test_touch_scroll()
 	await test_tip_fit()
 	await test_window_dim(gs)
+	test_barrel_art()
+	await test_tips_on_top(gs)
 	await test_hero_window_wide(gs)
 	test_web_no_dev_tools(gs)
 	await test_wipe_save_confirm(gs)
@@ -5071,6 +5073,173 @@ func test_telemetry(gs) -> void:
 	ov.queue_free()
 	gs.new_game()
 
+
+## DECISIONS #213: SPD's terrain_features barrels (REGION_DECO 137/138 + 16 per region) and mine crystals are only the
+## lower part of a raised prop; the top is the region sheet's overhang on the cell above. Every room prop, the corridor
+## deco and the camp barrels draw the whole prop, flush to the tile grid.
+func test_barrel_art() -> void:
+	print("[barrel art]")
+	var feats: Image = load("res://assets/tiles/terrain_features.png").get_image()
+	if feats.is_compressed(): feats.decompress()
+	var DS = load("res://scripts/ui/delve_scene.gd")
+	var cs := 48.0; var y0 := 100.0; var x0 := 30.0
+	var bad := []
+	var raised_ops := 0
+	for id in DS.ROOM_SCENES:
+		for op in DS.ROOM_SCENES[id]:
+			if String(op[0]) != "f": continue
+			var fi := int(op[1])
+			var tl := Vector2(floorf(x0 + float(op[2]) * cs), floorf(y0 + float(op[3]) * cs))
+			var art := feats.get_region(Rect2i((fi % 16) * 16, (fi / 16) * 16, 16, 16)).get_used_rect()
+			var draws: Array = DS.feature_draws(fi, tl, cs, 4.0)
+			var fo: Array = DS.feature_overhang(fi)
+			# a feature cut at the top of its cell that is a region prop (not a plant/trap) must bring its overhang
+			if fi >= 128 and art.position.y == 0 and art.end.y < 16 and fo.is_empty(): bad.append("%s/%d cut, no overhang" % [id, fi])
+			if fo.is_empty(): continue
+			raised_ops += 1
+			var base: Rect2 = draws[0][1]; var top: Rect2 = draws[1][1]
+			if base != Rect2(tl, Vector2(cs, cs)) or fmod(base.position.y - y0, cs) != 0.0: bad.append("%s/%d base off the grid %s" % [id, fi, base])
+			if top != Rect2(tl - Vector2(0, cs), Vector2(cs, cs)): bad.append("%s/%d overhang not on the cell above %s" % [id, fi, top])
+			if draws[0][2].size != Vector2(16, 16) or draws[1][2].size != Vector2(16, 16): bad.append("%s/%d partial source rect" % [id, fi])
+			var sheet: Image = load(String(draws[1][0])).get_image()
+			if sheet.is_compressed(): sheet.decompress()
+			var oi := int(fo[1])
+			var ou := sheet.get_region(Rect2i((oi % 16) * 16, (oi / 16) * 16, 16, 16)).get_used_rect()
+			# seam: the overhang's art reaches its cell's bottom edge and the base's art starts at its top edge
+			if ou.size == Vector2i.ZERO or ou.end.y != 16 or art.position.y != 0: bad.append("%s/%d top and base do not meet (%s / %s)" % [id, fi, ou, art])
+	check(bad.is_empty(), "every raised room prop draws its full SPD art on the grid with its overhang above %s" % [bad.slice(0, 6)])
+	var door_bad := []
+	for id in DS.ROOM_SCENES:
+		for op in DS.ROOM_SCENES[id]:
+			if String(op[0]) == "f" and not DS.feature_overhang(int(op[1])).is_empty() and int(op[2]) == 0 and float(op[3]) == 2.0: door_bad.append(id)
+	check(door_bad.is_empty(), "no raised prop stands in front of a room's door %s" % [door_bad])
+	check(raised_ops >= 10, "the larder, armory, cell block, prisoner, crystal vein and shop props are raised props (%d)" % raised_ops)
+	# the larder's two barrels: SPD's sewers barrel, base on the far floor row and its top on the wall row above
+	var larder: Array = DS.ROOM_SCENES.larder.filter(func(op): return String(op[0]) == "f")
+	check(larder.size() == 2 and larder.all(func(op): return DS.feature_overhang(int(op[1])) == ["tiles_sewers", 242 + int(op[1]) - 137]), "Larder barrels are REGION_DECO 137/138 with REGION_DECO_OVERHANG 242/243")
+	var ld: Array = DS.feature_draws(137, Vector2(x0, y0 + 2 * cs), cs, 4.0)
+	check(ld.size() == 2 and ld[0][1].position.y == y0 + 2 * cs and ld[1][1].position.y == y0 + cs, "Larder barrel: base in row 2, top in row 1, no drop")
+	check(DS.feature_overhang(153) == ["tiles_prison", 242] and DS.feature_overhang(210) == ["tiles_caves_crystal", 244] and DS.feature_overhang(215) == ["tiles_caves_crystal", 246], "prison cells and mine crystals map to their region's overhang")
+	check(DS.feature_draws(115, Vector2(x0, y0), cs, 4.0).size() == 1 and DS.feature_draws(0, Vector2(x0, y0), cs, 4.0)[0][1].position.y == y0 + 4.0, "plants and traps stay flat and bottom-aligned")
+	# corridor props: every biome's region deco / statue has its overhang art in that biome's sheet
+	var cbad := []
+	for b in DS.REGION_DECO:
+		var sh: Image = load("res://assets/tiles/tiles_%s.png" % b).get_image()
+		if sh.is_compressed(): sh.decompress()
+		for pr in DS.REGION_DECO[b]:
+			var u := sh.get_region(Rect2i((int(pr[1]) % 16) * 16, (int(pr[1]) / 16) * 16, 16, 16)).get_used_rect()
+			if u.size == Vector2i.ZERO or u.end.y != 16: cbad.append("%s/%d" % [b, pr[1]])
+	check(cbad.is_empty(), "every corridor prop's overhang has art that meets its base %s" % [cbad])
+	# camp barrels: SPD's raised barrel with its overhang (CampScene.RAISED), never the cut terrain_features cell
+	var CS = load("res://scripts/ui/camp_scene.gd")
+	check(CS.RAISED.has([130, 242]) and CS.RAISED.has([131, 243]), "camp barrels use REGION_DECO 130/131 with their overhangs 242/243")
+
+## DECISIONS #213: tutorial tips sit on their own top CanvasLayer, so a tip is drawn over and takes taps before any
+## window, panel, encounter card or result/Defeat window, including one that opens after the tip.
+func test_tips_on_top(gs) -> void:
+	print("[tips on top]")
+	gs.new_game(); gs.settings.tutorial = true; gs.tutorial_done = ["welcome", "camp_delve", "delve_bar"]
+	gs.start_run("warrior", {"ration": 1, "torch": 1}, "sewers", 5)
+	gs.run.talent_prompted = true
+	var main = load("res://scenes/main.tscn").instantiate()
+	add_child(main)
+	await get_tree().process_frame
+	main.tips.queue.clear(); main.tips._render()
+	var tl: CanvasLayer = main.tips.get_parent() as CanvasLayer
+	check(tl != null and tl.layer == main.TIP_LAYER and main.tips.get_canvas_layer_node() == tl, "the tip overlay lives on its own CanvasLayer")
+	# the door tip opens with the door card: the tip is pushed first, the encounter window builds after it
+	var d = main.delve
+	d.running = false; d.pending = {"kind": "door", "door": DB.doors[0]}; d._show_card()
+	for f in 3: await get_tree().process_frame
+	check(main.tip_open() and main.tips.queue[0].id == "door" and d.win_layer.visible, "door choice opens its tip and its window")
+	var layers := []
+	var stack := [get_tree().root]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		if n is CanvasLayer and n != tl: layers.append(n)
+		stack.append_array(n.get_children())
+	check(layers.all(func(l): return l.layer < tl.layer), "no other canvas layer is above the tips")
+	var wl: CanvasLayer = d.win_layer.get_canvas_layer_node()
+	check(wl == null or wl.layer < tl.layer, "the encounter window (z %d) draws on a lower canvas than the tip" % d.win_layer.z_index)
+	# a result window and the Defeat window opened while the tip is up stay under it
+	d._open_summary("Defeat", PackedStringArray(), PackedStringArray(), Callable(), true)
+	var sl: CanvasLayer = d._summary_layer.get_canvas_layer_node()
+	check(main.tip_open() and (sl == null or sl.layer < tl.layer), "the Defeat window opened after the tip stays under it")
+	d._summary_on = false
+	if is_instance_valid(d._summary_layer): d._summary_layer.free()
+	# taps go to the tip: a press and release on its button closes it, the door card under it stays open
+	await get_tree().process_frame
+	var ok: Button = null
+	for b in main.tips.find_children("*", "Button", true, false):
+		if (b as Button).text in ["Got it", "Next"]: ok = b
+	check(ok != null, "the tip has its button")
+	if ok:
+		var pos: Vector2 = ok.get_global_rect().get_center()
+		# the topmost input-taking control under the tip's button, by the same tree walk TouchScroll uses, is the tip's
+		var ts := TouchScroll.new()
+		var top: Control = ts.control_at(get_tree().root, pos)
+		ts.free()
+		check(top != null and main.tips.is_ancestor_of(top), "the topmost control under the tip's button belongs to the tip (%s)" % [top])
+		# headless has no GUI dispatch (see [touch scroll]), so press it the way its tap would; the real tap through
+		# the viewport is exercised under xvfb by the tip_door_tap screenshot step
+		ok.pressed.emit()
+		await get_tree().process_frame
+		check(not main.tip_open() or main.tips.queue[0].id != "door" or main.tips.page > 0, "pressing the tip's button advances the tip")
+		check(d.pending.get("kind", "") == "door" and d.win_layer.visible, "the door window under the tip is untouched")
+	# a tip pushed while an encounter window is already open is still on top
+	main.tips.queue.clear(); gs.tutorial_done.erase("special")
+	d.pending = {"kind": "special", "special": DB.specials[0]}; d._show_card()
+	await get_tree().process_frame
+	check(main.tip_open() and main.tips.get_canvas_layer_node() == tl, "a special-room tip over its window is on the tip layer")
+	main.tips.queue.clear(); main.tips._render()
+	# the reported softlock: the Abandoned Shop with the special-room tip behind it ate every tap on Close / Buy / Leave.
+	# Every delve event, with its tip opening before its window and after it: the tip is on top and takes the taps, and
+	# once it is dismissed the event window's own buttons take them again.
+	var shop: Array = DB.specials.filter(func(sp): return String(sp.id) == "abandoned_shop")
+	check(shop.size() == 1, "the Abandoned Shop is a special room")
+	var evs := [{"kind": "door", "door": DB.doors[0]}, {"kind": "floor_done"}, {"kind": "campfire"}]
+	for sp in shop + DB.specials: evs.append({"kind": "special", "special": sp})
+	var fails := []
+	for ev in evs:
+		var lbl := "%s%s" % [ev.kind, ("/" + String(ev.special.id)) if ev.has("special") else ""]
+		for order in ["tip first", "window first"]:
+			gs.add_mat("gold", 200)
+			main.tips.queue.clear(); main.tips._render()
+			if order == "tip first":
+				gs.tutorial_done.erase(ev.kind)   # _show_card pushes the tip, then builds the window
+				d.pending = ev.duplicate(true); d._show_card()
+			else:
+				if not (ev.kind in gs.tutorial_done): gs.tutorial_done.append(ev.kind)
+				d.pending = ev.duplicate(true); d._show_card()
+				await get_tree().process_frame
+				gs.tutorial_done.erase(ev.kind); main.tip(ev.kind)
+			for f in 3: await get_tree().process_frame
+			if not main.tip_open() or not d.win_layer.visible: fails.append("%s (%s): tip %s window %s" % [lbl, order, main.tip_open(), d.win_layer.visible]); continue
+			var wbtn: Button = null
+			for b in d.win_layer.find_children("*", "Button", true, false):
+				if (b as Button).is_visible_in_tree() and not (b as Button).disabled and main.get_viewport().get_visible_rect().has_point((b as Button).get_global_rect().get_center()): wbtn = b; break
+			var tbtn: Button = null
+			for b in main.tips.find_children("*", "Button", true, false):
+				if (b as Button).text in ["Got it", "Next"]: tbtn = b
+			if wbtn == null or tbtn == null: fails.append("%s (%s): no buttons" % [lbl, order]); continue
+			var wc := wbtn.get_global_rect().get_center()
+			var ts := TouchScroll.new()
+			var on_tip: Control = ts.control_at(get_tree().root, tbtn.get_global_rect().get_center())
+			var over_win: Control = ts.control_at(get_tree().root, wc)
+			if on_tip == null or not main.tips.is_ancestor_of(on_tip): fails.append("%s (%s): tip button not on top (%s)" % [lbl, order, on_tip])
+			if over_win == null or not main.tips.is_ancestor_of(over_win): fails.append("%s (%s): a tap on '%s' misses the tip (%s)" % [lbl, order, wbtn.text, over_win])
+			if main.tips.get_canvas_layer_node() != tl: fails.append("%s (%s): tip off its layer" % [lbl, order])
+			var guard := 0
+			while main.tip_open() and guard < 10: main.tips.next(); guard += 1
+			await get_tree().process_frame
+			var after: Control = ts.control_at(get_tree().root, wc)
+			ts.free()
+			if main.tip_open() or after == null or not (after == wbtn or wbtn.is_ancestor_of(after)): fails.append("%s (%s): '%s' does not take taps after the tip closes (%s)" % [lbl, order, wbtn.text, after])
+	check(fails.is_empty(), "every delve event: the tip is on top in either order and the window's buttons work after it closes %s" % [fails.slice(0, 6)])
+	gs.settings.tutorial = false
+	gs.end_run("abandon")
+	main.queue_free()
+	await get_tree().process_frame
 func test_barrier_segments(gs) -> void:
 	print("[barrier segments] blue HP-bar segments = hits the Barrier stops (DECISIONS #210)")
 	var hs := warrior(gs)
