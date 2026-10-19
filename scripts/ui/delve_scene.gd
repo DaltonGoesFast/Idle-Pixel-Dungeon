@@ -487,7 +487,9 @@ func _draw() -> void:
 ## in their cell; raised ones (barrels, cells, crystals: see feature_overhang) fill it and get their overhang above.
 ## dx is in tiles from the door column, row 2 = far floor row, 3 = near floor row (fractions allowed for sprites).
 ## A raised prop never stands on the far row in front of the door (dx 0, row 2): its top would cover the doorway.
-## Far-row ops come before near-row ones, so a near prop's top is drawn over what stands behind it.
+## Far-row ops come before near-row ones, so a near prop's top is drawn over what stands behind it. Ops draw in list
+## order, so an "m" actor comes after every raised prop it overlaps on its own or a farther row: props stand behind
+## the actors (the Cell Block's thief was listed first and drew behind the full-height cells' bars).
 ## Room-only sprites that are not combat mobs (no DB.mobs entry), with SPD's own frame sizes: PiranhaSprite cuts
 ## piranha.png into 12x16 frames. Without this the piranha fell back to 16x16 and drew a broken blob (DECISIONS #187).
 const WALL_INTERNAL := 144   # SPD DungeonTileSheet.WALL_INTERNAL (all black in every biome)
@@ -514,7 +516,7 @@ const ROOM_SCENES := {
 	"garden": [["t", 2, 0, 2], ["t", 2, 1, 2], ["t", 2, 2, 2], ["t", 2, 0, 3], ["t", 2, 1, 3], ["r", "grass", 0, 3], ["r", "grass2", 1, 3], ["f", 115, 1, 2], ["f", 113, 2, 2], ["f", 112, 2, 3], ["i", "SEED_SUNGRASS", 0, 2]],
 	"trapped_hall": [["f", 0, 0, 2], ["f", 18, 1, 3], ["f", 33, 2, 2], ["f", 68, 3, 3]],
 	"odd_wall": [["plain", 0, 1, 1], ["plain", 0, 2, 1], ["spark", "c8c8ff", 1.5, 1.5]],   # SPD secret walls carry no deco or rubble
-	"cell_block": [["m", "thief", 1.5, 2.85], ["f", 153, 1, 2], ["f", 154, 2, 2], ["i", "IRON_KEY", 2, 3]],
+	"cell_block": [["f", 153, 1, 2], ["f", 154, 2, 2], ["m", "thief", 1.5, 2.85], ["i", "IRON_KEY", 2, 3]],
 	"armory": [["i", "SWORD", 1, 2], ["i", "ARMOR_MAIL", 2, 2], ["f", 138, 3, 2], ["f", 137, 0, 3], ["i", "MACE", 1, 3]],
 	"crystal_vein": [["f", 210, 1, 2], ["f", 211, 2, 2], ["f", 210, 0, 3], ["spark", "8ad8ff", 1.5, 2.5]],
 	"vault": [["t", 4, 0, 2], ["t", 4, 1, 2], ["t", 4, 0, 3], ["t", 4, 1, 3], ["i", "CRYSTAL_CHEST", 0.5, 2.5], ["spark", "a0e8ff", 0.5, 2.4]],

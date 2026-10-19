@@ -91,6 +91,7 @@ func _ready() -> void:
 	await test_icon_sizes(gs)
 	test_full_auto(gs)
 	test_passage_confirm(gs)
+	test_use_popup(gs)
 	test_encounter_dismiss(gs)
 	test_encounter_restart(gs)
 	await test_encounter_summary(gs)
@@ -2294,6 +2295,79 @@ func test_passage_confirm(gs) -> void:
 	_find_btn(cs.passage_layer, "Read").pressed.emit()
 	check(gs.run.is_empty() and gs.last_result == "extract" and gs.mat("iron_ore") == ore_before + 3, "combat Read extracts and banks the pack")
 	cs.queue_free()
+
+## Using a potion, scroll, ration or torch from the Backpack shows its lines in a pop-up over the Bag (DECISIONS #214).
+func test_use_popup(gs) -> void:
+	print("[use popup]")
+	gs.new_game(); gs.settings.tutorial = false; gs.add_mat("ration", 1); gs.add_mat("torch", 1); gs.add_mat("potion_healing", 2)
+	gs.start_run("warrior", {"ration": 1, "torch": 1, "potion_healing": 2}, "sewers", 5)
+	gs.run.talent_prompted = true
+	gs.ided.erase("potion_haste")
+	gs.run.pack["potion_haste"] = 2
+	var ms: Array = DB.milestones.filter(func(m): return m.stat == "items_identified")
+	ms.sort_custom(func(a, b): return int(a.goal) < int(b.goal))
+	gs.milestones_reached.clear(); gs.milestones_claimed.clear()
+	gs.stats["items_identified"] = int(ms[0].goal) - 1
+	var toasts := [0]
+	var on_toast := func(_t): toasts[0] += 1
+	gs.toast.connect(on_toast)
+	var d = load("res://scripts/ui/delve_screen.gd").new()
+	add_child(d)
+	d.apply_layout(true, Vector2(484, 1188))
+	d._open_panel("backpack")
+	var unknown_name: String = DB.mat_name("potion_haste")
+	var pb: Button = _find_btn(d.card_host, "%s x2" % unknown_name)
+	check(pb != null, "the Bag lists the unknown potion")
+	pb.pressed.emit()
+	var pop: UsePopup = UsePopup.current()
+	check(pop != null, "using a potion opens the pop-up")
+	if pop:
+		check(pop.title == "Potion of Haste" and pop.item_key == "potion_haste", "pop-up titled with the identified name and sprite key")
+		check(pop.lines.has("It was a Potion of Haste!") and pop.lines.has("Your limbs buzz. Next fight, you act first."), "pop-up shows the identify and effect lines")
+		check(pop.lines.has("Milestone: %s! Claim it in the Journal." % ms[0].name), "a milestone reached by the use is in the same pop-up")
+		check(_find_btn(pop, "OK") != null, "pop-up has OK")
+		var cl = pop.get_parent()
+		check(cl is CanvasLayer and cl.layer == UsePopup.LAYER and UsePopup.LAYER < load("res://scripts/ui/main.gd").TIP_LAYER, "pop-up sits on its own layer, under the tips' layer")
+	check(toasts[0] == 0 and d.card_host.get_node_or_null("CardToast") == null, "the lines no longer print at the top of the Bag window")
+	check(d.pending.get("kind", "") == "backpack", "the Bag stays open under the pop-up")
+	check(gs.messages.has("Your limbs buzz. Next fight, you act first."), "the lines still go to the delve log")
+	_find_btn(pop, "OK").pressed.emit()
+	check(UsePopup.current() == null, "OK closes the pop-up")
+	# the Bag is usable again: drink a Potion of Healing from it
+	gs.run.hp = 5
+	var hb: Button = _find_btn(d.card_host, "Use Potion of Healing (2)")
+	check(hb != null and not hb.disabled, "the Bag's buttons work after closing")
+	hb.pressed.emit()
+	pop = UsePopup.current()
+	check(int(gs.run.hp) > 5 and int(gs.run.supplies.potion_healing) == 1, "healing potion drunk from the Bag after the pop-up closed")
+	check(pop != null and pop.title == "Potion of Healing" and pop.lines.size() == 1 and String(pop.lines[0]).begins_with("Drank a Potion of Healing. +"), "healing pop-up says how much it healed")
+	# tap outside closes
+	var ev := InputEventMouseButton.new(); ev.button_index = MOUSE_BUTTON_LEFT; ev.pressed = true
+	if pop:
+		# a phone tap arrives as a touch plus an emulated click: it must close once, not twice
+		var te := InputEventScreenTouch.new(); te.pressed = true
+		pop._gui_input(te)
+		if ProjectSettings.get_setting("input_devices/pointing/emulate_mouse_from_touch", true):
+			check(not pop._closed, "a raw touch is left to its emulated click")
+		pop._gui_input(ev)
+		check(pop._closed, "the click closes the pop-up")
+	check(UsePopup.current() == null, "a tap outside closes the pop-up")
+	# a use that can't happen says why
+	gs.run.hp = int(gs.hero_stats("warrior").ht)
+	_find_btn(d.card_host, "Use Potion of Healing (1)").pressed.emit()
+	pop = UsePopup.current()
+	check(pop != null and pop.lines == ["You're already at full health."] and int(gs.run.supplies.potion_healing) == 1, "full HP: the pop-up says why and keeps the potion")
+	UsePopup.close_open()
+	gs.run.satiety = 20.0
+	_find_btn(d.card_host, "Use %s (1)" % DB.mat_name("ration")).pressed.emit()
+	pop = UsePopup.current()
+	check(pop != null and pop.title == DB.mat_name("ration") and pop.lines.has("Ate a ration.") and int(gs.run.supplies.ration) == 0, "ration result pops up")
+	UsePopup.close_open()
+	gs.toast.disconnect(on_toast)
+	gs.say("after")
+	check(gs._captured == null, "capture ends after the use, so toasts work again")
+	d.queue_free()
+	gs.end_run("abandon")
 
 ## Closing an encounter card sets it aside so the bag and settings work; the bar cannot skip it.
 func test_encounter_dismiss(gs) -> void:
@@ -5219,6 +5293,21 @@ func test_barrel_art() -> void:
 		for op in DS.ROOM_SCENES[id]:
 			if String(op[0]) == "f" and not DS.feature_overhang(int(op[1])).is_empty() and int(op[2]) == 0 and float(op[3]) == 2.0: door_bad.append(id)
 	check(door_bad.is_empty(), "no raised prop stands in front of a room's door %s" % [door_bad])
+	# ops draw in list order: an actor drawn before a full-height prop it overlaps ends up behind the prop's art
+	# (the Cell Block's thief stood behind the cells' bars)
+	var actor_bad := []
+	for id in DS.ROOM_SCENES:
+		var ops: Array = DS.ROOM_SCENES[id]
+		for mi in ops.size():
+			if String(ops[mi][0]) != "m": continue
+			for pi in range(mi + 1, ops.size()):
+				var p: Array = ops[pi]
+				if String(p[0]) == "f" and not DS.feature_overhang(int(p[1])).is_empty() and float(p[3]) <= float(ops[mi][3]) and absf(float(p[2]) - float(ops[mi][2])) < 1.0:
+					actor_bad.append("%s/%s behind %d" % [id, ops[mi][1], int(p[1])])
+	check(actor_bad.is_empty(), "room actors draw in front of the raised props they overlap %s" % [actor_bad])
+	var cb_ops: Array = DS.ROOM_SCENES.cell_block
+	var thief_at := cb_ops.map(func(op): return String(op[1]) if String(op[0]) == "m" else "").find("thief")
+	check(thief_at > 0 and cb_ops.slice(0, thief_at).filter(func(op): return String(op[0]) == "f").size() == 2, "the Cell Block's thief stands in front of both cells")
 	check(raised_ops >= 10, "the larder, armory, cell block, prisoner, crystal vein and shop props are raised props (%d)" % raised_ops)
 	# the larder's two barrels: SPD's sewers barrel, base on the far floor row and its top on the wall row above
 	var larder: Array = DS.ROOM_SCENES.larder.filter(func(op): return String(op[0]) == "f")

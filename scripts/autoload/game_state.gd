@@ -60,10 +60,33 @@ static func classify(t: String) -> String:
 	if l.contains("found") or l.contains("reward") or l.contains("+") or l.contains("gold") or l.contains("repaired") or l.contains("victory"): return "positive"
 	return "info"
 
-## Message for the log *and* a toast.
+## Message for the log *and* a toast. While capture_says runs, the line is collected for its caller instead
+## of toasting (the Backpack shows a used item's lines in a pop-up, DECISIONS #214).
 func say(t: String, kind := "") -> void:
 	log_line(t, kind)
+	if _captured is Array: _captured.append(t); return
 	toast.emit(t)
+
+var _captured = null   # Array while capture_says runs, else null
+
+## Run `f` (returns bool) and hand back {ok, lines}: every say() it made, milestones from its touch() included.
+func capture_says(f: Callable) -> Dictionary:
+	var outer = _captured
+	_captured = []
+	var ok := bool(f.call())
+	var lines: Array = _captured
+	_captured = outer
+	if outer is Array: outer.append_array(lines)
+	return {"ok": ok, "lines": lines}
+
+## Why a belt supply can't be used right now ("" if it can). delve_use refuses these silently.
+func delve_use_block_reason(k: String) -> String:
+	if run.is_empty() or int(run.supplies.get(k, 0)) <= 0: return "You have none left."
+	match k:
+		"potion_healing": if int(run.hp) >= int(hero_stats(run.hero).ht): return "You're already at full health."
+		"ration": if float(run.satiety) >= 90.0: return "You're not hungry yet."
+		"torch": if float(run.torch) >= 90.0: return "Your torch is still burning bright."
+	return ""
 
 ## Log only (chatty lines: warnings, auto decisions). Small pickups update the haul line instead.
 func log_line(t: String, kind := "") -> void:
@@ -554,7 +577,8 @@ func delve_use(k: String) -> bool:
 		"potion_healing":
 			var ht := int(hero_stats(run.hero).ht)
 			if int(run.hp) >= ht: return false
-			run.hp = mini(ht, int(run.hp) + potion_heal(run.hero)); say("Drank a Potion of Healing."); add_stat("potions_drunk", 1)
+			var hp0 := int(run.hp)
+			run.hp = mini(ht, int(run.hp) + potion_heal(run.hero)); say("Drank a Potion of Healing. +%d HP." % (int(run.hp) - hp0)); add_stat("potions_drunk", 1)
 		"ration":
 			if float(run.satiety) >= 90.0: return false
 			run.satiety = minf(100.0, float(run.satiety) + 60.0); say("Ate a ration."); add_stat("rations_eaten", 1); _mystical_meal()

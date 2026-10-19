@@ -262,6 +262,26 @@ func _ready() -> void:
 			_fresh_warrior_run(); main.show_delve(); _clear_pops()
 			GameState.run.supplies["scroll_passage"] = 1
 			main.delve.pending = {}; main.delve._confirm_passage()])
+		# DECISIONS #214: a potion used from the scrolled Bag shows its result (and the milestone it reached) in a pop-up
+		plan.append([sz, "use_popup", func():
+			_fresh_warrior_run(); main.show_delve(); _clear_pops()
+			GameState.ided.erase("potion_haste"); GameState.run.pack["potion_haste"] = 1
+			var ms: Array = DB.milestones.filter(func(m): return m.stat == "items_identified" and not (m.id in GameState.milestones_reached))
+			if not ms.is_empty(): GameState.stats["items_identified"] = int(ms[0].goal) - 1
+			main.delve.pending = {}; main.delve._open_panel("backpack")
+			var sc: ScrollContainer = main.delve.card_host.get_parent()
+			sc.scroll_vertical = 100000
+			HeroPanels.use_item("potion_haste", false, func(): main.delve._refresh(); main.delve._refresh_controls(); main.delve._show_card())
+			(func(): sc.scroll_vertical = 100000).call_deferred()])
+		# a tutorial tip opened over the pop-up still draws on top (Main.TIP_LAYER, DECISIONS #213)
+		plan.append([sz, "use_popup_tip", func():
+			_fresh_warrior_run(); main.show_delve(); _clear_pops()
+			main.delve.pending = {}; main.delve._open_panel("backpack")
+			GameState.run.supplies["torch"] = 1; GameState.run.torch = 20.0
+			HeroPanels.use_item("torch", true, func(): main.delve._show_card())
+			main.tips.push("delve_bar")])
+		plan.append([sz, "use_popup_tip_done", func():
+			main.tips.queue.clear(); main.tips._render(); main.show_delve()])
 		plan.append([sz, "delve_low_hp", func():
 			_fresh_warrior_run(); main.show_delve(); _clear_pops()
 			main.delve.pending = {}; main.delve.running = false
@@ -469,6 +489,7 @@ func _process(_d: float) -> void:
 		SaveSystem.wipe(); get_tree().quit(); return
 	var step = plan[i]
 	if f % 12 == 1:
+		UsePopup.close_open()   # the use_popup shot's pop-up must not cover the next shots
 		get_window().size = SIZES[step[0]] * RENDER_SCALE
 		step[2].call()
 		# SCENE_ONLY=1: hide the delve's card so the scene art behind it can be audited (fix6)
