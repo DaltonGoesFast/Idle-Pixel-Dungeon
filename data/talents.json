@@ -151,10 +151,9 @@
    }
   },
   "2": {
-   "mystical_upgrade": {
-    "name": "Mystical Upgrade",
-    "desc": "+1 Cloak charge.",
-    "cloak_add": 1,
+   "mystical_meal": {
+    "name": "Mystical Meal",
+    "desc": "Eating a ration restores 1 Cloak charge.",
     "icon": 68
    },
    "light_cloak": {

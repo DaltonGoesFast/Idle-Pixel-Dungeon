@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- The Rogue's Cloak of Shadows now works like SPD's: 3 charges for the whole expedition instead of a full refill every fight. Each cleared fight gives 1 charge back (up to 3), and a new expedition starts full. Assassin and Freerunner no longer add a charge, and the Mystical Upgrade talent (+1 charge, not in SPD) is now SPD's Mystical Meal: eating a ration restores 1 charge. The Cloak button shows charges left out of 3 ("Cloak (2/3)") and the delve's Brought row shows "Cloak 2/3". Saves keep the charges; an expedition saved by an older version continues with a full cloak, and a learned Mystical Upgrade becomes Mystical Meal (DECISIONS #206, +tests).
 - Closing or reloading the game while an encounter window is open (an Ambush, a boss, a door or a special room, even one set aside with Close) no longer skips it: the window is back after the restart and the Delve Bar waits for it. Before, a reload let the bar walk past the encounter (DECISIONS #205, +test).
 
 ## 0.46.0

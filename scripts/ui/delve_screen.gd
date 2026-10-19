@@ -322,6 +322,8 @@ func _refresh() -> void:
 	for k in run.supplies:
 		if int(run.supplies[k]) > 0: brought.add_child(UIKit.res_chip(k, str(run.supplies[k]), 0.85, chip_px))
 	if brought.get_child_count() == 1: brought.add_child(_row_note("nothing left"))
+	if GameState.cloak_cap(run.hero) > 0:   # persistent charges (DECISIONS #206)
+		brought.add_child(_row_note("Cloak %d/%d" % [GameState.cloak_charges(run.hero), GameState.cloak_cap(run.hero)], Color.WHITE))
 	var found := _chip_row("Found (lost on death):", Color("ff9944"))
 	for k in run.pack:
 		if int(run.pack[k]) > 0: found.add_child(UIKit.res_chip(k, str(run.pack[k]), 0.85, chip_px))
@@ -346,7 +348,7 @@ func _found_gear(run: Dictionary) -> Array:
 	return run.get("pack_gear", []).filter(func(g): return not g.get("owned", false))
 
 func _supplies_key(run: Dictionary) -> String:
-	return "%s|%s|%d|%s|%s" % [run.supplies, run.pack, _found_gear(run).size(), Delve.darkness(run), float(run.satiety) <= 0.0]
+	return "%s|%s|%d|%s|%s|%d" % [run.supplies, run.pack, _found_gear(run).size(), Delve.darkness(run), float(run.satiety) <= 0.0, int(run.get("cloak_charges", 0))]
 
 func _refresh_controls() -> void:
 	if controls == null: return

@@ -169,7 +169,7 @@ func _refresh() -> void:
 	if "slam" in h.abilities:
 		_btn("Slam (%d)" % h.slams, func(): _act(func(): combat.hero_slam()), int(h.slams) > 0 and combat.enemies().any(func(e): return Combat.cheb(e.pos, h.pos) == 1))
 	if not h.cloak.is_empty():
-		_btn("Cloak (%d)" % h.cloak_charges, func(): _act(func(): combat.hero_cloak()), int(h.cloak_charges) > 0 and not combat.hidden())
+		_btn("Cloak (%d/%d)" % [int(h.cloak_charges), _cloak_cap(h)], func(): _act(func(): combat.hero_cloak()), int(h.cloak_charges) > 0 and not combat.hidden())
 	if not h.bolt.is_empty() and not h.bolt.get("infinite", false):
 		_btn("Bolt (%d)" % h.charges, func(): mode = "" if mode == "bolt" else "bolt"; grid.mode = mode; _refresh(), h.charges > 0)
 	_btn("Search" if not h.get("searched", false) else "Search again", func(): _act(func(): combat.hero_search()))
@@ -402,6 +402,11 @@ func _do_bot() -> void:
 		"slam": _act(func(): if not combat.hero_slam(): combat.hero_wait())
 		"search": _act(func(): combat.hero_search())
 		"tap": _act(func(): if not combat.hero_tap(s.pos, s.mode): combat.hero_wait())
+
+## A fight saved before DECISIONS #206 has no cloak_cap on the hero: use the class's cap.
+func _cloak_cap(h: Dictionary) -> int:
+	if h.has("cloak_cap"): return int(h.cloak_cap)
+	return GameState.cloak_cap(String(GameState.run.get("hero", ""))) if not GameState.run.is_empty() else int(h.cloak_charges)
 
 func _ensure_victory_summary() -> void:
 	if not _summary.is_empty(): return
