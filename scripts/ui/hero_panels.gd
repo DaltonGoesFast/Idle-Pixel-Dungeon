@@ -88,7 +88,7 @@ static func backpack(parent: Control, refresh: Callable, in_combat := false, on_
 		var flow := HFlowContainer.new(); v.add_child(flow)
 		for k in ["potion_healing", "ration", "torch"]:
 			var n := int(run.supplies.get(k, 0))
-			var b := UIKit.button("Use %s (%d)" % [DB.mat_name(k), n], func(): GameState.delve_use(k); refresh.call(), n > 0)
+			var b := UIKit.button("Use %s (%d)" % [DB.mat_name(k), n], func(): use_item(k, true, refresh), n > 0)
 			b.custom_minimum_size.x = UIKit.font_size * 7; flow.add_child(b)
 	# equipped: the same paperdoll as the Camp Heroes window, swapping from the pack (DECISIONS #84)
 	var vs: Vector2 = (Engine.get_main_loop() as SceneTree).root.get_visible_rect().size
@@ -112,7 +112,7 @@ static func backpack(parent: Control, refresh: Callable, in_combat := false, on_
 				var ic := UIKit.icon(k)   # integer-scaled PixelIcon, not a 1x Button icon (DECISIONS #98)
 				ic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 				pr.add_child(ic)
-				var cb := UIKit.button("%s x%d" % [DB.mat_name(k), int(run.pack[k])], func(): GameState.delve_use_pack(k); refresh.call())
+				var cb := UIKit.button("%s x%d" % [DB.mat_name(k), int(run.pack[k])], func(): use_item(k, false, refresh))
 				cb.autowrap_mode = TextServer.AUTOWRAP_OFF
 				cb.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 				cb.size_flags_vertical = Control.SIZE_SHRINK_CENTER
@@ -141,3 +141,14 @@ static func backpack(parent: Control, refresh: Callable, in_combat := false, on_
 		if not in_combat and not g.get("owned", false):
 			var db := UIKit.button("Drop", func(): GameState.delve_drop(int(g.uid)); refresh.call())
 			db.custom_minimum_size.x = UIKit.font_size * 5; bs.add_child(db)
+
+## Use a belt supply (belt) or a pack potion/scroll and show what happened in a UsePopup over the Bag, which
+## stays open underneath (DECISIONS #214). The lines are the ones GameState says during the use, milestones
+## reached by it included; they still go to the delve log, but no longer to the top of the scrolled window.
+static func use_item(k: String, belt: bool, refresh: Callable) -> UsePopup:
+	var r := GameState.capture_says(func(): return GameState.delve_use(k) if belt else GameState.delve_use_pack(k))
+	var lines: Array = r.lines
+	if not r.ok and lines.is_empty() and belt: lines = [GameState.delve_use_block_reason(k)]
+	refresh.call()
+	if lines.is_empty(): return null
+	return UsePopup.open(k, DB.mat_name(k), lines)
