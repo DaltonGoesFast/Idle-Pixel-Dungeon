@@ -72,6 +72,7 @@
   "exp": 5,
   "loot": 6,
   "sprite": "statue",
+  "elite": true,
   "fw": 12,
   "fh": 15,
   "spd": "HT 15+5*depth, dmg 2+depth..2+3*depth (depth 2)",

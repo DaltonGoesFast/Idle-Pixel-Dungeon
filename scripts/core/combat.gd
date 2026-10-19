@@ -141,6 +141,7 @@ func from_dict(d: Dictionary) -> void:
 		if x.has("aim"): x.aim = Vector2i(int(x.aim[0]), int(x.aim[1])) if x.aim is Array else x.aim
 		units.append(x)
 		if x.has("hero"): hero = x
+	_fix_cloak()
 	danger = []
 	for e in d.danger:
 		var y: Dictionary = e.duplicate(); y.pos = Vector2i(int(e.pos[0]), int(e.pos[1])); y.dmg = int(e.dmg); y.uid = int(e.uid); danger.append(y)
@@ -497,7 +498,8 @@ func apply_fx(fx: Dictionary) -> void:
 	if fx.has("frozen"): hero.next = float(hero.next) + float(fx.frozen); _log("You can't move yet!")
 	if fx.has("recharge"):
 		if not hero.bolt.is_empty() and not hero.bolt.get("infinite", false): hero.charges = int(hero.charges) + int(fx.recharge)
-		if not hero.cloak.is_empty(): hero.cloak_charges = int(hero.cloak_charges) + int(fx.recharge)
+		# a cloak charge like any other: never above the cap, kept until spent (DECISIONS #211)
+		if not hero.cloak.is_empty(): hero.cloak_charges = mini(int(hero.cloak_charges) + int(fx.recharge), maxi(int(hero.cloak_charges), int(hero.get("cloak_cap", 0))))
 	if fx.has("sleep"):
 		for e in foes: e.next = float(e.next) + float(fx.sleep)
 		_log("Your foes are drowsy.")
@@ -880,6 +882,17 @@ func hero_slam() -> bool:
 	_end_hero_turn(1.5)
 	return true
 
+## A fight saved before DECISIONS #206 has no cloak_cap and may hold the old bonus charges (an Assassin's 4/3):
+## give it the class cap and clamp the charges to it (#211).
+func _fix_cloak() -> void:
+	if hero.get("cloak", {}).is_empty(): return
+	if int(hero.get("cloak_cap", 0)) <= 0:
+		var cap := 0
+		for k in DB.heroes:
+			cap = maxi(cap, int(DB.heroes[k].get("cloak_charges", 0)))
+		hero.cloak_cap = cap
+	hero.cloak_charges = clampi(int(hero.get("cloak_charges", 0)), 0, int(hero.cloak_cap))
+
 ## Rogue: Cloak of Shadows. Enemies lose track of you; your next attack is a Surprise.
 func hero_cloak() -> bool:
 	if over or hero.cloak.is_empty() or int(hero.cloak_charges) <= 0 or hidden(): return false
@@ -930,6 +943,29 @@ func hero_heal(amount: int) -> void:
 	_log("%s drinks a potion (+%d HP)." % [hero.name, amount])
 	_ev({"t": "heal", "uid": hero.uid, "amount": amount, "pos": hero.pos})
 	_end_hero_turn(1.0)
+
+## Barrier segments on the HP bars (DECISIONS #210): how much Barrier one enemy hit takes right now.
+## hit_hero spends the post-DR damage from Barrier, or 1 (the chip rule) when DR blocks the whole hit, so a
+## hit costs max(1, dmg - DR) (x VULN_MULT while vulnerable). We use the hardest-hitting living enemy, so the
+## segment count is the number of hits the Barrier is sure to stop. No enemies left = the chip size 1.
+func barrier_hit_size() -> int:
+	if hero.is_empty(): return 1
+	var best := 1
+	for e in enemies():
+		if int(e.hp) <= 0: continue
+		var raw := int(e.get("dmg", 0))
+		if has_debuff("vuln"): raw = int(ceil(raw * VULN_MULT))
+		best = maxi(best, raw - int(hero.dr))
+	return best
+
+const BARRIER_SEG_CAP := 10
+## Segments for `barrier` Barrier against hits of `hit`: ceil(barrier / hit), capped at BARRIER_SEG_CAP; 0 = no blue.
+static func barrier_segments(barrier: int, hit: int) -> int:
+	if barrier <= 0: return 0
+	return mini(BARRIER_SEG_CAP, int(ceil(float(barrier) / float(maxi(1, hit)))))
+
+func barrier_hits() -> int:
+	return barrier_segments(int(hero.get("barrier", 0)), barrier_hit_size())
 
 ## SPD Barrier decay (Barrier.act): each turn loses min(1, shield/20) of a point (DECISIONS #134).
 const BARRIER_DECAY_DIV := 20.0

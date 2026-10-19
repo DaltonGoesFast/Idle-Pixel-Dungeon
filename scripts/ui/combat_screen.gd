@@ -156,7 +156,7 @@ func _refresh() -> void:
 	if not run.is_empty():
 		minis = [{"kind": "exp", "icon": "torch", "frac": float(run.torch) / 100.0, "text": "Torch %d%%" % run.torch},
 			{"kind": "shield", "icon": "ration", "frac": float(run.satiety) / 100.0, "text": "Food %d%%" % run.satiety}]
-	pane.set_data({"name": h.name, "level": lvl, "hp": h.hp, "ht": h.ht, "shield": h.barrier, "buffs": bl,
+	pane.set_data({"name": h.name, "level": lvl, "hp": h.hp, "ht": h.ht, "shield": h.barrier, "shield_hits": combat.barrier_hits(), "buffs": bl,
 		"depth": ("F%d" % int(run.get("floor", 1))) if not run.is_empty() else "",
 		"danger": combat.enemies().filter(func(e): return e.hp > 0).size(), "minis": minis})
 	var line := "DR %d  Dmg %d%s   t=%.1f" % [h.dr, h.dmg, ("  Reach %d" % int(h.reach)) if int(h.get("reach", 1)) > 1 else "", combat.time]
@@ -270,7 +270,7 @@ func _guide_update() -> void:
 			guide_label.text = "Step 2/3 - Attack: tap the glowing enemy next to you."
 			grid.hint_cell = adj[0].pos if not adj.is_empty() else Vector2i(-1, -1)
 		3:
-			guide_label.text = "Step 3/3 - Finish it! Blue bar = Barrier (soaks hits first, refills each fight). Red tiles = an attack is coming: step off. Stuck? Tap Hint."
+			guide_label.text = "Step 3/3 - Finish it! Blue bar = Barrier (soaks hits first, refills each fight; each segment = one hit it stops). Red tiles = an attack is coming: step off. Stuck? Tap Hint."
 	grid.queue_redraw()
 
 func _refresh_log() -> void:

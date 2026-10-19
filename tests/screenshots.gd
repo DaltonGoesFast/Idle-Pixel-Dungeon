@@ -188,6 +188,16 @@ func _ready() -> void:
 			main.show_camp(); main.tips.push("welcome")])
 		plan.append([sz, "tip_closed", func(): main.tips.skip_all(); GameState.settings.tutorial = false])
 		plan.append([sz, "settings", func(): main.show_camp(); main.screen.open_page("Settings")])
+		# DECISIONS #212: Wipe save data in main Settings, and its confirm (phone portrait = cover)
+		plan.append([sz, "settings_wipe", func():
+			main.show_camp(); main.screen.open_page("Settings")
+			var sc: ScrollContainer = main.screen.win_layer.get_meta("sc")
+			(func(): sc.scroll_vertical = 1000000).call_deferred()])
+		plan.append([sz, "wipe_confirm", func():
+			main.show_camp(); main.screen.open_page("Settings")
+			var body: VBoxContainer = main.screen.pages["Settings"]
+			var SP: GDScript = load("res://scripts/ui/settings_panel.gd")
+			SP.show_wipe_confirm(body, true)])
 		plan.append([sz, "delve", func():
 			_fresh_warrior_run()
 			main.show_delve(); main.delve.running = false
@@ -284,6 +294,17 @@ func _ready() -> void:
 		plan.append([sz, "combat", func():
 			main.start_combat(Delve.combat_event(GameState.run, Delve.rng_for(GameState.run, 3), ["gnoll", "crab"]), func(_r): pass)
 			for i in 3: main.screen._do_bot()])
+		# DECISIONS #210: blue segmented Barrier on the status-pane HP bar and the over-sprite bar
+		plan.append([sz, "barrier_full", func():
+			if not GameState.run.is_empty(): GameState.end_run("abandon")
+			GameState.start_run("warrior", {}, "sewers", 9); main.show_delve(); main.delve.running = false
+			main.start_combat({"kind": "combat", "room": DB.rooms[0], "mobs": ["gnoll"]}, func(_r): pass)
+			main.screen._refresh()])
+		plan.append([sz, "barrier_hit", func():
+			var cb = main.screen.combat
+			var e = cb.enemies()[0]
+			cb.hit_hero(int(e.dmg), e.name)
+			main.screen._refresh()])
 		# the Fold-inner browser report (DECISIONS #215): a crab fight played out to its Victory card, then one with item drops
 		plan.append([sz, "victory", func():
 			_fresh_warrior_run(); main.show_delve(); main.delve.running = false

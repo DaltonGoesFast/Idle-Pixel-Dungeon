@@ -18,6 +18,7 @@ func _ready() -> void:
 	gs.new_game()
 	test_rules(gs)
 	test_barrier_spd(gs)
+	test_barrier_segments(gs)
 	test_bat_drain(gs)
 	test_mob_speeds(gs)
 	test_vanilla_mobs(gs)
@@ -125,6 +126,7 @@ func _ready() -> void:
 	await test_window_dim(gs)
 	await test_hero_window_wide(gs)
 	test_web_no_dev_tools(gs)
+	await test_wipe_save_confirm(gs)
 	await test_victory_card(gs)
 	await test_telemetry(gs)
 	print("TESTS: %d passed, %d failed -> %s" % [passes, fails, "PASS" if fails == 0 else "FAIL"])
@@ -1462,7 +1464,7 @@ func test_weapons(gs) -> void:
 	var sn = csn.enemies()[0]; var landed := []
 	for i in 4:
 		sn.seen_hero = true; sn.pos = Vector2i(2, 1); sn.next = 999.0; var b := int(sn.hp); csn.hero_tap(sn.pos); landed.append(b != int(sn.hp))
-	check(landed == [false, false, false, true], "a Mace (28% accurate) lands every 4th swing on an alert snake (%s)" % [landed])
+	check(landed == [false, false, false, true], "a Mace (28%% accurate) lands every 4th swing on an alert snake (%s)" % [landed])
 	var css := _wfight(_wstats(gs, "warrior", "sword"), ["#####", "#H1.#", "#####"], ["snake"])
 	var sn2 = css.enemies()[0]; var any := false
 	for i in 6:
@@ -1477,7 +1479,11 @@ func test_weapons(gs) -> void:
 	check(ml.contains("tier-3 melee weapon deals 3-16 damage") and ml.contains("requires 14 strength") and ml.contains("rather accurate") and not ml.contains("slow") and ml.contains("inadequate strength"), "Mace window: SPD tier/damage/strength line, accurate, not slow")
 	var sl := "\n".join(Weapons.info_lines("spear", 0, true))
 	check(sl.contains("rather slow weapon") and sl.contains("extra reach") and sl.contains("reach 2 tiles") and sl.contains("1.5 ticks"), "Spear window: slow, extra reach (2 tiles, 1.5 ticks)")
-	check("\n".join(Weapons.info_lines("whip", 0, true)).contains("tremendous reach") and "\n".join(Weapons.info_lines("round_shield", 1, true)).contains("blocks 0-4 damage. This blocking scales"), "Whip and Round Shield windows use SPD's lines")
+	check("\n".join(Weapons.info_lines("whip", 0, true)).contains("tremendous reach") and "\n".join(Weapons.info_lines("round_shield", 0, true)).contains("blocks 0-4 damage. This blocking scales"), "Whip and Round Shield windows use SPD's lines")
+	# the block range is the one the weapon has at its level, matching the +DR in brackets (SPD statsInfo: 4 + lvl, 6 + 2 * lvl)
+	var rs1 := "\n".join(Weapons.info_lines("round_shield", 1, true)); var gs2 := "\n".join(Weapons.info_lines("greatshield", 2, true))
+	check(rs1.contains("blocks 0-5 damage.") and rs1.contains("+3 DR") and gs2.contains("blocks 0-10 damage.") and gs2.contains("+5 DR"), "a +1 Round Shield's window says 0-5 (+3 DR), a +2 Greatshield's 0-10 (+5 DR)")
+	check("\n".join(Weapons.info_lines("round_shield", 3, false)).contains("blocks 0-4 damage.") and "\n".join(Weapons.info_lines("katana", 2, true)).contains("blocks 0-3 damage."), "an unidentified shield shows the +0 range; the Katana's block doesn't scale")
 	check(Codex.item_line("glaive").contains("reach 2") and Codex.item_line("glaive").contains("1.5 ticks"), "the codex line shows reach and speed")
 	# saves: a fight in progress keeps the weapon's reach; an old fight without it falls back to reach 1
 	var sv := _wfight(_wstats(gs, "warrior", "spear"), room, ["rat"])
@@ -3518,6 +3524,7 @@ func test_rogue_cloak(gs) -> void:
 	check(int(c.hero.cloak_charges) == 3, "a fight starts with 3 cloak charges")
 	gs.end_run("abandon")
 	test_cloak_persist(gs)
+	test_cloak_bot(gs)
 
 func _cloak_fight(gs, mobs: Array) -> Combat:
 	return Delve.new_combat(gs, Delve.combat_event(gs.run, Delve.rng_for(gs.run, 1), mobs))
@@ -3559,12 +3566,18 @@ func test_cloak_persist(gs) -> void:
 		_cloak_win(gs, _cloak_fight(gs, ["rat"]))
 		seen.append(int(gs.run.cloak_charges))
 	check(seen == [1, 2, 3, 3], "recharge is 1 per fight and stops at 3 (%s)" % [seen])
-	# a Scroll of Recharging's extra charge lasts that fight only
+	# a Scroll of Recharging's charge is a normal charge: never above the cap, kept until spent (#211)
 	gs.run.next_fx = {"recharge": 1}
 	var c3 := _cloak_fight(gs, ["rat"])
-	check(int(c3.hero.cloak_charges) == 4, "Scroll of Recharging: +1 charge for the next fight")
+	check(int(c3.hero.cloak_charges) == 3, "Scroll of Recharging on a full cloak: still 3/3, never 4/3 (got %d)" % int(c3.hero.cloak_charges))
 	_cloak_win(gs, c3)
-	check(int(gs.run.cloak_charges) == 3, "the extra charge doesn't carry past the cap")
+	check(int(gs.run.cloak_charges) == 3, "the cloak stays at its cap")
+	gs.run.cloak_charges = 0; gs.run.next_fx = {"recharge": 1}
+	var c3b := _cloak_fight(gs, ["rat"])
+	check(int(c3b.hero.cloak_charges) == 1, "Scroll of Recharging: +1 cloak charge for the next fight (0 -> 1)")
+	_cloak_win(gs, c3b)
+	check(int(gs.run.cloak_charges) == 2, "an unspent Recharging charge is kept: 1 + 1 per fight = 2")
+	gs.run.cloak_charges = 3
 	# a lost fight records nothing new (the run ends)
 	gs.run.cloak_charges = 1
 	# Mystical Meal: a ration restores 1 charge, never above the cap
@@ -3580,6 +3593,12 @@ func test_cloak_persist(gs) -> void:
 	var c4 := _cloak_fight(gs, ["rat"]); c4.hero_cloak()
 	var c5 := Combat.new(); c5.from_dict(JSON.parse_string(JSON.stringify(c4.to_dict())))
 	check(int(c5.hero.cloak_charges) == 1 and int(c5.hero.cloak_cap) == 3, "a fight saved mid-way keeps cloak charges and cap")
+	# a fight saved before #206 (no cloak_cap, an Assassin's 4 charges) loads as 3/3, not "Cloak (4/3)" (#211)
+	var oldf: Dictionary = JSON.parse_string(JSON.stringify(c4.to_dict()))
+	for u in oldf.units:
+		if u.has("hero"): u.erase("cloak_cap"); u.cloak_charges = 4
+	var c6 := Combat.new(); c6.from_dict(oldf)
+	check(int(c6.hero.cloak_charges) == 3 and int(c6.hero.cloak_cap) == 3, "an old mid-fight save is clamped to 3/3 (got %d/%d)" % [int(c6.hero.cloak_charges), int(c6.hero.cloak_cap)])
 	# migration: a run saved before #206 has no cloak_charges -> full; an old talent id is renamed
 	var old: Dictionary = JSON.parse_string(JSON.stringify(gs.to_dict()))
 	old.run.erase("cloak_charges")
@@ -3594,6 +3613,70 @@ func test_cloak_persist(gs) -> void:
 	gs.end_run("abandon")
 	gs.start_run("warrior", {}, "sewers", 4)
 	check(not gs.run.has("cloak_charges") and not gs.hero_stats("warrior").has("cloak"), "non-Rogue runs carry no cloak charges")
+	gs.end_run("abandon")
+
+## A Rogue fight with `mobs` around the hero (adjacent first), the cloak at `charges` of 3.
+func _bot_cloak_fight(gs, mobs: Array, charges: int) -> Combat:
+	var c := _cloak_fight(gs, mobs)
+	c.hero.cloak_charges = charges
+	var spots := [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1), Vector2i(1, 1), Vector2i(-1, -1)]
+	var i := 0
+	for e in c.enemies():
+		for k in range(i, spots.size()):
+			var p: Vector2i = c.hero.pos + spots[k]
+			if c.passable(p) and c.unit_at(p) == null: e.pos = p; i = k + 1; break
+		e.seen_hero = true
+	return c
+
+func _bot_cloaks(c: Combat) -> bool:
+	return CombatBot.suggest(c, 0, 10).act == "cloak"
+
+## DECISIONS #211: Auto Battle and Hint are stingy with the run's cloak charges.
+func test_cloak_bot(gs) -> void:
+	print("[cloak bot]")
+	gs.new_game()
+	for cc in gs.heroes: gs.heroes[cc].unlocked = true
+	gs.heroes.rogue.level = 3
+	gs.start_run("rogue", {}, "sewers", 5)
+	# trivial Sewers fight (2 rats), 2 of 3 charges: keep them
+	var c := _bot_cloak_fight(gs, ["rat", "rat"], 2)
+	check(CombatBot.projected_loss(c, c.enemies()) < int(c.hero.hp) / 2, "2 rats are not a threat to a Lv3 Rogue (projected loss %d)" % CombatBot.projected_loss(c, c.enemies()))
+	check(not _bot_cloaks(c), "the bot keeps cloak charges on a trivial fight (2 rats, 2/3)")
+	var r := CombatBot.play(c)
+	check(r.won and int(c.hero.cloak_charges) == 2, "Auto Battle wins 2 rats without spending a charge (left %d)" % int(c.hero.cloak_charges))
+	# a full cloak spends freely: the win's recharge would otherwise be wasted
+	check(_bot_cloaks(_bot_cloak_fight(gs, ["rat", "rat"], 3)), "a full cloak (3/3) is spent on the same fight")
+	# reserve: the last charge waits, even for a crowd...
+	var crowd := _bot_cloak_fight(gs, ["rat", "rat", "rat"], 1)
+	check(not _bot_cloaks(crowd), "the last charge is held back on 3 rats at full HP")
+	check(_bot_cloaks(_bot_cloak_fight(gs, ["rat", "rat", "rat"], 2)), "with 2 charges, 3+ foes are worth one")
+	# ...but goes in an emergency (low HP)
+	var low := _bot_cloak_fight(gs, ["rat", "rat", "rat"], 1)
+	low.hero.hp = int(float(low.hero.ht) * 0.3); low.hero.barrier = 0
+	check(_bot_cloaks(low), "the last charge is spent when HP is low")
+	# a dangerous fight (projected loss >= half our HP) with 2 charges
+	var hurt := _bot_cloak_fight(gs, ["gnoll", "gnoll"], 2)
+	hurt.hero.hp = maxi(int(float(hurt.hero.ht) * 0.41) + 1, CombatBot.projected_loss(hurt, hurt.enemies()) + 1); hurt.hero.barrier = 0
+	if CombatBot.projected_loss(hurt, hurt.enemies()) * 2 >= int(hurt.hero.hp):
+		check(_bot_cloaks(hurt), "a fight projected to cost half our HP gets a charge")
+	else:
+		hurt.hero.hp = maxi(int(float(hurt.hero.ht) * 0.41) + 1, CombatBot.projected_loss(hurt, hurt.enemies()) * 2)
+		check(_bot_cloaks(hurt) == (CombatBot.projected_loss(hurt, hurt.enemies()) * 2 >= int(hurt.hero.hp)), "the projected-loss rule decides 2 gnolls")
+	# an elite (Animated Statue) with 2 charges
+	check(_bot_cloaks(_bot_cloak_fight(gs, ["statue"], 2)), "an Animated Statue (elite) gets a charge")
+	check(not _bot_cloaks(_bot_cloak_fight(gs, ["statue"], 1)) or int(gs.run.hp) <= int(float(gs.hero_stats("rogue").ht) * 0.4), "but not the last one")
+	# a boss gets even the last charge
+	var boss := Delve.new_combat(gs, {"kind": "combat", "boss": true, "room": DB.boss_rooms[1], "mobs": ["tengu"]})
+	boss.hero.cloak_charges = 1
+	var goo = boss.enemies()[0]
+	for d in Combat.DIRS:
+		var p: Vector2i = boss.hero.pos + d
+		if boss.passable(p) and boss.unit_at(p) == null: goo.pos = p; break
+	goo.seen_hero = true
+	check(_bot_cloaks(boss), "the bot spends its last charge on a boss (Tengu): %s" % CombatBot.suggest(boss, 0, 10).why)
+	check(CombatBot.cloak_reason(boss, boss.enemies()) == "boss", "the reason is the boss")
+	# Hint uses the same suggestion as Auto Battle
+	check(CombatBot.suggest(crowd, 0, 10).act != "cloak" and CombatBot.suggest(boss, 0, 10).act == "cloak", "Hint (CombatBot.suggest) follows the same budget")
 	gs.end_run("abandon")
 
 ## DECISIONS #126: the Heroes ring swap list only shows "Charges +N" for heroes whose staff gains them.
@@ -4857,7 +4940,84 @@ func test_web_no_dev_tools(gs) -> void:
 	for c in v.get_children():
 		if c is Label and String(c.text).begins_with("Art, sounds and music"): credits = true
 	check(credits, "web dev tools: the GPL credits line still shows")
+	check(SP.has_wipe_button(v), "web dev tools: Wipe save data stays in main Settings")
 	v.free(); gs.settings.dev_tools = had
+
+## DECISIONS #212: Wipe save data lives in main Settings on every platform, with a confirm.
+## Cancel keeps the save; Wipe deletes it. The anonymous telemetry id is kept. No wipe in Developer.
+func test_wipe_save_confirm(gs) -> void:
+	print("[wipe save confirm]")
+	var SP: GDScript = load("res://scripts/ui/settings_panel.gd")
+	gs.new_game(); gs.settings.tutorial = false; gs.settings.dev_tools = false
+	gs.add_mat("gold", 50); gs.add_mat("iron_ore", 3)
+	var gold0: int = int(gs.mat("gold"))
+	# Visible on a normal Settings build (Camp / non-web path with show_dev).
+	var v := VBoxContainer.new(); SP.build(v, true)
+	check(SP.has_wipe_button(v), "wipe: Wipe save data is in main Settings")
+	var credits := false; var dev_wipe := false
+	for c in v.get_children():
+		if c is Label and String(c.text).begins_with("Art, sounds and music"): credits = true
+		if c is Button and String(c.text) == "Wipe save (new game)": dev_wipe = true
+	check(credits, "wipe: credits still sit under the Wipe button")
+	check(not dev_wipe, "wipe: Developer no longer has Wipe save (new game)")
+	# Also when show_dev is false (delve Settings / simulating the web-hidden Developer path).
+	v.free()
+	v = VBoxContainer.new(); SP.build(v, false)
+	check(SP.has_wipe_button(v), "wipe: Wipe save data shows with show_dev=false (delve / no Developer)")
+	credits = false
+	for c in v.get_children():
+		if c is Label and String(c.text).begins_with("Art, sounds and music"): credits = true
+	check(credits, "wipe: credits show with show_dev=false too")
+	# Cancel keeps the save.
+	SP.show_wipe_confirm(v, false)
+	check(SP.is_wipe_confirm(v), "wipe: confirm has title, Wipe and Cancel")
+	var cancel: Button = null
+	for c in v.get_children():
+		if c is Button and String(c.text) == SP.WIPE_CANCEL: cancel = c
+	check(cancel != null, "wipe: Cancel button present")
+	cancel.pressed.emit()
+	await get_tree().process_frame
+	check(SP.has_wipe_button(v), "wipe: Cancel rebuilds Settings")
+	check(gs.mat("gold") == gold0, "wipe: Cancel keeps gold (%d)" % gs.mat("gold"))
+	# Cancel with on_rebuild (delve Settings) restores the host Close button path.
+	var rebuilt := [false]
+	SP.show_wipe_confirm(v, false, Callable(), func(): rebuilt[0] = true; UIKit.clear(v); SP.build(v, false); v.add_child(UIKit.button("Close", func(): pass)))
+	var cancel2: Button = null
+	for c in v.get_children():
+		if c is Button and String(c.text) == SP.WIPE_CANCEL: cancel2 = c
+	cancel2.pressed.emit()
+	await get_tree().process_frame
+	check(rebuilt[0], "wipe: Cancel with on_rebuild invokes the host rebuild")
+	var close_ok := false
+	for c in v.get_children():
+		if c is Button and String(c.text) == "Close": close_ok = true
+	check(close_ok and SP.has_wipe_button(v), "wipe: Cancel restores Settings and Close")
+	# Confirm wipes.
+	gs.add_mat("gold", 100)
+	var tel_before := Telemetry.distinct_id
+	SP.show_wipe_confirm(v, false)
+	var wipe_btn: Button = null
+	for c in v.get_children():
+		if c is Button and String(c.text) == SP.WIPE_CONFIRM: wipe_btn = c
+	check(wipe_btn != null, "wipe: Wipe button present")
+	wipe_btn.pressed.emit()
+	await get_tree().process_frame
+	check(gs.mat("gold") == 30, "wipe: Wipe resets to a new game (starter gold 30, got %d)" % gs.mat("gold"))
+	check(gs.run.is_empty(), "wipe: no run after Wipe")
+	check(Telemetry.distinct_id == tel_before, "wipe: anonymous telemetry id is kept")
+	# Developer section still has no wipe when opened.
+	gs.settings.dev_tools = true
+	v.free()
+	v = VBoxContainer.new(); SP.build(v, true)
+	dev_wipe = false
+	var in_dev := false
+	for c in v.get_children():
+		if c is Label and String(c.text) == "Developer": in_dev = true
+		if c is Button and String(c.text) == "Wipe save (new game)": dev_wipe = true
+	check(in_dev == SP.dev_tools_allowed(), "wipe: Developer header only off the web")
+	check(not dev_wipe, "wipe: no Wipe save (new game) even with Developer shown")
+	check(SP.has_wipe_button(v), "wipe: main Wipe save data still present with Developer shown")
+	v.free(); gs.settings.dev_tools = false
 
 func test_telemetry(gs) -> void:
 	print("[telemetry]")
@@ -5024,3 +5184,23 @@ func test_telemetry(gs) -> void:
 	check(okd[0] and not ov.is_open(), "telemetry: OK closes the notice and marks it seen")
 	ov.queue_free()
 	gs.new_game()
+
+func test_barrier_segments(gs) -> void:
+	print("[barrier segments] blue HP-bar segments = hits the Barrier stops (DECISIONS #210)")
+	var hs := warrior(gs)
+	var c := Combat.new(); c.setup(DB.rooms[0], hs, hs.ht, ["rat"])
+	var e = c.enemies()[0]
+	e.dmg = int(c.hero.dr) + 3
+	c.hero.barrier = 8
+	check(c.barrier_hit_size() == 3, "hit size = enemy dmg - DR")
+	check(c.barrier_hits() == 3, "8 Barrier vs 3-damage hits = 3 segments")
+	c.hit_hero(int(e.dmg), "t")
+	check(c.hero.barrier == 5 and c.barrier_hits() == 2, "a hit chips one segment off (5 left = 2 segments)")
+	e.dmg = int(c.hero.dr)
+	check(c.barrier_hit_size() == 1 and c.barrier_hits() == 5, "fully blocked hits cost 1 (chip rule): 1 segment per point")
+	c.hero.barrier = 0
+	check(c.barrier_hits() == 0, "zero Barrier = no blue")
+	check(Combat.barrier_segments(0, 3) == 0, "no Barrier, no segments")
+	check(Combat.barrier_segments(40, 1) == Combat.BARRIER_SEG_CAP, "segments are capped")
+	e.hp = 0
+	check(c.barrier_hit_size() == 1, "no living enemies: chip size 1")
