@@ -6,7 +6,7 @@
 class_name UsePopup
 extends Control
 
-const LAYER := 90   # tips sit on Main.TIP_LAYER (100) once #213 lands; anything lower than that, above the screens
+const LAYER := 90   # above every screen window, under Main.TIP_LAYER (100) so tips stay topmost (DECISIONS #213)
 const DIM := 0.3
 const NODE := "UsePopupLayer"
 
@@ -55,17 +55,6 @@ func _gui_input(e: InputEvent) -> void:
 func _unhandled_input(e: InputEvent) -> void:
 	if visible and e.is_action_pressed("ui_cancel"):
 		get_viewport().set_input_as_handled(); close()
-
-func _process(_d: float) -> void:
-	# Until tips have their own higher layer, never cover an open tip (it stays modal and on top).
-	var cl := get_parent() as CanvasLayer
-	if cl: cl.visible = not _tip_covers()
-
-func _tip_covers() -> bool:
-	var tips = _host.get("tips") if is_instance_valid(_host) else null
-	if tips == null or not is_instance_valid(tips) or not tips.is_open(): return false
-	var tl = tips.get_parent()
-	return not (tl is CanvasLayer and tl.layer > LAYER)
 
 ## SPD WndMessage look: the window chrome, [sprite] name in the title colour, the lines, one OK button.
 func _render() -> void:

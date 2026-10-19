@@ -213,6 +213,28 @@ func _ready() -> void:
 			_clear_pops()
 			main.delve.running = false
 			main.delve.pending = {"kind": "special", "special": DB.specials[0]}; main.delve._show_card()])
+		# DECISIONS #213: the door choice tip over its encounter window (the tip opens first, the card after it), then a
+		# real tap on the tip's button through the viewport: it goes to the tip, the door window stays
+		plan.append([sz, "tip_door", func():
+			_fresh_warrior_run(); main.show_delve(); _clear_pops(); main.delve.running = false
+			GameState.settings.tutorial = true; GameState.tutorial_done.erase("door"); main.tips.queue.clear(); main.tips._render()
+			main.delve.pending = {"kind": "door", "door": DB.doors[0]}; main.delve._show_card()])
+		plan.append([sz, "tip_shop", func():   # the reported softlock: the special-room tip over the Abandoned Shop
+			_fresh_warrior_run(); main.show_delve(); _clear_pops(); main.delve.running = false
+			GameState.settings.tutorial = true; GameState.tutorial_done.erase("special"); main.tips.queue.clear(); main.tips._render()
+			main.delve.pending = {"kind": "special", "special": DB.specials.filter(func(sp): return String(sp.id) == "abandoned_shop")[0]}; main.delve._show_card()])
+		plan.append([sz, "tip_door_tap", func():
+			var okb: Button = null
+			for b in main.tips.find_children("*", "Button", true, false):
+				if (b as Button).text in ["Got it", "Next"]: okb = b
+			if okb == null: print("TIPTAP no button"); return
+			var wp: Vector2 = get_viewport().get_screen_transform() * okb.get_global_rect().get_center()
+			var before: String = "%s p%d" % [main.tips.queue.map(func(q): return q.id), main.tips.page]
+			for pr in [true, false]:
+				var ev := InputEventMouseButton.new(); ev.button_index = MOUSE_BUTTON_LEFT; ev.pressed = pr; ev.position = wp; ev.global_position = wp
+				if pr: ev.button_mask = MOUSE_BUTTON_MASK_LEFT
+				Input.parse_input_event(ev)
+			get_tree().create_timer(0.3).timeout.connect(func(): print("TIPTAP before ", before, " after ", main.tips.queue.map(func(q): return q.id), " p", main.tips.page, " window ", main.delve.pending.get("kind", ""), " ", main.delve.win_layer.visible); GameState.settings.tutorial = false)])
 		if OS.has_environment("ROOM_SHOTS"):   # every special room's delve scene (DECISIONS #180)
 			for sp in DB.specials:
 				plan.append([sz, "room_" + String(sp.id), func():
@@ -245,6 +267,15 @@ func _ready() -> void:
 			sc.scroll_vertical = 100000
 			HeroPanels.use_item("potion_haste", false, func(): main.delve._refresh(); main.delve._refresh_controls(); main.delve._show_card())
 			(func(): sc.scroll_vertical = 100000).call_deferred()])
+		# a tutorial tip opened over the pop-up still draws on top (Main.TIP_LAYER, DECISIONS #213)
+		plan.append([sz, "use_popup_tip", func():
+			_fresh_warrior_run(); main.show_delve(); _clear_pops()
+			main.delve.pending = {}; main.delve._open_panel("backpack")
+			GameState.run.supplies["torch"] = 1; GameState.run.torch = 20.0
+			HeroPanels.use_item("torch", true, func(): main.delve._show_card())
+			main.tips.push("delve_bar")])
+		plan.append([sz, "use_popup_tip_done", func():
+			main.tips.queue.clear(); main.tips._render(); main.show_delve()])
 		plan.append([sz, "delve_low_hp", func():
 			_fresh_warrior_run(); main.show_delve(); _clear_pops()
 			main.delve.pending = {}; main.delve.running = false
