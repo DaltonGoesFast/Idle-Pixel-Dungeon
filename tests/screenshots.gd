@@ -182,6 +182,16 @@ func _ready() -> void:
 			main.show_camp(); main.tips.push("welcome")])
 		plan.append([sz, "tip_closed", func(): main.tips.skip_all(); GameState.settings.tutorial = false])
 		plan.append([sz, "settings", func(): main.show_camp(); main.screen.open_page("Settings")])
+		# DECISIONS #212: Wipe save data in main Settings, and its confirm (phone portrait = cover)
+		plan.append([sz, "settings_wipe", func():
+			main.show_camp(); main.screen.open_page("Settings")
+			var sc: ScrollContainer = main.screen.win_layer.get_meta("sc")
+			(func(): sc.scroll_vertical = 1000000).call_deferred()])
+		plan.append([sz, "wipe_confirm", func():
+			main.show_camp(); main.screen.open_page("Settings")
+			var body: VBoxContainer = main.screen.pages["Settings"]
+			var SP: GDScript = load("res://scripts/ui/settings_panel.gd")
+			SP.show_wipe_confirm(body, true)])
 		plan.append([sz, "delve", func():
 			_fresh_warrior_run()
 			main.show_delve(); main.delve.running = false
