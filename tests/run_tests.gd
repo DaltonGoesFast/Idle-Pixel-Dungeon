@@ -5333,3 +5333,17 @@ func test_barrier_segments(gs) -> void:
 	check(Combat.barrier_segments(40, 1) == Combat.BARRIER_SEG_CAP, "segments are capped")
 	e.hp = 0
 	check(c.barrier_hit_size() == 1, "no living enemies: chip size 1")
+	# the dividers stay thin next to their segments, so the section reads blue (the phone's over-sprite bar: 66 x 5 px,
+	# scale 5.5 -> line 2; 20 HP + 40 Barrier vs a 1-damage rat = 10 segments of 4.4 px)
+	var small := StatusPane.barrier_seg_rects(Rect2(0, 0, 66, 5), 20.0 / 60.0, 1.0, 10, 2.0)
+	var dark := 0.0
+	for dv in small.dividers: dark += dv.size.x
+	check(small.dividers.size() == 9, "10 segments = 9 dividers (one segment per hit stays)")
+	check(small.dividers.all(func(dv): return dv.size.x == 1.0), "4.4 px segments get 1 px dividers, not the 2 px line")
+	check(dark / small.blue.size.x <= 0.25, "the small bar's Barrier stays mostly blue (%.0f%% divider)" % (100.0 * dark / small.blue.size.x))
+	var half := StatusPane.barrier_seg_rects(Rect2(0, 0, 66, 5), 0.5, 0.95, 9, 2.0)
+	check(half.dividers.all(func(dv): return dv.size.x == 1.0), "half HP + 9 segments: 1 px dividers")
+	var wide := StatusPane.barrier_seg_rects(Rect2(0, 0, 300, 36), 0.5, 1.0, 3, 2.0)
+	check(wide.dividers.size() == 2 and wide.dividers.all(func(dv): return dv.size.x == 2.0), "wide segments keep the full line width")
+	check(StatusPane.barrier_seg_rects(Rect2(0, 0, 66, 5), 0.5, 0.5, 3, 2.0).is_empty(), "no width, no blue")
+	check(StatusPane.divider_width(1.5, 3.0) == 1.0, "a divider is at least 1 px")
