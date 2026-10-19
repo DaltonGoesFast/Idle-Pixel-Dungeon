@@ -352,6 +352,7 @@ static func _surprise_strike(c: Combat, adj: Array) -> Dictionary:
 	for e in adj:
 		if not c.surprise_against(e): continue
 		var dir: Vector2i = e.pos - c.hero.pos
+		dir = Vector2i(signi(dir.x), signi(dir.y))   # knockback moves 1 tile, even from a reach weapon's 2-3 (#207)
 		var hits := _hits_to_kill(c, e)
 		# Knockback into a chasm finishes anyone the blow itself would not.
 		if hits > 1 and c.tile(e.pos + dir) == Combat.T.CHASM and not e.get("boss", false): hits = 1

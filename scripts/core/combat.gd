@@ -913,6 +913,7 @@ func apply_stats(hs: Dictionary) -> void:
 	hero.barrier_max = int(hs.barrier_max); hero.barrier = mini(int(hero.barrier), int(hero.barrier_max))
 	hero.surprise_mult = float(hs.get("surprise_mult", 1.5)); hero.search_radius = int(hs.get("search_radius", 1))
 	_weapon_stats(hs)
+	hero.acc_miss = 0.0; hero.acc_catch = 0.0   # the miss / catch rhythm belongs to the weapon in hand (#207)
 	var nb: Dictionary = hs.get("bolt", {})
 	if not nb.is_empty():
 		hero.bolt = nb; hero.charges = mini(int(hero.charges), int(nb.get("charges", 0)))

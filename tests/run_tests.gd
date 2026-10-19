@@ -1445,6 +1445,15 @@ func test_weapons(gs) -> void:
 	fr.seen_hero = false; cf.drain_events(); var hp0 := int(fr.hp); cf.hero_tap(fr.pos)
 	var evs := cf.drain_events().filter(func(e): return e.t == "hit")
 	check(hp0 - int(fr.hp) == Weapons.dmg(DB.item("flail"), 0) and evs[0].kind == "hp", "an unaware foe can't dodge the Flail, but it gets no Surprise bonus")
+	cf.hero.acc_miss = 0.9; cf.apply_stats(_wstats(gs, "warrior", "sickle"))
+	check(float(cf.hero.acc_miss) == 0.0 and float(cf.hero.acc_catch) == 0.0, "a mid-fight swap starts the new weapon's miss rhythm afresh")
+	# the bot's chasm check for a reach Surprise looks 1 tile behind the foe (knockback), not 2
+	var ck := _wfight(_wstats(gs, "warrior", "spear"), ["#######", "#H.1._#", "#2....#", "#######"], ["rat", "rat"])
+	var ka = ck.enemies().filter(func(e): return e.pos.x == 3)[0]; var kb = ck.enemies().filter(func(e): return e.pos.x == 1)[0]
+	for e in [ka, kb]: e.seen_hero = false; e.hp = 60; e.ht = 60
+	kb.dr = 3
+	var ks: Dictionary = CombatBot._surprise_strike(ck, ck.enemies())
+	check(ks.get("pos", Vector2i(-1, -1)) == kb.pos, "reach Surprise: a chasm 2 tiles behind a Spear target is no knockback kill (%s)" % [ks])
 	# accurate weapons catch a dodging snake
 	var csn := _wfight(_wstats(gs, "warrior", "mace"), ["#####", "#H1.#", "#####"], ["snake"])
 	var sn = csn.enemies()[0]; var landed := []
