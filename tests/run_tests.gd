@@ -5140,6 +5140,21 @@ func test_barrel_art() -> void:
 		for op in DS.ROOM_SCENES[id]:
 			if String(op[0]) == "f" and not DS.feature_overhang(int(op[1])).is_empty() and int(op[2]) == 0 and float(op[3]) == 2.0: door_bad.append(id)
 	check(door_bad.is_empty(), "no raised prop stands in front of a room's door %s" % [door_bad])
+	# ops draw in list order: an actor drawn before a full-height prop it overlaps ends up behind the prop's art
+	# (the Cell Block's thief stood behind the cells' bars)
+	var actor_bad := []
+	for id in DS.ROOM_SCENES:
+		var ops: Array = DS.ROOM_SCENES[id]
+		for mi in ops.size():
+			if String(ops[mi][0]) != "m": continue
+			for pi in range(mi + 1, ops.size()):
+				var p: Array = ops[pi]
+				if String(p[0]) == "f" and not DS.feature_overhang(int(p[1])).is_empty() and float(p[3]) <= float(ops[mi][3]) and absf(float(p[2]) - float(ops[mi][2])) < 1.0:
+					actor_bad.append("%s/%s behind %d" % [id, ops[mi][1], int(p[1])])
+	check(actor_bad.is_empty(), "room actors draw in front of the raised props they overlap %s" % [actor_bad])
+	var cb_ops: Array = DS.ROOM_SCENES.cell_block
+	var thief_at := cb_ops.map(func(op): return String(op[1]) if String(op[0]) == "m" else "").find("thief")
+	check(thief_at > 0 and cb_ops.slice(0, thief_at).filter(func(op): return String(op[0]) == "f").size() == 2, "the Cell Block's thief stands in front of both cells")
 	check(raised_ops >= 10, "the larder, armory, cell block, prisoner, crystal vein and shop props are raised props (%d)" % raised_ops)
 	# the larder's two barrels: SPD's sewers barrel, base on the far floor row and its top on the wall row above
 	var larder: Array = DS.ROOM_SCENES.larder.filter(func(op): return String(op[0]) == "f")
@@ -5286,3 +5301,17 @@ func test_barrier_segments(gs) -> void:
 	check(Combat.barrier_segments(40, 1) == Combat.BARRIER_SEG_CAP, "segments are capped")
 	e.hp = 0
 	check(c.barrier_hit_size() == 1, "no living enemies: chip size 1")
+	# the dividers stay thin next to their segments, so the section reads blue (the phone's over-sprite bar: 66 x 5 px,
+	# scale 5.5 -> line 2; 20 HP + 40 Barrier vs a 1-damage rat = 10 segments of 4.4 px)
+	var small := StatusPane.barrier_seg_rects(Rect2(0, 0, 66, 5), 20.0 / 60.0, 1.0, 10, 2.0)
+	var dark := 0.0
+	for dv in small.dividers: dark += dv.size.x
+	check(small.dividers.size() == 9, "10 segments = 9 dividers (one segment per hit stays)")
+	check(small.dividers.all(func(dv): return dv.size.x == 1.0), "4.4 px segments get 1 px dividers, not the 2 px line")
+	check(dark / small.blue.size.x <= 0.25, "the small bar's Barrier stays mostly blue (%.0f%% divider)" % (100.0 * dark / small.blue.size.x))
+	var half := StatusPane.barrier_seg_rects(Rect2(0, 0, 66, 5), 0.5, 0.95, 9, 2.0)
+	check(half.dividers.all(func(dv): return dv.size.x == 1.0), "half HP + 9 segments: 1 px dividers")
+	var wide := StatusPane.barrier_seg_rects(Rect2(0, 0, 300, 36), 0.5, 1.0, 3, 2.0)
+	check(wide.dividers.size() == 2 and wide.dividers.all(func(dv): return dv.size.x == 2.0), "wide segments keep the full line width")
+	check(StatusPane.barrier_seg_rects(Rect2(0, 0, 66, 5), 0.5, 0.5, 3, 2.0).is_empty(), "no width, no blue")
+	check(StatusPane.divider_width(1.5, 3.0) == 1.0, "a divider is at least 1 px")

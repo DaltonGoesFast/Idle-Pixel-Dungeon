@@ -80,13 +80,29 @@ const BARRIER_DIV := Color("0a1a3a")
 ## Barrier as a blue section of `bar` from frac a to b, split by thin dark dividers into `segs` equal parts.
 ## Shared by the status pane and the grid's over-sprite bar.
 static func barrier_segs(ci: CanvasItem, bar: Rect2, a: float, b: float, segs: int, line: float) -> void:
+	var r := barrier_seg_rects(bar, a, b, segs, line)
+	if r.is_empty(): return
+	ci.draw_rect(r.blue, BARRIER_BLUE)
+	for dv in r.dividers: ci.draw_rect(dv, BARRIER_DIV)
+
+## The blue rect and the divider rects barrier_segs draws ({} = no blue). A divider is `line` wide but never more
+## than a third of a segment (at least 1 px): 9-10 segments on the small bar over the hero were 3-4 px each with
+## 2-3 px dividers, so that bar read as dark navy stripes instead of blue (DECISIONS #210).
+static func barrier_seg_rects(bar: Rect2, a: float, b: float, segs: int, line: float) -> Dictionary:
 	var x0 := floorf(bar.position.x + bar.size.x * clampf(a, 0, 1))
 	var x1 := floorf(bar.position.x + bar.size.x * clampf(b, 0, 1))
-	if x1 <= x0: return
-	ci.draw_rect(Rect2(x0, bar.position.y, x1 - x0, bar.size.y), BARRIER_BLUE)
-	for i in range(1, maxi(1, segs)):
-		var x := floorf(x0 + (x1 - x0) * i / float(segs))
-		ci.draw_rect(Rect2(x, bar.position.y, line, bar.size.y), BARRIER_DIV)
+	if x1 <= x0: return {}
+	var n := maxi(1, segs)
+	var lw := divider_width((x1 - x0) / float(n), line)
+	var dividers := []
+	for i in range(1, n):
+		var x := floorf(x0 + (x1 - x0) * i / float(n))
+		dividers.append(Rect2(x, bar.position.y, lw, bar.size.y))
+	return {"blue": Rect2(x0, bar.position.y, x1 - x0, bar.size.y), "dividers": dividers}
+
+## Divider width for segments `seg_w` px wide: `line`, capped at a third of a segment, at least 1 px.
+static func divider_width(seg_w: float, line: float) -> float:
+	return clampf(floorf(seg_w / 3.0), 1.0, maxf(1.0, line))
 
 func _strip(src: Rect2, dst: Rect2, frac: float) -> void:
 	frac = clampf(frac, 0.0, 1.0)
