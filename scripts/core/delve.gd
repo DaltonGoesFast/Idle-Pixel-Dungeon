@@ -291,7 +291,7 @@ static func pay(gs, cost: Dictionary) -> bool:
 		if k == "gold": gs.add_stat("gold_spent", int(cost[k]))
 	return true
 
-## Rewards go into the pack (lost on death). item_unknown spawns an un-ID'd ring/wand.
+## Rewards go into the pack (lost on death). item_unknown spawns an un-ID'd ring/wand; weapon a found weapon.
 static func reward(gs, rw: Dictionary) -> String:
 	var run: Dictionary = gs.run
 	var parts := []
@@ -329,6 +329,10 @@ static func reward(gs, rw: Dictionary) -> String:
 			"item":
 				_stow(gs, _new_gear(gs, rw[k], true))
 				parts.append(DB.item(rw[k]).name)
+			"weapon":   # a found weapon: SPD's tier odds for this floor, any weapon of that tier, known +0 (DECISIONS #208)
+				for i in int(rw[k]):
+					var wid := random_weapon(gs)
+					_stow(gs, _new_gear(gs, wid, true)); parts.append(DB.item(wid).name)
 			_:
 				if k in ["torch", "ration"]:
 					run.supplies[k] = int(run.supplies.get(k, 0)) + int(rw[k])  # usable right away
@@ -446,6 +450,11 @@ static func defeat_changes(gs, before: Dictionary, res: Dictionary) -> Dictionar
 	return {"got": PackedStringArray(), "lost": lost, "note": note}
 
 ## Backpack full (GameState.BACKPACK_SLOTS): the item waits in run.overflow for a drop/leave decision.
+## The weapon a chest or statue gives here: seeded by the run, floor and item count, so a reload finds the same one.
+static func random_weapon(gs) -> String:
+	var r := rng_for(gs.run, 7919 + int(gs.next_uid))
+	return Weapons.random_for_floor(int(gs.run.floor), int(r.randi() % 1000000))
+
 static func _stow(gs, g: Dictionary) -> void:
 	if gs.backpack_full():
 		if not gs.run.has("overflow"): gs.run.overflow = []
