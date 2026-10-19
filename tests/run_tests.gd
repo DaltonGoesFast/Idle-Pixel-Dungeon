@@ -18,6 +18,7 @@ func _ready() -> void:
 	gs.new_game()
 	test_rules(gs)
 	test_barrier_spd(gs)
+	test_barrier_segments(gs)
 	test_bat_drain(gs)
 	test_vanilla_mobs(gs)
 	test_status_pane_layout(gs)
@@ -4881,3 +4882,23 @@ func test_telemetry(gs) -> void:
 	check(okd[0] and not ov.is_open(), "telemetry: OK closes the notice and marks it seen")
 	ov.queue_free()
 	gs.new_game()
+
+func test_barrier_segments(gs) -> void:
+	print("[barrier segments] blue HP-bar segments = hits the Barrier stops (DECISIONS #210)")
+	var hs := warrior(gs)
+	var c := Combat.new(); c.setup(DB.rooms[0], hs, hs.ht, ["rat"])
+	var e = c.enemies()[0]
+	e.dmg = int(c.hero.dr) + 3
+	c.hero.barrier = 8
+	check(c.barrier_hit_size() == 3, "hit size = enemy dmg - DR")
+	check(c.barrier_hits() == 3, "8 Barrier vs 3-damage hits = 3 segments")
+	c.hit_hero(int(e.dmg), "t")
+	check(c.hero.barrier == 5 and c.barrier_hits() == 2, "a hit chips one segment off (5 left = 2 segments)")
+	e.dmg = int(c.hero.dr)
+	check(c.barrier_hit_size() == 1 and c.barrier_hits() == 5, "fully blocked hits cost 1 (chip rule): 1 segment per point")
+	c.hero.barrier = 0
+	check(c.barrier_hits() == 0, "zero Barrier = no blue")
+	check(Combat.barrier_segments(0, 3) == 0, "no Barrier, no segments")
+	check(Combat.barrier_segments(40, 1) == Combat.BARRIER_SEG_CAP, "segments are capped")
+	e.hp = 0
+	check(c.barrier_hit_size() == 1, "no living enemies: chip size 1")
