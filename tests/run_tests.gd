@@ -4039,6 +4039,14 @@ func test_mob_speeds(gs) -> void:
 		var x0: int = m.pos.x
 		c.hero_wait(); c.hero_wait()
 		check(x0 - int(m.pos.x) == case[1], "%s walks %d tiles in 2 hero ticks (got %d)" % [case[0], case[1], x0 - int(m.pos.x)])
+	# the cloak heuristic counts bites, not steps: a crab's 0.5 move delay doesn't double its projected damage
+	var pc := Combat.new(); pc.setup(room, hs, hs.ht, ["crab"])
+	var pm: Dictionary = pc.enemies()[0]; pc.hero.dr = 0
+	var l1 := CombatBot.projected_loss(pc, [pm])
+	pm.delay = 0.25
+	check(CombatBot.projected_loss(pc, [pm]) == l1, "projected loss ignores the crab's move delay (%d)" % l1)
+	pm.attack_delay = 0.5
+	check(CombatBot.projected_loss(pc, [pm]) > l1, "projected loss follows attack_delay")
 	# the codex and the tap-to-inspect text name both speeds
 	check(Codex.speed_text(DB.mobs.crab) == "moves fast", "crab codex: moves fast (%s)" % Codex.speed_text(DB.mobs.crab))
 	check(Codex.speed_text(DB.mobs.monk) == "attacks twice a turn", "monk codex: attacks twice a turn (%s)" % Codex.speed_text(DB.mobs.monk))

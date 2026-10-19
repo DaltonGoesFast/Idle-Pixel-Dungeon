@@ -478,7 +478,7 @@ static func cloak_reason(c: Combat, es: Array) -> String:
 	return ""
 
 ## HP the hero would lose finishing this fight with plain swings (no cloak, no Surprise): foes die quickest-first,
-## and each one hits back (its damage minus our DR) every `delay` ticks until it dies. Deterministic, like the combat.
+## and each one hits back (its damage minus our DR) every `attack_delay` ticks until it dies. Deterministic, like the combat.
 static func projected_loss(c: Combat, es: Array) -> int:
 	var h: Dictionary = c.hero
 	var foes := []
@@ -486,7 +486,7 @@ static func projected_loss(c: Combat, es: Array) -> int:
 		if e.get("boss", false) or e.get("fist", false): continue
 		var d := float(maxi(0, int(h.dmg) - int(e.dr))) * minf(1.0, float(h.get("acc", 1.0)))
 		var hits := 8 if (d <= 0.0 or e.get("evade_unless_surprise", false)) else mini(8, int(ceil(float(e.hp) / d)))
-		var per := float(maxi(0, int(e.dmg) - int(h.dr))) / maxf(0.25, float(e.get("delay", 1.0)))
+		var per := float(maxi(0, int(e.dmg) - int(h.dr))) / maxf(0.25, Combat.attack_delay(e) if e.has("delay") else 1.0)   # bites, not steps (#215)
 		foes.append([float(hits) * float(h.delay), per])
 	foes.sort_custom(func(a, b): return a[0] < b[0])
 	var t := 0.0; var loss := 0.0
