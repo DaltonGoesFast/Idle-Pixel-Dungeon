@@ -140,6 +140,7 @@ func from_dict(d: Dictionary) -> void:
 		if x.has("aim"): x.aim = Vector2i(int(x.aim[0]), int(x.aim[1])) if x.aim is Array else x.aim
 		units.append(x)
 		if x.has("hero"): hero = x
+	_fix_cloak()
 	danger = []
 	for e in d.danger:
 		var y: Dictionary = e.duplicate(); y.pos = Vector2i(int(e.pos[0]), int(e.pos[1])); y.dmg = int(e.dmg); y.uid = int(e.uid); danger.append(y)
@@ -496,7 +497,8 @@ func apply_fx(fx: Dictionary) -> void:
 	if fx.has("frozen"): hero.next = float(hero.next) + float(fx.frozen); _log("You can't move yet!")
 	if fx.has("recharge"):
 		if not hero.bolt.is_empty() and not hero.bolt.get("infinite", false): hero.charges = int(hero.charges) + int(fx.recharge)
-		if not hero.cloak.is_empty(): hero.cloak_charges = int(hero.cloak_charges) + int(fx.recharge)
+		# a cloak charge like any other: never above the cap, kept until spent (DECISIONS #211)
+		if not hero.cloak.is_empty(): hero.cloak_charges = mini(int(hero.cloak_charges) + int(fx.recharge), maxi(int(hero.cloak_charges), int(hero.get("cloak_cap", 0))))
 	if fx.has("sleep"):
 		for e in foes: e.next = float(e.next) + float(fx.sleep)
 		_log("Your foes are drowsy.")
@@ -878,6 +880,17 @@ func hero_slam() -> bool:
 		if e.hp > 0: knockback(e, e.pos - hero.pos)
 	_end_hero_turn(1.5)
 	return true
+
+## A fight saved before DECISIONS #206 has no cloak_cap and may hold the old bonus charges (an Assassin's 4/3):
+## give it the class cap and clamp the charges to it (#211).
+func _fix_cloak() -> void:
+	if hero.get("cloak", {}).is_empty(): return
+	if int(hero.get("cloak_cap", 0)) <= 0:
+		var cap := 0
+		for k in DB.heroes:
+			cap = maxi(cap, int(DB.heroes[k].get("cloak_charges", 0)))
+		hero.cloak_cap = cap
+	hero.cloak_charges = clampi(int(hero.get("cloak_charges", 0)), 0, int(hero.cloak_cap))
 
 ## Rogue: Cloak of Shadows. Enemies lose track of you; your next attack is a Surprise.
 func hero_cloak() -> bool:
