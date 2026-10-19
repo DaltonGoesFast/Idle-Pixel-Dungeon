@@ -127,6 +127,7 @@ func _ready() -> void:
 	await test_tips_on_top(gs)
 	await test_hero_window_wide(gs)
 	test_web_no_dev_tools(gs)
+	await test_wipe_save_confirm(gs)
 	await test_telemetry(gs)
 	print("TESTS: %d passed, %d failed -> %s" % [passes, fails, "PASS" if fails == 0 else "FAIL"])
 	get_tree().quit(1 if fails else 0)
@@ -1463,7 +1464,7 @@ func test_weapons(gs) -> void:
 	var sn = csn.enemies()[0]; var landed := []
 	for i in 4:
 		sn.seen_hero = true; sn.pos = Vector2i(2, 1); sn.next = 999.0; var b := int(sn.hp); csn.hero_tap(sn.pos); landed.append(b != int(sn.hp))
-	check(landed == [false, false, false, true], "a Mace (28% accurate) lands every 4th swing on an alert snake (%s)" % [landed])
+	check(landed == [false, false, false, true], "a Mace (28%% accurate) lands every 4th swing on an alert snake (%s)" % [landed])
 	var css := _wfight(_wstats(gs, "warrior", "sword"), ["#####", "#H1.#", "#####"], ["snake"])
 	var sn2 = css.enemies()[0]; var any := false
 	for i in 6:
@@ -1478,7 +1479,11 @@ func test_weapons(gs) -> void:
 	check(ml.contains("tier-3 melee weapon deals 3-16 damage") and ml.contains("requires 14 strength") and ml.contains("rather accurate") and not ml.contains("slow") and ml.contains("inadequate strength"), "Mace window: SPD tier/damage/strength line, accurate, not slow")
 	var sl := "\n".join(Weapons.info_lines("spear", 0, true))
 	check(sl.contains("rather slow weapon") and sl.contains("extra reach") and sl.contains("reach 2 tiles") and sl.contains("1.5 ticks"), "Spear window: slow, extra reach (2 tiles, 1.5 ticks)")
-	check("\n".join(Weapons.info_lines("whip", 0, true)).contains("tremendous reach") and "\n".join(Weapons.info_lines("round_shield", 1, true)).contains("blocks 0-4 damage. This blocking scales"), "Whip and Round Shield windows use SPD's lines")
+	check("\n".join(Weapons.info_lines("whip", 0, true)).contains("tremendous reach") and "\n".join(Weapons.info_lines("round_shield", 0, true)).contains("blocks 0-4 damage. This blocking scales"), "Whip and Round Shield windows use SPD's lines")
+	# the block range is the one the weapon has at its level, matching the +DR in brackets (SPD statsInfo: 4 + lvl, 6 + 2 * lvl)
+	var rs1 := "\n".join(Weapons.info_lines("round_shield", 1, true)); var gs2 := "\n".join(Weapons.info_lines("greatshield", 2, true))
+	check(rs1.contains("blocks 0-5 damage.") and rs1.contains("+3 DR") and gs2.contains("blocks 0-10 damage.") and gs2.contains("+5 DR"), "a +1 Round Shield's window says 0-5 (+3 DR), a +2 Greatshield's 0-10 (+5 DR)")
+	check("\n".join(Weapons.info_lines("round_shield", 3, false)).contains("blocks 0-4 damage.") and "\n".join(Weapons.info_lines("katana", 2, true)).contains("blocks 0-3 damage."), "an unidentified shield shows the +0 range; the Katana's block doesn't scale")
 	check(Codex.item_line("glaive").contains("reach 2") and Codex.item_line("glaive").contains("1.5 ticks"), "the codex line shows reach and speed")
 	# saves: a fight in progress keeps the weapon's reach; an old fight without it falls back to reach 1
 	var sv := _wfight(_wstats(gs, "warrior", "spear"), room, ["rat"])
@@ -4794,7 +4799,84 @@ func test_web_no_dev_tools(gs) -> void:
 	for c in v.get_children():
 		if c is Label and String(c.text).begins_with("Art, sounds and music"): credits = true
 	check(credits, "web dev tools: the GPL credits line still shows")
+	check(SP.has_wipe_button(v), "web dev tools: Wipe save data stays in main Settings")
 	v.free(); gs.settings.dev_tools = had
+
+## DECISIONS #212: Wipe save data lives in main Settings on every platform, with a confirm.
+## Cancel keeps the save; Wipe deletes it. The anonymous telemetry id is kept. No wipe in Developer.
+func test_wipe_save_confirm(gs) -> void:
+	print("[wipe save confirm]")
+	var SP: GDScript = load("res://scripts/ui/settings_panel.gd")
+	gs.new_game(); gs.settings.tutorial = false; gs.settings.dev_tools = false
+	gs.add_mat("gold", 50); gs.add_mat("iron_ore", 3)
+	var gold0: int = int(gs.mat("gold"))
+	# Visible on a normal Settings build (Camp / non-web path with show_dev).
+	var v := VBoxContainer.new(); SP.build(v, true)
+	check(SP.has_wipe_button(v), "wipe: Wipe save data is in main Settings")
+	var credits := false; var dev_wipe := false
+	for c in v.get_children():
+		if c is Label and String(c.text).begins_with("Art, sounds and music"): credits = true
+		if c is Button and String(c.text) == "Wipe save (new game)": dev_wipe = true
+	check(credits, "wipe: credits still sit under the Wipe button")
+	check(not dev_wipe, "wipe: Developer no longer has Wipe save (new game)")
+	# Also when show_dev is false (delve Settings / simulating the web-hidden Developer path).
+	v.free()
+	v = VBoxContainer.new(); SP.build(v, false)
+	check(SP.has_wipe_button(v), "wipe: Wipe save data shows with show_dev=false (delve / no Developer)")
+	credits = false
+	for c in v.get_children():
+		if c is Label and String(c.text).begins_with("Art, sounds and music"): credits = true
+	check(credits, "wipe: credits show with show_dev=false too")
+	# Cancel keeps the save.
+	SP.show_wipe_confirm(v, false)
+	check(SP.is_wipe_confirm(v), "wipe: confirm has title, Wipe and Cancel")
+	var cancel: Button = null
+	for c in v.get_children():
+		if c is Button and String(c.text) == SP.WIPE_CANCEL: cancel = c
+	check(cancel != null, "wipe: Cancel button present")
+	cancel.pressed.emit()
+	await get_tree().process_frame
+	check(SP.has_wipe_button(v), "wipe: Cancel rebuilds Settings")
+	check(gs.mat("gold") == gold0, "wipe: Cancel keeps gold (%d)" % gs.mat("gold"))
+	# Cancel with on_rebuild (delve Settings) restores the host Close button path.
+	var rebuilt := [false]
+	SP.show_wipe_confirm(v, false, Callable(), func(): rebuilt[0] = true; UIKit.clear(v); SP.build(v, false); v.add_child(UIKit.button("Close", func(): pass)))
+	var cancel2: Button = null
+	for c in v.get_children():
+		if c is Button and String(c.text) == SP.WIPE_CANCEL: cancel2 = c
+	cancel2.pressed.emit()
+	await get_tree().process_frame
+	check(rebuilt[0], "wipe: Cancel with on_rebuild invokes the host rebuild")
+	var close_ok := false
+	for c in v.get_children():
+		if c is Button and String(c.text) == "Close": close_ok = true
+	check(close_ok and SP.has_wipe_button(v), "wipe: Cancel restores Settings and Close")
+	# Confirm wipes.
+	gs.add_mat("gold", 100)
+	var tel_before := Telemetry.distinct_id
+	SP.show_wipe_confirm(v, false)
+	var wipe_btn: Button = null
+	for c in v.get_children():
+		if c is Button and String(c.text) == SP.WIPE_CONFIRM: wipe_btn = c
+	check(wipe_btn != null, "wipe: Wipe button present")
+	wipe_btn.pressed.emit()
+	await get_tree().process_frame
+	check(gs.mat("gold") == 30, "wipe: Wipe resets to a new game (starter gold 30, got %d)" % gs.mat("gold"))
+	check(gs.run.is_empty(), "wipe: no run after Wipe")
+	check(Telemetry.distinct_id == tel_before, "wipe: anonymous telemetry id is kept")
+	# Developer section still has no wipe when opened.
+	gs.settings.dev_tools = true
+	v.free()
+	v = VBoxContainer.new(); SP.build(v, true)
+	dev_wipe = false
+	var in_dev := false
+	for c in v.get_children():
+		if c is Label and String(c.text) == "Developer": in_dev = true
+		if c is Button and String(c.text) == "Wipe save (new game)": dev_wipe = true
+	check(in_dev == SP.dev_tools_allowed(), "wipe: Developer header only off the web")
+	check(not dev_wipe, "wipe: no Wipe save (new game) even with Developer shown")
+	check(SP.has_wipe_button(v), "wipe: main Wipe save data still present with Developer shown")
+	v.free(); gs.settings.dev_tools = false
 
 func test_telemetry(gs) -> void:
 	print("[telemetry]")

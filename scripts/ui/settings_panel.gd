@@ -6,12 +6,20 @@ extends RefCounted
 const TEXT_SIZES := [["Small", 0.85], ["Normal", 1.0], ["Large", 1.15], ["Huge", 1.3]]
 const DELVE_SPEEDS := [["Slow", 0.5], ["Normal", 1.0], ["Fast", 1.5], ["Faster", 2.0]]
 
-## The Developer section (cheats, timer skip, wipe save) is left out of the browser build (DECISIONS #199).
-## Android, Windows and source/editor runs keep it. A saved dev_tools=true is ignored on web.
+const WIPE_BTN := "Wipe save data"
+const WIPE_TITLE := "Wipe save data?"
+const WIPE_BODY := "All progress — heroes, camp, gear, milestones — will be permanently deleted. This can't be undone."
+const WIPE_CONFIRM := "Wipe"
+const WIPE_CANCEL := "Cancel"
+const CREDITS := "Art, sounds and music: Shattered Pixel Dungeon by Evan Debenham (GPL-3.0). This game is GPL-3.0. See CREDITS.md."
+
+## The Developer section (cheats, timer skip) is left out of the browser build (DECISIONS #199).
+## Wipe save data is always in the main Settings list, with a confirm (DECISIONS #212).
+## Android, Windows and source/editor runs keep Developer tools. A saved dev_tools=true is ignored on web.
 static func dev_tools_allowed(is_web: bool = OS.has_feature("web")) -> bool:
 	return not is_web
 
-static func build(v: VBoxContainer, show_dev := true) -> void:
+static func build(v: VBoxContainer, show_dev := true, on_wiped: Callable = Callable(), on_rebuild: Callable = Callable()) -> void:
 	v.add_child(UIKit.label("SPD Tactics " + UIKit.version(), 0.8, Color("c9a96e")))
 	_build_update(v)
 	v.add_child(UIKit.header("Audio"))
@@ -55,21 +63,55 @@ static func build(v: VBoxContainer, show_dev := true) -> void:
 		GameState.set_setting("tutorial", not tut); SaveSystem.save_game(); GameState.touch()))
 	v.add_child(UIKit.button("Replay the tutorial tips", func():
 		GameState.tutorial_done.clear(); GameState.settings.tutorial = true; SaveSystem.save_game(); GameState.touch()))
-	if not show_dev: return
-	var dev: bool = dev_tools_allowed() and GameState.settings.get("dev_tools", false)
-	if dev_tools_allowed(): v.add_child(UIKit.button("Developer tools: %s" % ("shown" if dev else "hidden"), func():
-		GameState.set_setting("dev_tools", not dev); GameState.touch()))
-	if dev:
-		v.add_child(UIKit.header("Developer"))
-		v.add_child(UIKit.button("Unlock all heroes", func():
-			for c in GameState.heroes: GameState.heroes[c].unlocked = true
-			GameState.touch()))
-		v.add_child(UIKit.button("+100 gold, +10 of every material", func():
-			for k in ["gold", "iron_ore", "dark_gold", "seeds", "arcane_resin", "iron_key", "ration", "torch", "potion_healing", "scroll_passage", "scroll_upgrade"]: GameState.add_mat(k, 100 if k == "gold" else 10)
-			GameState.touch()))
-		v.add_child(UIKit.button("Fast-forward 1 hour (timers)", func(): GameState.time_offset += 3600; GameState.tick_identify(); GameState.touch()))
-		v.add_child(UIKit.button("Wipe save (new game)", func(): SaveSystem.wipe()))
-	v.add_child(UIKit.label("Art, sounds and music: Shattered Pixel Dungeon by Evan Debenham (GPL-3.0). This game is GPL-3.0. See CREDITS.md.", 0.75, Color("9a8f7c")))
+	if show_dev and dev_tools_allowed():
+		var dev: bool = GameState.settings.get("dev_tools", false)
+		v.add_child(UIKit.button("Developer tools: %s" % ("shown" if dev else "hidden"), func():
+			GameState.set_setting("dev_tools", not dev); GameState.touch()))
+		if dev:
+			v.add_child(UIKit.header("Developer"))
+			v.add_child(UIKit.button("Unlock all heroes", func():
+				for c in GameState.heroes: GameState.heroes[c].unlocked = true
+				GameState.touch()))
+			v.add_child(UIKit.button("+100 gold, +10 of every material", func():
+				for k in ["gold", "iron_ore", "dark_gold", "seeds", "arcane_resin", "iron_key", "ration", "torch", "potion_healing", "scroll_passage", "scroll_upgrade"]: GameState.add_mat(k, 100 if k == "gold" else 10)
+				GameState.touch()))
+			v.add_child(UIKit.button("Fast-forward 1 hour (timers)", func(): GameState.time_offset += 3600; GameState.tick_identify(); GameState.touch()))
+	# Wipe is always in the main Settings list (every platform, Camp and delve), above the credits (DECISIONS #212).
+	v.add_child(UIKit.button(WIPE_BTN, func(): show_wipe_confirm(v, show_dev, on_wiped, on_rebuild)))
+	v.add_child(UIKit.label(CREDITS, 0.75, Color("9a8f7c")))
+
+## SPD-style confirm: title, body, Wipe / Cancel. Cancel rebuilds Settings (and any host Close button via on_rebuild); Wipe deletes the save.
+static func show_wipe_confirm(v: VBoxContainer, show_dev := true, on_wiped: Callable = Callable(), on_rebuild: Callable = Callable()) -> void:
+	UIKit.clear(v)
+	v.add_child(UIKit.header(WIPE_TITLE))
+	v.add_child(UIKit.label(WIPE_BODY))
+	v.add_child(UIKit.button(WIPE_CONFIRM, func(): _do_wipe(on_wiped)))
+	v.add_child(UIKit.secondary(UIKit.button(WIPE_CANCEL, func():
+		if on_rebuild.is_valid():
+			on_rebuild.call()
+		else:
+			UIKit.clear(v); build(v, show_dev, on_wiped, on_rebuild))))
+
+static func _do_wipe(on_wiped: Callable = Callable()) -> void:
+	# Optional telemetry: anonymous id in user://telemetry.cfg is kept (SaveSystem.wipe only clears save.json).
+	Telemetry.track("save_wiped", {})
+	SaveSystem.wipe()
+	if on_wiped.is_valid(): on_wiped.call()
+
+## True when the built panel has the main Wipe save data button (not the confirm).
+static func has_wipe_button(v: Node) -> bool:
+	for c in v.get_children():
+		if c is Button and String(c.text) == WIPE_BTN: return true
+	return false
+
+## True when the panel is showing the wipe confirm (title + Wipe + Cancel).
+static func is_wipe_confirm(v: Node) -> bool:
+	var title := false; var wipe := false; var cancel := false
+	for c in v.get_children():
+		if c is Label and String(c.text) == WIPE_TITLE: title = true
+		elif c is Button and String(c.text) == WIPE_CONFIRM: wipe = true
+		elif c is Button and String(c.text) == WIPE_CANCEL: cancel = true
+	return title and wipe and cancel
 
 ## Update section (Android / Windows).
 static func _build_update(v: VBoxContainer) -> void:
