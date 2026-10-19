@@ -227,14 +227,14 @@ func hero_stats(c: String) -> Dictionary:
 		s.bolt = {"dmg": (1 + lv / 5 + 6 + int(lv / 2.5)) / 2, "charges": 0, "infinite": true, "recharge": 0,
 			"name": "the Spirit Bow", "magic": false}
 	if "cloak" in def.abilities:
-		s.cloak = {"charges": int(def.cloak_charges), "ticks": float(def.cloak_ticks)}
+		# charges carry across the expedition (DECISIONS #206): a fight starts with what the run has left
+		s.cloak = {"charges": cloak_charges(c), "cap": cloak_cap(c), "ticks": float(def.cloak_ticks)}
 	# Talents (DECISIONS #66): flat modifiers, picked by level
 	for tid in h.get("talents", []):
 		var td := talent_def(c, tid)
 		s.ht += int(td.get("ht_add", 0)); s.dmg += int(td.get("dmg_add", 0)); s.dr += int(td.get("dr_add", 0))
 		s.barrier_max += int(td.get("barrier_add", 0)); s.search_radius += int(td.get("search_add", 0))
 		s.surprise_mult += float(td.get("surprise_add", 0.0)); s.potion_add = float(s.get("potion_add", 0.0)) + float(td.get("potion_add", 0.0))
-		if s.has("cloak"): s.cloak.charges += int(td.get("cloak_add", 0))
 		if s.has("bolt"):
 			s.bolt.dmg += int(td.get("bolt_add", 0))
 			if not s.bolt.get("infinite", false): s.bolt.charges += int(td.get("charges_add", 0))
@@ -246,13 +246,48 @@ func hero_stats(c: String) -> Dictionary:
 		s.sub = String(h.subclass); s.perk = sub.get("perk", ""); s.sub_name = sub.name
 		s.dr += int(sub.get("dr_add", 0)); s.barrier_max += int(sub.get("barrier_add", 0))
 		s.surprise_mult += float(sub.get("surprise_add", 0.0)); s.delay *= float(sub.get("delay_mult", 1.0))
-		if s.has("cloak"): s.cloak.charges += int(sub.get("cloak_add", 0))
 		if s.has("bolt"):
 			s.bolt.dmg += int(sub.get("bolt_add", 0))
 			if sub.get("bolt_pierce", false): s.bolt.pierce = true
 	# SPD-like cap (DECISIONS #147): encounter Barrier never exceeds half of max HP
 	s.barrier_max = mini(int(s.barrier_max), int(s.ht) / 2)
 	return s
+
+# ---------------------------------------------------------------- Cloak of Shadows (DECISIONS #206)
+## SPD CloakOfShadows at +0: chargeCap 3 for the whole dungeon, about 45 turns per charge back. Here the charges
+## live on the run, a cleared fight gives 1 back (the closest unit to SPD's ~45 turns between encounters), and
+## a new expedition starts full. Mystical Meal (SPD Rogue T2) gives 1 more when a ration is eaten.
+const CLOAK_RECHARGE_PER_FIGHT := 1
+const CLOAK_MEAL_CHARGE := 1
+
+func cloak_cap(c: String) -> int:
+	return int(DB.heroes.get(c, {}).get("cloak_charges", 0))
+
+## Charges left: the run's pool while this hero is delving, otherwise a full cloak.
+func cloak_charges(c: String) -> int:
+	var cap := cloak_cap(c)
+	if run.is_empty() or String(run.get("hero", "")) != c: return cap
+	return clampi(int(run.get("cloak_charges", cap)), 0, cap)
+
+## After a won fight: keep what is left (capped; a Scroll of Recharging's extra charge is only for that fight),
+## then recharge. Returns the charges gained.
+func cloak_after_fight(left: int) -> int:
+	if run.is_empty(): return 0
+	var c := String(run.hero); var cap := cloak_cap(c)
+	if cap <= 0: return 0
+	var kept := clampi(left, 0, cap)
+	run.cloak_charges = mini(cap, kept + CLOAK_RECHARGE_PER_FIGHT)
+	return int(run.cloak_charges) - kept
+
+## Mystical Meal: eating a ration restores a cloak charge.
+func _mystical_meal() -> void:
+	if run.is_empty(): return
+	var c := String(run.hero)
+	if not ("mystical_meal" in heroes[c].get("talents", [])): return
+	var have := cloak_charges(c)
+	if have >= cloak_cap(c): return
+	run.cloak_charges = mini(cloak_cap(c), have + CLOAK_MEAL_CHARGE)
+	say("Mystical Meal: the Cloak of Shadows recharges (%d/%d)." % [run.cloak_charges, cloak_cap(c)], "positive")
 
 # ---------------------------------------------------------------- talents (SPD-style tiers, DECISIONS #66)
 func talent_def(c: String, tid: String) -> Dictionary:
@@ -519,7 +554,7 @@ func delve_use(k: String) -> bool:
 			run.hp = mini(ht, int(run.hp) + potion_heal(run.hero)); say("Drank a Potion of Healing."); add_stat("potions_drunk", 1)
 		"ration":
 			if float(run.satiety) >= 90.0: return false
-			run.satiety = minf(100.0, float(run.satiety) + 60.0); say("Ate a ration."); add_stat("rations_eaten", 1)
+			run.satiety = minf(100.0, float(run.satiety) + 60.0); say("Ate a ration."); add_stat("rations_eaten", 1); _mystical_meal()
 		"torch":
 			if float(run.torch) >= 90.0: return false
 			run.torch = minf(100.0, float(run.torch) + 60.0); say("Lit a fresh torch.")
@@ -1646,6 +1681,7 @@ func start_run(c: String, loadout: Dictionary, biome := "sewers", seed := -1) ->
 		"hp": s.ht, "pack": {}, "pack_gear": [], "supplies": sup, "seed": seed if seed >= 0 else int(now()) % 100000,
 		"events": [], "next_event": 0, "gather": 0, "starve": 0, "milestones_done": [], "pending_loot": 0, "boss_dead": false,
 		"haul": {}}
+	if cloak_cap(c) > 0: run.cloak_charges = cloak_cap(c)   # a fresh expedition starts with a full cloak (DECISIONS #206)
 	stats.runs += 1; note_floor(f0)
 	var team := {}
 	for hc in heroes:
@@ -1966,6 +2002,9 @@ func _fix_types() -> void:
 		if not h.has("str_found"): h.str_found = []   # saves before #129: past potions unknown, Str kept as is
 		h.str_found = Array(h.str_found)
 		for k in ["level", "xp", "str", "weapon", "armor", "ring", "artifact"]: h[k] = int(h[k])
+		# Mystical Upgrade (+1 cloak charge, not in SPD) became SPD's Mystical Meal (DECISIONS #206)
+		if h.has("talents"):
+			h.talents = Array(h.talents).map(func(t): return "mystical_meal" if String(t) == "mystical_upgrade" else String(t))
 		if h.level > MAX_LEVEL: h.level = MAX_LEVEL; h.xp = 0   # saves from before the cap
 		# a start ahead of the clock (fast-forward that was not saved) stays at 0% until that gap passes
 		var p: Dictionary = h.get("patrol", {})
@@ -1981,6 +2020,9 @@ func _fix_types() -> void:
 		for k in RUN_DEFAULTS:
 			if not run.has(k): run[k] = RUN_DEFAULTS[k].duplicate(true) if RUN_DEFAULTS[k] is Array or RUN_DEFAULTS[k] is Dictionary else RUN_DEFAULTS[k]
 		for k in ["floor", "next_event", "gather", "starve", "seed", "hp", "pending_loot"]: run[k] = int(run.get(k, 0))
+		# runs saved before persistent cloak charges (DECISIONS #206) carry a full cloak
+		if heroes.has(String(run.get("hero", ""))) and cloak_cap(String(run.hero)) > 0:
+			run.cloak_charges = clampi(int(run.get("cloak_charges", cloak_cap(String(run.hero)))), 0, cloak_cap(String(run.hero)))
 		if DB.biomes.has(run.get("biome", "")):   # a save can never show "Floor 25 / 5": keep floor inside its biome
 			var fr: Array = DB.biomes[run.biome].floors; run.floor = clampi(int(run.floor), int(fr[0]), int(fr[1]))
 		for k in run.pack: run.pack[k] = int(run.pack[k])

@@ -367,6 +367,12 @@ func _ready() -> void:
 			# event_result left its result window open on the reused delve screen; close it so it doesn't cover the bag
 			if main.delve != null and is_instance_valid(main.delve): main.delve._accept_summary()
 			main.show_delve(); main.delve._open_panel("backpack"); _scroll_to_doll.call_deferred()])
+		# DECISIONS #206: the Rogue's cloak charges last the expedition - "Cloak 2/3" on the Brought row and the fight's Cloak button
+		plan.append([sz, "cloak_delve", func():
+			if main.delve != null and is_instance_valid(main.delve): main.delve._close_panel()
+			GameState.run.cloak_charges = 2; main.show_delve(); _clear_pops(); main.delve.running = false])
+		plan.append([sz, "cloak_combat", func():
+			main.start_combat({"kind": "combat", "room": DB.rooms[0], "mobs": ["skeleton"]}, func(_r): pass)])
 		plan.append([sz, "hero_swap_camp", func():
 			GameState.end_run("abandon"); _rogue_swap_camp(); Paperdoll.sel_slot = "artifact"
 			main.show_camp(); main.screen.chosen_hero = "rogue"; main.screen.open_page("Heroes")])
