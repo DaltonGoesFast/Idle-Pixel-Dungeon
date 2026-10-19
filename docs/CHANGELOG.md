@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Iron Ore now has its own silver-grey ore icon instead of a darker, olive copy of the Dark Gold sprite, so it no longer looks like gold anywhere (Stash, Forge, Victory drops, pickups). The ore pickup icon in the delve used to show plain Dark Gold; it shows Iron Ore now too (DECISIONS #216, +test).
 - Using a potion, scroll, ration or torch from the Backpack now shows what happened in a small pop-up over the Bag (the item's sprite and name, the effect, and any milestone it reached), with OK or a tap outside to close it, instead of printing at the top of the Bag window where it was out of sight once you had scrolled down. The Bag stays open underneath. A Potion of Healing now says how much it healed, and a use that can't happen says why (full health, not hungry, torch still bright) instead of doing nothing (DECISIONS #214, +test).
 - The Cell Block room's thief stands in front of the prison cells again. Since the cells are drawn whole, he was drawn behind their bars, as if locked in (DECISIONS #213, +test).
 - The blue Barrier on the small HP bar over the hero stays blue with many segments. Against weak foes it splits into 9-10 segments only 3-4 pixels wide on a phone, and the dark dividers between them were 2-3 pixels, so the bar looked like dark stripes. Dividers are now at most a third of a segment wide (at least 1 pixel); the segment count is unchanged (DECISIONS #210, +tests).

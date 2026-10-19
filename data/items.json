@@ -596,8 +596,7 @@
   },
   "iron_ore": {
    "name": "Iron Ore",
-   "icon": "ORE",
-   "tint": "#a0a8b8"
+   "icon": "IRON_ORE"
   },
   "dark_gold": {
    "name": "Dark Gold",
