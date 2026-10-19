@@ -51,7 +51,7 @@ func _ready() -> void:
 ## (input_devices/pointing/emulate_mouse_from_touch), so the raw touch only counts when that is off; otherwise
 ## one tap would close twice and click twice (Bugbot on #109).
 func _gui_input(e: InputEvent) -> void:
-	var tap := e is InputEventMouseButton and e.button_index == MOUSE_BUTTON_LEFT and e.pressed
+	var tap: bool = e is InputEventMouseButton and e.button_index == MOUSE_BUTTON_LEFT and e.pressed
 	if e is InputEventScreenTouch and e.pressed and not ProjectSettings.get_setting("input_devices/pointing/emulate_mouse_from_touch", true):
 		tap = true
 	if tap:
