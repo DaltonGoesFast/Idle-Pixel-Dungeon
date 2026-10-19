@@ -87,7 +87,7 @@
   "cloak_ticks": 2.0,
   "unlocked_by_default": false,
   "unlock": "Reach floor 4 of the Sewers with any hero.",
-  "desc": "Stealth & assassination. Cloak of Shadows (3 charges for the whole expedition, 1 back per cleared fight) hides you for 2 ticks: enemies lose track and your next hit is a Surprise (dagger x2). Keen eyes: spots hidden traps next to her as she moves and searches wider.",
+  "desc": "Stealth & assassination. Cloak of Shadows (3 charges for the whole expedition, 1 back per cleared fight) hides you for 2 ticks: enemies lose track and your next hit is a Surprise (x1.5, more with a dagger). Keen eyes: spots hidden traps next to her as she moves and searches wider.",
   "search_radius": 2,
   "keen_eyes": true,
   "unlock_rule": {
@@ -97,7 +97,7 @@
   "subclasses": {
    "assassin": {
     "name": "Assassin",
-    "desc": "Surprise attacks deal +1x more (dagger x3).",
+    "desc": "Surprise attacks deal +1x more (x2.5 instead of x1.5).",
     "surprise_add": 1.0
    },
    "freerunner": {

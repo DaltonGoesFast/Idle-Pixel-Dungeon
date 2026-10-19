@@ -142,7 +142,7 @@ func _refresh() -> void:
 	pane.set_data({"name": h.name, "level": lvl, "hp": h.hp, "ht": h.ht, "shield": h.barrier, "buffs": bl,
 		"depth": ("F%d" % int(run.get("floor", 1))) if not run.is_empty() else "",
 		"danger": combat.enemies().filter(func(e): return e.hp > 0).size(), "minis": minis})
-	var line := "DR %d  Dmg %d   t=%.1f" % [h.dr, h.dmg, combat.time]
+	var line := "DR %d  Dmg %d%s   t=%.1f" % [h.dr, h.dmg, ("  Reach %d" % int(h.reach)) if int(h.get("reach", 1)) > 1 else "", combat.time]
 	if not h.bolt.is_empty():
 		if h.bolt.get("infinite", false): line += "\nTap any tile in range to shoot %s (%d dmg; it passes tall grass)" % [h.bolt.name, h.bolt.dmg]
 		else: line += "\nStaff charges %d/%d (%s, %d dmg, ignores DR)" % [h.charges, h.bolt.charges, h.bolt.name, h.bolt.dmg]
@@ -264,7 +264,7 @@ func _refresh_log() -> void:
 func _on_cell(c: Vector2i) -> void:
 	if finished: return
 	var u = combat.unit_at(c)
-	if u != null and u != combat.hero and Combat.cheb(c, combat.hero.pos) > 1 and not combat.can_bolt(c):
+	if u != null and u != combat.hero and Combat.cheb(c, combat.hero.pos) > 1 and not combat.can_bolt(c) and not combat.can_melee(u):
 		_inspect(u); return
 	if u == null and combat.visible_trap(c) and Combat.cheb(c, combat.hero.pos) > 1:
 		var tr: Dictionary = DB.traps[combat.traps[c].id]

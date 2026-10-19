@@ -1,7 +1,7 @@
 ## CombatBot: a "sensible tactics" player used by tests, balance sims and the in-game Hint button.
 ## Priorities: dodge telegraphs > heal when low > chasm shove > slam a crowd >
-## a Surprise that can land this turn (adjacent melee, or a Spirit Bow shot) >
-## cloak > attack weakest adjacent > bolt > approach.
+## a Surprise that can land this turn (a melee swing in reach, or a Spirit Bow shot) >
+## cloak > attack the weakest foe in reach > bolt > approach. Reach weapons (Spear, Glaive, Whip) swing from 2-3 tiles.
 class_name CombatBot
 extends RefCounted
 
@@ -72,6 +72,8 @@ static func suggest(c: Combat, potions := 0, heal_amount := 10) -> Dictionary:
 	if potions > 0 and h.hp <= maxi(7, maxi(threat * 2, blast)) and h.hp + heal_amount <= h.ht + 4:
 		return {"act": "heal", "why": "low HP - drink a potion"}
 	var adj := es.filter(func(e): return Combat.cheb(e.pos, h.pos) == 1)
+	# foes the weapon reaches this turn: adjacent, or 2-3 tiles for a Spear, Glaive or Whip (DECISIONS #207)
+	var reach_l := es.filter(func(e): return c.can_melee(e))
 	# 3. shove adjacent enemy into a chasm (or onto a known trap)
 	if "shove" in h.abilities:
 		for e in adj:
@@ -87,16 +89,16 @@ static func suggest(c: Combat, potions := 0, heal_amount := 10) -> Dictionary:
 			return {"act": "slam", "why": "slam the crowd"}
 	# 3a2. A Surprise that can land this turn beats a normal swing: x surprise_mult, no DR, knockback.
 	# Cash it before cloaking or clearing someone else — the window closes once they see you.
-	var sur_hit := _surprise_strike(c, adj)
+	var sur_hit := _surprise_strike(c, reach_l)
 	if not sur_hit.is_empty(): return sur_hit
-	if adj.is_empty():
+	if reach_l.is_empty():
 		var sur_shot := _surprise_shot(c, es)
 		if not sur_shot.is_empty(): return sur_shot
 	# 3b. rogue: cloak when swarmed or hurt, then strike from the shadows
-	if "cloak" in h.abilities and int(h.cloak_charges) > 0 and not c.hidden() and (adj.size() >= 2 or (adj.size() == 1 and _hits_to_kill(c, adj[0]) >= 2)):
+	if "cloak" in h.abilities and int(h.cloak_charges) > 0 and not c.hidden() and not h.get("no_surprise", false) and (adj.size() >= 2 or (adj.size() == 1 and _hits_to_kill(c, adj[0]) >= 2)):
 		return {"act": "cloak", "why": "cloak, then strike with a Surprise"}
 	# 3c. No Surprise ready: clear non-snake threats, then SPD door/grass setups for snakes
-	var hittable_now := adj.filter(func(e): return not e.get("evade_unless_surprise", false) or c.surprise_against(e))
+	var hittable_now := reach_l.filter(func(e): return not e.get("evade_unless_surprise", false) or c.surprise_against(e))
 	var non_snake_adj := hittable_now.filter(func(e): return not e.get("evade_unless_surprise", false))
 	if not non_snake_adj.is_empty():
 		var tgt0 = non_snake_adj[0]
@@ -134,6 +136,14 @@ static func suggest(c: Combat, potions := 0, heal_amount := 10) -> Dictionary:
 		var melee_rate := float(maxi(0, int(h.dmg) - (int(tgt.dr) if tgt != null else 0))) / float(h.delay)
 		if tgt != null and (adj.is_empty() or tgt.hp <= ranged_net or float(ranged_net) > melee_rate):
 			return {"act": "tap", "pos": tgt.pos, "mode": "bolt", "why": "bolt " + tgt.name}
+	# 4a0. reach weapons: hold still while a foe walks into reach instead of stepping next to it (a free swing, #207)
+	if int(h.get("reach", 1)) > 1 and adj.is_empty() and not c.is_danger(h.pos) and int(h.get("bot_reach_wait", 0)) < REACH_WAIT_CAP:
+		for e in es:
+			var d := Combat.cheb(e.pos, h.pos)
+			if d == int(h.reach) + 1 and c.hero_sees(e) and not e.get("stationary", false) and not e.has("throw_range") \
+					and not e.has("zap_dmg") and not e.has("holds_range") and not e.get("boss", false) and e.get("state", "hunting") == "hunting":
+				h.bot_reach_wait = int(h.get("bot_reach_wait", 0)) + 1
+				return {"act": "wait", "why": "let %s walk into reach" % e.name}
 	# 4a. blind shot (DECISIONS #149): nothing in sight to shoot and nothing adjacent -> shoot where an unseen foe
 	# was last seen (it is often still in that grass). At most 2 arrows per sighting; wands spend 1 charge only
 	# while keeping one in reserve.
@@ -239,7 +249,8 @@ static func _blind_shot(c: Combat, es: Array) -> Dictionary:
 			if c.can_bolt(ls): return {"act": "tap", "pos": ls, "mode": "bolt", "why": "blind shot where %s was last seen" % e.name}
 	return {}
 
-const AMBUSH_CAP := 8   # bot turns per fight spent hiding/waiting for a Surprise before it just fights
+const AMBUSH_CAP := 8
+const REACH_WAIT_CAP := 6   # bot turns per fight spent letting foes walk into a Spear/Glaive/Whip's reach (#207)   # bot turns per fight spent hiding/waiting for a Surprise before it just fights
 
 ## SPD ambush for every class (DECISIONS #177): while every foe can see us, step to the nearest cell none of them can
 ## see (doors, grass, pillars, corners); while one is still hunting our last-seen cell out of sight, wait for it to
@@ -341,6 +352,7 @@ static func _surprise_strike(c: Combat, adj: Array) -> Dictionary:
 	for e in adj:
 		if not c.surprise_against(e): continue
 		var dir: Vector2i = e.pos - c.hero.pos
+		dir = Vector2i(signi(dir.x), signi(dir.y))   # knockback moves 1 tile, even from a reach weapon's 2-3 (#207)
 		var hits := _hits_to_kill(c, e)
 		# Knockback into a chasm finishes anyone the blow itself would not.
 		if hits > 1 and c.tile(e.pos + dir) == Combat.T.CHASM and not e.get("boss", false): hits = 1
@@ -431,11 +443,13 @@ static func _open(c: Combat, p: Vector2i) -> int:
 static func _hits_to_kill(c: Combat, e: Dictionary) -> int:
 	var sur := c.surprise_against(e)
 	if e.get("evade_unless_surprise", false) and not sur: return 99
-	var raw := int(c.hero.dmg)
+	if sur and c.hero.get("no_surprise", false): sur = false
+	var raw := int(c.hero.dmg) + (int(c.hero.get("sur_bonus", 0)) if sur else 0)
 	# A Surprise ignores DR and multiplies; a normal swing does not.
-	var d := int(float(raw) * float(c.hero.surprise_mult)) if sur else maxi(0, raw - int(e.dr))
-	if d <= 0: return 99
-	return int(ceil(float(e.hp) / float(d)))
+	var d := float(int(float(raw) * float(c.hero.surprise_mult))) if sur else float(maxi(0, raw - int(e.dr)))
+	if not c.surprise_against(e): d *= minf(1.0, float(c.hero.get("acc", 1.0)))   # an inaccurate weapon's misses (#207)
+	if d <= 0.0: return 99
+	return int(ceil(float(e.hp) / d))
 
 ## Plays a full fight. Returns {won, turns, hp, potions_used}.
 static func play(c: Combat, potions := 0, heal := 10, max_turns := 300) -> Dictionary:

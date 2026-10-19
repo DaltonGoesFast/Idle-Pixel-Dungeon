@@ -43,7 +43,16 @@ static func mob_biomes(id: String) -> Array:
 static func item_line(id: String) -> String:
 	var it: Dictionary = DB.items[id]
 	match it.type:
-		"weapon": return "tier %d weapon, %d dmg%s, %d Str" % [it.tier, it.dmg, (", %.1f ticks" % it.delay) if float(it.get("delay", 1.0)) != 1.0 else "", it.str]
+		"weapon":   # SPD numbers (DECISIONS #207)
+			var wb := ["tier %d weapon, %d-%d (%d dmg)" % [int(it.tier), Weapons.min_dmg(it, 0), Weapons.max_dmg(it, 0), Weapons.dmg(it, 0)]]
+			if float(it.get("delay", 1.0)) != 1.0: wb.append("%s ticks" % Weapons._num(float(it.delay)))
+			if Weapons.reach(it) > 1: wb.append("reach %d" % Weapons.reach(it))
+			if Weapons.acc(it) != 1.0: wb.append("accurate" if Weapons.acc(it) > 1.0 else "inaccurate")
+			if it.has("block"): wb.append("blocks 0-%d" % Weapons.block_max(it, 0))
+			if it.has("surprise_pct"): wb.append("strong surprise")
+			if it.get("no_surprise", false): wb.append("no surprise")
+			wb.append("%d Str" % int(it.str))
+			return ", ".join(wb)
 		"armor": return "tier %d armor, DR %d, +%d Barrier, %d Str" % [it.tier, it.dr, it.barrier, it.str]
 		"wand": return "wand, bolt %d dmg (ignores DR), %d charges%s%s" % [it.bolt_dmg, it.charges, ", burns grass" if it.get("burns_grass", false) else "", ", chains through water" if it.get("chains_water", false) else ""] + _wand_extra(it)
 		"ring":

@@ -108,6 +108,7 @@ static func stats_panel(c: String, on_talents: Callable) -> Control:
 	g.add_theme_constant_override("h_separation", int(UIKit.font_size * 0.6))
 	var rows := [["HP", str(s.ht)], ["Dmg", str(s.dmg)], ["DR", str(s.dr)], ["Barrier", str(s.barrier_max)],
 		["Speed", "%.1f" % (1.0 / maxf(0.1, float(s.delay))) + "x"], ["Str", str(h.str)], ["XP", "%d/%d" % [h.xp, GameState.xp_to_next(h.level)]], ["Search", str(1 + int(s.get("search_add", 0)))]]
+	if int(s.get("reach", 1)) > 1: rows.append(["Reach", str(int(s.reach))])   # Spear, Glaive, Whip (DECISIONS #207)
 	for r in rows:
 		var kl := UIKit.label(r[0], 0.8, Color("bdb3a0")); kl.autowrap_mode = TextServer.AUTOWRAP_OFF; g.add_child(kl)
 		var vl := UIKit.label(r[1], 0.9); vl.autowrap_mode = TextServer.AUTOWRAP_OFF; g.add_child(vl)
@@ -159,7 +160,9 @@ static func _detail(c: String, s: String, mode: String, refresh: Callable, on_eq
 	if it.has("pseudo"): v.add_child(UIKit.label(it.desc, 0.8))
 	elif not it.is_empty():
 		var d := DB.item(it.id)
-		if it.get("known", true) and d.has("desc"): v.add_child(UIKit.label(d.desc, 0.8))
+		if it.get("known", true) and Weapons.is_weapon(d):   # SPD weapon window text (DECISIONS #207)
+			for wl in Weapons.info_lines(it.id, int(it.get("lvl", 0)), true, int(GameState.heroes[c].str)): v.add_child(UIKit.label(wl, 0.8))
+		elif it.get("known", true) and d.has("desc"): v.add_child(UIKit.label(d.desc, 0.8))
 		if it.get("cracked", false): v.add_child(UIKit.label("Cracked - repair at the Forge.", 0.8, Color("ff6a5a")))
 		if mode == "delve" and not d.get("heirloom", false):
 			v.add_child(UIKit.button("Unequip", func(): GameState.delve_unequip(s); refresh.call(), not GameState.backpack_full(), "backpack full"))

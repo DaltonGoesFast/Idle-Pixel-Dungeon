@@ -1,33 +1,94 @@
 {
- "_note": "Weapon dmg = floor((min+max)/2) of SPD tier formula (min=tier, max=5*(tier+1)); armor DR = floor(DRMax/2) where DRMax = 2*tier; str req = 8+2*tier.",
+ "_note": "Weapons (DECISIONS #207): SPD v4 MeleeWeapon numbers. min = tier + lvl, max = max[0] + lvl * max[1]; a hit deals the average floor((min+max)/2) (no RNG). str = SPD STRReq at +0 (8 + 2*tier, Greataxe 8 + 2*(tier+1)), lowered at +1, +3, +6, +10 like SPD. delay = SPD DLY (attack only), reach = SPD RCH, acc = SPD ACC, block = SPD defenseFactor [base, per lvl] (blocks 0-N, adds ceil(N/2) DR), surprise_pct = SPD dagger-family surprise roll. Armor DR = floor(DRMax/2) where DRMax = 2*tier; armor str req = 8+2*tier.",
  "worn_shortsword": {
   "name": "Worn Shortsword",
   "type": "weapon",
   "tier": 1,
+  "max": [
+   10,
+   2
+  ],
   "dmg": 5,
   "delay": 1.0,
   "str": 10,
-  "icon": "WORN_SHORTSWORD"
+  "icon": "WORN_SHORTSWORD",
+  "spd_desc": "A quite short sword, worn down through heavy use. It is both weaker and a bit lighter than a shortsword in better condition."
+ },
+ "cudgel": {
+  "name": "Cudgel",
+  "type": "weapon",
+  "tier": 1,
+  "max": [
+   8,
+   2
+  ],
+  "dmg": 4,
+  "delay": 1.0,
+  "str": 10,
+  "acc": 1.4,
+  "icon": "CUDGEL",
+  "spd_desc": "A small brass mace, made more as a self-defense tool for nobles than as an adventuring weapon."
+ },
+ "studded_gloves": {
+  "name": "Studded Gloves",
+  "type": "weapon",
+  "tier": 1,
+  "max": [
+   5,
+   1
+  ],
+  "dmg": 3,
+  "delay": 0.5,
+  "str": 10,
+  "icon": "GLOVES",
+  "spd_desc": "These studded gloves don't provide any real protection, but they act as a serviceable weapon while keeping the hands free."
+ },
+ "rapier": {
+  "name": "Rapier",
+  "type": "weapon",
+  "tier": 1,
+  "max": [
+   8,
+   2
+  ],
+  "dmg": 4,
+  "delay": 1.0,
+  "str": 10,
+  "block": [
+   1,
+   0
+  ],
+  "icon": "RAPIER",
+  "spd_desc": "A slim straight sword that offers some protection in exchange for less slashing power."
  },
  "dagger": {
   "name": "Dagger",
   "type": "weapon",
   "tier": 1,
+  "max": [
+   8,
+   2
+  ],
   "dmg": 4,
   "delay": 1.0,
   "str": 10,
-  "surprise_mult": 2.0,
+  "surprise_pct": 0.75,
   "icon": "DAGGER",
-  "desc": "Surprise attacks deal double damage."
+  "spd_desc": "A simple iron dagger with a worn wooden handle."
  },
  "mages_staff": {
   "name": "Mage's Staff",
   "type": "weapon",
   "tier": 1,
+  "max": [
+   6,
+   2
+  ],
   "dmg": 3,
   "delay": 1.0,
   "str": 10,
   "icon": "MAGES_STAFF",
+  "spd_desc": "Crafted by the Mage himself, this staff is a unique magical weapon which can be imbued with a wand.",
   "heirloom": true,
   "dmg_per_levels": 6,
   "note": "Heirloom: +1 melee damage every 6 hero levels (DECISIONS #64)"
@@ -36,20 +97,396 @@
   "name": "Shortsword",
   "type": "weapon",
   "tier": 2,
+  "max": [
+   15,
+   3
+  ],
   "dmg": 8,
   "delay": 1.0,
   "str": 12,
-  "icon": "SHORTSWORD"
+  "icon": "SHORTSWORD",
+  "spd_desc": "A quite short sword, only a few inches longer than a dagger."
+ },
+ "hand_axe": {
+  "name": "Hand Axe",
+  "type": "weapon",
+  "tier": 2,
+  "max": [
+   12,
+   3
+  ],
+  "dmg": 7,
+  "delay": 1.0,
+  "str": 12,
+  "acc": 1.32,
+  "icon": "HAND_AXE",
+  "spd_desc": "A light axe, most commonly used for felling trees. The wide blade works well against foes as well."
+ },
+ "spear": {
+  "name": "Spear",
+  "type": "weapon",
+  "tier": 2,
+  "max": [
+   20,
+   4
+  ],
+  "dmg": 11,
+  "delay": 1.5,
+  "str": 12,
+  "reach": 2,
+  "icon": "SPEAR",
+  "spd_desc": "A slender wooden rod tipped with sharpened iron."
+ },
+ "quarterstaff": {
+  "name": "Quarterstaff",
+  "type": "weapon",
+  "tier": 2,
+  "max": [
+   12,
+   3
+  ],
+  "dmg": 7,
+  "delay": 1.0,
+  "str": 12,
+  "block": [
+   2,
+   0
+  ],
+  "icon": "QUARTERSTAFF",
+  "spd_desc": "A staff of hardwood, its ends are shod with iron."
+ },
+ "dirk": {
+  "name": "Dirk",
+  "type": "weapon",
+  "tier": 2,
+  "max": [
+   12,
+   3
+  ],
+  "dmg": 7,
+  "delay": 1.0,
+  "str": 12,
+  "surprise_pct": 0.67,
+  "icon": "DIRK",
+  "spd_desc": "A longer thrusting dagger, gives a bit more steel to plunge into foes."
+ },
+ "sickle": {
+  "name": "Sickle",
+  "type": "weapon",
+  "tier": 2,
+  "max": [
+   20,
+   3
+  ],
+  "dmg": 11,
+  "delay": 1.0,
+  "str": 12,
+  "acc": 0.68,
+  "icon": "SICKLE",
+  "spd_desc": "A handheld farming tool that can double as a strong but unwieldy weapon."
+ },
+ "sword": {
+  "name": "Sword",
+  "type": "weapon",
+  "tier": 3,
+  "max": [
+   20,
+   4
+  ],
+  "dmg": 11,
+  "delay": 1.0,
+  "str": 14,
+  "icon": "SWORD",
+  "spd_desc": "A nicely balanced sword. Not too large, but still notably longer than a shortsword."
  },
  "mace": {
   "name": "Mace",
   "type": "weapon",
   "tier": 3,
-  "dmg": 12,
-  "delay": 1.5,
+  "max": [
+   16,
+   4
+  ],
+  "dmg": 9,
+  "delay": 1.0,
   "str": 14,
+  "acc": 1.28,
   "icon": "MACE",
-  "desc": "Heavy: swings take 1.5 ticks."
+  "spd_desc": "The large iron head of this weapon inflicts substantial damage."
+ },
+ "scimitar": {
+  "name": "Scimitar",
+  "type": "weapon",
+  "tier": 3,
+  "max": [
+   16,
+   4
+  ],
+  "dmg": 9,
+  "delay": 0.8,
+  "str": 14,
+  "icon": "SCIMITAR",
+  "spd_desc": "A thick curved blade. Its shape allows for faster, yet less powerful attacks."
+ },
+ "round_shield": {
+  "name": "Round Shield",
+  "type": "weapon",
+  "tier": 3,
+  "max": [
+   12,
+   2
+  ],
+  "dmg": 7,
+  "delay": 1.0,
+  "str": 14,
+  "block": [
+   4,
+   1
+  ],
+  "icon": "ROUND_SHIELD",
+  "spd_desc": "This large shield effectively blocks attacks and makes a decent weapon in a pinch."
+ },
+ "sai": {
+  "name": "Sai",
+  "type": "weapon",
+  "tier": 3,
+  "max": [
+   10,
+   2
+  ],
+  "dmg": 6,
+  "delay": 0.5,
+  "str": 14,
+  "icon": "SAI",
+  "spd_desc": "Two thin blades meant to be wielded in one hand each. Excellent for tearing down enemies with a flurry of cuts."
+ },
+ "whip": {
+  "name": "Whip",
+  "type": "weapon",
+  "tier": 3,
+  "max": [
+   15,
+   3
+  ],
+  "dmg": 9,
+  "delay": 1.0,
+  "str": 14,
+  "reach": 3,
+  "icon": "WHIP",
+  "spd_desc": "While the barbed length of rope at the end of this weapon deals poor damage, its reach cannot be matched."
+ },
+ "longsword": {
+  "name": "Longsword",
+  "type": "weapon",
+  "tier": 4,
+  "max": [
+   25,
+   5
+  ],
+  "dmg": 14,
+  "delay": 1.0,
+  "str": 16,
+  "icon": "LONGSWORD",
+  "spd_desc": "This sword's long razor-sharp steel blade shines reassuringly, though its size does make it quite heavy."
+ },
+ "battle_axe": {
+  "name": "Battle Axe",
+  "type": "weapon",
+  "tier": 4,
+  "max": [
+   20,
+   5
+  ],
+  "dmg": 12,
+  "delay": 1.0,
+  "str": 16,
+  "acc": 1.24,
+  "icon": "BATTLE_AXE",
+  "spd_desc": "The enormous steel head of this battle axe puts considerable heft behind each wide stroke."
+ },
+ "flail": {
+  "name": "Flail",
+  "type": "weapon",
+  "tier": 4,
+  "max": [
+   35,
+   8
+  ],
+  "dmg": 19,
+  "delay": 1.0,
+  "str": 16,
+  "acc": 0.8,
+  "no_surprise": true,
+  "icon": "FLAIL",
+  "spd_desc": "A spiked ball attached to a handle by a length of chain. Very unwieldy, but devastating if it lands a solid hit."
+ },
+ "runic_blade": {
+  "name": "Runic Blade",
+  "type": "weapon",
+  "tier": 4,
+  "max": [
+   20,
+   6
+  ],
+  "dmg": 12,
+  "delay": 1.0,
+  "str": 16,
+  "icon": "RUNIC_BLADE",
+  "spd_desc": "A mysterious weapon from a distant land, with a bright blue blade.",
+  "spd_note": "SPD's Runic Blade also boosts its enchantment; this game has no weapon enchantments."
+ },
+ "assassins_blade": {
+  "name": "Assassin's Blade",
+  "type": "weapon",
+  "tier": 4,
+  "max": [
+   20,
+   5
+  ],
+  "dmg": 12,
+  "delay": 1.0,
+  "str": 16,
+  "surprise_pct": 0.5,
+  "icon": "ASSASSINS_BLADE",
+  "spd_desc": "A small wavy blade made of obsidian, difficult to use despite being lightweight, but deadly if it finds the right mark."
+ },
+ "crossbow": {
+  "name": "Crossbow",
+  "type": "weapon",
+  "tier": 4,
+  "max": [
+   20,
+   4
+  ],
+  "dmg": 12,
+  "delay": 1.0,
+  "str": 16,
+  "icon": "CROSSBOW",
+  "spd_desc": "A fairly intricate weapon which shoots bolts at exceptional speeds. While it isn't designed for it, this crossbow's heft and sturdy construction make it a decent melee weapon as well.",
+  "spd_note": "SPD's Crossbow also empowers thrown darts; this game has no thrown weapons."
+ },
+ "katana": {
+  "name": "Katana",
+  "type": "weapon",
+  "tier": 4,
+  "max": [
+   20,
+   5
+  ],
+  "dmg": 12,
+  "delay": 1.0,
+  "str": 16,
+  "block": [
+   3,
+   0
+  ],
+  "icon": "KATANA",
+  "spd_desc": "A slender sword with a large metal guard above the handle."
+ },
+ "greatsword": {
+  "name": "Greatsword",
+  "type": "weapon",
+  "tier": 5,
+  "max": [
+   30,
+   6
+  ],
+  "dmg": 17,
+  "delay": 1.0,
+  "str": 18,
+  "icon": "GREATSWORD",
+  "spd_desc": "This towering blade inflicts heavy damage by investing its heft into every swing."
+ },
+ "war_hammer": {
+  "name": "War Hammer",
+  "type": "weapon",
+  "tier": 5,
+  "max": [
+   24,
+   6
+  ],
+  "dmg": 14,
+  "delay": 1.0,
+  "str": 18,
+  "acc": 1.2,
+  "icon": "WAR_HAMMER",
+  "spd_desc": "Few creatures can withstand the crushing blow of this towering mass of lead and steel, but it takes great strength to use effectively."
+ },
+ "glaive": {
+  "name": "Glaive",
+  "type": "weapon",
+  "tier": 5,
+  "max": [
+   40,
+   8
+  ],
+  "dmg": 22,
+  "delay": 1.5,
+  "str": 18,
+  "reach": 2,
+  "icon": "GLAIVE",
+  "spd_desc": "A massive polearm consisting of a sword blade on the end of a pole."
+ },
+ "greataxe": {
+  "name": "Greataxe",
+  "type": "weapon",
+  "tier": 5,
+  "max": [
+   45,
+   6
+  ],
+  "dmg": 25,
+  "delay": 1.0,
+  "str": 20,
+  "icon": "GREATAXE",
+  "spd_desc": "Meant to be wielded over the shoulder, this titanic axe is as powerful as it is heavy."
+ },
+ "greatshield": {
+  "name": "Greatshield",
+  "type": "weapon",
+  "tier": 5,
+  "max": [
+   18,
+   4
+  ],
+  "dmg": 11,
+  "delay": 1.0,
+  "str": 18,
+  "block": [
+   6,
+   2
+  ],
+  "icon": "GREATSHIELD",
+  "spd_desc": "More like a mobile wall than a shield, this gigantic mass of metal aids defense, but doesn't leave much room for attacking."
+ },
+ "gauntlet": {
+  "name": "Stone Gauntlet",
+  "type": "weapon",
+  "tier": 5,
+  "max": [
+   15,
+   3
+  ],
+  "dmg": 10,
+  "delay": 0.5,
+  "str": 18,
+  "icon": "GAUNTLETS",
+  "spd_desc": "This massive gauntlet is made of crimson fabric with heavy magical stone layered on top. The fabric tightens around you, making the thick stone plates almost like a second skin. Swinging such a heavy weapon requires strength, but adds tremendous force to your blows."
+ },
+ "war_scythe": {
+  "name": "War Scythe",
+  "type": "weapon",
+  "tier": 5,
+  "max": [
+   40,
+   6
+  ],
+  "dmg": 22,
+  "delay": 1.0,
+  "str": 18,
+  "acc": 0.8,
+  "icon": "WAR_SCYTHE",
+  "spd_desc": "This large and unwieldy tool has been reinforced to make it better at cutting foes than crops."
  },
  "cloth_armor": {
   "name": "Cloth Armor",
@@ -350,17 +787,6 @@
    "badge": "SCROLL_TRANSMUTE"
   }
  },
- "studded_gloves": {
-  "name": "Studded Gloves",
-  "type": "weapon",
-  "tier": 1,
-  "dmg": 3,
-  "delay": 0.5,
-  "str": 10,
-  "icon": "GLOVES",
-  "desc": "Fast: punches take 0.5 ticks.",
-  "spd": "dmg 1-5 at 2x speed"
- },
  "spirit_bow": {
   "name": "Spirit Bow",
   "type": "heirloom_bow",
@@ -523,16 +949,6 @@
    ]
   }
  },
- "longsword": {
-  "name": "Longsword",
-  "type": "weapon",
-  "tier": 4,
-  "dmg": 16,
-  "delay": 1.0,
-  "str": 16,
-  "icon": "LONGSWORD",
-  "spd": "tier 4, 5-25 (avg 15)"
- },
  "scale_armor": {
   "name": "Scale Armor",
   "type": "armor",
@@ -541,16 +957,6 @@
   "barrier": 4,
   "str": 16,
   "icon": "ARMOR_SCALE"
- },
- "greatsword": {
-  "name": "Greatsword",
-  "type": "weapon",
-  "tier": 5,
-  "dmg": 20,
-  "delay": 1.0,
-  "str": 18,
-  "icon": "GREATSWORD",
-  "spd": "tier 5, 6-30 (avg 18)"
  },
  "plate_armor": {
   "name": "Plate Armor",
