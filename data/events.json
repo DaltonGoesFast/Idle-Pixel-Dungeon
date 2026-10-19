@@ -120,7 +120,8 @@
     "reward": {
      "gold": 25,
      "iron_ore": 4,
-     "ration": 1
+     "ration": 1,
+     "weapon": 1
     }
    }
   },
@@ -176,7 +177,8 @@
     "reward": {
      "gold": 40,
      "iron_ore": 5,
-     "ration": 1
+     "ration": 1,
+     "weapon": 1
     }
    }
   }
@@ -264,7 +266,7 @@
       "statue"
      ],
      "reward": {
-      "item": "shortsword"
+      "weapon": 1
      }
     },
     {

@@ -135,10 +135,10 @@ Worn ring, artifact and the Mage's staff wand, at +0; the step is per item level
 
 | Facility | Recipe | Cost | Output | Min level |
 |---|---|---|---|---|
+| blacksmith | Forge Worn Shortsword | 3 iron_ore, 20 gold | worn_shortsword | 1 |
 | blacksmith | Forge Shortsword | 6 iron_ore, 40 gold | shortsword | 1 |
-| blacksmith | Forge Dagger | 3 iron_ore, 20 gold | dagger | 1 |
 | blacksmith | Forge Leather Armor | 5 iron_ore, 30 gold | leather_armor | 1 |
-| blacksmith | Forge Mace | 8 iron_ore, 2 dark_gold | mace | 2 |
+| blacksmith | Forge Sword | 8 iron_ore, 2 dark_gold | sword | 2 |
 | blacksmith | Forge Mail Armor | 10 iron_ore, 3 dark_gold | mail_armor | 2 |
 | blacksmith | Forge Longsword | 14 iron_ore, 4 dark_gold | longsword | 3 |
 | blacksmith | Forge Scale Armor | 16 iron_ore, 5 dark_gold | scale_armor | 3 |
