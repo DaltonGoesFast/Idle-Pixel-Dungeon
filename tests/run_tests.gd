@@ -1461,7 +1461,7 @@ func test_weapons(gs) -> void:
 	var sn = csn.enemies()[0]; var landed := []
 	for i in 4:
 		sn.seen_hero = true; sn.pos = Vector2i(2, 1); sn.next = 999.0; var b := int(sn.hp); csn.hero_tap(sn.pos); landed.append(b != int(sn.hp))
-	check(landed == [false, false, false, true], "a Mace (28% accurate) lands every 4th swing on an alert snake (%s)" % [landed])
+	check(landed == [false, false, false, true], "a Mace (28%% accurate) lands every 4th swing on an alert snake (%s)" % [landed])
 	var css := _wfight(_wstats(gs, "warrior", "sword"), ["#####", "#H1.#", "#####"], ["snake"])
 	var sn2 = css.enemies()[0]; var any := false
 	for i in 6:
@@ -1476,7 +1476,11 @@ func test_weapons(gs) -> void:
 	check(ml.contains("tier-3 melee weapon deals 3-16 damage") and ml.contains("requires 14 strength") and ml.contains("rather accurate") and not ml.contains("slow") and ml.contains("inadequate strength"), "Mace window: SPD tier/damage/strength line, accurate, not slow")
 	var sl := "\n".join(Weapons.info_lines("spear", 0, true))
 	check(sl.contains("rather slow weapon") and sl.contains("extra reach") and sl.contains("reach 2 tiles") and sl.contains("1.5 ticks"), "Spear window: slow, extra reach (2 tiles, 1.5 ticks)")
-	check("\n".join(Weapons.info_lines("whip", 0, true)).contains("tremendous reach") and "\n".join(Weapons.info_lines("round_shield", 1, true)).contains("blocks 0-4 damage. This blocking scales"), "Whip and Round Shield windows use SPD's lines")
+	check("\n".join(Weapons.info_lines("whip", 0, true)).contains("tremendous reach") and "\n".join(Weapons.info_lines("round_shield", 0, true)).contains("blocks 0-4 damage. This blocking scales"), "Whip and Round Shield windows use SPD's lines")
+	# the block range is the one the weapon has at its level, matching the +DR in brackets (SPD statsInfo: 4 + lvl, 6 + 2 * lvl)
+	var rs1 := "\n".join(Weapons.info_lines("round_shield", 1, true)); var gs2 := "\n".join(Weapons.info_lines("greatshield", 2, true))
+	check(rs1.contains("blocks 0-5 damage.") and rs1.contains("+3 DR") and gs2.contains("blocks 0-10 damage.") and gs2.contains("+5 DR"), "a +1 Round Shield's window says 0-5 (+3 DR), a +2 Greatshield's 0-10 (+5 DR)")
+	check("\n".join(Weapons.info_lines("round_shield", 3, false)).contains("blocks 0-4 damage.") and "\n".join(Weapons.info_lines("katana", 2, true)).contains("blocks 0-3 damage."), "an unidentified shield shows the +0 range; the Katana's block doesn't scale")
 	check(Codex.item_line("glaive").contains("reach 2") and Codex.item_line("glaive").contains("1.5 ticks"), "the codex line shows reach and speed")
 	# saves: a fight in progress keeps the weapon's reach; an old fight without it falls back to reach 1
 	var sv := _wfight(_wstats(gs, "warrior", "spear"), room, ["rat"])

@@ -57,8 +57,9 @@ static func surprise_bonus(d: Dictionary, lvl: int) -> int:
 	var sur_lo := lo + int(round((hi - lo) * float(d.surprise_pct)))
 	return (sur_lo + hi) / 2 - dmg(d, lvl)
 
-## SPD stats_desc lines for the item window.
-static func stat_lines(d: Dictionary) -> Array:
+## SPD stats_desc lines for the item window. lvl: the shown level (0 for an unidentified item), so a shield's block
+## range is the one it has now, like SPD's RoundShield/Greatshield statsInfo (4 + lvl, 6 + 2 * lvl).
+static func stat_lines(d: Dictionary, lvl := 0) -> Array:
 	var out := []
 	var dl := float(d.get("delay", 1.0)); var a := acc(d)
 	if dl <= 0.5: out.append("This is a very fast weapon.")
@@ -73,7 +74,7 @@ static func stat_lines(d: Dictionary) -> Array:
 	if d.has("surprise_pct"): out.append("This weapon is stronger against unaware enemies.")
 	if d.has("block"):
 		var scales := int(d.block[1]) > 0
-		out.append("This weapon blocks 0-%d damage.%s" % [int(d.block[0]), " This blocking scales with upgrades." if scales else ""])
+		out.append("This weapon blocks 0-%d damage.%s" % [block_max(d, lvl), " This blocking scales with upgrades." if scales else ""])
 	return out
 
 ## The SPD item window text for a weapon: description, the tier/damage/strength line, the strength note, and the
@@ -96,7 +97,7 @@ static func info_lines(id: String, lvl: int, known: bool, hero_str := -1) -> Arr
 	if d.has("surprise_pct"): bits.append("surprise hits +%d" % surprise_bonus(d, l))
 	if acc(d) < 1.0: bits.append("misses %d%% of swings at alert foes" % int(round((1.0 - acc(d)) * 100)))
 	elif acc(d) > 1.0: bits.append("hits dodging foes with %d%% of swings" % int(round((acc(d) - 1.0) * 100)))
-	var sl := stat_lines(d)
+	var sl := stat_lines(d, l)
 	if not sl.is_empty(): out.append(" ".join(sl) + ((" (" + ", ".join(bits) + ")") if not bits.is_empty() else ""))
 	if d.has("spd_note"): out.append(String(d.spd_note))
 	return out
