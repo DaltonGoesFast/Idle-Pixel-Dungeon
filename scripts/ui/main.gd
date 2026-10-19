@@ -13,7 +13,13 @@ var toast_box: VBoxContainer
 var screen: Control
 var delve: Control           # kept alive while a combat runs on top of it
 var portrait := true
-var tips: Control            # TipOverlay (tutorial cards above everything)
+var tips: Control            # TipOverlay (tutorial cards above everything), the only child of tip_layer
+## Tutorial tips live on their own CanvasLayer above the default canvas (DECISIONS #213). A z_index only orders
+## siblings inside one canvas, so the delve's encounter window (z 20), its result/Defeat layer (z 30) or anything a
+## screen raises later drew over a tip opened beneath it. A higher CanvasLayer always draws last and Godot hands it
+## GUI input first, so a tip is the topmost window on every screen, including windows that open after it.
+const TIP_LAYER := 100
+var tip_layer: CanvasLayer
 var _id_timer := 0.0
 
 func _ready() -> void:
@@ -25,7 +31,8 @@ func _ready() -> void:
 	host = Control.new(); margin.add_child(host)
 	toast_box = VBoxContainer.new(); toast_box.set_anchors_preset(PRESET_CENTER_TOP)
 	toast_box.mouse_filter = Control.MOUSE_FILTER_IGNORE; add_child(toast_box)
-	tips = TipOverlay.new(); add_child(tips)
+	tip_layer = CanvasLayer.new(); tip_layer.name = "TipLayer"; tip_layer.layer = TIP_LAYER; add_child(tip_layer)
+	tips = TipOverlay.new(); tips.name = "TipOverlay"; tips.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST; tip_layer.add_child(tips)
 	add_child(TouchScroll.new())
 	get_tree().node_added.connect(func(n):
 		if n is ScrollContainer: TouchScroll.style(n)
@@ -65,6 +72,7 @@ func _relayout() -> void:
 	var fs := int(clampf(minf(vs.x, vs.y) / 24.0 * float(GameState.settings.get("text_scale", 1.0)), 14, 60))
 	theme = UIKit.make_theme(fs)
 	get_window().theme = theme   # popups / anything parented outside Main inherit the SPD theme too
+	if tips: tips.theme = theme   # a CanvasLayer breaks Control theme inheritance, so the tip layer gets it directly
 	if screen: _layout_screen()
 	if tips and tips.is_open(): tips._render()
 
