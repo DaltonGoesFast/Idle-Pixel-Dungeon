@@ -1,7 +1,7 @@
 ## CombatBot: a "sensible tactics" player used by tests, balance sims and the in-game Hint button.
 ## Priorities: dodge telegraphs > heal when low > chasm shove > slam a crowd >
 ## a Surprise that can land this turn (a melee swing in reach, or a Spirit Bow shot) >
-## cloak > attack the weakest foe in reach > bolt > approach. Reach weapons (Spear, Glaive, Whip) swing from 2-3 tiles.
+## cloak (only when cloak_reason() says the charge is worth it) > attack the weakest foe in reach > bolt > approach. Reach weapons (Spear, Glaive, Whip) swing from 2-3 tiles.
 class_name CombatBot
 extends RefCounted
 
@@ -94,9 +94,10 @@ static func suggest(c: Combat, potions := 0, heal_amount := 10) -> Dictionary:
 	if reach_l.is_empty():
 		var sur_shot := _surprise_shot(c, es)
 		if not sur_shot.is_empty(): return sur_shot
-	# 3b. rogue: cloak when swarmed or hurt, then strike from the shadows
+	# 3b. rogue: cloak when swarmed or hurt, then strike from the shadows - but only when the charge is worth it (#211)
 	if "cloak" in h.abilities and int(h.cloak_charges) > 0 and not c.hidden() and not h.get("no_surprise", false) and (adj.size() >= 2 or (adj.size() == 1 and _hits_to_kill(c, adj[0]) >= 2)):
-		return {"act": "cloak", "why": "cloak, then strike with a Surprise"}
+		var why := cloak_reason(c, es)
+		if why != "": return {"act": "cloak", "why": "cloak (%s), then strike with a Surprise" % why}
 	# 3c. No Surprise ready: clear non-snake threats, then SPD door/grass setups for snakes
 	var hittable_now := reach_l.filter(func(e): return not e.get("evade_unless_surprise", false) or c.surprise_against(e))
 	var non_snake_adj := hittable_now.filter(func(e): return not e.get("evade_unless_surprise", false))
@@ -202,8 +203,13 @@ static func _snake_plan(c: Combat, snakes: Array) -> Dictionary:
 		if Combat.cheb(sn.pos, h.pos) == 1:
 			return {"act": "tap", "pos": sn.pos, "mode": "", "why": "surprise the snake"}
 		# Hold only while it's nearby and can't see us; if it's stuck far away, re-path
-		if not c.sees(sn.pos, h.pos) and Combat.cheb(sn.pos, h.pos) <= 3:
+		# (at most AMBUSH_CAP turns: a snake that stopped short never arrives, so then walk up and surprise it, #211)
+		if not c.sees(sn.pos, h.pos) and Combat.cheb(sn.pos, h.pos) <= 3 and int(h.get("bot_bait", 0)) < AMBUSH_CAP:
+			h.bot_bait = int(h.get("bot_bait", 0)) + 1
 			return {"act": "wait", "why": "bait the snake after breaking sight"}
+		if not c.sees(sn.pos, h.pos):
+			var st = c.path_step(h.pos, sn.pos, true, true, true)
+			if st != null: return {"act": "tap", "pos": st, "mode": "", "why": "creep up on the unaware snake"}
 	# Circle tall grass / a pillar: end adjacent with a blocker between you
 	if Combat.cheb(sn.pos, h.pos) <= 3:
 		for d in Combat.DIRS:
@@ -439,6 +445,54 @@ static func _open(c: Combat, p: Vector2i) -> int:
 	for d in Combat.DIRS:
 		if c.passable(p + d): n += 1
 	return n
+
+# ---- Cloak of Shadows budget (DECISIONS #211). The charges last the whole expedition (#206): 3, +1 per cleared fight.
+const CLOAK_THREAT_FRAC := 0.5   # projected HP loss without the cloak >= this share of HP (+ barrier) = a real threat
+const CLOAK_LOW_HP := 0.4        # at or below this share of max HP, any charge may go (emergency)
+const CLOAK_CROWD := 3           # this many living foes is a threat on its own
+const CLOAK_STALL_T := 15.0      # a snake next to us after this many ticks: the door/grass dance failed, cloak it
+
+## Why a cloak charge is worth spending now, or "" to keep it. Used by Auto Battle and the Hint button alike.
+## - a boss fight (Goo, Tengu, DM-300, the King, Yog) or an emergency (low HP, or the fight would kill us): any charge;
+## - a full cloak: spend freely, since the win refills it and the recharge would otherwise go to waste;
+## - a snake still beside us after CLOAK_STALL_T ticks (the door/grass dance failed): any charge, or the fight stalls;
+## - otherwise keep one charge in reserve and spend the rest only on a threat: an elite (Animated Statue),
+##   CLOAK_CROWD+ foes, or a projected HP loss >= CLOAK_THREAT_FRAC of HP.
+static func cloak_reason(c: Combat, es: Array) -> String:
+	var h: Dictionary = c.hero
+	var n := int(h.cloak_charges)
+	if n <= 0: return ""
+	var cap := maxi(1, int(h.get("cloak_cap", 0)) if int(h.get("cloak_cap", 0)) > 0 else n)
+	if es.any(func(e): return e.get("boss", false) or e.get("fist", false)): return "boss"
+	var pool := int(h.hp) + int(h.barrier)
+	var loss := projected_loss(c, es)
+	if int(h.hp) <= int(float(h.ht) * CLOAK_LOW_HP) or loss >= pool: return "emergency"
+	if n >= cap: return "full cloak"
+	# a foe that slips every normal hit (snake) still beside us after a long dance: only a Surprise ends the fight
+	if float(c.time) >= CLOAK_STALL_T and es.any(func(e): return e.get("evade_unless_surprise", false) and Combat.cheb(e.pos, h.pos) == 1):
+		return "stalled on a snake"
+	if n <= 1: return ""   # the last charge waits for a boss or an emergency
+	if es.any(func(e): return e.get("elite", false)): return "elite"
+	if es.size() >= CLOAK_CROWD: return "crowd"
+	if float(loss) >= CLOAK_THREAT_FRAC * float(pool): return "dangerous fight"
+	return ""
+
+## HP the hero would lose finishing this fight with plain swings (no cloak, no Surprise): foes die quickest-first,
+## and each one hits back (its damage minus our DR) every `delay` ticks until it dies. Deterministic, like the combat.
+static func projected_loss(c: Combat, es: Array) -> int:
+	var h: Dictionary = c.hero
+	var foes := []
+	for e in es:
+		if e.get("boss", false) or e.get("fist", false): continue
+		var d := float(maxi(0, int(h.dmg) - int(e.dr))) * minf(1.0, float(h.get("acc", 1.0)))
+		var hits := 8 if (d <= 0.0 or e.get("evade_unless_surprise", false)) else mini(8, int(ceil(float(e.hp) / d)))
+		var per := float(maxi(0, int(e.dmg) - int(h.dr))) / maxf(0.25, float(e.get("delay", 1.0)))
+		foes.append([float(hits) * float(h.delay), per])
+	foes.sort_custom(func(a, b): return a[0] < b[0])
+	var t := 0.0; var loss := 0.0
+	for f in foes:
+		t += float(f[0]); loss += t * float(f[1])
+	return int(loss)
 
 static func _hits_to_kill(c: Combat, e: Dictionary) -> int:
 	var sur := c.surprise_against(e)

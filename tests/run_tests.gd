@@ -3518,6 +3518,7 @@ func test_rogue_cloak(gs) -> void:
 	check(int(c.hero.cloak_charges) == 3, "a fight starts with 3 cloak charges")
 	gs.end_run("abandon")
 	test_cloak_persist(gs)
+	test_cloak_bot(gs)
 
 func _cloak_fight(gs, mobs: Array) -> Combat:
 	return Delve.new_combat(gs, Delve.combat_event(gs.run, Delve.rng_for(gs.run, 1), mobs))
@@ -3559,12 +3560,18 @@ func test_cloak_persist(gs) -> void:
 		_cloak_win(gs, _cloak_fight(gs, ["rat"]))
 		seen.append(int(gs.run.cloak_charges))
 	check(seen == [1, 2, 3, 3], "recharge is 1 per fight and stops at 3 (%s)" % [seen])
-	# a Scroll of Recharging's extra charge lasts that fight only
+	# a Scroll of Recharging's charge is a normal charge: never above the cap, kept until spent (#211)
 	gs.run.next_fx = {"recharge": 1}
 	var c3 := _cloak_fight(gs, ["rat"])
-	check(int(c3.hero.cloak_charges) == 4, "Scroll of Recharging: +1 charge for the next fight")
+	check(int(c3.hero.cloak_charges) == 3, "Scroll of Recharging on a full cloak: still 3/3, never 4/3 (got %d)" % int(c3.hero.cloak_charges))
 	_cloak_win(gs, c3)
-	check(int(gs.run.cloak_charges) == 3, "the extra charge doesn't carry past the cap")
+	check(int(gs.run.cloak_charges) == 3, "the cloak stays at its cap")
+	gs.run.cloak_charges = 0; gs.run.next_fx = {"recharge": 1}
+	var c3b := _cloak_fight(gs, ["rat"])
+	check(int(c3b.hero.cloak_charges) == 1, "Scroll of Recharging: +1 cloak charge for the next fight (0 -> 1)")
+	_cloak_win(gs, c3b)
+	check(int(gs.run.cloak_charges) == 2, "an unspent Recharging charge is kept: 1 + 1 per fight = 2")
+	gs.run.cloak_charges = 3
 	# a lost fight records nothing new (the run ends)
 	gs.run.cloak_charges = 1
 	# Mystical Meal: a ration restores 1 charge, never above the cap
@@ -3580,6 +3587,12 @@ func test_cloak_persist(gs) -> void:
 	var c4 := _cloak_fight(gs, ["rat"]); c4.hero_cloak()
 	var c5 := Combat.new(); c5.from_dict(JSON.parse_string(JSON.stringify(c4.to_dict())))
 	check(int(c5.hero.cloak_charges) == 1 and int(c5.hero.cloak_cap) == 3, "a fight saved mid-way keeps cloak charges and cap")
+	# a fight saved before #206 (no cloak_cap, an Assassin's 4 charges) loads as 3/3, not "Cloak (4/3)" (#211)
+	var oldf: Dictionary = JSON.parse_string(JSON.stringify(c4.to_dict()))
+	for u in oldf.units:
+		if u.has("hero"): u.erase("cloak_cap"); u.cloak_charges = 4
+	var c6 := Combat.new(); c6.from_dict(oldf)
+	check(int(c6.hero.cloak_charges) == 3 and int(c6.hero.cloak_cap) == 3, "an old mid-fight save is clamped to 3/3 (got %d/%d)" % [int(c6.hero.cloak_charges), int(c6.hero.cloak_cap)])
 	# migration: a run saved before #206 has no cloak_charges -> full; an old talent id is renamed
 	var old: Dictionary = JSON.parse_string(JSON.stringify(gs.to_dict()))
 	old.run.erase("cloak_charges")
@@ -3594,6 +3607,70 @@ func test_cloak_persist(gs) -> void:
 	gs.end_run("abandon")
 	gs.start_run("warrior", {}, "sewers", 4)
 	check(not gs.run.has("cloak_charges") and not gs.hero_stats("warrior").has("cloak"), "non-Rogue runs carry no cloak charges")
+	gs.end_run("abandon")
+
+## A Rogue fight with `mobs` around the hero (adjacent first), the cloak at `charges` of 3.
+func _bot_cloak_fight(gs, mobs: Array, charges: int) -> Combat:
+	var c := _cloak_fight(gs, mobs)
+	c.hero.cloak_charges = charges
+	var spots := [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1), Vector2i(1, 1), Vector2i(-1, -1)]
+	var i := 0
+	for e in c.enemies():
+		for k in range(i, spots.size()):
+			var p: Vector2i = c.hero.pos + spots[k]
+			if c.passable(p) and c.unit_at(p) == null: e.pos = p; i = k + 1; break
+		e.seen_hero = true
+	return c
+
+func _bot_cloaks(c: Combat) -> bool:
+	return CombatBot.suggest(c, 0, 10).act == "cloak"
+
+## DECISIONS #211: Auto Battle and Hint are stingy with the run's cloak charges.
+func test_cloak_bot(gs) -> void:
+	print("[cloak bot]")
+	gs.new_game()
+	for cc in gs.heroes: gs.heroes[cc].unlocked = true
+	gs.heroes.rogue.level = 3
+	gs.start_run("rogue", {}, "sewers", 5)
+	# trivial Sewers fight (2 rats), 2 of 3 charges: keep them
+	var c := _bot_cloak_fight(gs, ["rat", "rat"], 2)
+	check(CombatBot.projected_loss(c, c.enemies()) < int(c.hero.hp) / 2, "2 rats are not a threat to a Lv3 Rogue (projected loss %d)" % CombatBot.projected_loss(c, c.enemies()))
+	check(not _bot_cloaks(c), "the bot keeps cloak charges on a trivial fight (2 rats, 2/3)")
+	var r := CombatBot.play(c)
+	check(r.won and int(c.hero.cloak_charges) == 2, "Auto Battle wins 2 rats without spending a charge (left %d)" % int(c.hero.cloak_charges))
+	# a full cloak spends freely: the win's recharge would otherwise be wasted
+	check(_bot_cloaks(_bot_cloak_fight(gs, ["rat", "rat"], 3)), "a full cloak (3/3) is spent on the same fight")
+	# reserve: the last charge waits, even for a crowd...
+	var crowd := _bot_cloak_fight(gs, ["rat", "rat", "rat"], 1)
+	check(not _bot_cloaks(crowd), "the last charge is held back on 3 rats at full HP")
+	check(_bot_cloaks(_bot_cloak_fight(gs, ["rat", "rat", "rat"], 2)), "with 2 charges, 3+ foes are worth one")
+	# ...but goes in an emergency (low HP)
+	var low := _bot_cloak_fight(gs, ["rat", "rat", "rat"], 1)
+	low.hero.hp = int(float(low.hero.ht) * 0.3); low.hero.barrier = 0
+	check(_bot_cloaks(low), "the last charge is spent when HP is low")
+	# a dangerous fight (projected loss >= half our HP) with 2 charges
+	var hurt := _bot_cloak_fight(gs, ["gnoll", "gnoll"], 2)
+	hurt.hero.hp = maxi(int(float(hurt.hero.ht) * 0.41) + 1, CombatBot.projected_loss(hurt, hurt.enemies()) + 1); hurt.hero.barrier = 0
+	if CombatBot.projected_loss(hurt, hurt.enemies()) * 2 >= int(hurt.hero.hp):
+		check(_bot_cloaks(hurt), "a fight projected to cost half our HP gets a charge")
+	else:
+		hurt.hero.hp = maxi(int(float(hurt.hero.ht) * 0.41) + 1, CombatBot.projected_loss(hurt, hurt.enemies()) * 2)
+		check(_bot_cloaks(hurt) == (CombatBot.projected_loss(hurt, hurt.enemies()) * 2 >= int(hurt.hero.hp)), "the projected-loss rule decides 2 gnolls")
+	# an elite (Animated Statue) with 2 charges
+	check(_bot_cloaks(_bot_cloak_fight(gs, ["statue"], 2)), "an Animated Statue (elite) gets a charge")
+	check(not _bot_cloaks(_bot_cloak_fight(gs, ["statue"], 1)) or int(gs.run.hp) <= int(float(gs.hero_stats("rogue").ht) * 0.4), "but not the last one")
+	# a boss gets even the last charge
+	var boss := Delve.new_combat(gs, {"kind": "combat", "boss": true, "room": DB.boss_rooms[1], "mobs": ["tengu"]})
+	boss.hero.cloak_charges = 1
+	var goo = boss.enemies()[0]
+	for d in Combat.DIRS:
+		var p: Vector2i = boss.hero.pos + d
+		if boss.passable(p) and boss.unit_at(p) == null: goo.pos = p; break
+	goo.seen_hero = true
+	check(_bot_cloaks(boss), "the bot spends its last charge on a boss (Tengu): %s" % CombatBot.suggest(boss, 0, 10).why)
+	check(CombatBot.cloak_reason(boss, boss.enemies()) == "boss", "the reason is the boss")
+	# Hint uses the same suggestion as Auto Battle
+	check(CombatBot.suggest(crowd, 0, 10).act != "cloak" and CombatBot.suggest(boss, 0, 10).act == "cloak", "Hint (CombatBot.suggest) follows the same budget")
 	gs.end_run("abandon")
 
 ## DECISIONS #126: the Heroes ring swap list only shows "Charges +N" for heroes whose staff gains them.
