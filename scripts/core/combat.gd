@@ -2,7 +2,8 @@
 ##
 ## Rules (see docs/BALANCE.md):
 ##  - SPD turn clock: each actor has `next` (time of next action). Hero acts on ties.
-##    Moving/attacking costs the actor's delay (1.0 normal, 0.5 fast, 1.5 heavy weapons).
+##    Moving/attacking costs the actor's delay (1.0 normal, 0.5 fast, 1.5 heavy weapons). A mob's attack costs its
+##    attack_delay instead when it has one (SPD attackDelay vs 1/speed: crab and bat walk fast, monk attacks fast; #215).
 ##  - Every attack hits for fixed damage. Physical damage - flat DR. Barrier absorbs before HP.
 ##    Chip rule: a hit fully blocked by DR still removes 1 Barrier.
 ##  - Surprise: hit while the foe cannot see you (after a door closes or circling tall grass) =
@@ -964,8 +965,9 @@ func run_until_hero() -> void:
 		if dz_t <= t_mob:
 			_resolve_danger()
 		else:
+			best.cost = float(best.delay)
 			_mob_act(best)
-			best.next += best.delay
+			best.next += float(best.cost)
 	time = hero.next
 	_recharge()
 	_note_sightings()
@@ -1013,6 +1015,14 @@ func _resolve_danger() -> void:
 	for m in enemies():
 		if m.charging and danger.filter(func(d): return d.uid == m.uid).is_empty(): m.charging = false
 
+## SPD times a mob's moves by 1/speed() and its attacks by attackDelay() (DECISIONS #215): the Sewer Crab and the
+## Vampire Bat move twice a tick but attack once; the Dwarf Monk, Ripper Demon and Crazy Thief walk at normal
+## speed but attack twice a tick. `delay` is the move delay; `attack_delay` (default: delay) is what an attack,
+## or the wind-up of a telegraphed one, costs. Both used to cost `delay`, so a crab next to the hero hit twice
+## for every one of the hero's swings.
+static func attack_delay(m: Dictionary) -> float:
+	return float(m.get("attack_delay", m.delay))
+
 func _mob_act(m: Dictionary) -> void:
 	m.acts += 1
 	_tick_poison(m)
@@ -1039,6 +1049,7 @@ func _mob_act(m: Dictionary) -> void:
 			if in_view and m.cooldown <= 0 and cheb(m.pos, hero.pos) >= int(rng[0]) and cheb(m.pos, hero.pos) <= int(rng[1]) and mob_can_shoot(m):
 				danger.append({"pos": hero.pos, "dmg": int(m.dmg) + int(m.throw_bonus), "at": m.next + 1.0, "src": m.name + "'s spear", "uid": m.uid})
 				m.cooldown = int(m.throw_cooldown)
+				m.cost = attack_delay(m)
 				_log("%s winds up a throw! (red tile)" % m.name)
 				_ev({"t": "telegraph", "uid": m.uid})
 				return
@@ -1057,6 +1068,7 @@ func _mob_act(m: Dictionary) -> void:
 				else:
 					danger.append(zd)
 				m.cooldown = int(m.zap_cooldown)
+				m.cost = attack_delay(m)
 				_log("%s crackles with energy! (red tile)" % m.name)
 				_ev({"t": "telegraph", "uid": m.uid}); _ev({"t": "sfx", "name": "chargeup"})
 				return
@@ -1067,6 +1079,7 @@ func _mob_act(m: Dictionary) -> void:
 			if in_view and m.cooldown <= 0 and wdist >= int(wr[0]) and wdist <= int(wr[1]) and mob_can_shoot(m):
 				danger.append({"pos": hero.pos, "dmg": 0, "at": m.next + 1.0, "src": m.name + "'s web", "uid": m.uid, "debuff": "root", "debuff_t": int(m.web_root)})
 				m.cooldown = int(m.web_cooldown)
+				m.cost = attack_delay(m)
 				_log("%s spits a web! (red tile)" % m.name); _ev({"t": "telegraph", "uid": m.uid})
 				return
 			m.cooldown = maxi(0, m.cooldown - 1)
@@ -1087,6 +1100,7 @@ func _mob_act(m: Dictionary) -> void:
 			if in_view and m.cooldown <= 0 and ld >= int(lr[0]) and ld <= int(lr[1]) and line_clear(m.pos, hero.pos):
 				danger.append({"pos": hero.pos, "dmg": int(m.dmg), "at": m.next + 1.0, "src": m.name + "'s leap", "uid": m.uid, "leap": true})
 				m.cooldown = int(m.leap_cooldown); m.charging = true
+				m.cost = attack_delay(m)
 				_log("%s crouches to leap! (red tile)" % m.name); _ev({"t": "telegraph", "uid": m.uid})
 				return
 			m.cooldown = maxi(0, m.cooldown - 1)
@@ -1136,6 +1150,7 @@ func _mob_act(m: Dictionary) -> void:
 				m.dmg = int(m.enraged_dmg)
 	# (cloaked hero: in_view is false, so the mob walks to where it last saw the hero, like SPD invisibility)
 	if in_view and cheb(m.pos, hero.pos) == 1:
+		m.cost = attack_delay(m)
 		_ev({"t": "attack", "uid": m.uid, "to": hero.pos})
 		var hp_before: int = hero.hp + hero.barrier
 		hit_hero(int(m.dmg), m.name)
@@ -1228,7 +1243,7 @@ func _flee(m: Dictionary) -> void:
 		var n: Vector2i = m.pos + d
 		if passable(n) and unit_at(n) == null and not traps.has(n) and cheb(n, hero.pos) > bd: bd = cheb(n, hero.pos); best = n
 	if best != null: _place(m, best)
-	elif cheb(m.pos, hero.pos) == 1: hit_hero(int(m.dmg), m.name)
+	elif cheb(m.pos, hero.pos) == 1: m.cost = attack_delay(m); hit_hero(int(m.dmg), m.name)
 
 ## Tengu (SPD Prison boss). Phase 1: throws telegraphed shurikens from range, blinks away after being hurt.
 ## Phase 2 (<= half HP): also lobs bombs - a 3x3 red area that blows up 2 ticks later (bombs hurt mobs too).

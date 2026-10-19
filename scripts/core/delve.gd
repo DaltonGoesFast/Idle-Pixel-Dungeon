@@ -346,26 +346,30 @@ static func ledger(gs) -> Dictionary:
 	var h: Dictionary = gs.heroes[run.hero]
 	var gear: Array = []
 	for g in run.pack_gear:
-		gear.append({"uid": int(g.uid), "name": gs.gear_name(g), "known": bool(g.known)})
+		gear.append({"uid": int(g.uid), "id": String(g.id), "name": gs.gear_name(g), "known": bool(g.known)})
 	var over: Array = []
 	for g in run.get("overflow", []):
-		over.append({"uid": int(g.uid), "name": gs.gear_name(g), "known": bool(g.known), "overflow": true})
+		over.append({"uid": int(g.uid), "id": String(g.id), "name": gs.gear_name(g), "known": bool(g.known), "overflow": true})
 	return {"hp": int(run.hp), "torch": int(round(float(run.torch))), "satiety": int(round(float(run.satiety))),
 		"pack": run.pack.duplicate(), "supplies": run.supplies.duplicate(), "iron_key": gs.mat("iron_key"),
 		"gear": gear, "overflow": over, "xp": int(h.xp), "level": int(h.level),
 		"pending_loot": int(run.get("pending_loot", 0))}
 
 ## Increases between two ledgers are gained; decreases are lost. Gear is matched by uid.
+## `icons` maps a line to the SPD sprite shown next to it on result cards (DECISIONS #215): {id, known, drop}.
+## id is an items.png key (gold, a material, a gear id); drop marks a found item (potion, scroll, gear, material) as
+## opposed to a counter (gold, HP, XP). Lines with no sprite (HP, Torch, Food, XP, Level) are not in the map.
 static func ledger_delta(before: Dictionary, after: Dictionary) -> Dictionary:
 	var got: PackedStringArray = []
 	var lost: PackedStringArray = []
+	var icons := {}
 	_delta_num(got, lost, int(after.hp) - int(before.hp), "HP")
 	_delta_num(got, lost, int(after.torch) - int(before.torch), "Torch")
 	_delta_num(got, lost, int(after.satiety) - int(before.satiety), "Food")
-	_delta_num(got, lost, int(after.pending_loot) - int(before.pending_loot), "Gold on the next floor")
-	_bag_delta(got, lost, before.pack, after.pack)
-	_bag_delta(got, lost, before.supplies, after.supplies)
-	_delta_num(got, lost, int(after.iron_key) - int(before.iron_key), DB.display_name("iron_key"))
+	_delta_num(got, lost, int(after.pending_loot) - int(before.pending_loot), "Gold on the next floor", icons, "gold")
+	_bag_delta(got, lost, before.pack, after.pack, icons)
+	_bag_delta(got, lost, before.supplies, after.supplies, icons)
+	_delta_num(got, lost, int(after.iron_key) - int(before.iron_key), DB.display_name("iron_key"), icons, "iron_key", true)
 	if int(after.level) > int(before.level): got.append("Level %d" % int(after.level))
 	else: _delta_num(got, lost, int(after.xp) - int(before.xp), "XP")
 	var bg := _gear_map(before)
@@ -375,11 +379,15 @@ static func ledger_delta(before: Dictionary, after: Dictionary) -> Dictionary:
 			var nm: String = ag[uid].name
 			if ag[uid].get("overflow", false): nm += " (backpack full)"
 			got.append(nm)
+			icons[nm] = {"id": String(ag[uid].get("id", "")), "known": bool(ag[uid].known), "drop": true}
 		elif not bg[uid].known and ag[uid].known:
 			got.append("Identified " + ag[uid].name)
+			icons["Identified " + ag[uid].name] = {"id": String(ag[uid].get("id", "")), "known": true, "drop": true}
 	for uid in bg:
-		if not ag.has(uid): lost.append(bg[uid].name)
-	return {"got": got, "lost": lost}
+		if not ag.has(uid):
+			lost.append(bg[uid].name)
+			icons[bg[uid].name] = {"id": String(bg[uid].get("id", "")), "known": bool(bg[uid].known), "drop": true}
+	return {"got": got, "lost": lost, "icons": icons}
 
 static func _gear_map(led: Dictionary) -> Dictionary:
 	var m := {}
@@ -387,18 +395,20 @@ static func _gear_map(led: Dictionary) -> Dictionary:
 	for g in led.overflow: m[int(g.uid)] = g
 	return m
 
-static func _bag_delta(got: PackedStringArray, lost: PackedStringArray, before: Dictionary, after: Dictionary) -> void:
+static func _bag_delta(got: PackedStringArray, lost: PackedStringArray, before: Dictionary, after: Dictionary, icons := {}) -> void:
 	var keys := {}
 	for k in before: keys[String(k)] = true
 	for k in after: keys[String(k)] = true
 	var names: Array = keys.keys()
 	names.sort()
 	for k in names:
-		_delta_num(got, lost, int(after.get(k, 0)) - int(before.get(k, 0)), DB.display_name(k))
+		_delta_num(got, lost, int(after.get(k, 0)) - int(before.get(k, 0)), DB.display_name(k), icons, k, k != "gold")
 
-static func _delta_num(got: PackedStringArray, lost: PackedStringArray, d: int, label: String) -> void:
-	if d > 0: got.append("+%d %s" % [d, label])
-	elif d < 0: lost.append("-%d %s" % [-d, label])
+static func _delta_num(got: PackedStringArray, lost: PackedStringArray, d: int, label: String, icons := {}, icon_id := "", drop := false) -> void:
+	var line := ""
+	if d > 0: line = "+%d %s" % [d, label]; got.append(line)
+	elif d < 0: line = "-%d %s" % [-d, label]; lost.append(line)
+	if line != "" and icon_id != "": icons[line] = {"id": icon_id, "known": true, "drop": drop}
 
 ## Fight loot versus damage. In-fight healing is netted into one HP line; heals after the fight stay separate.
 static func fight_changes(before: Dictionary, after: Dictionary, res: Dictionary) -> Dictionary:
@@ -414,7 +424,9 @@ static func fight_changes(before: Dictionary, after: Dictionary, res: Dictionary
 	for line in d.got: got.append(line)
 	for line in d.lost: lost.append(line)
 	var pots := int(res.get("potions_used", 0))
-	if pots > 0: lost.append("-%d %s" % [pots, DB.display_name("potion_healing")])
+	if pots > 0:
+		var pl := "-%d %s" % [pots, DB.display_name("potion_healing")]
+		lost.append(pl); d.icons[pl] = {"id": "potion_healing", "known": true, "drop": true}
 	d.got = got
 	d.lost = lost
 	return d

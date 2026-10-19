@@ -93,16 +93,33 @@ func _ready() -> void:
 	_refresh()
 	if main: main.tip("boss" if event.get("boss", false) else "first_fight")
 
+var _portrait := true
+var _area := Vector2.ZERO
+
 func apply_layout(portrait: bool, s: Vector2) -> void:
+	_portrait = portrait; _area = s
 	split.vertical = portrait
-	if portrait:
-		grid.custom_minimum_size = Vector2(s.x, s.x)
-		grid.size_flags_vertical = SIZE_SHRINK_BEGIN
-	else:
-		var g := minf(s.y, s.x * 0.6)
-		grid.custom_minimum_size = Vector2(g, g)
-		grid.size_flags_vertical = SIZE_FILL
+	grid.size_flags_vertical = SIZE_SHRINK_BEGIN if portrait else SIZE_FILL
 	_refresh()
+
+## The side column never gets less than SIDE_MIN_FS font sizes, nor less than what its widest row needs.
+const SIDE_MIN_FS := 13.0
+## Wide layout: the grid is a square of at most 60% of the width, and gives up width so the side column (status,
+## buttons, the Victory card) fits. The grid used to take min(height, 60%) whatever the column needed, so on a
+## near-square browser window (Fold inner Chrome, ~880x1024) the Victory card pushed the column past the right edge
+## and clipped the card, the depth label and the bars (DECISIONS #215). Re-run after every _refresh: the
+## Victory card only exists once the fight is over.
+static func wide_grid_side(area: Vector2, side_min: float, sep: float) -> float:
+	var need := maxf(side_min, UIKit.font_size * SIDE_MIN_FS)
+	return floorf(maxf(0.0, minf(area.y, minf(area.x * 0.6, area.x - need - sep))))
+
+func _fit_split() -> void:
+	if grid == null or _area == Vector2.ZERO: return
+	if _portrait:
+		grid.custom_minimum_size = Vector2(_area.x, _area.x)
+		return
+	var g := wide_grid_side(_area, side.get_combined_minimum_size().x, float(split.get_theme_constant("separation")))
+	grid.custom_minimum_size = Vector2(g, g)
 
 func _process(d: float) -> void:
 	if main and main.tip_open(): return
@@ -162,7 +179,7 @@ func _refresh() -> void:
 		if combat.traps.values().any(func(t): return not t.hidden): main.tip("trap")
 	UIKit.clear(buttons)
 	if finished:
-		_result_buttons(); _refresh_log(); _refresh_bag(); _refresh_passage(); return
+		_result_buttons(); _refresh_log(); _refresh_bag(); _refresh_passage(); _fit_split(); return
 	_btn("Wait", func(): _act(func(): combat.hero_wait()))
 	if "shove" in h.abilities:
 		_btn("Shove: ON" if mode == "shove" else "Shove", func(): mode = "" if mode == "shove" else "shove"; grid.mode = mode; _refresh())
@@ -182,6 +199,7 @@ func _refresh() -> void:
 	_refresh_log()
 	_refresh_bag()
 	_refresh_passage()
+	_fit_split()
 
 ## In-combat Bag: swap weapon/armor/ring/wand from the backpack; costs the hero's turn (1 tick).
 ## Opens as a modal window clamped to the viewport (DECISIONS #143): it used to be appended under the
@@ -282,7 +300,7 @@ func _persist() -> void:
 		SaveSystem.save_game()
 
 func _inspect(u: Dictionary) -> void:
-	var spd := "fast (%.1f ticks)" % u.delay if float(u.delay) < 1.0 else "normal"
+	var spd := Codex.speed_text(u)
 	var extra := ""
 	match u.get("ability", ""):
 		"throw": extra = " Throws a spear at range %d-%d (red tile, %d dmg)." % [u.throw_range[0], u.throw_range[1], int(u.dmg) + int(u.throw_bonus)]
@@ -426,11 +444,12 @@ func _ensure_victory_summary() -> void:
 	else:
 		var got := PackedStringArray()
 		var lost := PackedStringArray()
-		if combat.loot > 0: got.append("+%d Gold" % combat.loot)
-		if combat.fallen_loot > 0: got.append("+%d Gold on the next floor" % combat.fallen_loot)
+		var icons := {}
+		if combat.loot > 0: got.append("+%d Gold" % combat.loot); icons[got[-1]] = {"id": "gold", "known": true, "drop": false}
+		if combat.fallen_loot > 0: got.append("+%d Gold on the next floor" % combat.fallen_loot); icons[got[-1]] = {"id": "gold", "known": true, "drop": false}
 		if combat.xp > 0: got.append("+%d XP" % combat.xp)
-		if potions_used > 0: lost.append("-%d %s" % [potions_used, DB.display_name("potion_healing")])
-		_summary = {"got": got, "lost": lost}
+		if potions_used > 0: lost.append("-%d %s" % [potions_used, DB.display_name("potion_healing")]); icons[lost[-1]] = {"id": "potion_healing", "known": true, "drop": true}
+		_summary = {"got": got, "lost": lost, "icons": icons}
 
 func _result_buttons() -> void:
 	if combat.won:
@@ -442,9 +461,21 @@ func _result_buttons() -> void:
 		var box := UIKit.vbox(card, int(UIKit.font_size * 0.25))
 		box.size_flags_horizontal = SIZE_EXPAND_FILL
 		box.add_child(UIKit.header("Victory"))
-		_result_section(box, "Got", _summary.got, GameState.LOG_COLORS.positive)
+		var icons: Dictionary = _summary.get("icons", {})
+		var lines := VBoxContainer.new(); lines.name = "VictoryLines"
+		lines.add_theme_constant_override("separation", int(UIKit.font_size * 0.15))
+		lines.size_flags_horizontal = SIZE_EXPAND_FILL
+		_result_section(lines, "Got", _summary.got, GameState.LOG_COLORS.positive, icons)
 		if not _summary.lost.is_empty():
-			_result_section(box, "Lost", _summary.lost, GameState.LOG_COLORS.negative)
+			_result_section(lines, "Lost", _summary.lost, GameState.LOG_COLORS.negative, icons)
+		# At most VICTORY_ROWS rows show; a longer list (a boss, a full pack) scrolls inside the card instead of
+		# pushing the buttons and the log off the panel.
+		var sc := ScrollContainer.new(); sc.name = "VictoryList"
+		sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+		sc.size_flags_horizontal = SIZE_EXPAND_FILL
+		sc.add_child(lines)
+		box.add_child(sc)
+		sc.custom_minimum_size.y = victory_list_h(lines)
 		var row := UIKit.hbox(box)
 		row.size_flags_horizontal = SIZE_EXPAND_FILL
 		row.add_theme_constant_override("separation", int(UIKit.font_size * 0.3))
@@ -453,20 +484,76 @@ func _result_buttons() -> void:
 			"Turns off x3 speed and Auto Battle, then pauses the delve.")
 		var bh := UIKit.btn_height() + UIKit.font_px(UIKit.font_size)
 		for b in [cont, pause]:
-			b.custom_minimum_size = Vector2(UIKit.font_size * 6.5, bh)
+			# the label wraps ("Continue and / pause"), so a narrow side column squeezes the buttons, not the screen
+			b.custom_minimum_size = Vector2(UIKit.font_size * 4.0, bh)
 			UIKit.as_toolbar(b)
 			row.add_child(b)
 	else:
 		buttons.add_child(UIKit.label("Defeat... the pack is lost and your gear cracks.", 1.0, Color("ff7070")))
 		_btn("Wake at Camp", _finish)
 
-func _result_section(parent: Node, heading: String, lines: PackedStringArray, color: Color) -> void:
-	parent.add_child(UIKit.label(heading, 1.0, color))
+## Rows the Victory list shows before it scrolls (a heading counts as a row).
+const VICTORY_ROWS := 6
+
+## Height of the first VICTORY_ROWS rows (all of them if fewer), plus half a row peeking out when there are more.
+## Measured from the rows themselves (single-line labels, so their height doesn't depend on the column width).
+static func victory_list_h(lines: Container) -> float:
+	var kids := lines.get_children()
+	var sep := float(lines.get_theme_constant("separation"))
+	var h := 0.0
+	for i in mini(kids.size(), VICTORY_ROWS):
+		h += (kids[i] as Control).get_combined_minimum_size().y + (sep if i > 0 else 0.0)
+	if kids.size() > VICTORY_ROWS:
+		h += sep + (kids[VICTORY_ROWS] as Control).get_combined_minimum_size().y * 0.5
+	return ceilf(h)
+
+## Item sprites on the Victory card: an integer multiple of SPD's 16-px cell, about a line of text tall.
+static func victory_icon_px() -> int:
+	return maxi(32, int(UIKit.font_size * 1.2 / 16.0) * 16)
+
+## A heading, then one row per line. A line in `icons` gets its SPD sprite (gold coin, potion, scroll, ring, weapon,
+## material); a found item is also drawn in SPD's highlight yellow so drops stand out from gold and XP (DECISIONS #215).
+## Lines without a sprite (HP, XP, Level) keep an empty slot of the same width so the text lines up.
+func _result_section(parent: Node, heading: String, lines: PackedStringArray, color: Color, icons := {}) -> void:
+	var px := victory_icon_px()
+	parent.add_child(_victory_text(heading, 1.0, color, px))
 	if lines.is_empty():
-		parent.add_child(UIKit.label("Nothing", 0.9, Color("9a8f7c")))
+		parent.add_child(_victory_text("Nothing", 0.9, Color("9a8f7c"), px))
 		return
 	for s in lines:
-		parent.add_child(UIKit.label(s, 0.9, color))
+		var ic: Dictionary = icons.get(s, {})
+		var row := HBoxContainer.new(); row.name = "VictoryRow"
+		row.add_theme_constant_override("separation", int(UIKit.font_size * 0.3))
+		row.size_flags_horizontal = SIZE_EXPAND_FILL
+		var slot: Control
+		if String(ic.get("id", "")) != "" and (DB.items.has(ic.id) or DB.materials.has(ic.id) or DB.icons.has(ic.id)):
+			var badge := ""
+			if DB.items.has(ic.id): badge = String(DB.item(ic.id).get("badge", "")) if bool(ic.get("known", true)) else "NONE"
+			slot = UIKit.icon(String(ic.id), px, badge)
+			slot.name = "VictoryIcon"
+			slot.set_meta("item_id", String(ic.id))
+		else:
+			slot = Control.new(); slot.custom_minimum_size = Vector2(px, px)
+		slot.size_flags_vertical = SIZE_SHRINK_CENTER
+		slot.mouse_filter = MOUSE_FILTER_IGNORE
+		row.add_child(slot)
+		var drop := bool(ic.get("drop", false)) and color == GameState.LOG_COLORS.positive
+		var l := _victory_text(s, 0.9, GameState.LOG_COLORS.highlight if drop else color, px)
+		l.name = "VictoryText"
+		l.size_flags_horizontal = SIZE_EXPAND_FILL
+		row.add_child(l)
+		parent.add_child(row)
+
+## One line of the Victory list: never wraps (a long gear name ends in "..." instead), so each row is one line
+## high whatever the column width, and the list height can be measured before layout.
+static func _victory_text(text: String, scale: float, color: Color, px: int) -> Label:
+	var l := UIKit.label(text, scale, color)
+	l.autowrap_mode = TextServer.AUTOWRAP_OFF
+	l.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	l.tooltip_text = text
+	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	l.custom_minimum_size = Vector2(1, px)
+	return l
 
 func result() -> Dictionary:
 	var r := {"won": combat.won, "hp": combat.hero.hp, "loot": combat.loot, "fallen_loot": combat.fallen_loot, "xp": combat.xp,

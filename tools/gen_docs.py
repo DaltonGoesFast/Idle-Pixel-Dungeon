@@ -20,8 +20,8 @@ def balance():
     s += table(["Hero", "Base HT", "+HT/lvl", "Base Barrier", "Heirloom Barrier", "Start weapon", "Start armor"],
         [[h["name"], h["base_ht"], h["ht_per_level"], h["base_barrier"], h["heirloom_barrier"], h["start_weapon"], h["start_armor"]] for h in heroes.values()])
     s += "\n### Monsters\n\n"
-    s += table(["Mob", "HT", "Dmg", "DR", "Delay (ticks)", "EXP", "Gold", "SPD source", "Tuning"],
-        [[m["name"], m["ht"], m["dmg"], m["dr"], m["delay"], m["exp"], m["loot"], m.get("spd", ""), m.get("tuned", "-")]
+    s += table(["Mob", "HT", "Dmg", "DR", "Move (ticks)", "Attack (ticks)", "EXP", "Gold", "SPD source", "Tuning"],
+        [[m["name"], m["ht"], m["dmg"], m["dr"], m["delay"], m.get("attack_delay", m["delay"]), m["exp"], m["loot"], m.get("spd", ""), m.get("tuned", "-")]
          for k, m in mobs.items() if not k.startswith("_")])
     s += "\n### Weapons & armor\n\n"
     def wdmg(i):   # SPD min-max at +0 and the deterministic hit (DECISIONS #207)

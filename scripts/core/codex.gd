@@ -24,10 +24,21 @@ static func ability_text(m: Dictionary) -> String:
 	if m.has("enraged_dmg") and m.get("ability", "") == "": extra.append("Enrages below half HP: %d dmg." % int(m.enraged_dmg))
 	return " ".join(extra)
 
+## SPD's two speeds (DECISIONS #215): moving (1/baseSpeed) and attacking (attackDelay) are timed separately.
+static func speed_text(m: Dictionary) -> String:
+	var mv := float(m.delay); var at := Combat.attack_delay(m)
+	var mvs := "moves fast" if mv < 1.0 else ("moves slowly" if mv > 1.0 else "")
+	var ats := "attacks twice a turn" if at <= 0.5 else ("attacks fast" if at < 1.0 else ("attacks slowly" if at > 1.0 else ""))
+	if mvs == "" and ats == "": return "normal speed"
+	if mv == at: return "fast" if mv < 1.0 else "slow"
+	return _join_nonempty([mvs, ats])
+
+static func _join_nonempty(parts: Array) -> String:
+	return ", ".join(PackedStringArray(parts.filter(func(x): return String(x) != "")))
+
 static func mob_line(id: String) -> String:
 	var m: Dictionary = DB.mobs[id]
-	var spd := "fast" if float(m.delay) < 1.0 else "normal speed"
-	var t := "HP %d, dmg %d, DR %d, %s." % [m.ht, m.dmg, m.dr, spd]
+	var t := "HP %d, dmg %d, DR %d, %s." % [m.ht, m.dmg, m.dr, speed_text(m)]
 	var a := ability_text(m)
 	return t + (" " + a if a != "" else "")
 

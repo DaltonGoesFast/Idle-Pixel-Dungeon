@@ -19,6 +19,7 @@ func _ready() -> void:
 	test_rules(gs)
 	test_barrier_spd(gs)
 	test_bat_drain(gs)
+	test_mob_speeds(gs)
 	test_vanilla_mobs(gs)
 	test_status_pane_layout(gs)
 	test_combat_bag_fits(gs)
@@ -124,6 +125,7 @@ func _ready() -> void:
 	await test_window_dim(gs)
 	await test_hero_window_wide(gs)
 	test_web_no_dev_tools(gs)
+	await test_victory_card(gs)
 	await test_telemetry(gs)
 	print("TESTS: %d passed, %d failed -> %s" % [passes, fails, "PASS" if fails == 0 else "FAIL"])
 	get_tree().quit(1 if fails else 0)
@@ -149,13 +151,13 @@ func test_rules(gs) -> void:
 	var b := Combat.new(); b.setup(DB.rooms[1], hs, hs.ht, ["gnoll", "crab"])
 	CombatBot.play(a); CombatBot.play(b)
 	check(a.log_lines == b.log_lines, "combat is deterministic")
-	# tick economy: crab (0.5) acts twice per hero tick
+	# tick economy: the crab walks at 0.5 but bites at SPD's normal attackDelay (DECISIONS #215)
 	var t := Combat.new(); t.setup(DB.rooms[0], hs, hs.ht, ["crab"])
 	var crab = t.enemies()[0]; crab.pos = t.hero.pos + Vector2i(1, 1)
 	var hp0: int = t.hero.hp + t.hero.barrier
 	t.hero_wait(); t.hero_wait()
-	# crab acts at 0.5, 1.0, 1.5 (hero wins the tie at 2.0) -> 3 hits in 2 hero ticks
-	check(hp0 - (t.hero.hp + t.hero.barrier) == 3 * maxi(1, int(crab.dmg) - int(t.hero.dr)), "fast crab acts every 0.5 ticks")
+	# crab bites at 0.5 and 1.5 (each bite costs 1.0) -> 2 hits in 2 hero ticks, not 3
+	check(hp0 - (t.hero.hp + t.hero.barrier) == 2 * maxi(1, int(crab.dmg) - int(t.hero.dr)), "crab bites once per tick though it walks at 0.5")
 	# surprise when the foe lost sight (SPD surprisedBy), not from standing on grass
 	var s := Combat.new(); s.setup(DB.rooms[0], hs, hs.ht, ["gnoll"])
 	check(s.tile(Vector2i(4, 1)) == Combat.T.GRASS, "room0 (4,1) is grass")
@@ -3907,13 +3909,154 @@ func test_bat_drain(gs) -> void:
 	print("[bat drain]")
 	gs.new_game()
 	var hs: Dictionary = gs.hero_stats("warrior")
-	for case in [[0, 4], [4, 0]]:   # hero DR 0: bat deals 6 -> heals 4; hero DR 4: deals 2 -> heals 0
+	for case in [[0, 5], [4, 1], [5, 0]]:   # bat bites for 7 (#215): DR 0 -> heals 5; DR 4: deals 3 -> heals 1; DR 5 -> 0
 		var c := Combat.new(); c.setup(DB.boss_rooms[0], hs, hs.ht, ["bat"])
 		var b: Dictionary = c.enemies()[0]; b.hp = 10
 		c.hero.dr = case[0]; c.hero.barrier = 0
 		c._place(c.hero, Vector2i(3, 2)); c._place(b, Vector2i(3, 3))
 		c._mob_act(b)
 		check(int(b.hp) == 10 + case[1], "bat heals dealt-2 like SPD's dealt-4 (DR %d -> +%d, got %d)" % [case[0], case[1], int(b.hp) - 10])
+
+
+## DECISIONS #215: SPD times moves by 1/speed() and attacks by attackDelay(). The reported log showed two
+## "Sewer Crab hits" after every "Sewer Crab takes 4.": the crab's 0.5 move delay was also its attack delay.
+const SPD_MOB_SPEEDS := {"crab": [0.5, 1.0], "bat": [0.5, 1.0], "monk": [1.0, 0.5], "ripper": [1.0, 0.5], "thief": [1.0, 0.5]}
+func test_mob_speeds(gs) -> void:
+	print("[mob speeds]")
+	gs.new_game()
+	var hs: Dictionary = gs.hero_stats("warrior")
+	var room := ["##########", "#........#", "#........#", "#.H......#", "#........#", "#........#", "#.......1#", "##########"]
+	for id in DB.mobs:
+		if String(id).begins_with("_"): continue
+		var m: Dictionary = DB.mobs[id]
+		if SPD_MOB_SPEEDS.has(id):
+			check(float(m.delay) == SPD_MOB_SPEEDS[id][0] and Combat.attack_delay(m) == SPD_MOB_SPEEDS[id][1], "%s moves every %s and attacks every %s ticks like SPD (%s / %s)" % [id, SPD_MOB_SPEEDS[id][0], SPD_MOB_SPEEDS[id][1], m.delay, Combat.attack_delay(m)])
+		else:
+			# any other mob that moves fast must say how fast it attacks: the bug was a fast walker biting as fast
+			check(float(m.delay) >= 1.0 or m.has("attack_delay"), "%s: a fast walker has an explicit attack_delay" % id)
+	# hits per hero action: one per action for crab and bat, two for monk and ripper; the log has one line per hit
+	for case in [["crab", 1], ["bat", 1], ["monk", 2], ["ripper", 2], ["rat", 1]]:
+		var c := Combat.new(); c.setup(room, hs, 999, [case[0]])
+		c.hero.ht = 999; c.hero.hp = 999; c.hero.barrier = 0; c.hero.dr = 0
+		var m: Dictionary = c.enemies()[0]; m.hp = 9999; m.ht = 9999; m.erase("ability"); m.erase("disarm_every")
+		c._place(m, c.hero.pos + Vector2i(1, 0)); m.seen_hero = true
+		c.hero_wait()   # the first bite lands whenever the mob's opening delay ends
+		var name: String = m.name
+		var per: Array = []
+		for i in 6:
+			var n0 := c.log_lines.size()
+			c.hero_wait()
+			per.append(Array(c.log_lines.slice(n0)).filter(func(l): return String(l).begins_with(name + " hits")).size())
+		check(per.all(func(k): return k == case[1]), "%s hits %d time(s) per hero turn (got %s)" % [case[0], case[1], per])
+	# the crab still walks twice as fast as a rat: in 2 hero ticks it covers 3 tiles, the rat 1
+	for case in [["crab", 3], ["rat", 1]]:
+		var c := Combat.new(); c.setup(room, hs, 999, [case[0]])
+		var m: Dictionary = c.enemies()[0]
+		c._place(c.hero, Vector2i(1, 1)); c._place(m, Vector2i(8, 1)); m.seen_hero = true; m.next = float(m.delay)
+		var x0: int = m.pos.x
+		c.hero_wait(); c.hero_wait()
+		check(x0 - int(m.pos.x) == case[1], "%s walks %d tiles in 2 hero ticks (got %d)" % [case[0], case[1], x0 - int(m.pos.x)])
+	# the codex and the tap-to-inspect text name both speeds
+	check(Codex.speed_text(DB.mobs.crab) == "moves fast", "crab codex: moves fast (%s)" % Codex.speed_text(DB.mobs.crab))
+	check(Codex.speed_text(DB.mobs.monk) == "attacks twice a turn", "monk codex: attacks twice a turn (%s)" % Codex.speed_text(DB.mobs.monk))
+	check(Codex.speed_text(DB.mobs.rat) == "normal speed", "rat codex: normal speed")
+	# a fight saved mid-bite keeps its attack_delay through to_dict/from_dict
+	var c2 := Combat.new(); c2.setup(room, hs, hs.ht, ["crab"])
+	var c3 := Combat.new(); c3.from_dict(c2.to_dict())
+	check(Combat.attack_delay(c3.enemies()[0]) == 1.0, "a saved crab still bites at 1.0")
+
+
+## DECISIONS #215: the Fold-inner browser report. The Victory card ran off the right edge of the side column (a
+## near-square window gave the grid 60% of the width whatever the column needed), it listed drops as plain text,
+## and a long list could push the buttons off. At every size: the card, its buttons, the status pane and the
+## log sit inside the viewport; each drop line has its SPD sprite; drops are highlighted; the list scrolls.
+func test_victory_card(gs) -> void:
+	print("[victory card]")
+	var win := get_window(); var old := win.size
+	gs.new_game(); gs.settings.tutorial = false
+	var main = load("res://scenes/main.tscn").instantiate(); add_child(main)
+	# the report's Chrome viewport first, then the Fold cover/inner, PC, and odd browser windows around the
+	# portrait/wide switch (aspect 0.85) and very wide ones
+	var sizes := [Vector2i(880, 1024), Vector2i(762, 860), Vector2i(484, 1188), Vector2i(928, 1080), Vector2i(1280, 800),
+		Vector2i(860, 1000), Vector2i(1000, 1000), Vector2i(1100, 900), Vector2i(1920, 1080), Vector2i(2560, 1080),
+		Vector2i(700, 820), Vector2i(1024, 600), Vector2i(360, 800), Vector2i(1856, 2160)]
+	for sz in sizes:
+		win.size = sz
+		await get_tree().process_frame
+		main._relayout()
+		for drop in [false, true]:
+			if not gs.run.is_empty(): gs.end_run("abandon")
+			for k in ["ration", "torch", "potion_healing"]: gs.add_mat(k, 1)
+			gs.start_run("warrior", {"ration": 1, "torch": 1, "potion_healing": 1}, "sewers", 5)
+			main.show_delve(); main.delve.running = false
+			var ev := {"kind": "combat", "room": DB.rooms[0], "mobs": ["crab"]}
+			if drop:
+				gs.run.fights_won = 3   # the 4th win drops an unknown potion
+				ev.reward = {"item": "spear", "item_unknown": "ring"}
+			main.start_combat(ev, func(_r): pass)
+			var cs = main.screen
+			var cb: Combat = cs.combat
+			cs._act(func():
+				for e in cb.enemies(): e.pos = cb.hero.pos + Vector2i(1, 0)
+				for e in cb.enemies(): cb.hit_mob(e, 999))
+			for i in 3: await get_tree().process_frame
+			var tag := "%s %s" % [sz, "drops" if drop else "gold"]
+			check(cb.over and cb.won and cs.finished, "%s: the fight is won" % tag)
+			var vr: Rect2 = main.get_viewport_rect().grow(0.5)
+			var card: Control = cs.find_child("VictoryResults", true, false)
+			check(card != null and card.is_visible_in_tree(), "%s: the Victory card shows" % tag)
+			if card == null: continue
+			check(vr.encloses(card.get_global_rect()), "%s: the Victory card is inside the viewport (%s in %s)" % [tag, card.get_global_rect(), vr])
+			for b in card.find_children("*", "Button", true, false):
+				check(vr.encloses(b.get_global_rect()), "%s: '%s' is inside the viewport (%s)" % [tag, b.text, b.get_global_rect()])
+			check(vr.encloses(cs.pane.get_global_rect()), "%s: the status pane is inside the viewport (%s)" % [tag, cs.pane.get_global_rect()])
+			check(vr.encloses(cs.log_scroll.get_global_rect()), "%s: the log is inside the viewport (%s)" % [tag, cs.log_scroll.get_global_rect()])
+			check(vr.encloses(cs.grid.get_global_rect()), "%s: the grid is inside the viewport (%s)" % [tag, cs.grid.get_global_rect()])
+			check(cs.side.get_global_rect().end.x <= vr.end.x, "%s: the side column ends inside the viewport (%s)" % [tag, cs.side.get_global_rect()])
+			var vsc: ScrollContainer = card.find_child("VictoryList", true, false)
+			var vlines: Control = vsc.get_child(0)
+			if vlines.get_child_count() <= cs.VICTORY_ROWS:
+				check(vsc.size.y + 1.0 >= vlines.size.y, "%s: a short Victory list shows every row without scrolling (%s of %s)" % [tag, vsc.size.y, vlines.size.y])
+			var rows: Array = card.find_children("VictoryRow", "HBoxContainer", true, false)
+			var icons: Array = card.find_children("VictoryIcon", "Control", true, false)
+			var ids: Array = icons.map(func(ic): return String(ic.get_meta("item_id", "")))
+			check("gold" in ids, "%s: the gold line has the gold coin sprite (%s)" % [tag, ids])
+			for r in rows:
+				var txt: Label = r.find_child("VictoryText", false, false)
+				var has_icon: bool = r.find_child("VictoryIcon", false, false) != null
+				if txt.text.ends_with("XP") or txt.text.ends_with("HP"): check(not has_icon, "%s: '%s' has no item sprite" % [tag, txt.text])
+				else: check(has_icon, "%s: '%s' has a sprite" % [tag, txt.text])
+			if drop:
+				for want in ["spear", "potion"]:
+					var hit := ids.filter(func(x): return x == want or (want == "potion" and String(x).begins_with("potion_")))
+					check(not hit.is_empty(), "%s: the %s drop has its sprite (%s)" % [tag, want, ids])
+				check(ids.any(func(x): return String(x).begins_with("ring_")), "%s: the ring drop has its gem sprite (%s)" % [tag, ids])
+				for r in rows:
+					var txt: Label = r.find_child("VictoryText", false, false)
+					if txt.text == "Spear" or txt.text.ends_with("Ring") or txt.text.ends_with("Potion"):
+						check(txt.get_theme_color("font_color") == GameState.LOG_COLORS.highlight, "%s: '%s' is drawn in the highlight colour" % [tag, txt.text])
+					elif txt.text.ends_with("Gold"):
+						check(txt.get_theme_color("font_color") == GameState.LOG_COLORS.positive, "%s: '%s' stays green" % [tag, txt.text])
+	# a long list scrolls inside the card: the buttons stay on screen
+	win.size = Vector2i(880, 1024)
+	await get_tree().process_frame
+	main._relayout()
+	var cs2 = main.screen
+	var got := PackedStringArray(); var icons2 := {}
+	for i in 14: got.append("+1 Item %d" % i); icons2[got[-1]] = {"id": "potion_healing", "known": true, "drop": true}
+	cs2._summary = {"got": got, "lost": PackedStringArray(["-3 HP"]), "icons": icons2}
+	cs2._refresh()
+	for i in 3: await get_tree().process_frame
+	var card2: Control = cs2.find_child("VictoryResults", true, false)
+	var sc: ScrollContainer = card2.find_child("VictoryList", true, false)
+	check(sc != null and sc.size.y < sc.get_child(0).size.y, "a 15-line Victory list scrolls inside the card (%s < %s)" % [sc.size.y if sc else -1.0, sc.get_child(0).size.y if sc else -1.0])
+	var vr2: Rect2 = main.get_viewport_rect().grow(0.5)
+	for b in card2.find_children("*", "Button", true, false):
+		check(vr2.encloses(b.get_global_rect()), "long list: '%s' stays inside the viewport (%s)" % [b.text, b.get_global_rect()])
+	gs.end_run("abandon")
+	main.queue_free()
+	win.size = old
+	await get_tree().process_frame
 
 
 ## DECISIONS #156: vanilla wands imbued into the Mage's Staff.

@@ -70,39 +70,39 @@ GDD target: 12-13 Str, tier 2-3 gear. Two Sewers Strength potions take a fresh h
 
 ### Monsters
 
-| Mob | HT | Dmg | DR | Delay (ticks) | EXP | Gold | SPD source | Tuning |
-|---|---|---|---|---|---|---|---|---|
-| Marsupial Rat | 8 | 2 | 0 | 1.0 | 1 | 2 | HT 8, dmg 1-4, DR 0-1 | - |
-| Sewer Snake | 4 | 2 | 0 | 1.0 | 2 | 2 | HT 4, dmg 1-4; melee only by surprise; magic always hits; slips the first bow shot | - |
-| Gnoll Scout | 12 | 3 | 1 | 1.0 | 2 | 3 | HT 12, dmg 1-6, DR 0-2 |  Throws need a clear line (#155). |
-| Sewer Crab | 15 | 2 | 1 | 0.5 | 4 | 4 | HT 15, dmg 1-7, DR 0-4, speed 2x | dmg 4->2, DR 2->1: at 2 attacks/tick SPD avg damage was unbeatable without RNG misses |
-| Animated Statue | 20 | 4 | 2 | 1.0 | 5 | 6 | HT 15+5*depth, dmg 2+depth..2+3*depth (depth 2) | fixed to depth-2 values |
-| Goo | 90 | 4 | 0 | 1.0 | 10 | 30 | HT 100, dmg 1-8 (1-12 below half), DR 0-2, pump-up = 3x | HT 90 (SPD 100; was 70), dmg 4, enraged 6. Pump every 4 acts, every 3 below half HP. Regenerates 1 HP/turn in water; the arena has 2 water tiles like SPD's pools. Each earlier death to Goo removes 15 HT (floor 70, which also stops the enrage) until it is killed. A Goo death also restocks 2 Potions of Healing (DECISIONS #131). |
-| Skeleton | 20 | 4 | 2 | 1.0 | 5 | 4 | HT 25, dmg 2-10, DR 0-5; explodes on death for 6-12 to adjacent | HT 25->20, dmg 4. The death explosion is a 1-tick 3x3 telegraph (5 dmg) instead of instant, so melee heroes can step away |
-| Crazy Thief | 16 | 3 | 1 | 1.0 | 5 | 5 | HT 20, dmg 1-10, DR 0-3; steals an item and flees | steals 8 gold (dropped back when killed) instead of an item; flees at normal speed so ranged heroes can catch it |
-| DM-100 | 16 | 3 | 2 | 1.0 | 6 | 5 | HT 20, dmg 2-8, DR 0-4; ranged lightning 3-10 | zap is a 1-tick red tile at range 2-4 (5 dmg, DR applies); cooldown 3 actions Needs a clear line; lightning x1.5 if you stand in water (#155). |
-| Prison Guard | 28 | 5 | 3 | 1.0 | 7 | 6 | HT 40, dmg 4-12, DR 0-7; chains and pulls the hero | HT 40->28, dmg 8->5, DR 3: once per fight pulls the hero adjacent from range 2-3 |
-| Tengu | 90 | 6 | 2 | 1.0 | 20 | 60 | HT 200, dmg 6-12, DR 0-5; phase 1 teleports & throws shurikens, phase 2 bombs/fire/shockers | HT 200->90. Blinks away every 15 HP lost; shuriken = 1-tick red tile (6). Below half HP lobs a 3x3 bomb every 3 actions (2-tick fuse, 8 dmg, also hurts mobs) |
-| Vampire Bat | 24 | 6 | 2 | 0.5 | 7 | 5 | HT 30, dmg 5-18, DR 0-4, speed 2x, heals (damage dealt - 4) on hit | HT 24, dmg 11->6 (it attacks twice per tick), heals (damage dealt - 2) like SPD's (dealt - 4) |
-| Gnoll Brute | 34 | 8 | 4 | 1.0 | 8 | 7 | HT 40, dmg 5-25 (15-40 enraged), DR 0-8 | HT 34, dmg 7, enraged (below half HP) 10 |
-| Gnoll Shaman | 26 | 7 | 3 | 1.0 | 8 | 7 | HT 35, dmg 5-10, DR 0-6; magic bolt 6-15 | magic zap = 1-tick red tile, 6 dmg ignoring DR, range 2-4, every 2 actions Holds range; red shamans (even uid) weaken, blue ones make you vulnerable for 3 turns (#155). |
-| Cave Spinner | 32 | 8 | 3 | 1.0 | 9 | 8 | HT 50, dmg 10-20, DR 0-6; poison bite, webs | HT 32, dmg 6, bite adds 3 poison. Spits a web at range 2-4 every 4 actions (red tile; rooted 2 turns: you can attack but not step) (#155). |
-| DM-300 | 160 | 8 | 4 | 1.0 | 30 | 100 | HT 300, dmg 15-25, DR 0-10; rockfall, toxic vents, supercharge with pylons | HT 160, dmg 8, DR 4 (+2 supercharged below half HP). Every 3 actions (2 supercharged) alternates rockfall (+ shape on you, 2-tick fuse, 10) and a toxic gas line (1 tick, 3 + 4 poison). No pylons. |
-| Dwarven Ghoul | 40 | 9 | 4 | 1.0 | 10 | 8 | HT 45, dmg 16-22, DR 0-4; rises again unless all ghouls die | HT 40, dmg 9; the first time it dies it gets back up with half HP after 2 ticks (red tile on its corpse) |
-| Dwarf Warlock | 34 | 7 | 3 | 1.0 | 10 | 9 | HT 70, dmg 12-18, DR 0-8; shadow bolt 12-18 + weakness | HT 34; shadow bolt = 1-tick red tile, 9 dmg ignoring DR, every 2 actions Holds range; the bolt weakens for 3 turns (#155). |
-| Dwarf Monk | 34 | 5 | 3 | 0.5 | 10 | 8 | HT 70, dmg 12-25, fast attacks, DR 0-2; disarms | HT 34, dmg 5, acts twice per tick Every 3rd hit knocks your weapon aside (weakened 2 turns) (#155). |
-| Golem | 75 | 15 | 7 | 1.5 | 14 | 12 | HT 120, dmg 25-30, DR 0-12; slow | HT 75, dmg 15, DR 7, acts every 1.5 ticks Every 6 actions pulls a hero it sees at range 3+ to its side (#155). |
-| King of Dwarves | 140 | 8 | 5 | 1.0 | 40 | 150 | HT 300, dmg 15-25, DR 0-10; summons, lifelinks, 3 phases | HT 140, dmg 8, DR 5. Phase 1 (>1/2 HP): every 3 actions alternates raising 2 Risen Dwarves (only when none are left) and a shadow blast (3x3 on you, 2 ticks, 8 ignoring DR); living dwarves lifelink him (he takes 2/3 damage). Phase 2 (<=1/2): +3 dmg. Phase 3 (<=1/4): throne cracks - no more summons, blasts only. |
-| Risen Dwarf | 18 | 6 | 2 | 1.0 | 2 | 0 | summon | weak summon of the Dwarf King |
-| Succubus | 70 | 16 | 5 | 1.0 | 12 | 14 | HT 80, dmg 25-30, DR 0-10; charm, lifesteal, blink | HT 70, dmg 16, DR 5; heals 5 per bite Once per fight blinks next to you from range 3+, only if nothing else is next to you (#155). |
-| Ripper Demon | 40 | 14 | 3 | 0.6 | 10 | 10 | HT 60, dmg 15-25, DR 0-4; leaps, fast | HT 40, dmg 14, DR 3, acts every 0.6 ticks Telegraphed leap onto your tile from range 2-4 (dmg, then lands), cooldown 4 (#155). |
-| Evil Eye | 60 | 12 | 4 | 1.0 | 13 | 14 | HT 100, dmg 20-30, DR 0-10; disintegration beam | HT 60, dmg 12; beam = 1-tick red tile, 20 ignoring DR, every 2 actions The beam lights the whole line through you out to range 6; the eye charges while it is up (#155). |
-| Scorpio | 72 | 16 | 6 | 1.0 | 14 | 14 | HT 110, dmg 30-40, DR 0-16; ranged spit, cripple | HT 72, dmg 16, DR 6; spits at range 2-4, bite poisons The bite cripples (steps cost 2 ticks) for 2 turns (#155). |
-| God's Larva | 18 | 9 | 2 | 1.0 | 0 | 0 | HT 25, dmg 22-30 | HT 18, dmg 9 |
-| Yog-Dzewa | 100 | 14 | 6 | 1.0 | 60 | 250 | HT 1000, immobile; fists, larva, beams, phases | HT 100, DR 6, immobile. Phases: a Burning Fist at the start, a Rotting Fist at 2/3 HP and a Bright Fist at 1/3; Yog takes no damage while a fist lives. Every 3 actions (2 below half HP) alternates larva and a row/column gaze (9). Fists and larva crumble when Yog dies. |
-| Burning Fist | 40 | 8 | 4 | 1.0 | 0 | 0 | HT 300, dmg 18-36, sets fires | HT 40, dmg 10. Shields Yog while it lives. |
-| Rotting Fist | 45 | 7 | 5 | 1.0 | 0 | 0 | HT 300, poisons, regenerates in water | HT 45, dmg 8 + 2 poison. Shields Yog while it lives. |
-| Bright Fist | 35 | 6 | 3 | 1.0 | 0 | 0 | HT 300, ranged light zaps, blinds | HT 35, dmg 6, zaps 8 at range. Shields Yog while it lives. Holds range (#155). |
+| Mob | HT | Dmg | DR | Move (ticks) | Attack (ticks) | EXP | Gold | SPD source | Tuning |
+|---|---|---|---|---|---|---|---|---|---|
+| Marsupial Rat | 8 | 2 | 0 | 1.0 | 1.0 | 1 | 2 | HT 8, dmg 1-4, DR 0-1 | - |
+| Sewer Snake | 4 | 2 | 0 | 1.0 | 1.0 | 2 | 2 | HT 4, dmg 1-4; melee only by surprise; magic always hits; slips the first bow shot | - |
+| Gnoll Scout | 12 | 3 | 1 | 1.0 | 1.0 | 2 | 3 | HT 12, dmg 1-6, DR 0-2 |  Throws need a clear line (#155). |
+| Sewer Crab | 15 | 3 | 1 | 0.5 | 1.0 | 4 | 4 | HT 15, dmg 1-7, DR 0-4, speed 2x (moves), attacks at normal speed | dmg 4->3, DR 2->1: deterministic hits with no RNG misses; SPD's averages (4 / 2) took a starting Warrior from 5/10 to 1/10 Sewers clears (DECISIONS #215) |
+| Animated Statue | 20 | 4 | 2 | 1.0 | 1.0 | 5 | 6 | HT 15+5*depth, dmg 2+depth..2+3*depth (depth 2) | fixed to depth-2 values |
+| Goo | 90 | 4 | 0 | 1.0 | 1.0 | 10 | 30 | HT 100, dmg 1-8 (1-12 below half), DR 0-2, pump-up = 3x | HT 90 (SPD 100; was 70), dmg 4, enraged 6. Pump every 4 acts, every 3 below half HP. Regenerates 1 HP/turn in water; the arena has 2 water tiles like SPD's pools. Each earlier death to Goo removes 15 HT (floor 70, which also stops the enrage) until it is killed. A Goo death also restocks 2 Potions of Healing (DECISIONS #131). |
+| Skeleton | 20 | 4 | 2 | 1.0 | 1.0 | 5 | 4 | HT 25, dmg 2-10, DR 0-5; explodes on death for 6-12 to adjacent | HT 25->20, dmg 4. The death explosion is a 1-tick 3x3 telegraph (5 dmg) instead of instant, so melee heroes can step away |
+| Crazy Thief | 16 | 3 | 1 | 1.0 | 0.5 | 5 | 5 | HT 20, dmg 1-10, DR 0-3; attacks twice a turn; steals an item and flees | steals 8 gold (dropped back when killed) instead of an item; flees at normal speed so ranged heroes can catch it |
+| DM-100 | 16 | 3 | 2 | 1.0 | 1.0 | 6 | 5 | HT 20, dmg 2-8, DR 0-4; ranged lightning 3-10 | zap is a 1-tick red tile at range 2-4 (5 dmg, DR applies); cooldown 3 actions Needs a clear line; lightning x1.5 if you stand in water (#155). |
+| Prison Guard | 28 | 5 | 3 | 1.0 | 1.0 | 7 | 6 | HT 40, dmg 4-12, DR 0-7; chains and pulls the hero | HT 40->28, dmg 8->5, DR 3: once per fight pulls the hero adjacent from range 2-3 |
+| Tengu | 90 | 6 | 2 | 1.0 | 1.0 | 20 | 60 | HT 200, dmg 6-12, DR 0-5; phase 1 teleports & throws shurikens, phase 2 bombs/fire/shockers | HT 200->90. Blinks away every 15 HP lost; shuriken = 1-tick red tile (6). Below half HP lobs a 3x3 bomb every 3 actions (2-tick fuse, 8 dmg, also hurts mobs) |
+| Vampire Bat | 24 | 7 | 2 | 0.5 | 1.0 | 7 | 5 | HT 30, dmg 5-18, DR 0-4, speed 2x (moves), attacks at normal speed, heals (damage dealt - 4) on hit | HT 24, dmg 11->7: one bite per tick now (#215), the old 6 twice a tick against Caves armor; heals (damage dealt - 2) like SPD's (dealt - 4) |
+| Gnoll Brute | 34 | 8 | 4 | 1.0 | 1.0 | 8 | 7 | HT 40, dmg 5-25 (15-40 enraged), DR 0-8 | HT 34, dmg 7, enraged (below half HP) 10 |
+| Gnoll Shaman | 26 | 7 | 3 | 1.0 | 1.0 | 8 | 7 | HT 35, dmg 5-10, DR 0-6; magic bolt 6-15 | magic zap = 1-tick red tile, 6 dmg ignoring DR, range 2-4, every 2 actions Holds range; red shamans (even uid) weaken, blue ones make you vulnerable for 3 turns (#155). |
+| Cave Spinner | 32 | 8 | 3 | 1.0 | 1.0 | 9 | 8 | HT 50, dmg 10-20, DR 0-6; poison bite, webs | HT 32, dmg 6, bite adds 3 poison. Spits a web at range 2-4 every 4 actions (red tile; rooted 2 turns: you can attack but not step) (#155). |
+| DM-300 | 160 | 8 | 4 | 1.0 | 1.0 | 30 | 100 | HT 300, dmg 15-25, DR 0-10; rockfall, toxic vents, supercharge with pylons | HT 160, dmg 8, DR 4 (+2 supercharged below half HP). Every 3 actions (2 supercharged) alternates rockfall (+ shape on you, 2-tick fuse, 10) and a toxic gas line (1 tick, 3 + 4 poison). No pylons. |
+| Dwarven Ghoul | 40 | 9 | 4 | 1.0 | 1.0 | 10 | 8 | HT 45, dmg 16-22, DR 0-4; rises again unless all ghouls die | HT 40, dmg 9; the first time it dies it gets back up with half HP after 2 ticks (red tile on its corpse) |
+| Dwarf Warlock | 34 | 7 | 3 | 1.0 | 1.0 | 10 | 9 | HT 70, dmg 12-18, DR 0-8; shadow bolt 12-18 + weakness | HT 34; shadow bolt = 1-tick red tile, 9 dmg ignoring DR, every 2 actions Holds range; the bolt weakens for 3 turns (#155). |
+| Dwarf Monk | 34 | 5 | 3 | 1.0 | 0.5 | 10 | 8 | HT 70, dmg 12-25, normal move speed, attacks twice a turn (attackDelay x0.5), DR 0-2; disarms | HT 34, dmg 5, attacks twice per tick, walks at normal speed (#215) Every 3rd hit knocks your weapon aside (weakened 2 turns) (#155). |
+| Golem | 75 | 15 | 7 | 1.5 | 1.5 | 14 | 12 | HT 120, dmg 25-30, DR 0-12; slow | HT 75, dmg 15, DR 7, acts every 1.5 ticks Every 6 actions pulls a hero it sees at range 3+ to its side (#155). |
+| King of Dwarves | 140 | 8 | 5 | 1.0 | 1.0 | 40 | 150 | HT 300, dmg 15-25, DR 0-10; summons, lifelinks, 3 phases | HT 140, dmg 8, DR 5. Phase 1 (>1/2 HP): every 3 actions alternates raising 2 Risen Dwarves (only when none are left) and a shadow blast (3x3 on you, 2 ticks, 8 ignoring DR); living dwarves lifelink him (he takes 2/3 damage). Phase 2 (<=1/2): +3 dmg. Phase 3 (<=1/4): throne cracks - no more summons, blasts only. |
+| Risen Dwarf | 18 | 6 | 2 | 1.0 | 1.0 | 2 | 0 | summon | weak summon of the Dwarf King |
+| Succubus | 70 | 16 | 5 | 1.0 | 1.0 | 12 | 14 | HT 80, dmg 25-30, DR 0-10; charm, lifesteal, blink | HT 70, dmg 16, DR 5; heals 5 per bite Once per fight blinks next to you from range 3+, only if nothing else is next to you (#155). |
+| Ripper Demon | 40 | 14 | 3 | 1.0 | 0.5 | 10 | 10 | HT 60, dmg 15-25, DR 0-4; leaps, normal move speed, attacks twice a turn | HT 40, dmg 14, DR 3, walks every tick, attacks every 0.5 like SPD (#215) Telegraphed leap onto your tile from range 2-4 (dmg, then lands), cooldown 4 (#155). |
+| Evil Eye | 60 | 12 | 4 | 1.0 | 1.0 | 13 | 14 | HT 100, dmg 20-30, DR 0-10; disintegration beam | HT 60, dmg 12; beam = 1-tick red tile, 20 ignoring DR, every 2 actions The beam lights the whole line through you out to range 6; the eye charges while it is up (#155). |
+| Scorpio | 72 | 16 | 6 | 1.0 | 1.0 | 14 | 14 | HT 110, dmg 30-40, DR 0-16; ranged spit, cripple | HT 72, dmg 16, DR 6; spits at range 2-4, bite poisons The bite cripples (steps cost 2 ticks) for 2 turns (#155). |
+| God's Larva | 18 | 9 | 2 | 1.0 | 1.0 | 0 | 0 | HT 25, dmg 22-30 | HT 18, dmg 9 |
+| Yog-Dzewa | 100 | 14 | 6 | 1.0 | 1.0 | 60 | 250 | HT 1000, immobile; fists, larva, beams, phases | HT 100, DR 6, immobile. Phases: a Burning Fist at the start, a Rotting Fist at 2/3 HP and a Bright Fist at 1/3; Yog takes no damage while a fist lives. Every 3 actions (2 below half HP) alternates larva and a row/column gaze (9). Fists and larva crumble when Yog dies. |
+| Burning Fist | 40 | 8 | 4 | 1.0 | 1.0 | 0 | 0 | HT 300, dmg 18-36, sets fires | HT 40, dmg 10. Shields Yog while it lives. |
+| Rotting Fist | 45 | 7 | 5 | 1.0 | 1.0 | 0 | 0 | HT 300, poisons, regenerates in water | HT 45, dmg 8 + 2 poison. Shields Yog while it lives. |
+| Bright Fist | 35 | 6 | 3 | 1.0 | 1.0 | 0 | 0 | HT 300, ranged light zaps, blinds | HT 35, dmg 6, zaps 8 at range. Shields Yog while it lives. Holds range (#155). |
 
 ### Weapons & armor
 
