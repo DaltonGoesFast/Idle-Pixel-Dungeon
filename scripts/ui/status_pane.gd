@@ -3,7 +3,7 @@
 ##   bg        NinePatch(status_pane.png 0,64,41,39; left 33, right 4) stretched to the pane width
 ##   avatar    hero frame centred at (15,16) in the portrait box; level number centred at (15,33) in the badge strip
 ##   buffs     row at (31,0..16): hero name, then BuffIndicator icons; depth + danger at the right end
-##   hp        bar at (30,19), 9 tall: shield (grey) under hp (red) like SPD's shieldHP/hp scale.x; "HP/HT" centred
+##   hp        bar at (30,19), 9 tall: shield (blue, one segment per hit it stops, DECISIONS #210) after hp (red) like SPD's shieldHP/hp scale.x; "HP/HT" centred
 ##   minis     torch/food row at (30,29), 9 tall like the HP bar, equal widths, same left/right edges (DECISIONS #133)
 class_name StatusPane
 extends Control
@@ -75,6 +75,19 @@ func _centred(font: Font, r: Rect2, s: String, fs: int, col: Color, k: float) ->
 	var base := r.position.y + (r.size.y + asc * 0.72) / 2.0
 	_text(font, Vector2(floorf(r.position.x + (r.size.x - w) / 2.0), floorf(base)), s, fs, col, k)
 
+const BARRIER_BLUE := Color("3f8fff")
+const BARRIER_DIV := Color("0a1a3a")
+## Barrier as a blue section of `bar` from frac a to b, split by thin dark dividers into `segs` equal parts.
+## Shared by the status pane and the grid's over-sprite bar.
+static func barrier_segs(ci: CanvasItem, bar: Rect2, a: float, b: float, segs: int, line: float) -> void:
+	var x0 := floorf(bar.position.x + bar.size.x * clampf(a, 0, 1))
+	var x1 := floorf(bar.position.x + bar.size.x * clampf(b, 0, 1))
+	if x1 <= x0: return
+	ci.draw_rect(Rect2(x0, bar.position.y, x1 - x0, bar.size.y), BARRIER_BLUE)
+	for i in range(1, maxi(1, segs)):
+		var x := floorf(x0 + (x1 - x0) * i / float(segs))
+		ci.draw_rect(Rect2(x, bar.position.y, line, bar.size.y), BARRIER_DIV)
+
 func _strip(src: Rect2, dst: Rect2, frac: float) -> void:
 	frac = clampf(frac, 0.0, 1.0)
 	if frac <= 0.0: return
@@ -130,8 +143,9 @@ func _draw() -> void:
 	var ht := maxf(1.0, float(d.get("ht", 1)))
 	var hp := float(d.get("hp", 0))
 	var sh := float(d.get("shield", 0))
-	_strip(SHIELD, bar, (hp + sh) / maxf(ht, hp + sh))
-	_strip(HP, bar, hp / maxf(ht, hp + sh))
+	var tot := maxf(ht, hp + sh)
+	_strip(HP, bar, hp / tot)
+	if sh > 0: barrier_segs(self, bar, hp / tot, (hp + sh) / tot, int(d.get("shield_hits", 1)), maxf(1.0, floorf(k / 2.0)))
 	var hp_txt := "%d/%d" % [int(hp), int(ht)]
 	if sh > 0: hp_txt = "%d+%d/%d" % [int(hp), int(sh), int(ht)]
 	_centred(font, bar, hp_txt, _fit_fs(bar.size.y), Color.WHITE, k)
