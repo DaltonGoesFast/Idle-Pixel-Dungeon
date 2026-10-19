@@ -4755,6 +4755,19 @@ func test_wipe_save_confirm(gs) -> void:
 	await get_tree().process_frame
 	check(SP.has_wipe_button(v), "wipe: Cancel rebuilds Settings")
 	check(gs.mat("gold") == gold0, "wipe: Cancel keeps gold (%d)" % gs.mat("gold"))
+	# Cancel with on_rebuild (delve Settings) restores the host Close button path.
+	var rebuilt := [false]
+	SP.show_wipe_confirm(v, false, Callable(), func(): rebuilt[0] = true; UIKit.clear(v); SP.build(v, false); v.add_child(UIKit.button("Close", func(): pass)))
+	var cancel2: Button = null
+	for c in v.get_children():
+		if c is Button and String(c.text) == SP.WIPE_CANCEL: cancel2 = c
+	cancel2.pressed.emit()
+	await get_tree().process_frame
+	check(rebuilt[0], "wipe: Cancel with on_rebuild invokes the host rebuild")
+	var close_ok := false
+	for c in v.get_children():
+		if c is Button and String(c.text) == "Close": close_ok = true
+	check(close_ok and SP.has_wipe_button(v), "wipe: Cancel restores Settings and Close")
 	# Confirm wipes.
 	gs.add_mat("gold", 100)
 	var tel_before := Telemetry.distinct_id

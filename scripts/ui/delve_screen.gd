@@ -524,7 +524,7 @@ func _show_card() -> void:
 			card_host.add_child(UIKit.button("Close", _close_panel))
 		"settings":
 			var v := _card("Settings", "")
-			SettingsPanel.build(v, false, func(): if main: main.show_camp())
+			SettingsPanel.build(v, false, func(): if main: main.show_camp(), func(): _show_card())
 			v.add_child(UIKit.button("Close", _close_panel))
 		"confirm_abandon":
 			var v := _card("Abandon the expedition?", abandon_text(GameState.run))

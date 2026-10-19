@@ -19,7 +19,7 @@ const CREDITS := "Art, sounds and music: Shattered Pixel Dungeon by Evan Debenha
 static func dev_tools_allowed(is_web: bool = OS.has_feature("web")) -> bool:
 	return not is_web
 
-static func build(v: VBoxContainer, show_dev := true, on_wiped: Callable = Callable()) -> void:
+static func build(v: VBoxContainer, show_dev := true, on_wiped: Callable = Callable(), on_rebuild: Callable = Callable()) -> void:
 	v.add_child(UIKit.label("SPD Tactics " + UIKit.version(), 0.8, Color("c9a96e")))
 	_build_update(v)
 	v.add_child(UIKit.header("Audio"))
@@ -77,17 +77,20 @@ static func build(v: VBoxContainer, show_dev := true, on_wiped: Callable = Calla
 				GameState.touch()))
 			v.add_child(UIKit.button("Fast-forward 1 hour (timers)", func(): GameState.time_offset += 3600; GameState.tick_identify(); GameState.touch()))
 	# Wipe is always in the main Settings list (every platform, Camp and delve), above the credits (DECISIONS #212).
-	v.add_child(UIKit.button(WIPE_BTN, func(): show_wipe_confirm(v, show_dev, on_wiped)))
+	v.add_child(UIKit.button(WIPE_BTN, func(): show_wipe_confirm(v, show_dev, on_wiped, on_rebuild)))
 	v.add_child(UIKit.label(CREDITS, 0.75, Color("9a8f7c")))
 
-## SPD-style confirm: title, body, Wipe / Cancel. Cancel rebuilds Settings; Wipe deletes the save.
-static func show_wipe_confirm(v: VBoxContainer, show_dev := true, on_wiped: Callable = Callable()) -> void:
+## SPD-style confirm: title, body, Wipe / Cancel. Cancel rebuilds Settings (and any host Close button via on_rebuild); Wipe deletes the save.
+static func show_wipe_confirm(v: VBoxContainer, show_dev := true, on_wiped: Callable = Callable(), on_rebuild: Callable = Callable()) -> void:
 	UIKit.clear(v)
 	v.add_child(UIKit.header(WIPE_TITLE))
 	v.add_child(UIKit.label(WIPE_BODY))
 	v.add_child(UIKit.button(WIPE_CONFIRM, func(): _do_wipe(on_wiped)))
 	v.add_child(UIKit.secondary(UIKit.button(WIPE_CANCEL, func():
-		UIKit.clear(v); build(v, show_dev, on_wiped))))
+		if on_rebuild.is_valid():
+			on_rebuild.call()
+		else:
+			UIKit.clear(v); build(v, show_dev, on_wiped, on_rebuild))))
 
 static func _do_wipe(on_wiped: Callable = Callable()) -> void:
 	# Optional telemetry: anonymous id in user://telemetry.cfg is kept (SaveSystem.wipe only clears save.json).
