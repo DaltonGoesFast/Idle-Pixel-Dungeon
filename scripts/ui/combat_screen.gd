@@ -118,8 +118,18 @@ func _fit_split() -> void:
 	if _portrait:
 		grid.custom_minimum_size = Vector2(_area.x, _area.x)
 		return
-	var g := wide_grid_side(_area, side.get_combined_minimum_size().x, float(split.get_theme_constant("separation")))
+	var g := wide_grid_side(_area, side_min_width(), float(split.get_theme_constant("separation")))
 	grid.custom_minimum_size = Vector2(g, g)
+
+## The widest row the side column needs, leaving out the combat log: its fit_content RichTextLabel reports the width
+## it was last laid out at, so after a wide layout a smaller window would keep that width as the column's floor and
+## crush the arena (Bugbot on #113). The log wraps to whatever width the column gets.
+func side_min_width() -> float:
+	var w := 0.0
+	for c in side.get_children():
+		if c == log_scroll or not (c is Control) or not (c as Control).visible: continue
+		w = maxf(w, (c as Control).get_combined_minimum_size().x)
+	return w
 
 func _process(d: float) -> void:
 	if main and main.tip_open(): return

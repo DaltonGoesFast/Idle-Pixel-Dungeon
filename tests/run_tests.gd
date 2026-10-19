@@ -4118,6 +4118,18 @@ func test_victory_card(gs) -> void:
 	var vr2: Rect2 = main.get_viewport_rect().grow(0.5)
 	for b in card2.find_children("*", "Button", true, false):
 		check(vr2.encloses(b.get_global_rect()), "long list: '%s' stays inside the viewport (%s)" % [b.text, b.get_global_rect()])
+	# a wide window lays the log out wide; shrinking the window must not keep that width as the column's floor
+	win.size = Vector2i(2560, 1080)
+	await get_tree().process_frame
+	main._relayout()
+	for i in 3: await get_tree().process_frame
+	win.size = Vector2i(1024, 900)
+	await get_tree().process_frame
+	main._relayout()
+	for i in 3: await get_tree().process_frame
+	var cs3 = main.screen
+	check(cs3.side_min_width() < cs3.side.get_combined_minimum_size().x + 0.5, "the side column's floor leaves out the log")
+	check(cs3.grid.size.x >= 1024 * 0.25, "after shrinking from a wide window the arena keeps its size (%s)" % cs3.grid.size)
 	gs.end_run("abandon")
 	main.queue_free()
 	win.size = old
