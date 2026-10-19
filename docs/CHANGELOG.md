@@ -1,6 +1,8 @@
 # Changelog
 
 ## Unreleased
+
+## 0.47.0
 - The Victory card fits the screen on near-square browser windows such as Chrome on the unfolded Fold: the arena gives up width so the side column (the hero's bars, the card and its buttons, the log) always fits, where before the card, the floor label and the bars ran off the right edge. Each line on the card now shows its SPD sprite (the gold coin, or the potion, scroll, ring, weapon or material found), found items are drawn in SPD's yellow, and a long list scrolls inside the card (DECISIONS #217, +tests).
 - Iron Ore now has its own silver-grey ore icon instead of a darker, olive copy of the Dark Gold sprite, so it no longer looks like gold anywhere (Stash, Forge, Victory drops, pickups). The ore pickup icon in the delve used to show plain Dark Gold; it shows Iron Ore now too (DECISIONS #216, +test).
 - Using a potion, scroll, ration or torch from the Backpack now shows what happened in a small pop-up over the Bag (the item's sprite and name, the effect, and any milestone it reached), with OK or a tap outside to close it, instead of printing at the top of the Bag window where it was out of sight once you had scrolled down. The Bag stays open underneath. A Potion of Healing now says how much it healed, and a use that can't happen says why (full health, not hungry, torch still bright) instead of doing nothing (DECISIONS #214, +test).
