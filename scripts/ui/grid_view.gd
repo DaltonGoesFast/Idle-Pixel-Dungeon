@@ -125,6 +125,7 @@ func play_events(evs: Array) -> void:
 					"barrier": col = Color("7fd3ff")
 					"chip": col = Color("7fd3ff"); txt = "chip"
 					"block": col = Color("bbbbbb"); txt = "block"
+					"miss": col = Color("bbbbbb"); txt = "dodged"   # SPD defenseVerb (inaccurate weapons, DECISIONS #207)
 					"surprise": col = Color("ffd27a"); txt += "!"
 					"magic": col = Color("c08bff")
 					"poison": col = Color("8be04e")
@@ -134,7 +135,7 @@ func play_events(evs: Array) -> void:
 					"chip", "block", "barrier": _burst(Vector2(e.pos), Color("ffe08a"), 5, 2.2)          # sparks
 					"magic": _burst(Vector2(e.pos), Color("c08bff"), 6)
 					"poison": _burst(Vector2(e.pos), Color("8be04e"), 4, 0.6)
-				Sfx.play("hit_strong" if e.kind == "surprise" else ("hit_magic" if e.kind == "magic" else "hit"), 1.0)
+				Sfx.play("miss" if e.kind == "miss" else ("hit_strong" if e.kind == "surprise" else ("hit_magic" if e.kind == "magic" else "hit")), 1.0)
 				if e.uid == combat.hero.uid and int(e.amount) > 0: Sfx.buzz(60 if e.kind == "hp" else 25)
 			"heal":
 				floaters.append({"pos": Vector2(e.pos), "text": "+%d" % e.amount, "color": Color("6bff6b"), "t": 0.0}); Sfx.play("drink")
@@ -469,6 +470,11 @@ func _draw() -> void:
 			elif combat.passable(n) and u == null:
 				var warn := combat.visible_trap(n)
 				draw_rect(cell_rect(Vector2(n)).grow(-2), Color(1, 0.6, 0.2, 0.5) if warn else Color(1, 1, 1, 0.16), false, maxf(2.0, ps * 0.5))
+		# reach weapons (Spear, Glaive, Whip): foes 2-3 tiles away the next swing can hit (DECISIONS #207)
+		if mode != "bolt" and int(combat.hero.get("reach", 1)) > 1:
+			for e in combat.enemies():
+				if Combat.cheb(e.pos, hp) > 1 and combat.can_melee(e):
+					draw_rect(cell_rect(Vector2(e.pos)).grow(-2), Color(1, 0.4, 0.3, 0.6), false, maxf(2.0, ps))
 		if mode == "bolt" or not combat.hero.bolt.is_empty():
 			for e in combat.enemies():
 				if combat.hero_sees(e) and combat.can_bolt(e.pos) and combat.bolt_victim(e.pos) == e and Combat.cheb(e.pos, hp) > 1:

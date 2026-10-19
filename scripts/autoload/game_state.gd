@@ -169,12 +169,12 @@ func hero_stats(c: String) -> Dictionary:
 	var wd := DB.item(w.id) if w_ok else DB.item(def.start_weapon)
 	var ad := DB.item(a.id) if a_ok else DB.item(def.get("start_armor", "cloth_armor"))
 	var wl := int(w.get("lvl", 0)) if w_ok else 0; var al := int(a.get("lvl", 0)) if a_ok else 0
-	var dmg := int(wd.dmg) + wl * (int(wd.tier) + 1) / 2          # upgrades: +((tier+1)/2) per level
+	var dmg := Weapons.dmg(wd, wl)          # SPD min/max at this level, averaged (DECISIONS #207)
 	if wd.has("dmg_per_levels"): dmg += int(h.level) / int(wd.dmg_per_levels)
-	var dr := int(ad.get("dr", 0)) + al
+	var dr := int(ad.get("dr", 0)) + al + Weapons.block_dr(wd, wl)   # Rapier, Quarterstaff, Katana, shields block (#207)
 	var barrier := int(def.base_barrier) + int(def.heirloom_barrier) + int(ad.get("barrier", 0))
-	# Strength gate: each missing point costs 2 damage / 1 DR (SPD-like penalty, deterministic)
-	var str_short := maxi(0, int(wd.get("str", 10)) - int(h.str))
+	# Strength gate: each missing point costs 2 damage / 1 DR (SPD-like penalty, deterministic); SPD STRReq drops with upgrades
+	var str_short := maxi(0, Weapons.str_req(wd, wl) - int(h.str))
 	dmg = maxi(1, dmg - 2 * str_short)
 	dr = maxi(0, dr - maxi(0, int(ad.get("str", 10)) - int(h.str)))
 	if not r.is_empty() and r.known and not r.cracked:
@@ -186,6 +186,9 @@ func hero_stats(c: String) -> Dictionary:
 		"ht": int(def.base_ht) + int(def.ht_per_level) * (int(h.level) - 1),
 		"dmg": dmg, "dr": dr, "barrier_max": barrier, "delay": float(wd.get("delay", 1.0)),
 		"surprise_mult": float(wd.get("surprise_mult", 1.5)), "abilities": def.abilities,
+		# SPD weapon properties (DECISIONS #207): reach in tiles, accuracy, dagger-family surprise roll, Flail / too heavy = no surprise
+		"reach": Weapons.reach(wd), "acc": Weapons.acc(wd), "sur_bonus": Weapons.surprise_bonus(wd, wl),
+		"no_surprise": wd.get("no_surprise", false) or str_short > 0,
 		"search_radius": int(def.get("search_radius", 1)), "keen_eyes": def.get("keen_eyes", false)}
 	# ring / artifact extras (DECISIONS #80)
 	for eq in [r, art]:

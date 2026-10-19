@@ -370,6 +370,29 @@ func _ready() -> void:
 		plan.append([sz, "hero_swap_camp", func():
 			GameState.end_run("abandon"); _rogue_swap_camp(); Paperdoll.sel_slot = "artifact"
 			main.show_camp(); main.screen.chosen_hero = "rogue"; main.screen.open_page("Heroes")])
+	# DECISIONS #207: SPD weapon windows (Stash item window) and a Spear swinging from 2 tiles. Last, on a fresh Warrior.
+	for sz in SIZES:
+		for wid in ["mace", "spear", "whip", "flail", "round_shield", "assassins_blade"]:
+			plan.append([sz, "weapon_" + wid, func():
+				if main.screen.has_method("_close_info"): main.screen._close_info()
+				if not GameState.run.is_empty(): GameState.end_run("abandon")
+				GameState.heroes.warrior.str = 14
+				main.show_camp(); main.screen.chosen_hero = "warrior"; main.screen.section["Stash"] = "gear"; main.screen.open_page("Stash")
+				var g: Dictionary = GameState.gear_by_uid(GameState.add_gear(wid, true, 1 if wid == "round_shield" else 0))
+				main.screen.info(g.id, GameState.gear_name(g), main.screen.gear_lines(g), main.screen.gear_actions(g))])
+		plan.append([sz, "combat_reach", func():
+			if main.screen.has_method("_close_info"): main.screen._close_info()
+			GameState.heroes.warrior.weapon = GameState.add_gear("spear", true, 0); GameState.heroes.warrior.str = 12
+			if not GameState.run.is_empty(): GameState.end_run("abandon")
+			GameState.start_run("warrior", {}, "sewers", 5); main.show_delve(); main.delve.running = false
+			var room := ["########", "#......#", "#.H.1..#", "#......#", "#....2.#", "#......#", "#......#", "########"]
+			main.start_combat({"kind": "combat", "room": room, "mobs": ["gnoll", "rat"]}, func(_r): pass)
+			for e in main.screen.combat.enemies(): e.seen_hero = true
+			main.screen._refresh()])
+		plan.append([sz, "combat_reach_swing", func():
+			var cb = main.screen.combat
+			for e in cb.enemies():
+				if Combat.cheb(e.pos, cb.hero.pos) > 1 and cb.can_melee(e): main.screen._on_cell(e.pos); break])
 
 func _process(_d: float) -> void:
 	if f == 0 and OS.has_environment("SHOTS"):  # SHOTS=caves,dm300 -> only those steps

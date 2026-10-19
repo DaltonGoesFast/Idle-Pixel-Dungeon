@@ -6,7 +6,10 @@
 ##  - Every attack hits for fixed damage. Physical damage - flat DR. Barrier absorbs before HP.
 ##    Chip rule: a hit fully blocked by DR still removes 1 Barrier.
 ##  - Surprise: hit while the foe cannot see you (after a door closes or circling tall grass) =
-##    x surprise_mult (1.5, dagger 2.0), ignores DR, knockback. Matches SPD surprisedBy.
+##    x surprise_mult (1.5), ignores DR, knockback. Matches SPD surprisedBy. Dagger, Dirk and Assassin's Blade
+##    roll toward max on a surprise (hero.sur_bonus); Flail and a too-heavy weapon can't surprise (DECISIONS #207).
+##  - Weapons (DECISIONS #207): reach (Spear/Glaive 2, Whip 3, SPD canReach), accuracy (acc < 1: a fixed share of
+##    swings at alert foes miss; acc > 1: that share of swings lands on a dodging snake), block as DR.
 ##  - Telegraphs: red danger tiles resolve at a known time; step off them.
 ##  - Knockback into a chasm kills instantly (loot halved, recovered next floor).
 ##  - Traps (data/traps.json): '^' visible, '?' hidden until searched. Anyone stepping on one triggers it
@@ -71,6 +74,7 @@ func setup(room_rows: Array, hs: Dictionary, hp: int, mob_ids: Array, darkness :
 		"move_cost": float(hs.get("move_cost", 1.0)), "elem_resist": float(hs.get("elem_resist", 1.0)),
 		"thorns": int(float(hs.get("thorns", 0.0))), "grass_root": float(hs.get("grass_root", 0.0))}
 	if not hero.bolt.is_empty(): hero.charges = hero.bolt.charges
+	_weapon_stats(hs)
 	units.append(hero)
 	var slots := {}
 	for y in h:
@@ -355,7 +359,7 @@ func surprise_now() -> bool:
 	var bow: bool = not hero.bolt.is_empty() and hero.bolt.get("infinite", false)
 	for e in enemies():
 		if e.hp <= 0 or not surprise_against(e): continue
-		if cheb(e.pos, hero.pos) == 1: return true
+		if can_melee(e) and not hero.get("no_surprise", false): return true
 		if bow and can_bolt(e.pos) and bolt_victim(e.pos) == e: return true
 	return false
 
@@ -395,14 +399,15 @@ func hit_hero(raw: int, src: String, pierce := false) -> void:
 		_log("%s falls..." % hero.name)
 		_ev({"t": "die", "uid": hero.uid, "pos": hero.pos})
 
-func hit_mob(m: Dictionary, raw: int, surprise := false, magic := false, ranged := false) -> void:
+## sure: the blow can't be slipped (an unaware snake, or an accurate weapon's catch, DECISIONS #207).
+func hit_mob(m: Dictionary, raw: int, surprise := false, magic := false, ranged := false, sure := false) -> void:
 	var dmg: int
 	if surprise: dmg = int(raw * float(hero.surprise_mult))
 	elif magic: dmg = raw
 	else: dmg = maxi(0, raw - int(m.dr))
 	# Snakes (SPD evasion): melee only connects on a surprise; magic never misses (SPD);
 	# a bow shot is slipped once per fight, then connects (DECISIONS #172)
-	var snake_slips: bool = m.get("evade_unless_surprise", false) and not surprise and not magic
+	var snake_slips: bool = m.get("evade_unless_surprise", false) and not surprise and not magic and not sure
 	if snake_slips and ranged and m.get("slipped_shot", false): snake_slips = false
 	if snake_slips and ranged: m.slipped_shot = true
 	if snake_slips:
@@ -677,6 +682,10 @@ func _burn(p: Vector2i) -> void:
 func hero_tap(p: Vector2i, mode := "") -> bool:
 	if over: return false
 	var u = unit_at(p)
+	# SPD reach weapons (Spear, Glaive, Whip): a seen foe within reach is a melee swing, not a shot (DECISIONS #207)
+	if mode != "bolt" and mode != "shove" and u != null and u != hero and cheb(p, hero.pos) > 1 and can_melee(u):
+		_hero_melee(u, p)
+		return true
 	# distant enemy, or (Spirit Bow) any distant tile: shoot; wands need Bolt mode for an empty tile
 	if mode == "bolt" or (cheb(p, hero.pos) > 1 and ((u != null and u != hero) or hero.bolt.get("infinite", false))):
 		return hero_bolt(p)
@@ -688,13 +697,7 @@ func hero_tap(p: Vector2i, mode := "") -> bool:
 			knockback(u, p - hero.pos)
 			_end_hero_turn(1.0)
 			return true
-		_ev({"t": "attack", "uid": hero.uid, "to": p})
-		var sur := surprise_against(u)
-		_break_cloak()
-		hit_mob(u, _melee_dmg(), sur)
-		reveal_to(u)
-		_melee_perks()
-		_end_hero_turn(float(hero.delay))
+		_hero_melee(u, p)
 		return true
 	if passable(p) and u == null:
 		if has_debuff("root"):
@@ -706,6 +709,63 @@ func hero_tap(p: Vector2i, mode := "") -> bool:
 		return true
 	return false
 
+## One melee swing at u (adjacent or within reach). Accuracy is deterministic (DECISIONS #207): an alert foe dodges a
+## fixed share (1 - acc) of an inaccurate weapon's swings (Sickle, Flail, War Scythe); a dodging snake is caught by a
+## fixed share (acc - 1) of an accurate weapon's swings (Cudgel, Hand Axe, Mace, Battle Axe, War Hammer). An unaware
+## foe can't dodge at all (SPD: defenseSkill 0 when surprised), so a Flail still lands on it, without the Surprise bonus.
+func _hero_melee(u: Dictionary, p: Vector2i) -> void:
+	_ev({"t": "attack", "uid": hero.uid, "to": p})
+	var unaware := surprise_against(u)
+	var sur: bool = unaware and not hero.get("no_surprise", false)
+	_break_cloak()
+	var a := float(hero.get("acc", 1.0))
+	var sure := false
+	if not unaware and a < 1.0:
+		hero.acc_miss = float(hero.get("acc_miss", 0.0)) + (1.0 - a)
+		if hero.acc_miss >= 1.0 - 0.0001:
+			hero.acc_miss -= 1.0
+			_log("%s dodges %s's attack." % [u.name, hero.name])
+			_ev({"t": "hit", "uid": u.uid, "amount": 0, "kind": "miss", "pos": u.pos})
+			reveal_to(u); _end_hero_turn(float(hero.delay))
+			return
+	if not unaware and a > 1.0 and u.get("evade_unless_surprise", false):
+		hero.acc_catch = float(hero.get("acc_catch", 0.0)) + (a - 1.0)
+		if hero.acc_catch >= 1.0 - 0.0001: hero.acc_catch -= 1.0; sure = true
+	hit_mob(u, _melee_dmg(sur), sur, false, false, sure or unaware)
+	reveal_to(u)
+	_melee_perks()
+	_end_hero_turn(float(hero.delay))
+
+## SPD KindOfWeapon.canReach: within the weapon's reach (Chebyshev), in sight, and a path of at most `reach` steps over
+## open, unoccupied tiles (walls and closed doors block, chasms don't). Adjacent foes are always in reach.
+func can_melee(m: Dictionary) -> bool:
+	if hero.is_empty() or m.is_empty() or m.get("hp", 0) <= 0: return false
+	var d := cheb(m.pos, hero.pos)
+	if d == 1: return true
+	var r := int(hero.get("reach", 1))
+	if d < 1 or d > r or not hero_sees(m): return false
+	var seen := {hero.pos: 0}; var q := [hero.pos]
+	while not q.is_empty():
+		var c: Vector2i = q.pop_front()
+		var k := int(seen[c])
+		if k >= r: continue
+		for dd in DIRS:
+			var n: Vector2i = c + dd
+			if seen.has(n): continue
+			if n == m.pos: return true
+			if _solid(n) or unit_at(n) != null: continue
+			seen[n] = k + 1; q.append(n)
+	return false
+
+## Living foes the hero can swing at this turn (adjacent or within the weapon's reach).
+func in_reach() -> Array:
+	return enemies().filter(func(e): return can_melee(e))
+
+## Copy the SPD weapon properties from hero stats into the fight (setup and mid-fight swaps).
+func _weapon_stats(hs: Dictionary) -> void:
+	hero.reach = int(hs.get("reach", 1)); hero.acc = float(hs.get("acc", 1.0))
+	hero.sur_bonus = int(hs.get("sur_bonus", 0)); hero.no_surprise = bool(hs.get("no_surprise", false))
+
 ## Attacking reveals you (SPD: a struck mob is alerted and hunts the attacker): the target sees you again, so the
 ## next swing is not a Surprise unless you break sight again (DECISIONS #177).
 func reveal_to(m: Dictionary) -> void:
@@ -713,8 +773,8 @@ func reveal_to(m: Dictionary) -> void:
 	m.seen_hero = true; m.aim = hero.pos; m.state = "hunting"
 
 ## Subclass perks (DECISIONS #61)
-func _melee_dmg() -> int:
-	var d := int(hero.dmg)
+func _melee_dmg(sur := false) -> int:
+	var d := int(hero.dmg) + (int(hero.get("sur_bonus", 0)) if sur else 0)
 	match hero.get("perk", ""):
 		"rage":
 			if int(hero.hp) * 2 < int(hero.ht): d = int(d * 1.2)
@@ -852,6 +912,7 @@ func apply_stats(hs: Dictionary) -> void:
 	hero.dmg = int(hs.dmg); hero.dr = int(hs.dr); hero.delay = float(hs.delay)
 	hero.barrier_max = int(hs.barrier_max); hero.barrier = mini(int(hero.barrier), int(hero.barrier_max))
 	hero.surprise_mult = float(hs.get("surprise_mult", 1.5)); hero.search_radius = int(hs.get("search_radius", 1))
+	_weapon_stats(hs)
 	var nb: Dictionary = hs.get("bolt", {})
 	if not nb.is_empty():
 		hero.bolt = nb; hero.charges = mini(int(hero.charges), int(nb.get("charges", 0)))

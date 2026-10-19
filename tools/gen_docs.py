@@ -24,8 +24,14 @@ def balance():
         [[m["name"], m["ht"], m["dmg"], m["dr"], m["delay"], m["exp"], m["loot"], m.get("spd", ""), m.get("tuned", "-")]
          for k, m in mobs.items() if not k.startswith("_")])
     s += "\n### Weapons & armor\n\n"
-    s += table(["Item", "Type", "Tier", "Dmg / DR", "Barrier", "Delay", "Str"],
-        [[i["name"], i["type"], i.get("tier", "-"), i.get("dmg", i.get("dr", "-")), i.get("barrier", "-"), i.get("delay", "-"), i.get("str", "-")]
+    def wdmg(i):   # SPD min-max at +0 and the deterministic hit (DECISIONS #207)
+        if i["type"] != "weapon": return i.get("dr", "-")
+        mx = i.get("max", [5 * (i["tier"] + 1), i["tier"] + 1])
+        return "%d (%d-%d, +%d max/lvl)" % (i["dmg"], i["tier"], mx[0], mx[1])
+    s += table(["Item", "Type", "Tier", "Dmg / DR", "Barrier", "Delay", "Reach", "Acc", "Block", "Str"],
+        [[i["name"], i["type"], i.get("tier", "-"), wdmg(i), i.get("barrier", "-"), i.get("delay", "-"),
+          i.get("reach", 1) if i["type"] == "weapon" else "-", i.get("acc", "-"),
+          ("0-%d%s" % (i["block"][0], " +%d/lvl" % i["block"][1] if i["block"][1] else "")) if "block" in i else "-", i.get("str", "-")]
          for k, i in items.items() if not k.startswith("_") and i["type"] in ("weapon", "armor")])
     s += "\n### Rings & wands\n\n"
     s += table(["Item", "Unidentified as", "Effect"],

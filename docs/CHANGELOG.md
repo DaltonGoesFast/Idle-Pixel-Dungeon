@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Every Shattered Pixel Dungeon melee weapon is now in the game, with SPD's own damage, Str, upgrade scaling, speed, reach, accuracy, blocking and surprise rules and its SPD sprite and text. The Spear and Glaive hit 2 tiles away and the Whip 3 (walls and bodies in the way block it, as in SPD); tap a foe in reach to swing, and Auto Battle waits for foes to step into reach. The Mace is no longer slow: it swings at normal speed for 3-16 (9) and is "rather accurate", so it now lands some hits on snakes. The Longsword (16 -> 14) and Greatsword (20 -> 17) now match SPD, upgrades follow each weapon's SPD scaling and lower its Str requirement like SPD, and a Dagger surprise hit is now 10 instead of 8. Duelist weapon abilities are not in the game (DECISIONS #207, +tests).
 - Closing or reloading the game while an encounter window is open (an Ambush, a boss, a door or a special room, even one set aside with Close) no longer skips it: the window is back after the restart and the Delve Bar waits for it. Before, a reload let the bar walk past the encounter (DECISIONS #205, +test).
 
 ## 0.46.0

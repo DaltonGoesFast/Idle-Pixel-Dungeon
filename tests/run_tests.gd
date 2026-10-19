@@ -104,6 +104,7 @@ func _ready() -> void:
 	test_forge_bulk(gs)
 	test_break_rings(gs)
 	test_all_icons(gs)
+	test_weapons(gs)
 	test_delve(gs)
 	test_camp(gs)
 	test_camp_npc_hits()
@@ -1361,6 +1362,126 @@ func test_touch_scroll() -> void:
 
 ## Every item and material id (known and unidentified) resolves to an items.png cell with visible pixels; rings,
 ## potions and scrolls get their SPD appearance sprites (gems, colours, runes) and are not the fallback icon.
+## DECISIONS #207: every SPD v4 melee weapon with its SPD numbers, reach, speed, accuracy, blocking and surprise rules.
+const SPD_WEAPONS := ["worn_shortsword", "cudgel", "studded_gloves", "rapier", "dagger", "mages_staff",
+	"shortsword", "hand_axe", "spear", "quarterstaff", "dirk", "sickle",
+	"sword", "mace", "scimitar", "round_shield", "sai", "whip",
+	"longsword", "battle_axe", "flail", "runic_blade", "assassins_blade", "crossbow", "katana",
+	"greatsword", "war_hammer", "glaive", "greataxe", "greatshield", "gauntlet", "war_scythe"]
+
+func _wstats(gs, cls: String, wid: String, lvl := 0, st := 18) -> Dictionary:
+	gs.new_game()
+	for cc in gs.heroes: gs.heroes[cc].unlocked = true
+	var h: Dictionary = gs.heroes[cls]
+	h.weapon = gs.add_gear(wid, true, lvl); h.str = st
+	return gs.hero_stats(cls)
+
+func _wfight(hs: Dictionary, room: Array, mobs: Array) -> Combat:
+	var c := Combat.new(); c.setup(room, hs, int(hs.ht), mobs)
+	for e in c.enemies(): e.seen_hero = true; e.ht = 999; e.hp = 999; e.dr = 0
+	return c
+
+func test_weapons(gs) -> void:
+	print("[weapons]")
+	var tiers := {}
+	for id in SPD_WEAPONS:
+		var d: Dictionary = DB.item(id)
+		check(Weapons.is_weapon(d) and int(d.get("tier", 0)) >= 1 and int(d.tier) <= 5 and DB.icon_index(id) > 0, "%s: an SPD weapon with a tier and its items.png sprite" % id)
+		tiers[int(d.get("tier", 0))] = int(tiers.get(int(d.get("tier", 0)), 0)) + 1
+	check(tiers == {1: 6, 2: 6, 3: 6, 4: 7, 5: 7}, "SPD's 6/6/6/7/7 weapons per tier (%s)" % tiers)
+	var all_w := DB.items.keys().filter(func(k): return Weapons.is_weapon(DB.items[k]))
+	check(all_w.size() == SPD_WEAPONS.size(), "no weapons outside SPD's list (%d)" % all_w.size())
+	# SPD numbers
+	var mace := DB.item("mace")
+	check(Weapons.min_dmg(mace, 0) == 3 and Weapons.max_dmg(mace, 0) == 16 and Weapons.dmg(mace, 0) == 9 and float(mace.delay) == 1.0, "Mace: 3-16 (9 a hit) at normal speed, not slow")
+	check(Weapons.dmg(mace, 2) == 14 and Weapons.str_req(mace, 0) == 14 and Weapons.str_req(mace, 1) == 13 and Weapons.str_req(mace, 2) == 13 and Weapons.str_req(mace, 3) == 12, "Mace +2 hits for 14 (5-24); STRReq 14/13/13/12 at +0..+3")
+	check(Weapons.acc(mace) == 1.28 and Weapons.str_req(DB.item("greataxe"), 0) == 20 and Weapons.max_dmg(DB.item("greataxe"), 0) == 45, "Mace is accurate; Greataxe needs 20 Str and hits up to 45")
+	check(Weapons.reach(DB.item("spear")) == 2 and Weapons.reach(DB.item("glaive")) == 2 and Weapons.reach(DB.item("whip")) == 3 and Weapons.reach(DB.item("quarterstaff")) == 1 and Weapons.reach(DB.item("war_scythe")) == 1, "SPD reach: Spear and Glaive 2, Whip 3, everything else 1")
+	check(float(DB.item("spear").delay) == 1.5 and float(DB.item("glaive").delay) == 1.5 and float(DB.item("sai").delay) == 0.5 and float(DB.item("gauntlet").delay) == 0.5 and float(DB.item("studded_gloves").delay) == 0.5 and float(DB.item("scimitar").delay) == 0.8, "SPD speed: Spear/Glaive 1.5, Gloves/Sai/Gauntlet 0.5, Scimitar 0.8")
+	check(Weapons.max_dmg(DB.item("spear"), 1) == 24 and Weapons.max_dmg(DB.item("whip"), 2) == 21 and Weapons.max_dmg(DB.item("runic_blade"), 1) == 26 and Weapons.max_dmg(DB.item("gauntlet"), 1) == 18 and Weapons.max_dmg(DB.item("round_shield"), 1) == 14, "per-weapon upgrade scaling (Spear +4, Whip +3, Runic +6, Gauntlet +3, Round Shield +2)")
+	check(Weapons.block_dr(DB.item("rapier"), 0) == 1 and Weapons.block_dr(DB.item("quarterstaff"), 0) == 1 and Weapons.block_dr(DB.item("katana"), 0) == 2 and Weapons.block_dr(DB.item("round_shield"), 2) == 3 and Weapons.block_dr(DB.item("greatshield"), 1) == 4, "blocking as DR: Rapier 1, Quarterstaff 1, Katana 2, +2 Round Shield 3, +1 Greatshield 4")
+	check(Weapons.surprise_bonus(DB.item("dagger"), 0) == 3 and Weapons.surprise_bonus(DB.item("dirk"), 0) == 3 and Weapons.surprise_bonus(DB.item("assassins_blade"), 0) == 4 and Weapons.surprise_bonus(DB.item("sword"), 0) == 0, "surprise rolls toward max: Dagger 75%, Dirk 67%, Assassin's Blade 50%")
+	# hero stats
+	var ms := _wstats(gs, "warrior", "mace", 2, 14)
+	check(int(ms.dmg) == 14 and float(ms.delay) == 1.0 and int(ms.reach) == 1, "a +2 Mace Warrior hits for 14 at 1 tick a swing")
+	var rs0 := int(_wstats(gs, "warrior", "worn_shortsword").dr); var rs := _wstats(gs, "warrior", "round_shield", 0)
+	check(int(rs.dr) == rs0 + 2, "a Round Shield adds its block to DR")
+	var heavy := _wstats(gs, "warrior", "greataxe", 0, 18)
+	check(heavy.no_surprise and int(heavy.dmg) == maxi(1, 25 - 4), "a too-heavy Greataxe loses 2 dmg per missing Str and can't surprise")
+	# reach in combat
+	var room := ["########", "#H.1...#", "#......#", "#......#", "#......#", "#......#", "#......#", "########"]
+	var c := _wfight(_wstats(gs, "warrior", "spear"), room, ["rat"])
+	var rat = c.enemies()[0]
+	check(c.can_melee(rat) and Combat.cheb(rat.pos, c.hero.pos) == 2, "a Spear reaches a foe 2 tiles away")
+	var t0 := float(c.hero.next)
+	check(c.hero_tap(rat.pos) and 999 - int(rat.hp) == Weapons.dmg(DB.item("spear"), 0) and is_equal_approx(float(c.hero.next) - t0, 1.5), "tapping it swings the Spear (11 dmg, 1.5 ticks), no move or shot")
+	var cb := _wfight(_wstats(gs, "warrior", "spear"), ["########", "#H#1...#", "#.#....#", "#......#", "#......#", "#......#", "#......#", "########"], ["rat"])
+	check(not cb.can_melee(cb.enemies()[0]), "a wall in the way blocks the Spear's reach")
+	var cu := _wfight(_wstats(gs, "warrior", "spear"), ["####", "#H21", "####"], ["rat", "rat"])
+	var far = cu.enemies().filter(func(e): return e.pos == Vector2i(3, 1))[0]
+	check(not cu.can_melee(far), "a body in a corridor blocks the Spear's reach")
+	var cw := _wfight(_wstats(gs, "warrior", "whip"), ["########", "#H..1..#", "#......#", "#......#", "#......#", "#......#", "#......#", "########"], ["rat"])
+	check(cw.can_melee(cw.enemies()[0]) and not _wfight(_wstats(gs, "warrior", "sword"), ["########", "#H..1..#", "#......#", "#......#", "#......#", "#......#", "#......#", "########"], ["rat"]).can_melee(cw.enemies()[0]), "a Whip reaches 3 tiles, a Sword only 1")
+	var ch := _wfight(_wstats(gs, "huntress", "spear"), room, ["rat"])
+	var hr = ch.enemies()[0]
+	ch.hero_tap(hr.pos)
+	check(999 - int(hr.hp) == Weapons.dmg(DB.item("spear"), 0), "the Huntress swings a Spear in reach instead of firing the bow")
+	var sug: Dictionary = CombatBot.suggest(_wfight(_wstats(gs, "warrior", "spear"), room, ["rat"]))
+	check(sug.act == "tap" and sug.pos == Vector2i(3, 1), "the bot swings at a foe in the Spear's reach (%s)" % sug)
+	var c3 := _wfight(_wstats(gs, "warrior", "spear"), ["########", "#H..1..#", "#......#", "#......#", "#......#", "#......#", "#......#", "########"], ["rat"])
+	sug = CombatBot.suggest(c3)
+	check(sug.act == "wait" and String(sug.why).contains("reach"), "the bot lets a foe walk into reach (%s)" % sug)
+	# speed
+	var cs := _wfight(_wstats(gs, "warrior", "sai"), ["#####", "#H1.#", "#####"], ["rat"])
+	t0 = float(cs.hero.next); cs.hero_tap(cs.enemies()[0].pos)
+	check(is_equal_approx(float(cs.hero.next) - t0, 0.5), "a Sai swing takes half a tick")
+	# accuracy: a Flail misses 1 swing in 5 at an alert foe and never surprises
+	var cf := _wfight(_wstats(gs, "warrior", "flail"), ["#####", "#H1.#", "#####"], ["rat"])
+	var fr = cf.enemies()[0]; var misses := 0
+	for i in 5:
+		fr.seen_hero = true; fr.pos = Vector2i(2, 1); fr.next = 999.0; cf.drain_events(); cf.hero_tap(fr.pos)
+		misses += cf.drain_events().filter(func(e): return e.t == "hit" and e.kind == "miss").size()
+	check(misses == 1 and 999 - int(fr.hp) == 4 * Weapons.dmg(DB.item("flail"), 0), "a Flail misses 1 in 5 swings at an alert foe (%d misses)" % misses)
+	fr.seen_hero = false; cf.drain_events(); var hp0 := int(fr.hp); cf.hero_tap(fr.pos)
+	var evs := cf.drain_events().filter(func(e): return e.t == "hit")
+	check(hp0 - int(fr.hp) == Weapons.dmg(DB.item("flail"), 0) and evs[0].kind == "hp", "an unaware foe can't dodge the Flail, but it gets no Surprise bonus")
+	# accurate weapons catch a dodging snake
+	var csn := _wfight(_wstats(gs, "warrior", "mace"), ["#####", "#H1.#", "#####"], ["snake"])
+	var sn = csn.enemies()[0]; var landed := []
+	for i in 4:
+		sn.seen_hero = true; sn.pos = Vector2i(2, 1); sn.next = 999.0; var b := int(sn.hp); csn.hero_tap(sn.pos); landed.append(b != int(sn.hp))
+	check(landed == [false, false, false, true], "a Mace (28% accurate) lands every 4th swing on an alert snake (%s)" % [landed])
+	var css := _wfight(_wstats(gs, "warrior", "sword"), ["#####", "#H1.#", "#####"], ["snake"])
+	var sn2 = css.enemies()[0]; var any := false
+	for i in 6:
+		sn2.seen_hero = true; sn2.pos = Vector2i(2, 1); sn2.next = 999.0; var b2 := int(sn2.hp); css.hero_tap(sn2.pos); any = any or b2 != int(sn2.hp)
+	check(not any, "a plain Sword never lands on an alert snake (unchanged)")
+	# dagger family surprise
+	var cd := _wfight(_wstats(gs, "rogue", "dagger"), ["#####", "#H1.#", "#####"], ["rat"])
+	var dr_ = cd.enemies()[0]; dr_.seen_hero = false; cd.hero_tap(dr_.pos)
+	check(999 - int(dr_.hp) == int((4 + 3) * 1.5), "a Dagger surprise rolls toward max: (4 + 3) x 1.5 = 10")
+	# item window text
+	var ml := "\n".join(Weapons.info_lines("mace", 0, true, 10))
+	check(ml.contains("tier-3 melee weapon deals 3-16 damage") and ml.contains("requires 14 strength") and ml.contains("rather accurate") and not ml.contains("slow") and ml.contains("inadequate strength"), "Mace window: SPD tier/damage/strength line, accurate, not slow")
+	var sl := "\n".join(Weapons.info_lines("spear", 0, true))
+	check(sl.contains("rather slow weapon") and sl.contains("extra reach") and sl.contains("reach 2 tiles") and sl.contains("1.5 ticks"), "Spear window: slow, extra reach (2 tiles, 1.5 ticks)")
+	check("\n".join(Weapons.info_lines("whip", 0, true)).contains("tremendous reach") and "\n".join(Weapons.info_lines("round_shield", 1, true)).contains("blocks 0-4 damage. This blocking scales"), "Whip and Round Shield windows use SPD's lines")
+	check(Codex.item_line("glaive").contains("reach 2") and Codex.item_line("glaive").contains("1.5 ticks"), "the codex line shows reach and speed")
+	# saves: a fight in progress keeps the weapon's reach; an old fight without it falls back to reach 1
+	var sv := _wfight(_wstats(gs, "warrior", "spear"), room, ["rat"])
+	var dd: Dictionary = JSON.parse_string(JSON.stringify(sv.to_dict()))
+	var lo := Combat.new(); lo.from_dict(dd)
+	check(lo.can_melee(lo.enemies()[0]), "a saved fight keeps the Spear's reach")
+	for u in dd.units:
+		if u.has("hero"): u.erase("reach")
+	var lo2 := Combat.new(); lo2.from_dict(dd)
+	check(not lo2.can_melee(lo2.enemies()[0]), "a fight saved before #207 (no reach) stays at reach 1")
+	gs.new_game()
+	var old := {"uid": 900, "id": "mace", "lvl": 2, "cracked": false, "known": true}
+	gs.gear.append(old); gs.heroes.warrior.weapon = 900; gs.heroes.warrior.str = 13
+	check(int(gs.hero_stats("warrior").dmg) == 14 and not gs.hero_stats("warrior").no_surprise, "an old save's +2 Mace keeps working (14 dmg, 13 Str is enough)")
+	gs.new_game()
+
 func test_all_icons(gs) -> void:
 	print("[all icons]")
 	var img: Image = (load("res://assets/sprites/items.png") as Texture2D).get_image()
@@ -1595,10 +1716,10 @@ func test_item_badges(gs) -> void:
 	var sw_uid: int = gs.add_gear("shortsword", true, 2)
 	var sw_slot: Button = cs.item_slot("shortsword", "W", "+2", func(): pass, Color.WHITE, "", gs.gear_by_uid(sw_uid))
 	var sr: Label = sw_slot.get_node_or_null("StrReq")
-	check(sr != null and sr.text == ":12" and sr.get_theme_color("font_color") == Color("ff4444"), "stash weapon slot shows :12 in red for a 10-Str hero")
-	gs.heroes.warrior.str = 12
+	check(sr != null and sr.text == ":11" and sr.get_theme_color("font_color") == Color("ff4444"), "stash weapon slot shows a +2 Shortsword's :11 (SPD STRReq drops at +1) in red for a 10-Str hero")
+	gs.heroes.warrior.str = 11
 	var sw_ok: Button = cs.item_slot("shortsword", "W", "+2", func(): pass, Color.WHITE, "", gs.gear_by_uid(sw_uid))
-	check(sw_ok.get_node("StrReq").text == ":12" and not sw_ok.get_node("StrReq").has_theme_color_override("font_color"), "stash weapon slot clears red once hero meets the Str requirement")
+	check(sw_ok.get_node("StrReq").text == ":11" and not sw_ok.get_node("StrReq").has_theme_color_override("font_color"), "stash weapon slot clears red once hero meets the Str requirement")
 	var rg_slot: Button = cs.item_slot("ring_might", "", "", func(): pass, Color.WHITE, "", gs.gear_by_uid(r_uid))
 	check(rg_slot.get_node_or_null("StrReq") == null, "ring slot does not add a Str label over its badge")
 	var pd_w: Button = Paperdoll._slot("warrior", "weapon", "camp", func(): pass)

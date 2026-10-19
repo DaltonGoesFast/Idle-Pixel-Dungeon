@@ -190,14 +190,15 @@ static func str_text(id: String, gear := {}) -> String:
 	if gear.get("pseudo", false): return ""
 	var item_id := String(gear.get("id", id))
 	if not DB.items.has(item_id) or not DB.item(item_id).has("str"): return ""
-	var req := int(DB.item(item_id).str)
-	return (":%d" if gear.get("known", true) else "%d?") % req
+	var known: bool = gear.get("known", true)
+	var req := Weapons.str_req(DB.item(item_id), int(gear.get("lvl", 0)) if known else 0)   # SPD: upgrades lower it (#207)
+	return (":%d" if known else "%d?") % req
 
 ## SPD ItemSlot strength requirement colour: red (DEGRADED) above hero's Str, orange (WARNING) when unidentified, white otherwise.
 static func str_color(id: String, hero_str: int, gear := {}) -> Color:
 	if not gear.get("known", true): return Color("ff8800")
 	var item_id := String(gear.get("id", id))
-	return Color("ff4444") if int(DB.item(item_id).get("str", 0)) > hero_str else Color.WHITE
+	return Color("ff4444") if Weapons.str_req(DB.item(item_id), int(gear.get("lvl", 0))) > hero_str else Color.WHITE
 
 ## Add the top-right SPD strength requirement label to an item slot button (weapons and armor only).
 static func add_str_label(slot: Control, id: String, hero_str: int, gear := {}) -> Label:

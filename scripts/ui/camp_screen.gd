@@ -708,10 +708,12 @@ func gear_stats(g: Dictionary) -> Dictionary:
 	var d := DB.item(g.id); var out := {}
 	if not g.known: return {"?": 0}
 	var lv := int(g.lvl)
-	if d.has("dmg"): out["Dmg"] = int(d.dmg) + lv
+	if d.has("dmg"): out["Dmg"] = Weapons.dmg(d, lv)
 	if d.has("dr"): out["DR"] = int(d.dr) + lv
+	if d.has("block"): out["Block"] = Weapons.block_dr(d, lv)
 	if d.has("delay"): out["Swing"] = float(d.delay)
-	if d.has("str"): out["Str"] = int(d.str)
+	if Weapons.is_weapon(d): out["Reach"] = Weapons.reach(d)
+	if d.has("str"): out["Str"] = Weapons.str_req(d, lv)
 	for k in ["ht_bonus", "dr_bonus", "dmg_bonus", "barrier_bonus", "charges_bonus", "search_add"]:
 		if d.has(k): out[k.replace("_bonus", "").replace("_add", "").replace("ht", "HP").capitalize()] = int(d[k])
 	if d.has("bolt_bonus"): out["Ranged dmg"] = int(d.bolt_bonus)
@@ -768,12 +770,14 @@ func gear_lines(g: Dictionary) -> Array:
 	var who := GameState.equipped_by(g.uid)
 	if g.known:
 		var bits := []
-		if d.has("dmg"): bits.append("Dmg %d" % (int(d.dmg) + int(g.lvl)))
-		if d.has("dr"): bits.append("DR %d" % (int(d.dr) + int(g.lvl)))
-		if d.has("str"): bits.append("Str %d" % int(d.str))
+		if Weapons.is_weapon(d):   # the SPD weapon window text (DECISIONS #207)
+			out.append_array(Weapons.info_lines(g.id, int(g.lvl), true, int(GameState.heroes.get(chosen_hero, {}).get("str", -1))))
+		else:
+			if d.has("dr"): bits.append("DR %d" % (int(d.dr) + int(g.lvl)))
+			if d.has("str"): bits.append("Str %d" % int(d.str))
 		if not bits.is_empty(): out.append("  ".join(bits))
 		if d.has("desc"): out.append(d.desc)
-		elif bits.is_empty(): out.append(Codex.item_line(g.id))
+		elif bits.is_empty() and not Weapons.is_weapon(d): out.append(Codex.item_line(g.id))
 		out.append_array(Codex.artifact_lines(g, GameState.enchant_cap(), GameState.ARTIFACT_XP_PER_LVL))   # DECISIONS #164
 	else: out.append("Unidentified. The Enchanter can identify it.")
 	if g.get("cracked", false): out.append("Cracked - repair at the Forge.")
@@ -1074,7 +1078,7 @@ func _recipe_lines(r: Dictionary) -> Array:
 	var blurb := recipe_blurb(r)
 	if blurb != "": lines.append(blurb)
 	var od: Dictionary = DB.item(out) if r.has("out") else DB.materials.get(out, {})
-	if r.has("out") and od.has("dmg"): lines.append("Dmg %d  Str %d" % [od.dmg, od.get("str", 10)])
+	if r.has("out") and od.has("dmg"): lines.append(Codex.item_line(r.out))
 	if r.has("out") and od.has("dr"): lines.append("DR %d  Str %d" % [od.dr, od.get("str", 10)])
 	return lines
 
