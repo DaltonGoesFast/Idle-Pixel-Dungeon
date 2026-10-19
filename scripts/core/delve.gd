@@ -61,7 +61,7 @@ static func advance(gs, pct: float) -> Dictionary:
 	if run.torch < 20.0 and int(run.supplies.get("torch", 0)) > 0:
 		run.supplies.torch -= 1; run.torch = minf(100.0, run.torch + TORCH_RESTORE); gs.say("Lit a fresh torch.")
 	if run.satiety < 20.0 and int(run.supplies.get("ration", 0)) > 0:
-		run.supplies.ration -= 1; run.satiety = minf(100.0, run.satiety + RATION_RESTORE); gs.say("Ate a ration."); gs.add_stat("rations_eaten", 1)
+		run.supplies.ration -= 1; run.satiety = minf(100.0, run.satiety + RATION_RESTORE); gs.say("Ate a ration."); gs.add_stat("rations_eaten", 1); gs._mystical_meal()
 	# passive gathering: +1 gold every 4%, +1 dew every 12%
 	# counted on the pinned haul line; individual drips are not logged
 	var step := int(run.progress / 4.0)
@@ -527,6 +527,9 @@ static func apply_fight_result(gs, ev: Dictionary, res: Dictionary, reward: Dict
 	# every 4th won fight drops an unknown potion or scroll (SPD-style consumable loot, DECISIONS #80)
 	run.fights_won = int(run.get("fights_won", 0)) + 1
 	gs.charge_artifact(run.hero)   # DECISIONS #158
+	if gs.cloak_cap(run.hero) > 0:   # Cloak of Shadows: charges persist, a cleared fight gives 1 back (DECISIONS #206)
+		var got: int = gs.cloak_after_fight(int(res.get("cloak_charges", gs.cloak_charges(run.hero))))
+		if got > 0: gs.log_line("The Cloak of Shadows recharges (%d/%d)." % [int(run.cloak_charges), gs.cloak_cap(run.hero)], "positive")
 	if run.fights_won % 4 == 0:
 		gs.say("Found: " + reward(gs, {"item_unknown": "potion" if (run.fights_won / 4) % 2 == 1 else "scroll"}))
 	run.pending_loot = int(run.pending_loot) + int(res.fallen_loot)

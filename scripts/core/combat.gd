@@ -68,7 +68,7 @@ func setup(room_rows: Array, hs: Dictionary, hp: int, mob_ids: Array, darkness :
 		"barrier": 0 if darkness else hs.barrier_max, "barrier_max": hs.barrier_max, "delay": hs.delay, "next": 0.0,
 		"pos": Vector2i.ZERO, "sprite": hs.sprite, "fw": hs.fw, "fh": hs.fh, "row": int(hs.get("row", 0)), "surprise_mult": hs.get("surprise_mult", 1.5),
 		"abilities": hs.get("abilities", []), "bolt": hs.get("bolt", {}), "charges": 0, "recharge_t": 0.0, "hero": true,
-		"cloak": hs.get("cloak", {}), "cloak_charges": int(hs.get("cloak", {}).get("charges", 0)), "hidden_until": -1.0,
+		"cloak": hs.get("cloak", {}), "cloak_charges": int(hs.get("cloak", {}).get("charges", 0)), "cloak_cap": int(hs.get("cloak", {}).get("cap", 0)), "hidden_until": -1.0,
 		"slams": 1 if "slam" in hs.get("abilities", []) else 0, "search_radius": int(hs.get("search_radius", 1)),
 		"poison": 0, "keen_eyes": hs.get("keen_eyes", false), "perk": hs.get("perk", ""), "combo": 0,
 		"move_cost": float(hs.get("move_cost", 1.0)), "elem_resist": float(hs.get("elem_resist", 1.0)),
@@ -135,7 +135,7 @@ func from_dict(d: Dictionary) -> void:
 	for u in d.units:
 		var x: Dictionary = u.duplicate(true)
 		x.pos = Vector2i(int(u.pos[0]), int(u.pos[1]))
-		for k in ["uid", "hp", "ht", "dmg", "dr", "barrier", "barrier_max", "charges", "cloak_charges", "cooldown", "acts", "exp", "loot", "pump_count", "poison", "search_radius", "stolen", "hits", "slams", "bombs", "blinks", "steal_gold", "abil", "abil_n", "combo"]:
+		for k in ["uid", "hp", "ht", "dmg", "dr", "barrier", "barrier_max", "charges", "cloak_charges", "cloak_cap", "cooldown", "acts", "exp", "loot", "pump_count", "poison", "search_radius", "stolen", "hits", "slams", "bombs", "blinks", "steal_gold", "abil", "abil_n", "combo"]:
 			if x.has(k): x[k] = int(x[k])
 		if x.has("aim"): x.aim = Vector2i(int(x.aim[0]), int(x.aim[1])) if x.aim is Array else x.aim
 		units.append(x)
@@ -1427,5 +1427,5 @@ func _free_tile_near(p: Vector2i) -> Vector2i:
 ## Milestone fields for a fight result dict (DECISIONS #195): kills per mob, surprise hits, HP actually lost
 ## (damage Barrier soaked doesn't count, poison does), and whether Auto Battle ever acted.
 func milestone_result() -> Dictionary:
-	return {"kill_ids": kill_ids.duplicate(), "surprises": surprises, "hp_lost": hp_lost, "auto_used": auto_used, "potions_fight": potions_drunk,
+	return {"kill_ids": kill_ids.duplicate(), "surprises": surprises, "cloak_charges": int(hero.get("cloak_charges", 0)), "hp_lost": hp_lost, "auto_used": auto_used, "potions_fight": potions_drunk,
 		"dmg_in": dmg_in, "dmg_out": dmg_out, "turns": hero_turns}

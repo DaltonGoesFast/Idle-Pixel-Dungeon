@@ -547,8 +547,8 @@ func test_cavesrun(gs) -> void:
 			var h: Dictionary = gs.heroes[cls]
 			h.level = 8; h.str = 14; h.subclass = cs[1]; h.mask = cs[1] != ""
 			h.armor = gs.add_gear("mail_armor", true, 1)
-			if cls in ["warrior", "huntress"]: h.weapon = gs.add_gear("mace", true, 1)
-			elif cls == "rogue": h.weapon = gs.add_gear("dagger", true, 3)
+			# tier-3 weapon for every melee class; the Rogue's Dagger+3 only kept up while the cloak refilled every fight (DECISIONS #206)
+			if cls in ["warrior", "huntress", "rogue"]: h.weapon = gs.add_gear("mace", true, 1)
 			gs.facilities.guild.level = 3   # late-game pack cap 10 (DECISIONS #144)
 			var r := RunSim.play(gs, cls, {"ration": 8, "torch": 9, "potion_healing": 5}, 3000 + seed, true, "caves")
 			if r.result == "extract" and r.biome == "caves": wins += 1
@@ -713,7 +713,7 @@ func test_subclass(gs, ss) -> void:
 	check(gs.choose_subclass("rogue", "assassin"), "choose assassin")
 	check(not gs.choose_subclass("rogue", "freerunner"), "subclass is permanent")
 	var a: Dictionary = gs.hero_stats("rogue")
-	check(a.surprise_mult == base.surprise_mult + 1.0 and a.cloak.charges == base.cloak.charges + 1, "assassin: +1x surprise, +1 cloak")
+	check(a.surprise_mult == base.surprise_mult + 1.0 and a.cloak.charges == base.cloak.charges and a.cloak.charges == 3, "assassin: +1x surprise, no extra cloak charge (DECISIONS #206)")
 	var d: Dictionary = gs.to_dict(); gs.new_game(); gs.from_dict(d)
 	check(gs.heroes.rogue.subclass == "assassin", "subclass survives save/load")
 	gs.heroes.huntress.mask = true; gs.choose_subclass("huntress", "sniper")
@@ -3446,6 +3446,84 @@ func test_rogue_cloak(gs) -> void:
 	gs.start_run("rogue", {}, "sewers", 2)
 	var c = Delve.new_combat(gs, Delve.combat_event(gs.run, Delve.rng_for(gs.run, 1), ["rat"]))
 	check(int(c.hero.cloak_charges) == 3, "a fight starts with 3 cloak charges")
+	gs.end_run("abandon")
+	test_cloak_persist(gs)
+
+func _cloak_fight(gs, mobs: Array) -> Combat:
+	return Delve.new_combat(gs, Delve.combat_event(gs.run, Delve.rng_for(gs.run, 1), mobs))
+
+func _cloak_win(gs, c: Combat) -> void:
+	for e in c.enemies(): c.hit_mob(e, 999, false, true)
+	var res := {"won": c.won, "hp": c.hero.hp, "loot": c.loot, "fallen_loot": 0, "xp": 0, "boss_killed": false, "kills": c.kills, "traps_found": 0, "trap_ids": []}
+	res.merge(c.milestone_result())
+	Delve.apply_fight_result(gs, {"kind": "combat", "mobs": ["rat"]}, res, {})
+
+## DECISIONS #206: SPD-style Cloak of Shadows. 3 charges for the whole expedition, 1 back per cleared fight,
+## no subclass/talent bonus charges, Mystical Meal recharges on a ration; saved with the run; old saves migrate.
+func test_cloak_persist(gs) -> void:
+	print("[cloak persist]")
+	gs.new_game()
+	for cc in gs.heroes: gs.heroes[cc].unlocked = true
+	gs.heroes.rogue.level = 12; gs.heroes.rogue.mask = true; gs.heroes.rogue.subclass = "freerunner"
+	gs.auto_pick_talents("rogue")
+	check(int(gs.hero_stats("rogue").cloak.charges) == 3 and int(gs.hero_stats("rogue").cloak.cap) == 3, "no subclass or talent adds cloak charges (freerunner + tier 2 talents: 3)")
+	check("mystical_meal" in gs.heroes.rogue.talents and not ("mystical_upgrade" in gs.heroes.rogue.talents), "Mystical Upgrade is gone; Mystical Meal is the tier-2 talent")
+	gs.start_run("rogue", {"ration": 2}, "sewers", 3)
+	check(int(gs.run.cloak_charges) == 3, "an expedition starts with a full cloak")
+	# persistence: spend 2 in a fight, win it -> 1 left + 1 recharge = 2 in the next fight
+	var c := _cloak_fight(gs, ["rat"])
+	c.hero_cloak(); c.hero.hidden_until = -1.0; c.hero_cloak()
+	check(int(c.hero.cloak_charges) == 1, "two cloaks spend two charges")
+	_cloak_win(gs, c)
+	check(int(gs.run.cloak_charges) == 2, "charges carry over: 1 left + 1 recharged after a cleared fight (got %d)" % int(gs.run.cloak_charges))
+	var c2 := _cloak_fight(gs, ["rat"])
+	check(int(c2.hero.cloak_charges) == 2 and int(c2.hero.cloak_cap) == 3, "the next fight starts with the run's 2 charges, cap 3")
+	# recharge rate: drain to 0, then each cleared fight gives exactly 1, capped at 3
+	c2.hero_cloak(); c2.hero.hidden_until = -1.0; c2.hero_cloak()
+	check(int(c2.hero.cloak_charges) == 0 and not c2.hero_cloak(), "an empty cloak can't be used")
+	c2.hero.hidden_until = -1.0
+	_cloak_win(gs, c2)
+	check(int(gs.run.cloak_charges) == 1, "1 charge back per cleared fight (0 -> 1)")
+	var seen := [int(gs.run.cloak_charges)]
+	for i in 3:
+		_cloak_win(gs, _cloak_fight(gs, ["rat"]))
+		seen.append(int(gs.run.cloak_charges))
+	check(seen == [1, 2, 3, 3], "recharge is 1 per fight and stops at 3 (%s)" % [seen])
+	# a Scroll of Recharging's extra charge lasts that fight only
+	gs.run.next_fx = {"recharge": 1}
+	var c3 := _cloak_fight(gs, ["rat"])
+	check(int(c3.hero.cloak_charges) == 4, "Scroll of Recharging: +1 charge for the next fight")
+	_cloak_win(gs, c3)
+	check(int(gs.run.cloak_charges) == 3, "the extra charge doesn't carry past the cap")
+	# a lost fight records nothing new (the run ends)
+	gs.run.cloak_charges = 1
+	# Mystical Meal: a ration restores 1 charge, never above the cap
+	gs.run.satiety = 10.0
+	gs.delve_use("ration")
+	check(int(gs.run.cloak_charges) == 2, "Mystical Meal: eating a ration restores a cloak charge")
+	# save/load keeps the run's charges
+	var d: Dictionary = JSON.parse_string(JSON.stringify(gs.to_dict()))
+	gs.new_game(); gs.from_dict(d)
+	check(typeof(gs.run.cloak_charges) == TYPE_INT and int(gs.run.cloak_charges) == 2, "cloak charges survive save/load as an int")
+	check(int(gs.hero_stats("rogue").cloak.charges) == 2, "hero_stats reads the loaded run's charges")
+	# a mid-fight save keeps the fight's charges and cap
+	var c4 := _cloak_fight(gs, ["rat"]); c4.hero_cloak()
+	var c5 := Combat.new(); c5.from_dict(JSON.parse_string(JSON.stringify(c4.to_dict())))
+	check(int(c5.hero.cloak_charges) == 1 and int(c5.hero.cloak_cap) == 3, "a fight saved mid-way keeps cloak charges and cap")
+	# migration: a run saved before #206 has no cloak_charges -> full; an old talent id is renamed
+	var old: Dictionary = JSON.parse_string(JSON.stringify(gs.to_dict()))
+	old.run.erase("cloak_charges")
+	old.heroes.rogue.talents = ["cached_rations", "mystical_upgrade"]
+	gs.new_game(); gs.from_dict(old)
+	check(int(gs.run.cloak_charges) == 3, "migration: a run from an older save gets a full cloak (3)")
+	check(gs.heroes.rogue.talents == ["cached_rations", "mystical_meal"], "migration: Mystical Upgrade becomes Mystical Meal (%s)" % [gs.heroes.rogue.talents])
+	old.run.cloak_charges = 9
+	gs.new_game(); gs.from_dict(old)
+	check(int(gs.run.cloak_charges) == 3, "migration: charges above the cap are clamped")
+	# other heroes have no cloak pool
+	gs.end_run("abandon")
+	gs.start_run("warrior", {}, "sewers", 4)
+	check(not gs.run.has("cloak_charges") and not gs.hero_stats("warrior").has("cloak"), "non-Rogue runs carry no cloak charges")
 	gs.end_run("abandon")
 
 ## DECISIONS #126: the Heroes ring swap list only shows "Charges +N" for heroes whose staff gains them.
