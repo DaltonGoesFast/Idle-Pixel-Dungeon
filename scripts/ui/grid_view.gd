@@ -612,7 +612,7 @@ func unit_draw_pos(u: Dictionary) -> Vector2:
 func flash_white(uid: int) -> float:
 	return 1.0 if float(flash.get(uid, 0.0)) > 0.0 else 0.0
 
-## SPD HealthBar: thin red bg, green hp, pale shield; above the sprite; mobs only when hurt.
+## SPD HealthBar: thin red bg, green hp, then blue segmented Barrier for the hero; above the sprite; mobs only when hurt.
 func _health_bar(u: Dictionary, top: Vector2, scale: float) -> void:
 	var is_hero := u.has("hero")
 	if not is_hero and int(u.hp) >= int(u.ht): return
@@ -622,11 +622,13 @@ func _health_bar(u: Dictionary, top: Vector2, scale: float) -> void:
 	var y := top.y - h * 2.0
 	draw_rect(Rect2(x - scale * 0.5, y - scale * 0.5, w + scale, h + scale), Color(0, 0, 0, 0.75))
 	draw_rect(Rect2(x, y, w, h), Color("cc0000"))
-	var hpw := floorf(w * clampf(float(u.hp) / float(u.ht), 0, 1))
-	if is_hero and int(u.barrier) > 0:
-		var bw := floorf(w * clampf(float(u.barrier) / maxf(1.0, float(u.barrier_max)), 0, 1))
-		draw_rect(Rect2(x, y, bw, h), Color("bbeebb"))
+	var bar_n := int(u.barrier) if is_hero else 0
+	var tot := maxf(float(u.ht), float(u.hp + bar_n))
+	var hpw := floorf(w * clampf(float(u.hp) / tot, 0, 1))
 	draw_rect(Rect2(x, y, hpw, h), Color("00ee00"))
+	if bar_n > 0:   # blue Barrier after the green, one segment per hit it stops (DECISIONS #210)
+		var segs := combat.barrier_hits() if combat != null else 1
+		StatusPane.barrier_segs(self, Rect2(x, y, w, h), float(u.hp) / tot, float(u.hp + bar_n) / tot, segs, maxf(1.0, floorf(scale / 2.0)))
 
 ## SPD BuffIndicator small icons (buffs.png, 8 px grid) shown above the bar.
 const BUFF_IDX := {"poison": 3, "charging": 10, "enraged": 9, "hidden": 12, "barrier": 20, "shielded": 20}

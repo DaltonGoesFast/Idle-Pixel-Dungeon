@@ -300,6 +300,17 @@ func _ready() -> void:
 		plan.append([sz, "combat", func():
 			main.start_combat(Delve.combat_event(GameState.run, Delve.rng_for(GameState.run, 3), ["gnoll", "crab"]), func(_r): pass)
 			for i in 3: main.screen._do_bot()])
+		# DECISIONS #210: blue segmented Barrier on the status-pane HP bar and the over-sprite bar
+		plan.append([sz, "barrier_full", func():
+			if not GameState.run.is_empty(): GameState.end_run("abandon")
+			GameState.start_run("warrior", {}, "sewers", 9); main.show_delve(); main.delve.running = false
+			main.start_combat({"kind": "combat", "room": DB.rooms[0], "mobs": ["gnoll"]}, func(_r): pass)
+			main.screen._refresh()])
+		plan.append([sz, "barrier_hit", func():
+			var cb = main.screen.combat
+			var e = cb.enemies()[0]
+			cb.hit_hero(int(e.dmg), e.name)
+			main.screen._refresh()])
 		plan.append([sz, "huntress", func():
 			GameState.end_run("abandon")
 			for c in GameState.heroes: GameState.heroes[c].unlocked = true
