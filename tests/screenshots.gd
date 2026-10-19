@@ -17,6 +17,12 @@ func _ready() -> void:
 	if OS.has_environment("SHOT_DIR"): out = OS.get_environment("SHOT_DIR")
 	DirAccess.make_dir_recursive_absolute(out)
 	if OS.has_environment("SHOT_PC"): SIZES["pc"] = Vector2i(1280, 800)
+	# SHOT_SIZES=web:880x1024,cover:484x1188 replaces the sizes (e.g. a browser window of an odd aspect ratio)
+	if OS.has_environment("SHOT_SIZES"):
+		SIZES = {}
+		for e in OS.get_environment("SHOT_SIZES").split(","):
+			var kv := e.split(":"); var wh := kv[1].split("x")
+			SIZES[kv[0]] = Vector2i(int(wh[0]), int(wh[1]))
 	SaveSystem.autosave = false; SaveSystem.path = "user://shots.json"
 	GameState.new_game()
 	GameState.settings.tutorial = false
@@ -341,6 +347,16 @@ func _ready() -> void:
 			var e = cb.enemies()[0]
 			cb.hit_hero(int(e.dmg), e.name)
 			main.screen._refresh()])
+		# the Fold-inner browser report (DECISIONS #217): a crab fight played out to its Victory card, then one with item drops
+		plan.append([sz, "victory", func():
+			_fresh_warrior_run(); main.show_delve(); main.delve.running = false
+			main.start_combat({"kind": "combat", "room": DB.rooms[0], "mobs": ["crab"]}, func(_r): pass)
+			_win_fight()])
+		plan.append([sz, "victory_drop", func():
+			_fresh_warrior_run(); main.show_delve(); main.delve.running = false
+			GameState.run.fights_won = 3   # the 4th won fight drops an unknown potion
+			main.start_combat({"kind": "combat", "room": DB.rooms[0], "mobs": ["crab"], "reward": {"item": "spear", "item_unknown": "ring"}}, func(_r): pass)
+			_win_fight()])
 		plan.append([sz, "huntress", func():
 			GameState.end_run("abandon")
 			for c in GameState.heroes: GameState.heroes[c].unlocked = true
@@ -484,6 +500,14 @@ func _process(_d: float) -> void:
 		img.save_png("%s/%s_%s.png" % [out, step[0], step[1]])
 		if main.screen.get("grid") != null: print("GRID ", step[1], " ", main.screen.grid.size, " cs=", main.screen.grid.cell_size(), " win=", get_viewport().get_visible_rect().size)
 		if false: print("box ", main.screen.root_box.size, " title ", main.screen.root_box.get_child(0).size, " tabs ", main.screen.tabs.size, " anchors ", main.screen.root_box.anchor_right, " off ", main.screen.root_box.offset_right)
+
+
+## Auto Battle plays the open fight to its end, so the shot shows the real Victory card and log.
+func _win_fight() -> void:
+	var cb = main.screen.combat
+	for i in 200:
+		if cb.over: break
+		main.screen._do_bot()
 
 
 ## The staged "+3 gold" pop of delve_walk lives 1.1 s, longer than the next shots take, so clear it (DECISIONS #113).

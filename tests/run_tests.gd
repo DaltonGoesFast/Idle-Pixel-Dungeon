@@ -131,6 +131,7 @@ func _ready() -> void:
 	await test_hero_window_wide(gs)
 	test_web_no_dev_tools(gs)
 	await test_wipe_save_confirm(gs)
+	await test_victory_card(gs)
 	await test_telemetry(gs)
 	print("TESTS: %d passed, %d failed -> %s" % [passes, fails, "PASS" if fails == 0 else "FAIL"])
 	get_tree().quit(1 if fails else 0)
@@ -4129,6 +4130,111 @@ func test_bat_drain(gs) -> void:
 		c._place(c.hero, Vector2i(3, 2)); c._place(b, Vector2i(3, 3))
 		c._mob_act(b)
 		check(int(b.hp) == 10 + case[1], "bat heals dealt-2 like SPD's dealt-4 (DR %d -> +%d, got %d)" % [case[0], case[1], int(b.hp) - 10])
+
+
+## DECISIONS #217: the Fold-inner browser report. The Victory card ran off the right edge of the side column (a
+## near-square window gave the grid 60% of the width whatever the column needed), it listed drops as plain text,
+## and a long list could push the buttons off. At every size: the card, its buttons, the status pane and the
+## log sit inside the viewport; each drop line has its SPD sprite; drops are highlighted; the list scrolls.
+func test_victory_card(gs) -> void:
+	print("[victory card]")
+	var win := get_window(); var old := win.size
+	gs.new_game(); gs.settings.tutorial = false
+	var main = load("res://scenes/main.tscn").instantiate(); add_child(main)
+	# the report's Chrome viewport first, then the Fold cover/inner, PC, and odd browser windows around the
+	# portrait/wide switch (aspect 0.85) and very wide ones
+	var sizes := [Vector2i(880, 1024), Vector2i(762, 860), Vector2i(484, 1188), Vector2i(928, 1080), Vector2i(1280, 800),
+		Vector2i(860, 1000), Vector2i(1000, 1000), Vector2i(1100, 900), Vector2i(1920, 1080), Vector2i(2560, 1080),
+		Vector2i(700, 820), Vector2i(1024, 600), Vector2i(360, 800), Vector2i(1856, 2160)]
+	for sz in sizes:
+		win.size = sz
+		await get_tree().process_frame
+		main._relayout()
+		for drop in [false, true]:
+			if not gs.run.is_empty(): gs.end_run("abandon")
+			for k in ["ration", "torch", "potion_healing"]: gs.add_mat(k, 1)
+			gs.start_run("warrior", {"ration": 1, "torch": 1, "potion_healing": 1}, "sewers", 5)
+			main.show_delve(); main.delve.running = false
+			var ev := {"kind": "combat", "room": DB.rooms[0], "mobs": ["crab"]}
+			if drop:
+				gs.run.fights_won = 3   # the 4th win drops an unknown potion
+				ev.reward = {"item": "spear", "item_unknown": "ring"}
+			main.start_combat(ev, func(_r): pass)
+			var cs = main.screen
+			var cb: Combat = cs.combat
+			cs._act(func():
+				for e in cb.enemies(): e.pos = cb.hero.pos + Vector2i(1, 0)
+				for e in cb.enemies(): cb.hit_mob(e, 999))
+			for i in 3: await get_tree().process_frame
+			var tag := "%s %s" % [sz, "drops" if drop else "gold"]
+			check(cb.over and cb.won and cs.finished, "%s: the fight is won" % tag)
+			var vr: Rect2 = main.get_viewport_rect().grow(0.5)
+			var card: Control = cs.find_child("VictoryResults", true, false)
+			check(card != null and card.is_visible_in_tree(), "%s: the Victory card shows" % tag)
+			if card == null: continue
+			check(vr.encloses(card.get_global_rect()), "%s: the Victory card is inside the viewport (%s in %s)" % [tag, card.get_global_rect(), vr])
+			for b in card.find_children("*", "Button", true, false):
+				check(vr.encloses(b.get_global_rect()), "%s: '%s' is inside the viewport (%s)" % [tag, b.text, b.get_global_rect()])
+			check(vr.encloses(cs.pane.get_global_rect()), "%s: the status pane is inside the viewport (%s)" % [tag, cs.pane.get_global_rect()])
+			check(vr.encloses(cs.log_scroll.get_global_rect()), "%s: the log is inside the viewport (%s)" % [tag, cs.log_scroll.get_global_rect()])
+			check(vr.encloses(cs.grid.get_global_rect()), "%s: the grid is inside the viewport (%s)" % [tag, cs.grid.get_global_rect()])
+			check(cs.side.get_global_rect().end.x <= vr.end.x, "%s: the side column ends inside the viewport (%s)" % [tag, cs.side.get_global_rect()])
+			var vsc: ScrollContainer = card.find_child("VictoryList", true, false)
+			var vlines: Control = vsc.get_child(0)
+			if vlines.get_child_count() <= cs.VICTORY_ROWS:
+				check(vsc.size.y + 1.0 >= vlines.size.y, "%s: a short Victory list shows every row without scrolling (%s of %s)" % [tag, vsc.size.y, vlines.size.y])
+			var rows: Array = card.find_children("VictoryRow", "HBoxContainer", true, false)
+			var icons: Array = card.find_children("VictoryIcon", "Control", true, false)
+			var ids: Array = icons.map(func(ic): return String(ic.get_meta("item_id", "")))
+			check("gold" in ids, "%s: the gold line has the gold coin sprite (%s)" % [tag, ids])
+			for r in rows:
+				var txt: Label = r.find_child("VictoryText", false, false)
+				var has_icon: bool = r.find_child("VictoryIcon", false, false) != null
+				if txt.text.ends_with("XP") or txt.text.ends_with("HP"): check(not has_icon, "%s: '%s' has no item sprite" % [tag, txt.text])
+				else: check(has_icon, "%s: '%s' has a sprite" % [tag, txt.text])
+			if drop:
+				for want in ["spear", "potion"]:
+					var hit := ids.filter(func(x): return x == want or (want == "potion" and String(x).begins_with("potion_")))
+					check(not hit.is_empty(), "%s: the %s drop has its sprite (%s)" % [tag, want, ids])
+				check(ids.any(func(x): return String(x).begins_with("ring_")), "%s: the ring drop has its gem sprite (%s)" % [tag, ids])
+				for r in rows:
+					var txt: Label = r.find_child("VictoryText", false, false)
+					if txt.text == "Spear" or txt.text.ends_with("Ring") or txt.text.ends_with("Potion"):
+						check(txt.get_theme_color("font_color") == GameState.LOG_COLORS.highlight, "%s: '%s' is drawn in the highlight colour" % [tag, txt.text])
+					elif txt.text.ends_with("Gold"):
+						check(txt.get_theme_color("font_color") == GameState.LOG_COLORS.positive, "%s: '%s' stays green" % [tag, txt.text])
+	# a long list scrolls inside the card: the buttons stay on screen
+	win.size = Vector2i(880, 1024)
+	await get_tree().process_frame
+	main._relayout()
+	var cs2 = main.screen
+	var got := PackedStringArray(); var icons2 := {}
+	for i in 14: got.append("+1 Item %d" % i); icons2[got[-1]] = {"id": "potion_healing", "known": true, "drop": true}
+	cs2._summary = {"got": got, "lost": PackedStringArray(["-3 HP"]), "icons": icons2}
+	cs2._refresh()
+	for i in 3: await get_tree().process_frame
+	var card2: Control = cs2.find_child("VictoryResults", true, false)
+	var sc: ScrollContainer = card2.find_child("VictoryList", true, false)
+	check(sc != null and sc.size.y < sc.get_child(0).size.y, "a 15-line Victory list scrolls inside the card (%s < %s)" % [sc.size.y if sc else -1.0, sc.get_child(0).size.y if sc else -1.0])
+	var vr2: Rect2 = main.get_viewport_rect().grow(0.5)
+	for b in card2.find_children("*", "Button", true, false):
+		check(vr2.encloses(b.get_global_rect()), "long list: '%s' stays inside the viewport (%s)" % [b.text, b.get_global_rect()])
+	# a wide window lays the log out wide; shrinking the window must not keep that width as the column's floor
+	win.size = Vector2i(2560, 1080)
+	await get_tree().process_frame
+	main._relayout()
+	for i in 3: await get_tree().process_frame
+	win.size = Vector2i(1024, 900)
+	await get_tree().process_frame
+	main._relayout()
+	for i in 3: await get_tree().process_frame
+	var cs3 = main.screen
+	check(cs3.side_min_width() < cs3.side.get_combined_minimum_size().x + 0.5, "the side column's floor leaves out the log")
+	check(cs3.grid.size.x >= 1024 * 0.25, "after shrinking from a wide window the arena keeps its size (%s)" % cs3.grid.size)
+	gs.end_run("abandon")
+	main.queue_free()
+	win.size = old
+	await get_tree().process_frame
 
 
 ## DECISIONS #156: vanilla wands imbued into the Mage's Staff.
