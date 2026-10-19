@@ -2342,7 +2342,14 @@ func test_use_popup(gs) -> void:
 	check(pop != null and pop.title == "Potion of Healing" and pop.lines.size() == 1 and String(pop.lines[0]).begins_with("Drank a Potion of Healing. +"), "healing pop-up says how much it healed")
 	# tap outside closes
 	var ev := InputEventMouseButton.new(); ev.button_index = MOUSE_BUTTON_LEFT; ev.pressed = true
-	if pop: pop._gui_input(ev)
+	if pop:
+		# a phone tap arrives as a touch plus an emulated click: it must close once, not twice
+		var te := InputEventScreenTouch.new(); te.pressed = true
+		pop._gui_input(te)
+		if ProjectSettings.get_setting("input_devices/pointing/emulate_mouse_from_touch", true):
+			check(not pop._closed, "a raw touch is left to its emulated click")
+		pop._gui_input(ev)
+		check(pop._closed, "the click closes the pop-up")
 	check(UsePopup.current() == null, "a tap outside closes the pop-up")
 	# a use that can't happen says why
 	gs.run.hp = int(gs.hero_stats("warrior").ht)

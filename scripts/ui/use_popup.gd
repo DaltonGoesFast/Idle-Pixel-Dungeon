@@ -47,9 +47,14 @@ func _ready() -> void:
 	_render()
 	get_viewport().size_changed.connect(_render)
 
-## Tap outside the window closes it, like SPD's windows.
+## Tap outside the window closes it, like SPD's windows. A touch also arrives as an emulated mouse click
+## (input_devices/pointing/emulate_mouse_from_touch), so the raw touch only counts when that is off; otherwise
+## one tap would close twice and click twice (Bugbot on #109).
 func _gui_input(e: InputEvent) -> void:
-	if (e is InputEventMouseButton and e.button_index == MOUSE_BUTTON_LEFT and e.pressed) or (e is InputEventScreenTouch and e.pressed):
+	var tap := e is InputEventMouseButton and e.button_index == MOUSE_BUTTON_LEFT and e.pressed
+	if e is InputEventScreenTouch and e.pressed and not ProjectSettings.get_setting("input_devices/pointing/emulate_mouse_from_touch", true):
+		tap = true
+	if tap:
 		accept_event(); close()
 
 func _unhandled_input(e: InputEvent) -> void:
@@ -90,7 +95,10 @@ func _pick_theme() -> Theme:
 	if main_node: return (main_node as Control).theme
 	return get_tree().root.theme
 
+var _closed := false
 func close(sfx := true) -> void:
+	if _closed: return
+	_closed = true
 	if sfx: Sfx.play("click")
 	var cl := get_parent()
 	if cl and cl.name == NODE:
