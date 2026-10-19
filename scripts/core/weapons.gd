@@ -103,7 +103,14 @@ static func info_lines(id: String, lvl: int, known: bool, hero_str := -1) -> Arr
 	return out
 
 static func _num(f: float) -> String:
-	return str(int(f)) if is_equal_approx(f, round(f)) else ("%.1f" % f)
+	return num(f)
+
+## A stat number with up to two decimals and no trailing zeros past `min_dec`: 1.25 stays "1.25" (the Scimitar's
+## 1/0.8 speed read "1.2" under "%.1f"), 1.5 -> "1.5", 2 -> "2" (or "2.0" with min_dec 1) (DECISIONS #215).
+static func num(f: float, min_dec := 0) -> String:
+	var s := "%.2f" % f
+	while s.contains(".") and s.ends_with("0") and s.length() - s.find(".") - 1 > min_dec: s = s.left(-1)
+	return s.trim_suffix(".")
 
 ## Ids a delve can drop at each tier (SPD Generator WEP_T1..T5; the Mage's Staff is never found).
 static func pool(tier: int) -> Array:
