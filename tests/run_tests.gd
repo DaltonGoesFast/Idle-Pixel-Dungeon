@@ -67,6 +67,7 @@ func _ready() -> void:
 	test_vendor_mats_fold(gs)
 	test_camp_sou_budget(gs)
 	test_crate_slot(gs)
+	test_weapon_text_nits(gs)
 	test_max_all_supplies(gs)
 	test_guild_pack_cap(gs)
 	test_enchanter_tabs(gs)
@@ -3488,6 +3489,34 @@ func test_no_stacked_cost_rows(gs) -> void:
 		cs.close_page()
 		check(bad.is_empty(), "%s: no cost row stacks one material per line %s" % [vs, bad])
 		cs.queue_free()
+
+func test_weapon_text_nits(gs) -> void:
+	print("[weapon text nits]")
+	gs.new_game()
+	# numbers keep a real second decimal (Scimitar 1/0.8 = 1.25x, not 1.2x) (DECISIONS #215)
+	check(Weapons.num(1.0 / 0.8, 1) == "1.25", "Scimitar speed reads 1.25 (got %s)" % Weapons.num(1.0 / 0.8, 1))
+	check(Weapons.num(1.0, 1) == "1.0" and Weapons.num(2.0, 1) == "2.0", "whole speeds keep one decimal (1.0x, 2.0x)")
+	check(Weapons.num(1.0 / 1.5, 1) == "0.67" and Weapons.num(1.5) == "1.5", "Spear speed 0.67, 1.5 ticks stays 1.5")
+	check(Weapons.num(2.0) == "2" and Weapons.num(1.25) == "1.25", "plain numbers drop trailing zeros")
+	check("0.8 ticks per swing" in " ".join(Weapons.info_lines("scimitar", 0, true)), "Scimitar window still states its 0.8 swing time")
+	var cs = load("res://scripts/ui/camp_screen.gd").new()
+	# compare: no "Reach 1 / 1" row; a reach weapon on either side keeps it
+	var one := {"Dmg": 5, "Reach": 1}; var two := {"Dmg": 7, "Reach": 2}
+	check(not ("Reach" in cs.compare_keys(one, {"Dmg": 4, "Reach": 1})), "compare hides Reach when both are 1")
+	check(not ("Reach" in cs.compare_keys(one, {})), "compare hides Reach 1 against an empty slot")
+	check("Reach" in cs.compare_keys(two, one) and "Reach" in cs.compare_keys(one, two), "compare keeps Reach when either side reaches 2+")
+	# Forge captions: Worn Shortsword wraps onto two lines instead of "Worn Short..."
+	check(cs.caption_lines("Worn Shortsword") == 2, "Worn Shortsword needs a two-line caption")
+	check(cs.caption_lines("Sword") == 1, "short captions stay on one line")
+	var ws: Dictionary = gs.recipe("blacksmith", "forge_worn_shortsword")
+	check(not ws.is_empty(), "the Forge has a Worn Shortsword recipe")
+	if not ws.is_empty():
+		var s1: Button = cs.recipe_slot("blacksmith", ws, 1); var s2: Button = cs.recipe_slot("blacksmith", ws, 2)
+		var cap: Label = s2.get_node("Caption")
+		check(cap.text == "Worn Shortsword" and cap.autowrap_mode != TextServer.AUTOWRAP_OFF and cap.max_lines_visible == 2, "two-line caption shows the full name, word-wrapped")
+		check(s2.custom_minimum_size.y > s1.custom_minimum_size.y and s2.custom_minimum_size.x == s1.custom_minimum_size.x, "a two-line caption makes the slot taller, not wider")
+		s1.free(); s2.free()
+	cs.free()
 
 func test_crate_slot(gs) -> void:
 	print("[crate slot]")
