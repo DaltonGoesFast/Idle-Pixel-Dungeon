@@ -2,22 +2,22 @@
  "_note": "Costs in materials. 'facility' + 'min_level' gate the recipe. Upgrades cost iron_ore*4*(lvl+1) and are capped by blacksmith level.",
  "blacksmith": [
   {
+   "id": "forge_worn_shortsword",
+   "name": "Forge Worn Shortsword",
+   "out": "worn_shortsword",
+   "cost": {
+    "iron_ore": 3,
+    "gold": 20
+   },
+   "min_level": 1
+  },
+  {
    "id": "forge_shortsword",
    "name": "Forge Shortsword",
    "out": "shortsword",
    "cost": {
     "iron_ore": 6,
     "gold": 40
-   },
-   "min_level": 1
-  },
-  {
-   "id": "forge_dagger",
-   "name": "Forge Dagger",
-   "out": "dagger",
-   "cost": {
-    "iron_ore": 3,
-    "gold": 20
    },
    "min_level": 1
   },
@@ -32,9 +32,9 @@
    "min_level": 1
   },
   {
-   "id": "forge_mace",
-   "name": "Forge Mace",
-   "out": "mace",
+   "id": "forge_sword",
+   "name": "Forge Sword",
+   "out": "sword",
    "cost": {
     "iron_ore": 8,
     "dark_gold": 2

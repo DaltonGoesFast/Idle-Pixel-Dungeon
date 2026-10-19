@@ -943,6 +943,29 @@ func hero_heal(amount: int) -> void:
 	_ev({"t": "heal", "uid": hero.uid, "amount": amount, "pos": hero.pos})
 	_end_hero_turn(1.0)
 
+## Barrier segments on the HP bars (DECISIONS #210): how much Barrier one enemy hit takes right now.
+## hit_hero spends the post-DR damage from Barrier, or 1 (the chip rule) when DR blocks the whole hit, so a
+## hit costs max(1, dmg - DR) (x VULN_MULT while vulnerable). We use the hardest-hitting living enemy, so the
+## segment count is the number of hits the Barrier is sure to stop. No enemies left = the chip size 1.
+func barrier_hit_size() -> int:
+	if hero.is_empty(): return 1
+	var best := 1
+	for e in enemies():
+		if int(e.hp) <= 0: continue
+		var raw := int(e.get("dmg", 0))
+		if has_debuff("vuln"): raw = int(ceil(raw * VULN_MULT))
+		best = maxi(best, raw - int(hero.dr))
+	return best
+
+const BARRIER_SEG_CAP := 10
+## Segments for `barrier` Barrier against hits of `hit`: ceil(barrier / hit), capped at BARRIER_SEG_CAP; 0 = no blue.
+static func barrier_segments(barrier: int, hit: int) -> int:
+	if barrier <= 0: return 0
+	return mini(BARRIER_SEG_CAP, int(ceil(float(barrier) / float(maxi(1, hit)))))
+
+func barrier_hits() -> int:
+	return barrier_segments(int(hero.get("barrier", 0)), barrier_hit_size())
+
 ## SPD Barrier decay (Barrier.act): each turn loses min(1, shield/20) of a point (DECISIONS #134).
 const BARRIER_DECAY_DIV := 20.0
 func _decay_barrier(cost: float) -> void:

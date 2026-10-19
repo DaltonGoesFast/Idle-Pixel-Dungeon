@@ -18,6 +18,7 @@ func _ready() -> void:
 	gs.new_game()
 	test_rules(gs)
 	test_barrier_spd(gs)
+	test_barrier_segments(gs)
 	test_bat_drain(gs)
 	test_vanilla_mobs(gs)
 	test_status_pane_layout(gs)
@@ -105,6 +106,7 @@ func _ready() -> void:
 	test_break_rings(gs)
 	test_all_icons(gs)
 	test_weapons(gs)
+	test_weapon_loot(gs)
 	test_delve(gs)
 	test_camp(gs)
 	test_camp_npc_hits()
@@ -615,7 +617,7 @@ func test_camp(gs) -> void:
 	check(gs.can_equip("warrior", ss.uid) == "", "can equip shortsword")
 	gs.equip("warrior", ss.uid)
 	check(gs.hero_stats("warrior").dmg == 8 - 4, "str 10 < 12 req: -2 dmg per point")
-	check(gs.can_craft("blacksmith", "forge_mace") != "", "mace needs blacksmith lv2")
+	check(gs.can_craft("blacksmith", "forge_sword") != "", "sword needs blacksmith lv2")
 	check(gs.upgrade_item(ss.uid), "upgrade +1 (cap = blacksmith level 1)")
 	check(not gs.upgrade_item(ss.uid), "can't exceed blacksmith cap")
 	check(not gs.upgrade_facility("blacksmith"), "facility capped without SoU")
@@ -1489,6 +1491,64 @@ func test_weapons(gs) -> void:
 	var old := {"uid": 900, "id": "mace", "lvl": 2, "cracked": false, "known": true}
 	gs.gear.append(old); gs.heroes.warrior.weapon = 900; gs.heroes.warrior.str = 13
 	check(int(gs.hero_stats("warrior").dmg) == 14 and not gs.hero_stats("warrior").no_surprise, "an old save's +2 Mace keeps working (14 dmg, 13 Str is enough)")
+	gs.new_game()
+
+## DECISIONS #208: only each tier's basic sword is forged; every other weapon is found (SPD Generator tier odds).
+func test_weapon_loot(gs) -> void:
+	print("[weapon_loot]")
+	var forged: Array = DB.recipes.blacksmith.map(func(r): return String(r.out)).filter(func(o): return Weapons.is_weapon(DB.item(o)))
+	check(forged == ["worn_shortsword", "shortsword", "sword", "longsword", "greatsword"], "the Forge makes only the five basic swords: %s" % [forged])
+	var lv := {}
+	for r in DB.recipes.blacksmith:
+		if String(r.out) in forged: lv[r.out] = int(r.min_level)
+	check(lv.worn_shortsword == 1 and lv.shortsword == 1 and lv.sword == 2 and lv.longsword == 3 and lv.greatsword == 3, "sword recipes by Forge level")
+	var found := []
+	for t in range(1, 6): found += Weapons.pool(t)
+	var all_w: Array = DB.items.keys().filter(func(k): return Weapons.is_weapon(DB.items[k]) and not DB.items[k].get("heirloom", false))
+	check(found.size() == all_w.size() and found.size() == 31 and not ("mages_staff" in found), "every weapon but the Mage's Staff can drop (%d)" % found.size())
+	for w in ["spear", "assassins_blade", "dagger", "mace", "glaive", "whip"]:
+		check(not (w in forged) and w in found, "%s is found, not forged" % w)
+	# SPD floorSetTierProbs (floor set 0 with tier 1 added): rolls 0..N-1 (N a multiple of 100) hit each tier exactly its share
+	var by_fl := {1: [20, 55, 20, 4, 1], 4: [20, 55, 20, 4, 1], 5: [0, 25, 50, 20, 5], 12: [0, 0, 40, 50, 10], 17: [0, 0, 20, 40, 40], 21: [0, 0, 0, 20, 80], 30: [0, 0, 0, 20, 80]}
+	for fl in by_fl:
+		var cnt := [0, 0, 0, 0, 0]; var seen := {}
+		for roll in 10000:
+			var id: String = Weapons.random_for_floor(fl, roll); cnt[int(DB.item(id).tier) - 1] += 1; seen[id] = true
+		var want: Array = by_fl[fl].map(func(p): return p * 100)
+		check(cnt == want, "floor %d tier split %s == %s" % [fl, cnt, want])
+		var exp_n := 0
+		for t in 5:
+			if by_fl[fl][t] > 0: exp_n += Weapons.pool(t + 1).size()
+		check(seen.size() == exp_n, "floor %d: every weapon of a possible tier shows up (%d/%d)" % [fl, seen.size(), exp_n])
+	check(Weapons.random_for_floor(12, 4321) == Weapons.random_for_floor(12, 4321), "same roll, same weapon")
+	# the reward: a known +0 weapon in the pack, seeded (the same run state finds the same weapon)
+	gs.new_game(); gs.start_run("warrior", {}, "sewers", 3)
+	var snap: Dictionary = JSON.parse_string(JSON.stringify(gs.to_dict()))
+	var msg: String = Delve.reward(gs, {"weapon": 1})
+	var g: Dictionary = gs.run.pack_gear[-1]
+	check(Weapons.is_weapon(DB.item(g.id)) and g.known and int(g.lvl) == 0 and not g.cracked and msg == DB.item(g.id).name, "a weapon reward stows a known +0 weapon (%s)" % msg)
+	check(int(DB.item(g.id).tier) <= 4, "Sewers 3 weapons are tier 1-4")
+	gs.from_dict(snap); Delve.reward(gs, {"weapon": 1})
+	check(gs.run.pack_gear[-1].id == g.id, "the weapon reward is seeded by the run")
+	var ids := {}
+	for i in 40:
+		Delve.reward(gs, {"weapon": 1}); ids[gs.run.pack_gear[-1].id] = true
+		if gs.run.pack_gear.size() > 6: gs.run.pack_gear.clear()
+	check(ids.size() >= 6, "successive weapon finds differ (%d kinds in 40)" % ids.size())
+	gs.end_run("abandon")
+	# where weapons drop: the Statue (every biome) and the Prison+ footlocker and strongbox chests
+	var st: Dictionary = DB.specials.filter(func(e): return e.id == "statue")[0]
+	check(st.options[0].reward.size() == 1 and int(st.options[0].reward.get("weapon", 0)) == 1 and st.biomes.size() == 5, "the Animated Statue guards a found weapon in every biome")
+	for did in ["cells", "den"]:
+		var dr: Dictionary = DB.doors.filter(func(e): return e.id == did)[0]
+		check(dr.b.kind == "chest" and int(dr.b.reward.get("weapon", 0)) == 1, "%s chest holds a weapon" % did)
+	# old saves keep their forged Daggers and Maces
+	gs.new_game()
+	var old: Dictionary = JSON.parse_string(JSON.stringify(gs.to_dict()))
+	old.gear.append({"uid": 801, "id": "dagger", "lvl": 1, "cracked": false, "known": true})
+	old.gear.append({"uid": 802, "id": "mace", "lvl": 0, "cracked": false, "known": true})
+	gs.from_dict(old)
+	check(gs.gear_by_uid(801).id == "dagger" and gs.gear_by_uid(802).id == "mace" and gs.can_equip("warrior", 802) == "", "an old save keeps its forged Dagger and Mace")
 	gs.new_game()
 
 func test_all_icons(gs) -> void:
@@ -4899,3 +4959,23 @@ func test_telemetry(gs) -> void:
 	check(okd[0] and not ov.is_open(), "telemetry: OK closes the notice and marks it seen")
 	ov.queue_free()
 	gs.new_game()
+
+func test_barrier_segments(gs) -> void:
+	print("[barrier segments] blue HP-bar segments = hits the Barrier stops (DECISIONS #210)")
+	var hs := warrior(gs)
+	var c := Combat.new(); c.setup(DB.rooms[0], hs, hs.ht, ["rat"])
+	var e = c.enemies()[0]
+	e.dmg = int(c.hero.dr) + 3
+	c.hero.barrier = 8
+	check(c.barrier_hit_size() == 3, "hit size = enemy dmg - DR")
+	check(c.barrier_hits() == 3, "8 Barrier vs 3-damage hits = 3 segments")
+	c.hit_hero(int(e.dmg), "t")
+	check(c.hero.barrier == 5 and c.barrier_hits() == 2, "a hit chips one segment off (5 left = 2 segments)")
+	e.dmg = int(c.hero.dr)
+	check(c.barrier_hit_size() == 1 and c.barrier_hits() == 5, "fully blocked hits cost 1 (chip rule): 1 segment per point")
+	c.hero.barrier = 0
+	check(c.barrier_hits() == 0, "zero Barrier = no blue")
+	check(Combat.barrier_segments(0, 3) == 0, "no Barrier, no segments")
+	check(Combat.barrier_segments(40, 1) == Combat.BARRIER_SEG_CAP, "segments are capped")
+	e.hp = 0
+	check(c.barrier_hit_size() == 1, "no living enemies: chip size 1")

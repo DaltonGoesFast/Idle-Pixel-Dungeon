@@ -41,7 +41,7 @@
     },
     {
      "title": "Barrier and armor",
-     "text": "The blue bar is Barrier: it soaks damage first and refills every fight. Armor's DR subtracts from every physical hit. Use Hint if you're stuck, or Auto to let the game play."
+     "text": "The blue part of your HP bar is Barrier: it soaks damage first and refills every fight. Each segment is one enemy hit it can stop. Armor's DR subtracts from every physical hit. Use Hint if you're stuck, or Auto to let the game play."
     }
    ]
   },

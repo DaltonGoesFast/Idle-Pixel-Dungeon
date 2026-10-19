@@ -4,8 +4,10 @@
 class_name Weapons
 extends RefCounted
 
-## SPD Generator.floorSetTierProbs: weapon tier odds by floor set (floor / 5), tiers 1-5.
-const FLOOR_SET_TIER_PROBS := [[0, 75, 20, 4, 1], [0, 25, 50, 20, 5], [0, 0, 40, 50, 10], [0, 0, 20, 40, 40], [0, 0, 0, 20, 80]]
+## SPD Generator.floorSetTierProbs: weapon tier odds by floor set (floor / 5), tiers 1-5. SPD never drops tier 1
+## (starting weapons only); here 20 of floor set 0's 75 tier-2 share goes to tier 1 so the Cudgel and Rapier can be found
+## (DECISIONS #208).
+const FLOOR_SET_TIER_PROBS := [[20, 55, 20, 4, 1], [0, 25, 50, 20, 5], [0, 0, 40, 50, 10], [0, 0, 20, 40, 40], [0, 0, 0, 20, 80]]
 
 static func is_weapon(d: Dictionary) -> bool:
 	return String(d.get("type", "")) == "weapon"
