@@ -123,6 +123,9 @@ func _encounter_wall(ev: Dictionary, dx: int, idx: int) -> int:
 				# a plain face (SPD SECRET_DOOR looks like a bare wall; the barricade's stretch has no door): never a
 				# door or a random biome wall deco
 				if String(op[0]) == "plain" and int(op[2]) == dx: return 96 if idx in [96, 100] else 80
+				# a raised prop on the far row has its top on this face: a bare wall behind it, no drain or torch
+				# showing through the gaps (DECISIONS #213)
+				if dx != 0 and String(op[0]) == "f" and float(op[3]) == 2.0 and int(op[2]) == dx and not feature_overhang(int(op[1])).is_empty(): return 96 if idx in [96, 100] else 80
 			if dx == 0: return DOOR_CLOSED
 	return idx
 
@@ -480,8 +483,11 @@ func _draw() -> void:
 ## "plain" [_, dx, 1]: that wall face stays a bare wall (no biome wall deco), e.g. SPD's secret door.
 ## "i" item sprite, "m" mob sprite (idle anim, facing the hero), "fire"/"spark" SPD-style particles (what = colour).
 ## "r" SPD raised terrain (base tile in the cell, overhang tile in the cell above; DungeonTileSheet RAISED_* and
-## *_OVERHANG): "grass" 122/234, "grass2" 125/237, "pot" 120/232, "barricade" 121/233. "f" props are bottom-aligned in their cell.
+## *_OVERHANG): "grass" 122/234, "grass2" 125/237, "pot" 120/232, "barricade" 121/233. Flat "f" features are bottom-aligned
+## in their cell; raised ones (barrels, cells, crystals: see feature_overhang) fill it and get their overhang above.
 ## dx is in tiles from the door column, row 2 = far floor row, 3 = near floor row (fractions allowed for sprites).
+## A raised prop never stands on the far row in front of the door (dx 0, row 2): its top would cover the doorway.
+## Far-row ops come before near-row ones, so a near prop's top is drawn over what stands behind it.
 ## Room-only sprites that are not combat mobs (no DB.mobs entry), with SPD's own frame sizes: PiranhaSprite cuts
 ## piranha.png into 12x16 frames. Without this the piranha fell back to 16x16 and drew a broken blob (DECISIONS #187).
 const WALL_INTERNAL := 144   # SPD DungeonTileSheet.WALL_INTERNAL (all black in every biome)
@@ -508,9 +514,9 @@ const ROOM_SCENES := {
 	"garden": [["t", 2, 0, 2], ["t", 2, 1, 2], ["t", 2, 2, 2], ["t", 2, 0, 3], ["t", 2, 1, 3], ["r", "grass", 0, 3], ["r", "grass2", 1, 3], ["f", 115, 1, 2], ["f", 113, 2, 2], ["f", 112, 2, 3], ["i", "SEED_SUNGRASS", 0, 2]],
 	"trapped_hall": [["f", 0, 0, 2], ["f", 18, 1, 3], ["f", 33, 2, 2], ["f", 68, 3, 3]],
 	"odd_wall": [["plain", 0, 1, 1], ["plain", 0, 2, 1], ["spark", "c8c8ff", 1.5, 1.5]],   # SPD secret walls carry no deco or rubble
-	"cell_block": [["m", "thief", 0.5, 2.85], ["f", 153, 0, 2], ["f", 154, 1, 2], ["i", "IRON_KEY", 2, 3]],
-	"armory": [["f", 137, 0, 2], ["i", "SWORD", 1, 2], ["i", "ARMOR_MAIL", 2, 2], ["i", "MACE", 1, 3], ["f", 138, 3, 2]],
-	"crystal_vein": [["f", 210, 0, 2], ["f", 211, 1, 2], ["f", 210, 2, 3], ["spark", "8ad8ff", 1.0, 2.5]],
+	"cell_block": [["m", "thief", 1.5, 2.85], ["f", 153, 1, 2], ["f", 154, 2, 2], ["i", "IRON_KEY", 2, 3]],
+	"armory": [["i", "SWORD", 1, 2], ["i", "ARMOR_MAIL", 2, 2], ["f", 138, 3, 2], ["f", 137, 0, 3], ["i", "MACE", 1, 3]],
+	"crystal_vein": [["f", 210, 1, 2], ["f", 211, 2, 2], ["f", 210, 0, 3], ["spark", "8ad8ff", 1.5, 2.5]],
 	"vault": [["t", 4, 0, 2], ["t", 4, 1, 2], ["t", 4, 0, 3], ["t", 4, 1, 3], ["i", "CRYSTAL_CHEST", 0.5, 2.5], ["spark", "a0e8ff", 0.5, 2.4]],
 	"library": [["t", 92, 1, 1], ["t", 108, 2, 1], ["t", 92, 3, 1], ["i", "SCROLL_KAUNAN", 1, 2], ["i", "SCROLL_ISAZ", 2, 3]],
 	"well_health": [["w", 0, 1, 2], ["t", 18, 1, 2], ["spark", "ff7070", 1.5, 2.4], ["speck", 0, 1, 2]],
@@ -518,12 +524,37 @@ const ROOM_SCENES := {
 	"laboratory": [["r", "pot", 1, 3], ["i", "POTION_CRIMSON", 2, 2], ["i", "POTION_AZURE", 2, 3], ["i", "SEED_ROTBERRY", 0, 3], ["spark", "c0ff80", 1.5, 2.3]],
 	"treasury": [["i", "GOLD", 1, 3], ["i", "GOLD", 2, 2]],
 	"shrine": [["t", 20, 1, 2], ["i", "ARTIFACT_CHALICE1", 1, 1.85], ["spark", "ffd27a", 1.5, 2.2]],
-	"larder": [["f", 137, 0, 2], ["f", 138, 1, 2], ["i", "RATION", 1, 3], ["i", "PASTY", 2, 3]],
+	"larder": [["f", 137, 1, 2], ["f", 138, 2, 2], ["i", "RATION", 1, 3], ["i", "PASTY", 2, 3]],
 	"trap_vault": [["f", 0, 0, 2], ["f", 34, 0, 3], ["f", 65, 2, 3], ["t", 4, 1, 2], ["i", "CRYSTAL_CHEST", 1, 2], ["spark", "a0e8ff", 1.5, 2.4]],
 	"prisoner": [["f", 153, 1, 2], ["f", 154, 2, 2], ["m", "guard", 0.5, 3.8], ["i", "IRON_KEY", 3, 3]],
 	"abandoned_shop": [["f", 169, 1, 2], ["f", 170, 2, 2], ["i", "RATION", 1, 1.8], ["i", "TORCH", 2, 1.8], ["i", "POTION_GOLDEN", 1.5, 3], ["f", 138, 0, 3]],
 	"gnoll_camp": [["t", 3, 1, 3], ["fire", "", 1.5, 3.7], ["m", "gnoll", 0.9, 2.95], ["m", "gnoll", 2.2, 2.95], ["m", "gnoll", 3.5, 3.95], ["i", "TORCH", 0, 3]],
 }
+
+## SPD TerrainFeaturesTilemap draws a raised prop's lower part only: ALCHEMY 135, STATUE 136, REGION_DECO 137 and
+## REGION_DECO_ALT 138 (+ 16 per region: sewers barrels, prison cells, caves rocks, city plinths, halls tombs) and the
+## mine crystals 210-215 are cut at the top of their own cell. The rest of the prop is that region sheet's overhang
+## on the cell above (DungeonWallsTilemap): ALCHEMY 232, STATUE 240, REGION_DECO 242 / ALT 243, and the crystals'
+## MINE_CRYSTAL_OVERHANG blue/green/red 244/245/246 from tiles_caves_crystal. Drawn alone and bottom-aligned, a
+## barrel lost its top rim and sat half a row low (DECISIONS #213). Returns [sheet, overhang] or [] for a flat feature.
+const STAGE_SHEETS := ["tiles_sewers", "tiles_prison", "tiles_caves", "tiles_city", "tiles_halls"]
+const FEATURE_OVERHANG_COL := {7: 232, 8: 240, 9: 242, 10: 243}
+static func feature_overhang(fi: int) -> Array:
+	if fi >= 128 and fi < 208 and FEATURE_OVERHANG_COL.has(fi % 16):
+		return [STAGE_SHEETS[(fi - 128) / 16], FEATURE_OVERHANG_COL[fi % 16]]
+	if fi >= 210 and fi <= 215: return ["tiles_caves_crystal", 244 + (fi - 210) / 2]
+	return []
+
+## What a room scene's "f" op draws for terrain_features cell `fi` with top-left `tl`: [[sheet path, dst, src], ...].
+## A flat feature (plant, trap) stands on its cell's bottom edge (`drop` = its empty pixels below, screen px). A raised
+## prop fills its own cell, flush to the grid, with its overhang on the cell above, both full 16x16 source cells.
+static func feature_draws(fi: int, tl: Vector2, cs: float, drop: float) -> Array:
+	var src := Rect2((fi % 16) * 16, (fi / 16) * 16, 16, 16)
+	var fo := feature_overhang(fi)
+	if fo.is_empty(): return [["res://assets/tiles/terrain_features.png", Rect2(tl + Vector2(0, drop), Vector2(cs, cs)), src]]
+	var oi := int(fo[1])
+	return [["res://assets/tiles/terrain_features.png", Rect2(tl, Vector2(cs, cs)), src],
+		["res://assets/tiles/%s.png" % fo[0], Rect2(tl - Vector2(0, cs), Vector2(cs, cs)), Rect2((oi % 16) * 16, (oi / 16) * 16, 16, 16)]]
 
 const RAISED_KINDS := {"grass": [122, 234, 0.5], "grass2": [125, 237, 0.5], "pot": [120, 232, 1.0], "barricade": [121, 233, 1.0]}
 var _feat_drop := {}
@@ -554,8 +585,9 @@ func _room_scene(id: String, x0: float, y0: float, cs: float, k: float, biome: D
 			"t":
 				var ti := int(op[1]); draw_texture_rect_region(tiles, Rect2(tl, Vector2(cs, cs)), Rect2((ti % 16) * 16, (ti / 16) * 16, 16, 16), _lm(tl + Vector2(cs, cs) / 2.0))
 			"f":
-				var fi := int(op[1])
-				draw_texture_rect_region(feats, Rect2(tl + Vector2(0, _drop(feats, fi) * k), Vector2(cs, cs)), Rect2((fi % 16) * 16, (fi / 16) * 16, 16, 16), _lm(tl + Vector2(cs, cs) / 2.0))
+				var fi := int(op[1]); var fm := _lm(tl + Vector2(cs, cs) / 2.0)
+				for fd in feature_draws(fi, tl, cs, _drop(feats, fi) * k):
+					draw_texture_rect_region(_t(fd[0]), fd[1], fd[2], fm)
 			"r":
 				var rk: Array = RAISED_KINDS[String(op[1])]
 				var rm := _lm(tl + Vector2(cs, cs) / 2.0, float(rk[2]))
