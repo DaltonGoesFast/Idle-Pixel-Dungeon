@@ -105,6 +105,7 @@ func _ready() -> void:
 	test_forge_bulk(gs)
 	test_break_rings(gs)
 	test_all_icons(gs)
+	test_iron_ore_icon()
 	test_weapons(gs)
 	test_weapon_loot(gs)
 	test_delve(gs)
@@ -1583,6 +1584,32 @@ func test_all_icons(gs) -> void:
 		if after != before or after in holders or after <= 0: bad.append("ided %s %d->%d" % [k, before, after])
 	check(bad.is_empty(), "%d item ids resolve to visible SPD icons %s" % [ids.size(), bad])
 
+
+## Iron Ore has its own steel-grey items.png cell (DECISIONS #216): not Dark Gold's ore cell, no runtime tint (the old
+## #a0a8b8 modulate turned the gold ore an olive "darker gold"), the same 15x15 ore shape, and no gold-hued pixels.
+func test_iron_ore_icon() -> void:
+	print("[iron ore icon]")
+	var img: Image = (load("res://assets/sprites/items.png") as Texture2D).get_image()
+	var iron := DB.icon_index("iron_ore")
+	var ore := DB.icon_index("dark_gold")
+	check(iron != ore and iron != DB.icon_index("gold") and iron > 0, "Iron Ore has its own icon cell (%d), not Dark Gold's (%d) or Gold's" % [iron, ore])
+	check(String(DB.materials.iron_ore.get("tint", "")) == "", "Iron Ore is not drawn with a runtime tint")
+	check(UIKit.item_rect(iron).size == UIKit.item_rect(ore).size, "Iron Ore keeps SPD's ore shape (%s)" % UIKit.item_rect(iron).size)
+	var r := UIKit.item_rect(iron); var o := UIKit.item_rect(ore)
+	var shape_ok := true; var warm := 0; var metal := 0
+	for y in int(r.size.y):
+		for x in int(r.size.x):
+			var c := img.get_pixel(int(r.position.x) + x, int(r.position.y) + y)
+			var c0 := img.get_pixel(int(o.position.x) + x, int(o.position.y) + y)
+			if (c.a > 0.5) != (c0.a > 0.5): shape_ok = false
+			if c.a > 0.5 and c.get_luminance() > 0.15:
+				if c.r - c.b > 0.08: warm += 1   # gold/olive: red well above blue
+				if c.b >= c.r and c.s < 0.25: metal += 1   # cool grey steel
+	check(shape_ok, "Iron Ore's pixels sit exactly where the ore sprite's do (1:1 pixel art)")
+	check(warm == 0 and metal >= 40, "Iron Ore is cool steel grey, not the gold tint (%d warm, %d steel pixels)" % [warm, metal])
+	var chip := UIKit.icon("iron_ore", 32, "NONE")
+	check(chip.modulate == Color.WHITE and (chip.texture as AtlasTexture).region == r, "UIKit.icon draws Iron Ore's own cell untinted")
+	chip.free()
 
 ## Every tutorial tip page fits inside its card, and the card inside the screen with margins, at the Fold cover
 ## and inner sizes (real device px with the font sizes Main picks for them).
