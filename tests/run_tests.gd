@@ -3830,7 +3830,7 @@ func test_rec_levels(_gs) -> void:
 		check(l > prev, "%s has a rising recommended level (%d)" % [b, l])
 		prev = l
 	check(int(DB.biomes.halls.rec_level) == 22, "halls recommends Lv 22")
-	check(int(DB.mobs.dking.ht) == 140 and int(DB.mobs.yog.dmg) == 14, "late bosses are not eased")
+	check(int(DB.mobs.dking.ht) == 140 and int(DB.mobs.yog.dmg) == 17, "late bosses are not eased")
 
 ## DECISIONS #129: each fixed Potion of Strength is found once per hero life.
 func test_strength_once(gs) -> void:
@@ -4103,7 +4103,41 @@ func test_barrier_spd(gs) -> void:
 	var w: Dictionary = gs.hero_stats("warrior"); var m: Dictionary = gs.hero_stats("mage")
 	check(int(w.barrier_max) == 8 and int(m.barrier_max) == 4, "starting Barrier: warrior 8 (seal-like), others 4 (was 10 / 5) (%d / %d)" % [w.barrier_max, m.barrier_max])
 	var uid: int = gs.add_gear("cloth_armor", true, 3); gs.heroes.mage.armor = uid
-	check(int(gs.hero_stats("mage").barrier_max) == int(m.barrier_max) and int(gs.hero_stats("mage").dr) == int(m.dr) + 3, "armor upgrades add DR, not Barrier")
+	check(int(gs.hero_stats("mage").barrier_max) == int(m.barrier_max) + 3 and int(gs.hero_stats("mage").dr) == 2, "cloth +3: +1 DR (+0.5/lvl) and +3 Barrier (+1/lvl) (DECISIONS #218)")
+	# Tier-based armor scaling table (+0 / +3 / +6) and under-strength penalty (DECISIONS #218)
+	var expected_armor := {
+		"cloth_armor": [[1, 1], [2, 4], [4, 7]],
+		"leather_armor": [[2, 2], [3, 5], [5, 8]],
+		"mail_armor": [[3, 4], [6, 7], [9, 10]],
+		"scale_armor": [[5, 6], [8, 10], [11, 15]],
+		"plate_armor": [[7, 8], [11, 14], [16, 20]],
+	}
+	var scale_ok := true
+	for aid in expected_armor:
+		var ad := DB.item(aid)
+		var rows: Array = expected_armor[aid]
+		var levels := [0, 3, 6]
+		for i in 3:
+			var lv: int = levels[i]
+			if gs.armor_dr(ad, lv) != rows[i][0] or gs.armor_barrier(ad, lv) != rows[i][1]: scale_ok = false
+	check(scale_ok, "armor tier scaling matches DECISIONS #218 table at +0, +3, +6")
+	# Under-strength armor: divides armor DR by (1 + missing Str) and zeroes armor Barrier, keeping weapon block
+	gs.heroes.warrior.str = 10; gs.heroes.warrior.level = 10
+	gs.heroes.warrior.weapon = gs.add_gear("round_shield", true, 0)   # +2 block DR
+	gs.heroes.warrior.armor = gs.add_gear("plate_armor", true, 0)     # 18 Str -> missing 8: 7 / 9 = 0 armor DR, 0 armor Barrier
+	var under_plate: Dictionary = gs.hero_stats("warrior")
+	check(int(under_plate.dr) == 2 and int(under_plate.barrier_max) == 7, "10-Str hero in Plate +0 gets 0 armor DR/Barrier (keeps shield +2 DR and 5+2 class/seal Barrier)")
+	gs.heroes.warrior.str = 16   # missing 2 Str for Plate: 7 / 3 = 2 armor DR, 0 armor Barrier
+	var near_plate: Dictionary = gs.hero_stats("warrior")
+	check(int(near_plate.dr) == 2 + 2 and int(near_plate.barrier_max) == 7, "16-Str hero in Plate +0 gets 7/(1+2)=2 armor DR and 0 armor Barrier")
+	gs.heroes.warrior.weapon = gs.add_gear("worn_shortsword", true, 0)
+	var cs_ar = load("res://scripts/ui/camp_screen.gd").new()
+	var p_uid: int = gs.add_gear("plate_armor", true, 2)
+	var p_g: Dictionary = gs.gear_by_uid(p_uid)
+	var p_st: Dictionary = cs_ar.gear_stats(p_g)
+	check(int(p_st.get("DR", 0)) == 10 and int(p_st.get("Barrier", 0)) == 12, "CampScreen.gear_stats includes scaled DR and Barrier for armor")
+	check(String(cs_ar.gear_lines(p_g)[0]).contains("DR 10") and String(cs_ar.gear_lines(p_g)[0]).contains("Barrier 12"), "CampScreen.gear_lines shows armor DR and Barrier")
+	cs_ar.free()
 	gs.heroes.warrior.armor = gs.add_gear("plate_armor", true, 0); gs.heroes.warrior.str = 18
 	check(int(gs.hero_stats("warrior").barrier_max) <= int(gs.hero_stats("warrior").ht) / 2, "Barrier is capped at half of max HP")
 	var c := Combat.new(); var hs: Dictionary = gs.hero_stats("warrior"); c.setup(DB.boss_rooms[0], hs, hs.ht, ["rat"])

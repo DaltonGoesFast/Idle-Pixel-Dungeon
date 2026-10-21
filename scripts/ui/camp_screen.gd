@@ -716,7 +716,8 @@ func gear_stats(g: Dictionary) -> Dictionary:
 	if not g.known: return {"?": 0}
 	var lv := int(g.lvl)
 	if d.has("dmg"): out["Dmg"] = Weapons.dmg(d, lv)
-	if d.has("dr"): out["DR"] = int(d.dr) + lv
+	if d.has("dr"): out["DR"] = GameState.armor_dr(d, lv)
+	if d.has("barrier"): out["Barrier"] = GameState.armor_barrier(d, lv)
 	if d.has("block"): out["Block"] = Weapons.block_dr(d, lv)
 	if d.has("delay"): out["Swing"] = float(d.delay)
 	if Weapons.is_weapon(d): out["Reach"] = Weapons.reach(d)
@@ -787,7 +788,8 @@ func gear_lines(g: Dictionary) -> Array:
 		if Weapons.is_weapon(d):   # the SPD weapon window text (DECISIONS #207)
 			out.append_array(Weapons.info_lines(g.id, int(g.lvl), true, int(GameState.heroes.get(chosen_hero, {}).get("str", -1))))
 		else:
-			if d.has("dr"): bits.append("DR %d" % (int(d.dr) + int(g.lvl)))
+			if d.has("dr"): bits.append("DR %d" % GameState.armor_dr(d, int(g.lvl)))
+			if d.has("barrier"): bits.append("Barrier %d" % GameState.armor_barrier(d, int(g.lvl)))
 			if d.has("str"): bits.append("Str %d" % int(d.str))
 		if not bits.is_empty(): out.append("  ".join(bits))
 		if d.has("desc"): out.append(d.desc)
@@ -1108,7 +1110,7 @@ func _recipe_lines(r: Dictionary) -> Array:
 	if blurb != "": lines.append(blurb)
 	var od: Dictionary = DB.item(out) if r.has("out") else DB.materials.get(out, {})
 	if r.has("out") and od.has("dmg"): lines.append(Codex.item_line(r.out))
-	if r.has("out") and od.has("dr"): lines.append("DR %d  Str %d" % [od.dr, od.get("str", 10)])
+	if r.has("out") and od.has("dr"): lines.append("DR %d  Barrier %d  Str %d" % [od.dr, od.get("barrier", 0), od.get("str", 10)])
 	return lines
 
 ## Recipe / supply info with a quantity picker (Forge "Make", Guild "Buy").
@@ -1127,7 +1129,10 @@ func _open_gear_forge(uid: int) -> void:
 	var cost: Dictionary = GameState.repair_cost(uid) if cracked else GameState.item_upgrade_cost(uid)
 	var why: String = GameState.can_repair(uid) if cracked else GameState.can_upgrade_item(uid)
 	var lines := gear_lines(g)
-	if not cracked and g.known: lines.push_front("+%d  ->  +%d" % [g.lvl, g.lvl + 1])
+	if not cracked and g.known:
+		var fd := DB.item(g.id); var flv := int(g.lvl)
+		if fd.has("dr"): lines.push_front("DR %d -> %d  Barrier %d -> %d" % [GameState.armor_dr(fd, flv), GameState.armor_dr(fd, flv + 1), GameState.armor_barrier(fd, flv), GameState.armor_barrier(fd, flv + 1)])
+		lines.push_front("+%d  ->  +%d" % [flv, flv + 1])
 	lines.push_front(cost_row(cost))
 	_gear_forge_info(g, lines, why)
 
