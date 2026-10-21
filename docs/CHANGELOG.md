@@ -1,6 +1,8 @@
 # Changelog
 
 ## Unreleased
+
+## 0.48.0
 - Higher-tier armor now blocks much more damage and grants more Barrier per upgrade than Cloth and Leather: Cloth (1 DR, 1 Barrier) and Leather (2 DR, 2 Barrier) gain +0.5 DR and +1 Barrier per level, Mail (3 DR, 4 Barrier) gains +1 DR and +1 Barrier, Scale (5 DR, 6 Barrier) gains +1 DR and +1.5 Barrier, and Plate (7 DR, 8 Barrier) gains +1.5 DR and +2 Barrier. Wearing armor above your Strength now divides its DR by (1 + missing Str) and gives 0 armor Barrier, Dwarf City and Demon Halls enemies hit harder in melee to match tier-4 and tier-5 armor, and the Stash, Compare and Blacksmith windows now show armor Barrier alongside DR (DECISIONS #218, +tests).
 
 ## 0.47.0
