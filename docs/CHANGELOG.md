@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+## 0.48.0
+- Higher-tier armor now blocks much more damage and grants more Barrier per upgrade than Cloth and Leather: Cloth (1 DR, 1 Barrier) and Leather (2 DR, 2 Barrier) gain +0.5 DR and +1 Barrier per level, Mail (3 DR, 4 Barrier) gains +1 DR and +1 Barrier, Scale (5 DR, 6 Barrier) gains +1 DR and +1.5 Barrier, and Plate (7 DR, 8 Barrier) gains +1.5 DR and +2 Barrier. Wearing armor above your Strength now divides its DR by (1 + missing Str) and gives 0 armor Barrier, Dwarf City and Demon Halls enemies hit harder in melee to match tier-4 and tier-5 armor, and the Stash, Compare and Blacksmith windows now show armor Barrier alongside DR (DECISIONS #218, +tests).
+
 ## 0.47.0
 - The Victory card fits the screen on near-square browser windows such as Chrome on the unfolded Fold: the arena gives up width so the side column (the hero's bars, the card and its buttons, the log) always fits, where before the card, the floor label and the bars ran off the right edge. Each line on the card now shows its SPD sprite (the gold coin, or the potion, scroll, ring, weapon or material found), found items are drawn in SPD's yellow, and a long list scrolls inside the card (DECISIONS #217, +tests).
 - Iron Ore now has its own silver-grey ore icon instead of a darker, olive copy of the Dark Gold sprite, so it no longer looks like gold anywhere (Stash, Forge, Victory drops, pickups). The ore pickup icon in the delve used to show plain Dark Gold; it shows Iron Ore now too (DECISIONS #216, +test).

@@ -285,7 +285,7 @@
  "ghoul": {
   "name": "Dwarven Ghoul",
   "ht": 40,
-  "dmg": 9,
+  "dmg": 11,
   "dr": 4,
   "delay": 1.0,
   "exp": 10,
@@ -295,12 +295,12 @@
   "fh": 14,
   "revive": true,
   "spd": "HT 45, dmg 16-22, DR 0-4; rises again unless all ghouls die",
-  "tuned": "HT 40, dmg 9; the first time it dies it gets back up with half HP after 2 ticks (red tile on its corpse)"
+  "tuned": "HT 40, dmg 11; the first time it dies it gets back up with half HP after 2 ticks (red tile on its corpse)"
  },
  "warlock": {
   "name": "Dwarf Warlock",
   "ht": 34,
-  "dmg": 7,
+  "dmg": 9,
   "dr": 3,
   "delay": 1.0,
   "exp": 10,
@@ -322,7 +322,7 @@
  "monk": {
   "name": "Dwarf Monk",
   "ht": 34,
-  "dmg": 5,
+  "dmg": 7,
   "dr": 3,
   "delay": 0.5,
   "exp": 10,
@@ -331,14 +331,14 @@
   "fw": 15,
   "fh": 14,
   "spd": "HT 70, dmg 12-25, fast attacks, DR 0-2; disarms",
-  "tuned": "HT 34, dmg 5, acts twice per tick Every 3rd hit knocks your weapon aside (weakened 2 turns) (#155).",
+  "tuned": "HT 34, dmg 7, acts twice per tick Every 3rd hit knocks your weapon aside (weakened 2 turns) (#155).",
   "disarm_every": 3,
   "disarm_t": 2
  },
  "golem": {
   "name": "Golem",
   "ht": 75,
-  "dmg": 15,
+  "dmg": 18,
   "dr": 7,
   "delay": 1.5,
   "exp": 14,
@@ -347,14 +347,14 @@
   "fw": 17,
   "fh": 19,
   "spd": "HT 120, dmg 25-30, DR 0-12; slow",
-  "tuned": "HT 75, dmg 15, DR 7, acts every 1.5 ticks Every 6 actions pulls a hero it sees at range 3+ to its side (#155).",
+  "tuned": "HT 75, dmg 18, DR 7, acts every 1.5 ticks Every 6 actions pulls a hero it sees at range 3+ to its side (#155).",
   "ability": "teleport",
   "tele_cooldown": 6
  },
  "dking": {
   "name": "King of Dwarves",
   "ht": 140,
-  "dmg": 8,
+  "dmg": 10,
   "dr": 5,
   "delay": 1.0,
   "exp": 40,
@@ -370,12 +370,12 @@
   "summon_n": 2,
   "blast_dmg": 8,
   "spd": "HT 300, dmg 15-25, DR 0-10; summons, lifelinks, 3 phases",
-  "tuned": "HT 140, dmg 8, DR 5. Phase 1 (>1/2 HP): every 3 actions alternates raising 2 Risen Dwarves (only when none are left) and a shadow blast (3x3 on you, 2 ticks, 8 ignoring DR); living dwarves lifelink him (he takes 2/3 damage). Phase 2 (<=1/2): +3 dmg. Phase 3 (<=1/4): throne cracks - no more summons, blasts only."
+  "tuned": "HT 140, dmg 10, DR 5. Phase 1 (>1/2 HP): every 3 actions alternates raising 2 Risen Dwarves (only when none are left) and a shadow blast (3x3 on you, 2 ticks, 8 ignoring DR); living dwarves lifelink him (he takes 2/3 damage). Phase 2 (<=1/2): +3 dmg. Phase 3 (<=1/4): throne cracks - no more summons, blasts only."
  },
  "ghoul_minion": {
   "name": "Risen Dwarf",
   "ht": 18,
-  "dmg": 6,
+  "dmg": 8,
   "dr": 2,
   "delay": 1.0,
   "exp": 2,
@@ -389,7 +389,7 @@
  "succubus": {
   "name": "Succubus",
   "ht": 70,
-  "dmg": 16,
+  "dmg": 19,
   "dr": 5,
   "delay": 1.0,
   "exp": 12,
@@ -399,14 +399,14 @@
   "fh": 15,
   "drain": 5,
   "spd": "HT 80, dmg 25-30, DR 0-10; charm, lifesteal, blink",
-  "tuned": "HT 70, dmg 16, DR 5; heals 5 per bite Once per fight blinks next to you from range 3+, only if nothing else is next to you (#155).",
+  "tuned": "HT 70, dmg 19, DR 5; heals 5 per bite Once per fight blinks next to you from range 3+, only if nothing else is next to you (#155).",
   "ability": "blink",
   "blink_cooldown": 999
  },
  "ripper": {
   "name": "Ripper Demon",
   "ht": 40,
-  "dmg": 14,
+  "dmg": 17,
   "dr": 3,
   "delay": 0.6,
   "exp": 10,
@@ -415,7 +415,7 @@
   "fw": 15,
   "fh": 14,
   "spd": "HT 60, dmg 15-25, DR 0-4; leaps, fast",
-  "tuned": "HT 40, dmg 14, DR 3, acts every 0.6 ticks Telegraphed leap onto your tile from range 2-4 (dmg, then lands), cooldown 4 (#155).",
+  "tuned": "HT 40, dmg 17, DR 3, acts every 0.6 ticks Telegraphed leap onto your tile from range 2-4 (dmg, then lands), cooldown 4 (#155).",
   "ability": "leap",
   "leap_range": [
    2,
@@ -426,7 +426,7 @@
  "eye": {
   "name": "Evil Eye",
   "ht": 60,
-  "dmg": 12,
+  "dmg": 15,
   "dr": 4,
   "delay": 1.0,
   "exp": 13,
@@ -439,13 +439,13 @@
   "zap_cooldown": 2,
   "zap_magic": true,
   "spd": "HT 100, dmg 20-30, DR 0-10; disintegration beam",
-  "tuned": "HT 60, dmg 12; beam = 1-tick red tile, 20 ignoring DR, every 2 actions The beam lights the whole line through you out to range 6; the eye charges while it is up (#155).",
+  "tuned": "HT 60, dmg 15; beam = 1-tick red tile, 20 ignoring DR, every 2 actions The beam lights the whole line through you out to range 6; the eye charges while it is up (#155).",
   "zap_beam": true
  },
  "scorpio": {
   "name": "Scorpio",
   "ht": 72,
-  "dmg": 16,
+  "dmg": 20,
   "dr": 6,
   "delay": 1.0,
   "exp": 14,
@@ -462,13 +462,13 @@
   "throw_cooldown": 2,
   "bite_poison": 3,
   "spd": "HT 110, dmg 30-40, DR 0-16; ranged spit, cripple",
-  "tuned": "HT 72, dmg 16, DR 6; spits at range 2-4, bite poisons The bite cripples (steps cost 2 ticks) for 2 turns (#155).",
+  "tuned": "HT 72, dmg 20, DR 6; spits at range 2-4, bite poisons The bite cripples (steps cost 2 ticks) for 2 turns (#155).",
   "bite_cripple": 2
  },
  "larva": {
   "name": "God's Larva",
   "ht": 18,
-  "dmg": 9,
+  "dmg": 12,
   "dr": 2,
   "delay": 1.0,
   "exp": 0,
@@ -478,12 +478,12 @@
   "fh": 8,
   "summoned": true,
   "spd": "HT 25, dmg 22-30",
-  "tuned": "HT 18, dmg 9"
+  "tuned": "HT 18, dmg 12"
  },
  "yog": {
   "name": "Yog-Dzewa",
   "ht": 100,
-  "dmg": 14,
+  "dmg": 17,
   "dr": 6,
   "delay": 1.0,
   "exp": 60,
@@ -511,11 +511,11 @@
   "fist": true,
   "name": "Burning Fist",
   "ht": 40,
-  "dmg": 8,
+  "dmg": 13,
   "dr": 4,
   "sprite": "fist_burning",
   "spd": "HT 300, dmg 18-36, sets fires",
-  "tuned": "HT 40, dmg 10. Shields Yog while it lives."
+  "tuned": "HT 40, dmg 13. Shields Yog while it lives."
  },
  "fist_rotting": {
   "delay": 1.0,
@@ -526,12 +526,12 @@
   "fist": true,
   "name": "Rotting Fist",
   "ht": 45,
-  "dmg": 7,
+  "dmg": 12,
   "dr": 5,
   "sprite": "fist_rotting",
   "bite_poison": 1,
   "spd": "HT 300, poisons, regenerates in water",
-  "tuned": "HT 45, dmg 8 + 2 poison. Shields Yog while it lives."
+  "tuned": "HT 45, dmg 12 + 2 poison. Shields Yog while it lives."
  },
  "fist_bright": {
   "delay": 1.0,
@@ -542,15 +542,15 @@
   "fist": true,
   "name": "Bright Fist",
   "ht": 35,
-  "dmg": 6,
+  "dmg": 10,
   "dr": 3,
   "sprite": "fist_bright",
   "ability": "zap",
-  "zap_dmg": 6,
+  "zap_dmg": 7,
   "zap_cooldown": 2,
   "zap_magic": true,
   "spd": "HT 300, ranged light zaps, blinds",
-  "tuned": "HT 35, dmg 6, zaps 8 at range. Shields Yog while it lives. Holds range (#155).",
+  "tuned": "HT 35, dmg 10, zaps 7 at range. Shields Yog while it lives. Holds range (#155).",
   "holds_range": true
  }
 }

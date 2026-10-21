@@ -182,6 +182,12 @@ func xp_to_next(level: int) -> int:
 	return 5 + level * 5   # SPD Hero.maxExp()
 
 ## Derived combat stats for a hero with current equipment.
+static func armor_dr(ad: Dictionary, al: int) -> int:
+	return int(ad.get("dr", 0)) + int(floor(float(ad.get("dr_per_lvl", 1.0)) * maxi(0, al)))
+
+static func armor_barrier(ad: Dictionary, al: int) -> int:
+	return int(ad.get("barrier", 0)) + int(floor(float(ad.get("barrier_per_lvl", 0.0)) * maxi(0, al)))
+
 func hero_stats(c: String) -> Dictionary:
 	var h: Dictionary = heroes[c]
 	var def: Dictionary = DB.heroes[c]
@@ -194,12 +200,17 @@ func hero_stats(c: String) -> Dictionary:
 	var wl := int(w.get("lvl", 0)) if w_ok else 0; var al := int(a.get("lvl", 0)) if a_ok else 0
 	var dmg := Weapons.dmg(wd, wl)          # SPD min/max at this level, averaged (DECISIONS #207)
 	if wd.has("dmg_per_levels"): dmg += int(h.level) / int(wd.dmg_per_levels)
-	var dr := int(ad.get("dr", 0)) + al + Weapons.block_dr(wd, wl)   # Rapier, Quarterstaff, Katana, shields block (#207)
-	var barrier := int(def.base_barrier) + int(def.heirloom_barrier) + int(ad.get("barrier", 0))
-	# Strength gate: each missing point costs 2 damage / 1 DR (SPD-like penalty, deterministic); SPD STRReq drops with upgrades
+	# Strength gate: missing weapon Str costs 2 damage/point; under-strength armor divides DR by (1 + missing Str) and gives 0 armor Barrier (DECISIONS #218)
 	var str_short := maxi(0, Weapons.str_req(wd, wl) - int(h.str))
 	dmg = maxi(1, dmg - 2 * str_short)
-	dr = maxi(0, dr - maxi(0, int(ad.get("str", 10)) - int(h.str)))
+	var adr := armor_dr(ad, al)
+	var abar := armor_barrier(ad, al)
+	var armor_str_short := maxi(0, int(ad.get("str", 10)) - int(h.str))
+	if armor_str_short > 0:
+		adr = adr / (1 + armor_str_short)
+		abar = 0
+	var dr := adr + Weapons.block_dr(wd, wl)   # Rapier, Quarterstaff, Katana, shields block (#207)
+	var barrier := int(def.base_barrier) + int(def.heirloom_barrier) + abar
 	if not r.is_empty() and r.known and not r.cracked:
 		var rd := DB.item(r.id)
 		dmg += int(rd.get("dmg_bonus", 0)) + trinket_bonus(r, "dmg_bonus"); barrier += int(rd.get("barrier_bonus", 0)) + trinket_bonus(r, "barrier_bonus")
