@@ -324,7 +324,7 @@ func _draw() -> void:
 	for i in 3:
 		var cl: Rect2 = [Rect2(88, 0, 49, 20), Rect2(88, 20, 49, 22), Rect2(88, 42, 50, 18)][i]
 		var span := size.x + cl.size.x * kk
-		var drift := t * (14.0 + float(i) * 5.0) * kk   # ~14–24 px/s at scale 1
+		var drift := t * (5.0 + float(i) * 2.0) * kk   # ~5–9 px/s at scale 1; slow drift
 		var cx: float = fposmod(size.x * 0.06 + i * size.x / 2.5 + drift, span) - cl.size.x * kk
 		var cy := minf(4 * kk + i * 9 * kk, sky_h - cl.size.y * kk * 0.75)
 		draw_texture_rect_region(surface, Rect2(Vector2(cx, cy).floor(), cl.size * kk * 0.75), cl, Color(1, 1, 1, 0.55))
