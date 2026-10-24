@@ -172,7 +172,9 @@ func pay(cost: Dictionary, sink := "other") -> bool:
 
 static func cost_text(cost: Dictionary) -> String:
 	var parts := []
-	for k in cost: parts.append("%d %s" % [cost[k], DB.mat_name(k)])
+	for k in cost:
+		if k == "hp" or k == "hp_pct": continue   # HP shown on the option label via Delve.event_hp_cost
+		parts.append("%d %s" % [cost[k], DB.mat_name(k)])
 	return ", ".join(parts)
 
 # ---------------------------------------------------------------- hero stats
@@ -846,6 +848,12 @@ func facility_level(id: String) -> int:
 	return int(facilities[id].level)
 
 func facility_upgrade_cost(id: String) -> Dictionary:
+	# Blacksmith: ore+gold only to Lv2; dark gold only on Lv2→Lv3 (DECISIONS #222 / Plan 12 C)
+	if id == "blacksmith":
+		match facility_level(id):
+			1: return {"iron_ore": 35, "gold": 150}
+			2: return {"iron_ore": 70, "dark_gold": 16, "gold": 400}
+			_: return {}
 	var base: Dictionary = DB.facilities[id].upgrade_cost
 	var o := {}
 	for k in base: o[k] = int(base[k]) * facility_level(id)
@@ -939,12 +947,24 @@ func craft(fac: String, rid: String) -> bool:
 	check_unlocks()
 	touch(); return true
 
-## Gold sink (DECISIONS #130): each level also costs 10 x (next level)^2 gold. With a max-level Blacksmith,
-## "masterwork" levels past its cap (up to +MASTERWORK_MAX) cost 200 x (next level)^2 gold: +4 3.2k, +5 5k, +6 7.2k.
+## Tier-scaled forge upgrades (DECISIONS #222). Masterwork (+4..+6 at Blacksmith Lv3) uses the heavy branch.
 const MASTERWORK_MAX := 6
-static func upgrade_step_cost(next_lvl: int) -> Dictionary:
-	var per := 200 if next_lvl > int(DB.facilities.blacksmith.max) else 10
-	return {"iron_ore": 4 * next_lvl, "gold": per * next_lvl * next_lvl}
+static func upgrade_step_cost(next_lvl: int, tier := 1) -> Dictionary:
+	var t := clampi(tier, 1, 5)
+	var out := {}
+	if next_lvl > 3:
+		out.iron_ore = 10 * t * next_lvl
+		out.gold = 200 * next_lvl * next_lvl
+		if t >= 3: out.dark_gold = (3 if t == 3 else 5 if t == 4 else 8) * next_lvl
+		if t >= 3: out.arcane_resin = (2 if t == 3 else 3 if t == 4 else 5) * next_lvl
+	else:
+		out.iron_ore = 4 * t * next_lvl
+		out.gold = 15 * t * next_lvl * next_lvl
+		if t == 4: out.dark_gold = 4 * next_lvl
+		elif t >= 5:
+			out.dark_gold = 6 * next_lvl
+			out.arcane_resin = 3 * next_lvl
+	return out
 
 ## Highest level the Forge can take gear to right now.
 func forge_cap() -> int:
@@ -954,7 +974,7 @@ func forge_cap() -> int:
 func item_upgrade_cost(uid: int) -> Dictionary:
 	var g := gear_by_uid(uid)
 	if is_trinket(g): return trinket_step_cost(int(g.lvl) + 1)
-	return upgrade_step_cost(int(g.lvl) + 1)
+	return upgrade_step_cost(int(g.lvl) + 1, int(DB.item(g.id).get("tier", 1)))
 
 func can_upgrade_item(uid: int) -> String:
 	var g := gear_by_uid(uid)
@@ -980,7 +1000,13 @@ func upgrade_item(uid: int) -> bool:
 func repair_cost(uid: int) -> Dictionary:
 	var g := gear_by_uid(uid)
 	if is_trinket(g): return trinket_repair_cost(DB.item(g.id).type, int(g.lvl))
-	return {"iron_ore": 2 + int(DB.item(g.id).get("tier", 1)) + int(g.lvl)}
+	var t := int(DB.item(g.id).get("tier", 1)); var lvl := int(g.lvl)
+	var out := {"iron_ore": (2 + lvl) * t}
+	if t == 4: out.dark_gold = 2 + int(lvl / 2)
+	elif t >= 5:
+		out.dark_gold = 4 + lvl
+		out.arcane_resin = 2 + int(lvl / 2)
+	return out
 
 ## Why a cracked item can't be repaired now ("" = ok). Rings/wands/artifacts need the Enchanter (DECISIONS #158).
 func can_repair(uid: int) -> String:
@@ -999,24 +1025,23 @@ func repair(uid: int) -> bool:
 
 # ---------------------------------------------------------------- rings, wands, artifacts (DECISIONS #158)
 ## Rings, wands and artifacts ("trinkets") level and repair at the Enchanter's Desk, not the Forge.
-## Max item level = Desk level - 1 (Lv1: +0 only). Rings/wands: resin + gold per level, no Scrolls (DECISIONS #170).
-## Artifacts can't take Scrolls (SPD): they gain XP from won fights, capped by the same Desk cap.
+## Cap: Desk Lv1 +0, Lv2 +1, Lv3 +3 (DECISIONS #222). Rings/wands pay resin + dark gold + gold; artifacts level by use.
 ## Repair: rings, wands and artifacts need Desk Lv2. Patch up (free) never covers them.
 func is_trinket(g: Dictionary) -> bool:
 	return not g.is_empty() and DB.item(g.id).type in ["ring", "wand", "artifact"] and not DB.item(g.id).get("heirloom", false)
 
 func enchant_cap() -> int:
-	return maxi(0, facility_level("enchanter") - 1)
+	return [0, 1, 3][clampi(facility_level("enchanter") - 1, 0, 2)]
 
 static func trinket_step_cost(next_lvl: int) -> Dictionary:
-	return {"arcane_resin": 4 * next_lvl, "gold": 75 * next_lvl * next_lvl}   # no Scrolls: all 22 go to camp caps (DECISIONS #170)
+	return {"arcane_resin": 8 * next_lvl, "dark_gold": 4 * next_lvl, "gold": 100 * next_lvl * next_lvl}
 
 static func trinket_repair_level(t: String) -> int:
 	return 2   # artifacts too since DECISIONS #170 (was Lv3)
 
 static func trinket_repair_cost(t: String, lvl: int) -> Dictionary:
-	if t == "artifact": return {"arcane_resin": 4 + 2 * lvl, "gold": 40 + 20 * lvl}
-	return {"arcane_resin": 2 + lvl}
+	if t == "artifact": return {"arcane_resin": 5 + 2 * lvl, "dark_gold": 2 + lvl, "gold": 50 + 25 * lvl}
+	return {"arcane_resin": 3 + 2 * lvl, "dark_gold": 1 + lvl}
 
 ## Per-level bonus from the item's "per_level" table (ints round down, so +0.5 steps land every other level).
 func trinket_bonus(g: Dictionary, key: String) -> int:
@@ -1098,10 +1123,10 @@ func craft_n(fac: String, rid: String, n: int) -> bool:
 	for i in n: craft(fac, rid)
 	return true
 
-## Total iron ore for `n` successive upgrades of one item (costs rise per level).
+## Total cost for `n` successive upgrades of one item (costs rise per level).
 func upgrade_cost_n(uid: int, n: int) -> Dictionary:
-	var g := gear_by_uid(uid); var total := {}
-	for i in n: total = cost_add(total, trinket_step_cost(int(g.lvl) + i + 1) if is_trinket(g) else upgrade_step_cost(int(g.lvl) + i + 1))
+	var g := gear_by_uid(uid); var total := {}; var tier := int(DB.item(g.id).get("tier", 1))
+	for i in n: total = cost_add(total, trinket_step_cost(int(g.lvl) + i + 1) if is_trinket(g) else upgrade_step_cost(int(g.lvl) + i + 1, tier))
 	return total
 
 ## Most levels the item can gain now: limited by the Blacksmith cap and by what is affordable.
@@ -1515,12 +1540,13 @@ func can_patrol(c: String, biome: String) -> String:
 	if not can_afford(patrol_fee(biome, c)): return "need " + cost_text(patrol_fee(biome, c))
 	return ""
 
-## Gold sink (DECISIONS #130): provisioning a patrol costs half the gold a full-length patrol of that biome yields.
-## With a hero, their Ring of Elements cuts it (DECISIONS #188).
+## Patrol fee: 1 hour of expected gold (efficiency-scaled), cut by Ring of Elements (DECISIONS #222 / Plan 11).
 func patrol_fee(biome: String, c := "") -> Dictionary:
-	var g := float(DB.biomes[biome].patrol_yield_per_hour.get("gold", 0)) * patrol_max_hours() / 2.0
-	if c != "" and heroes.has(c): g *= 1.0 - minf(PATROL_FEE_CUT_MAX, float(patrol_perks(c).fx.get("fee_cut_pct", 0.0))) / 100.0
-	return {"gold": int(g)}
+	var g := float(DB.biomes[biome].patrol_yield_per_hour.get("gold", 0))
+	if c != "" and heroes.has(c):
+		g *= patrol_efficiency(c, biome)
+		g *= 1.0 - minf(PATROL_FEE_CUT_MAX, float(patrol_perks(c).fx.get("fee_cut_pct", 0.0))) / 100.0
+	return {"gold": maxi(1, int(round(g)))}
 
 ## The patrol remembers what the hero set out with (efficiency, gear bonus, perks, hours cap), so the haul can't
 ## change by swapping or levelling gear while they are away (DECISIONS #188).
@@ -1536,14 +1562,15 @@ func start_patrol(c: String, biome: String) -> bool:
 		"hero_level": int(heroes[c].level)})
 	say("%s sets out to patrol the %s." % [DB.heroes[c].name, DB.biomes[biome].name]); touch(); return true
 
-## Efficiency: hero power (plus patrol power perks) vs biome strength gate, clamped 0.25..1.25.
+## Efficiency: hero power (plus patrol power perks) vs biome strength gate, clamped 0.25..1.0 (DECISIONS #222).
 func patrol_efficiency(c: String, biome: String) -> float:
 	var pw := float(power_rating(c)) + float(patrol_perks(c).fx.get("power", 0.0))
-	return clampf(pw / (float(DB.biomes[biome].str_gate) + 2.0), 0.25, 1.25)
+	return clampf(pw / (float(DB.biomes[biome].str_gate) + 2.0), 0.25, 1.0)
 
-# --- gear on patrol (DECISIONS #188)
-const PATROL_GEAR_K := 0.15          # gear bonus = 1 + K * sqrt(total gear level): +15% at 1, +34% at 5, +47% at 10, +67% at 20
-const PATROL_GOLD_GEAR_SHARE := 0.0  # gold gets none of it: gold is the scarce sink (only Wealth / Armband raise it)
+# --- gear on patrol (DECISIONS #188, #222)
+const PATROL_GEAR_K := 0.08          # +8% at Lv1, +18% at 5, +25% at 10, +32% at 16
+const PATROL_MULT_CAP := 1.50        # gear + perk bonuses add, then cap
+const PATROL_GOLD_GEAR_SHARE := 0.0  # gold gets none of the gear share (only Wealth / Armband raise it)
 const PATROL_FEE_CUT_MAX := 50.0
 
 ## Sum of upgrade levels the hero actually uses: weapon, armor, ring, artifact and the staff's wand. Cracked
@@ -1666,13 +1693,16 @@ func patrol_preview(c: String) -> Dictionary:
 	var allp := float(fx.get("all_pct", 0.0))
 	var out := {}
 	for k in b.patrol_yield_per_hour:
-		var g := gm if k != "gold" else 1.0 + (gm - 1.0) * PATROL_GOLD_GEAR_SHARE
-		var bonus := 1.0 + ((allp if k != "gold" else 0.0) + float(fx.get(k + "_pct", 0.0))) / 100.0   # "materials" never means gold
-		out[k] = float(b.patrol_yield_per_hour[k]) * worked * eff * g * bonus
+		# gear + perk bonuses add, then cap at 1.50; gold keeps its own perk (Wealth) but no gear share (DECISIONS #222)
+		var gear_bonus := (gm - 1.0) if k != "gold" else (gm - 1.0) * PATROL_GOLD_GEAR_SHARE
+		var perk_bonus := ((allp if k != "gold" else 0.0) + float(fx.get(k + "_pct", 0.0))) / 100.0
+		var mult := minf(PATROL_MULT_CAP, 1.0 + gear_bonus + perk_bonus)
+		out[k] = float(b.patrol_yield_per_hour[k]) * worked * eff * mult
 	for k in fx:   # flat finds (Sandals, Regrowth): per hour, scaled by efficiency and the material's own bonus
 		if not String(k).ends_with("_per_hour"): continue
 		var m := String(k).trim_suffix("_per_hour")
-		out[m] = float(out.get(m, 0.0)) + float(fx[k]) * worked * eff * (1.0 + (allp + float(fx.get(m + "_pct", 0.0))) / 100.0)
+		var perk_bonus := (allp + float(fx.get(m + "_pct", 0.0))) / 100.0
+		out[m] = float(out.get(m, 0.0)) + float(fx[k]) * worked * eff * minf(PATROL_MULT_CAP, 1.0 + perk_bonus)
 	for k in out.keys(): out[k] = int(floor(out[k]))
 	for k in fx:   # drops on a timer (Chalice: healing potions, Horn: rations)
 		if String(k).ends_with("_every"): out[String(k).trim_suffix("_every")] = int(out.get(String(k).trim_suffix("_every"), 0)) + int(floor(worked / maxf(0.5, float(fx[k]))))

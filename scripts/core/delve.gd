@@ -62,12 +62,13 @@ static func advance(gs, pct: float) -> Dictionary:
 		run.supplies.torch -= 1; run.torch = minf(100.0, run.torch + TORCH_RESTORE); gs.say("Lit a fresh torch.")
 	if run.satiety < 20.0 and int(run.supplies.get("ration", 0)) > 0:
 		run.supplies.ration -= 1; run.satiety = minf(100.0, run.satiety + RATION_RESTORE); gs.say("Ate a ration."); gs.add_stat("rations_eaten", 1); gs._mystical_meal()
-	# passive gathering: +1 gold every 4%, +1 dew every 12%
+	# passive gathering: biome-scaled gold every 4%, +1 dew every 12% (DECISIONS #222)
 	# counted on the pinned haul line; individual drips are not logged
 	var step := int(run.progress / 4.0)
+	var gold_n := biome_gold_per_tick(String(run.biome))
 	while run.gather < step:
 		run.gather += 1
-		gs.pack_add("gold", 1)
+		gs.pack_add("gold", gold_n)
 		if run.gather % 3 == 0: gs.pack_add("dew", 1)
 	# torch / food warnings, once per threshold per floor (DECISIONS #101)
 	var warns: Array = run.get("warned", [])
@@ -261,9 +262,27 @@ static func special_fight_event(run: Dictionary, o: Dictionary) -> Dictionary:
 		mobs = sets[r.randi() % sets.size()].mobs
 	return {"kind": "combat", "room": o.room, "mobs": fill_mobs(mobs, o.room)}
 
+## Biome gold drip per 4% of a floor (Sewers 1 … Halls 5).
+static func biome_gold_per_tick(biome: String) -> int:
+	match biome:
+		"prison": return 2
+		"caves": return 3
+		"city": return 4
+		"halls": return 5
+		_: return 1
+
+## Flat `hp` or percent `hp_pct` (floor max(5, pct * HT)). Plan 12 C.
+static func event_hp_cost(gs, cost: Dictionary) -> int:
+	if cost.has("hp_pct"):
+		return maxi(5, int(float(gs.hero_stats(gs.run.hero).ht) * float(cost.hp_pct)))
+	return int(cost.get("hp", 0))
+
 static func pay_possible(gs, cost: Dictionary) -> bool:
 	var run: Dictionary = gs.run
 	for k in cost:
+		if k == "hp_pct":
+			if int(run.hp) <= event_hp_cost(gs, cost): return false
+			continue
 		var n := int(cost[k])
 		if k == "hp":
 			if int(run.hp) <= n: return false
@@ -280,6 +299,8 @@ static func pay(gs, cost: Dictionary) -> bool:
 	if not pay_possible(gs, cost): return false
 	var run: Dictionary = gs.run
 	for k in cost:
+		if k == "hp_pct":
+			run.hp -= event_hp_cost(gs, cost); continue
 		var n := int(cost[k])
 		if k == "hp": run.hp -= n; continue
 		if k == "torch_fuel": run.torch = float(run.torch) - n; continue

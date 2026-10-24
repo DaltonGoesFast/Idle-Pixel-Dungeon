@@ -87,13 +87,13 @@
    "special": 2
   },
   "patrol_yield_per_hour": {
-   "iron_ore": 3,
+   "iron_ore": 2,
    "seeds": 2,
-   "dew": 4,
-   "arcane_resin": 1,
-   "gold": 15
+   "dew": 3,
+   "arcane_resin": 0.25,
+   "gold": 17
   },
-  "patrol_curio_every_hours": 3,
+  "patrol_curio_every_hours": 4,
   "traps": [
    "worn_dart",
    "gripping",
@@ -149,13 +149,13 @@
    "special": 3
   },
   "patrol_yield_per_hour": {
-   "iron_ore": 5,
-   "dark_gold": 1,
-   "arcane_resin": 2,
-   "dew": 3,
+   "iron_ore": 3,
+   "dark_gold": 0.5,
+   "arcane_resin": 0.35,
+   "dew": 2,
    "gold": 25
   },
-  "patrol_curio_every_hours": 2,
+  "patrol_curio_every_hours": 4,
   "encounter_sets": [
    {
     "min_floor": 6,
@@ -272,13 +272,13 @@
    "special": 3
   },
   "patrol_yield_per_hour": {
-   "iron_ore": 7,
-   "dark_gold": 2,
-   "arcane_resin": 2,
-   "dew": 3,
+   "iron_ore": 4,
+   "dark_gold": 0.7,
+   "arcane_resin": 0.45,
+   "dew": 2,
    "gold": 35
   },
-  "patrol_curio_every_hours": 2,
+  "patrol_curio_every_hours": 4,
   "secret_cache": {
    "gold": 30,
    "dark_gold": 2,
@@ -390,13 +390,13 @@
    "special": 3
   },
   "patrol_yield_per_hour": {
-   "iron_ore": 8,
-   "dark_gold": 3,
-   "arcane_resin": 3,
-   "dew": 3,
-   "gold": 45
+   "iron_ore": 5,
+   "dark_gold": 1.0,
+   "arcane_resin": 0.55,
+   "dew": 2,
+   "gold": 49
   },
-  "patrol_curio_every_hours": 2,
+  "patrol_curio_every_hours": 3,
   "secret_cache": {
    "gold": 40,
    "dark_gold": 3,
@@ -508,13 +508,13 @@
    "special": 3
   },
   "patrol_yield_per_hour": {
-   "iron_ore": 6,
-   "dark_gold": 5,
-   "arcane_resin": 5,
-   "dew": 3,
-   "gold": 60
+   "iron_ore": 4,
+   "dark_gold": 1.4,
+   "arcane_resin": 0.7,
+   "dew": 2,
+   "gold": 63
   },
-  "patrol_curio_every_hours": 2,
+  "patrol_curio_every_hours": 3,
   "secret_cache": {
    "gold": 60,
    "dark_gold": 4,

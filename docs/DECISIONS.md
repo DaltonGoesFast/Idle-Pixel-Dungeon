@@ -803,3 +803,12 @@ Under-strength gear is crippling (#218/#220). Letting a dead hero keep cleared b
 - **Potion of Shielding** scales like Healing (`max(10, 30% HT)`), then `Delve.new_combat` clamps to `ht / 2`.
 - **Patch up** only repairs cracked tier ≤ 2 weapons/armor.
 Where it lives: `GameState.end_run` / `_never_cracks` / `compare_equip` / `potion_shield` / `can_patch_up`, `Delve.defeat_changes` / `new_combat`, `Paperdoll._delta_text`, `CampScreen.gear_lines`, `data/items.json` `potion_shielding`.
+
+## 222. Tier-scaled sinks, capped patrols, early dark-gold gates
+Forge/upgrade/repair costs ignored item tier, and patrol multipliers stacked past what one Halls cycle should fund. Dark gold also showed up in Sewers/Prison rooms while Blacksmith Lv2 needed it before Caves.
+- **Upgrades:** `upgrade_step_cost(next, tier)` — T1–T3 ore+gold; T4 adds dark gold; T5 adds resin. Masterwork uses the heavy branch. Forge recipes and repairs follow the same tier rules.
+- **Trinkets:** Desk cap `+0 / +1 / +3`. Rings/wands pay resin + dark gold + gold per level. Artifacts still do not buy levels.
+- **Facilities:** higher base costs. Blacksmith Lv1→2 is ore+gold only; Lv2→3 adds 16 dark gold (Plan 12 C).
+- **Patrols:** efficiency cap `1.0`, gear `K=0.08`, gear+perk bonuses add and cap at `1.50`. Revised biome yields (Halls `63g / 4 ore / 1.4 dark gold / 0.7 resin`). Fee is 1 hour of expected gold.
+- **Delve:** no early dark gold on `glint` / `cells` / `cell_block`; trimmed `armory` and `crystal_vein`. Passive gold scales 1–5 by biome. Event HP costs use `max(5, 15% or 20% HT)`.
+Where it lives: `GameState.upgrade_step_cost` / `repair_cost` / `trinket_*` / `facility_upgrade_cost` / `patrol_*`, `data/recipes.json`, `data/facilities.json`, `data/biomes.json`, `data/events.json`, `Delve.advance` / `event_hp_cost`.

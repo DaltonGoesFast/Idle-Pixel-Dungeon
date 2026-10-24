@@ -68,8 +68,8 @@
      "crab"
     ],
     "reward": {
-     "iron_ore": 4,
-     "dark_gold": 1
+     "iron_ore": 3,
+     "gold": 10
     }
    },
    "b": {
@@ -107,8 +107,9 @@
      "skeleton"
     ],
     "reward": {
-     "dark_gold": 2,
-     "gold": 10
+     "iron_ore": 3,
+     "arcane_resin": 1,
+     "gold": 15
     }
    },
    "b": {
@@ -190,9 +191,9 @@
    "text": "A ring glints at the bottom of a pool full of piranhas.",
    "options": [
     {
-     "text": "Wade in (-5 HP)",
+     "text": "Wade in (-HP)",
      "cost": {
-      "hp": 5
+      "hp_pct": 0.15
      },
      "reward": {
       "item_unknown": "ring"
@@ -225,9 +226,9 @@
    "text": "A pale altar flame. It rewards those who feed it life - yours, or your enemies'.",
    "options": [
     {
-     "text": "Offer blood (-4 HP)",
+     "text": "Offer blood (-HP)",
      "cost": {
-      "hp": 4
+      "hp_pct": 0.15
      },
      "reward": {
       "gold": 25,
@@ -297,9 +298,9 @@
      }
     },
     {
-     "text": "Smash it (-3 HP)",
+     "text": "Smash it (-HP)",
      "cost": {
-      "hp": 3
+      "hp_pct": 0.15
      },
      "reward": {
       "seeds": 2
@@ -396,9 +397,9 @@
      }
     },
     {
-     "text": "Run through (-5 HP)",
+     "text": "Run through (-HP)",
      "cost": {
-      "hp": 5
+      "hp_pct": 0.15
      },
      "reward": {
       "gold": 10,
@@ -456,17 +457,18 @@
      },
      "reward": {
       "item_unknown": "wand",
-      "dark_gold": 2
+      "arcane_resin": 2,
+      "iron_ore": 3
      }
     },
     {
-     "text": "Pry the bars (-6 HP)",
+     "text": "Pry the bars (-HP)",
      "cost": {
-      "hp": 6
+      "hp_pct": 0.2
      },
      "reward": {
-      "dark_gold": 1,
-      "gold": 10
+      "iron_ore": 3,
+      "gold": 15
      }
     },
     {
@@ -488,7 +490,7 @@
     {
      "text": "Scavenge",
      "reward": {
-      "iron_ore": 5,
+      "iron_ore": 2,
       "torch": 1
      }
     },
@@ -513,14 +515,14 @@
       "torch_fuel": 12
      },
      "reward": {
-      "dark_gold": 3,
-      "iron_ore": 3
+      "dark_gold": 2,
+      "iron_ore": 2
      }
     },
     {
-     "text": "Pry a chunk loose (-6 HP)",
+     "text": "Pry a chunk loose (-HP)",
      "cost": {
-      "hp": 6
+      "hp_pct": 0.2
      },
      "reward": {
       "dark_gold": 1
@@ -701,9 +703,9 @@
    "text": "An idol holds an ancient relic. It demands blood.",
    "options": [
     {
-     "text": "Offer blood (-12 HP)",
+     "text": "Offer blood (-HP)",
      "cost": {
-      "hp": 12
+      "hp_pct": 0.2
      },
      "reward": {
       "artifact": 1

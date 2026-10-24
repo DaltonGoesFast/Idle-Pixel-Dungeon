@@ -1,13 +1,13 @@
 {
- "_note": "Costs in materials. 'facility' + 'min_level' gate the recipe. Upgrades cost iron_ore*4*(lvl+1) and are capped by blacksmith level.",
+ "_note": "Tier-scaled forge costs (DECISIONS #222). Upgrades use GameState.upgrade_step_cost by item tier.",
  "blacksmith": [
   {
    "id": "forge_worn_shortsword",
    "name": "Forge Worn Shortsword",
    "out": "worn_shortsword",
    "cost": {
-    "iron_ore": 3,
-    "gold": 20
+    "iron_ore": 4,
+    "gold": 25
    },
    "min_level": 1
   },
@@ -16,8 +16,8 @@
    "name": "Forge Shortsword",
    "out": "shortsword",
    "cost": {
-    "iron_ore": 6,
-    "gold": 40
+    "iron_ore": 10,
+    "gold": 60
    },
    "min_level": 1
   },
@@ -26,8 +26,8 @@
    "name": "Forge Leather Armor",
    "out": "leather_armor",
    "cost": {
-    "iron_ore": 5,
-    "gold": 30
+    "iron_ore": 12,
+    "gold": 60
    },
    "min_level": 1
   },
@@ -36,8 +36,8 @@
    "name": "Forge Sword",
    "out": "sword",
    "cost": {
-    "iron_ore": 8,
-    "dark_gold": 2
+    "iron_ore": 24,
+    "gold": 150
    },
    "min_level": 2
   },
@@ -46,8 +46,8 @@
    "name": "Forge Mail Armor",
    "out": "mail_armor",
    "cost": {
-    "iron_ore": 10,
-    "dark_gold": 3
+    "iron_ore": 28,
+    "gold": 150
    },
    "min_level": 2
   },
@@ -56,8 +56,9 @@
    "name": "Forge Longsword",
    "out": "longsword",
    "cost": {
-    "iron_ore": 14,
-    "dark_gold": 4
+    "iron_ore": 45,
+    "dark_gold": 15,
+    "gold": 350
    },
    "min_level": 3
   },
@@ -66,8 +67,9 @@
    "name": "Forge Scale Armor",
    "out": "scale_armor",
    "cost": {
-    "iron_ore": 16,
-    "dark_gold": 5
+    "iron_ore": 45,
+    "dark_gold": 15,
+    "gold": 350
    },
    "min_level": 3
   },
@@ -76,8 +78,10 @@
    "name": "Forge Greatsword",
    "out": "greatsword",
    "cost": {
-    "iron_ore": 20,
-    "dark_gold": 8
+    "iron_ore": 70,
+    "dark_gold": 30,
+    "arcane_resin": 15,
+    "gold": 700
    },
    "min_level": 3
   },
@@ -86,8 +90,10 @@
    "name": "Forge Plate Armor",
    "out": "plate_armor",
    "cost": {
-    "iron_ore": 22,
-    "dark_gold": 9
+    "iron_ore": 70,
+    "dark_gold": 30,
+    "arcane_resin": 15,
+    "gold": 700
    },
    "min_level": 3
   }

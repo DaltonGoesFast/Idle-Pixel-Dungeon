@@ -404,7 +404,7 @@ func qty_picker(max_n: int, cost_fn: Callable, verb: String, act: Callable, why0
 const FAC_MATS := {
 	"blacksmith": ["iron_ore", "dark_gold", "gold", "arcane_resin", "scroll_upgrade"],
 	"alchemy": ["seeds", "dew", "gold", "scroll_upgrade"],
-	"enchanter": ["arcane_resin", "gold", "scroll_upgrade"],
+	"enchanter": ["arcane_resin", "dark_gold", "gold", "scroll_upgrade"],
 	"guild": ["gold", "dew", "seeds", "iron_ore"],
 }
 func mats_header(id: String) -> HFlowContainer:

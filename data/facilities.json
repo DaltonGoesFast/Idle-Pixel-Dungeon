@@ -1,22 +1,23 @@
 {
- "_note": "Level L->L+1 costs 'upgrade_cost' * (L). Max level is capped at the Scroll cap; raising the cap from C to C+1 costs cap_scrolls[C-1] Scrolls of Upgrade (hard cap 'max'). Sum of cap_scrolls over all facilities = total Scroll supply (DECISIONS #150).",
+ "_note": "Level L->L+1 costs 'upgrade_cost' * (L), except Blacksmith which uses hardcoded Lv1→2 (ore+gold) and Lv2→3 (adds dark gold) in GameState.facility_upgrade_cost (DECISIONS #222). Max level is capped at the Scroll cap; raising the cap from C to C+1 costs cap_scrolls[C-1] Scrolls of Upgrade (hard cap 'max'). Sum of cap_scrolls over all facilities = total Scroll supply (DECISIONS #150).",
  "blacksmith": {
   "name": "Blacksmith",
   "fuel": "iron_ore",
   "upgrade_cost": {
-   "iron_ore": 10,
-   "gold": 50
+   "iron_ore": 35,
+   "gold": 150
   },
   "max": 3,
-  "desc": "Forge & upgrade gear (+1 per level cap), repair cracked gear, melt spare rings.",
+  "desc": "Forge & upgrade gear (+1 per level cap), repair cracked gear, melt spare rings. Lv2→Lv3 needs Dark Gold.",
   "cap_scrolls": [1, 5]
  },
  "alchemy": {
   "name": "Alchemy Pot",
   "fuel": "seeds",
   "upgrade_cost": {
-   "seeds": 8,
-   "gold": 40
+   "seeds": 25,
+   "dew": 35,
+   "gold": 150
   },
   "max": 3,
   "desc": "Brew potions. Lv2: Starter Elixirs. Potion belt = level+1.",
@@ -26,7 +27,8 @@
   "name": "Guild Hall",
   "fuel": "gold",
   "upgrade_cost": {
-   "gold": 100
+   "gold": 250,
+   "iron_ore": 20
   },
   "max": 3,
   "pack_cap": [3, 6, 10],
@@ -37,11 +39,11 @@
   "name": "Enchanter's Desk",
   "fuel": "arcane_resin",
   "upgrade_cost": {
-   "arcane_resin": 3,
-   "gold": 40
+   "arcane_resin": 15,
+   "gold": 150
   },
   "max": 3,
-  "desc": "Identify curios over time (faster and one more at a time per level; a known type is instant); scribe Scrolls of Passage. Levels rings and wands (cap = level - 1) and repairs rings, wands and artifacts from Lv2.",
+  "desc": "Identify curios over time (faster and one more at a time per level; a known type is instant); scribe Scrolls of Passage. Levels rings and wands (cap +0/+1/+3 by Desk level) and repairs rings, wands and artifacts from Lv2.",
   "cap_scrolls": [1, 4]
  }
 }

@@ -619,7 +619,7 @@ func test_delve(gs) -> void:
 func test_camp(gs) -> void:
 	print("[camp]")
 	gs.new_game()
-	gs.add_mat("iron_ore", 50); gs.add_mat("gold", 500); gs.add_mat("seeds", 10); gs.add_mat("arcane_resin", 5)
+	gs.add_mat("iron_ore", 80); gs.add_mat("gold", 500); gs.add_mat("seeds", 10); gs.add_mat("dew", 40); gs.add_mat("arcane_resin", 5)
 	check(gs.craft("blacksmith", "forge_shortsword"), "forge shortsword")
 	var ss = gs.gear.filter(func(g): return g.id == "shortsword")[0]
 	check(gs.can_equip("warrior", ss.uid) == "", "can equip shortsword")
@@ -1667,10 +1667,12 @@ func test_forge_bulk(gs) -> void:
 	var before: int = gs.mat("ration"); var gold0: int = gs.mat("gold")
 	check(gs.craft_n("guild", r.id, 2) and gs.mat("ration") == before + 2 * int(r.get("out_n", 1)), "Buy x2 adds 2 rations")
 	check(gs.mat("gold") == gold0 - 2 * int(cost0.get("gold", 0)), "Buy x2 pays 2x gold")
+	gs.add_mat("iron_ore", 100); gs.add_mat("gold", 500)
 	var uid: int = gs.add_gear("shortsword", true, 0)
-	check(gs.upgrade_max(uid) >= 2 and gs.upgrade_cost_n(uid, 2) == {"iron_ore": 4 + 8, "gold": 10 + 40}, "upgrade 0->1->2 costs 4+8 ore, 10+40 gold")
+	# T2: +1 = 8 ore / 30g, +2 = 16 ore / 120g
+	check(gs.upgrade_max(uid) >= 2 and gs.upgrade_cost_n(uid, 2) == {"iron_ore": 24, "gold": 150}, "upgrade 0->1->2 Shortsword costs 24 ore, 150 gold")
 	var ore0: int = gs.mat("iron_ore"); check(gs.upgrade_item_n(uid, 2) and int(gs.gear_by_uid(uid).lvl) == 2, "Upgrade x2 raises level to +2")
-	check(gs.mat("iron_ore") == ore0 - 12, "Upgrade x2 spends 12 ore")
+	check(gs.mat("iron_ore") == ore0 - 24, "Upgrade x2 spends 24 ore")
 	var a: int = gs.add_gear("cloth_armor", true, 1); var b: int = gs.add_gear("mace", true, 0)
 	gs.gear_by_uid(a).cracked = true; gs.gear_by_uid(b).cracked = true
 	var rc: Dictionary = gs.repair_all_cost()
@@ -1775,8 +1777,8 @@ func test_ring_contexts(gs) -> void:
 	bp.free()
 	gs.end_run("abandon")
 	check(bad.is_empty(), "ring icons render in stash/Forge/paperdoll/backpack slots %s" % [bad.slice(0, 6)])
-	# repair a cracked ring
-	gs.new_game(); gs.add_mat("iron_ore", 50); gs.add_mat("arcane_resin", 20)
+	# repair a cracked ring (resin + dark gold, DECISIONS #222)
+	gs.new_game(); gs.add_mat("iron_ore", 50); gs.add_mat("arcane_resin", 20); gs.add_mat("dark_gold", 20)
 	var ru: int = gs.add_gear("ring_wealth", true); gs.gear_by_uid(ru).cracked = true
 	check(gs.repairable_gear().is_empty() and not gs.repair(ru), "a cracked ring needs the Enchanter's Desk Lv2 (DECISIONS #158)")
 	gs.facilities.enchanter.level = 2
@@ -2982,7 +2984,7 @@ func test_facility_cap(gs) -> void:
 	check(gs.can_upgrade_facility("guild").begins_with("unlock a slot"), "level 2 at cap 2 has no open slot")
 	gs.mats.scroll_upgrade = gs.sou_cap_cost("guild")
 	check(gs.apply_sou("guild") and gs.facility_cap("guild") == 3, "Scrolls raise the cap from the effective cap (2 -> 3)")
-	gs.mats.gold = 1000
+	gs.mats.gold = 1000; gs.mats.iron_ore = 100
 	check(gs.can_upgrade_facility("guild") == "" and gs.upgrade_facility("guild"), "upgrade allowed once the cap is raised")
 	check(not gs.facility_title("Guild Hall", 3, 3, 3).contains("cap"), "no cap note at max level")
 	check(gs.facility_title("Forge", 1, 2, 3) == "Forge   Lv 1 / 3", "no cap note while the cap is not blocking")
@@ -3024,7 +3026,7 @@ func test_facility_cap(gs) -> void:
 	if row:
 		for c in row.get_children(): states.append(str(c.get_meta("state")))
 	check(str(states) == str(["filled", "open", "open"]), "level 1 at cap 3 is one filled slot and two open %s" % str(states))
-	gs.mats.arcane_resin = 10; gs.mats.gold = 200; camp._fill_window()
+	gs.mats.arcane_resin = 20; gs.mats.gold = 200; camp._fill_window()
 	var fill2 = camp.win_layer.find_child("FillSlot", true, false)
 	check(fill2 != null and not fill2.disabled, "Upgrade enables once a slot is open and the materials are in hand")
 	fill2.pressed.emit()
@@ -3045,7 +3047,7 @@ func test_vendor_mats_fold(gs) -> void:
 	var want := {
 		"Forge": ["iron_ore", "dark_gold", "gold", "arcane_resin", "scroll_upgrade"],
 		"Alchemy": ["seeds", "dew", "gold", "scroll_upgrade"],
-		"Enchanter": ["arcane_resin", "gold", "scroll_upgrade"],
+		"Enchanter": ["arcane_resin", "dark_gold", "gold", "scroll_upgrade"],
 		"Guild": ["gold", "dew", "seeds", "iron_ore"],
 	}
 	for page in ["Forge", "Alchemy", "Enchanter", "Guild"]:
@@ -3900,44 +3902,53 @@ func test_patrol_perks(gs) -> void:
 	_pat_camp(gs); _pat_wear(gs, "warrior", "ring_wealth", 2)
 	check("Ring of Wealth +2: +20% gold, curios: any ring" in gs.patrol_perks("warrior").lines, "Wealth +2 line (%s)" % [gs.patrol_perks("warrior").lines])
 	var y: Dictionary = _pat_full(gs)
-	var gm: float = 1.0 + (gs.patrol_gear_mult_for(2) - 1.0) * gs.PATROL_GOLD_GEAR_SHARE
-	check(int(y.gold) == int(floor(15.0 * 2.0 * float(gs.heroes.warrior.patrol.eff) * gm * 1.2)), "Wealth +2 adds 20%% gold on top of the gear bonus (%d)" % int(y.gold))
+	var sew_g := float(DB.biomes.sewers.patrol_yield_per_hour.gold)
+	var sew_ore := float(DB.biomes.sewers.patrol_yield_per_hour.iron_ore)
+	check(int(y.gold) == int(floor(sew_g * 2.0 * float(gs.heroes.warrior.patrol.eff) * 1.2)), "Wealth +2 adds 20%% gold (%d)" % int(y.gold))
 	check(gs.patrol_curio_pool(gs.heroes.warrior.patrol.fx).size() == 10, "Wealth opens all 10 rings as curios")
 	check(gs.patrol_curio_pool({}) == ["ring_might", "ring_tenacity"], "default curios are Might / Tenacity")
 	# Ring of Might +0: +15% ore; Furor: every material; Energy: resin
 	_pat_camp(gs); _pat_wear(gs, "warrior", "ring_might", 0)
 	y = _pat_full(gs)
-	check(int(y.iron_ore) == int(floor(3.0 * 2.0 * float(gs.heroes.warrior.patrol.eff) * 1.15)), "Might +0: +15%% iron ore (%d)" % int(y.iron_ore))
-	check(int(y.gold) == int(floor(15.0 * 2.0 * float(gs.heroes.warrior.patrol.eff))), "Might leaves gold alone (gear level 0)")
+	check(int(y.iron_ore) == int(floor(sew_ore * 2.0 * float(gs.heroes.warrior.patrol.eff) * 1.15)), "Might +0: +15%% iron ore (%d)" % int(y.iron_ore))
+	check(int(y.gold) == int(floor(sew_g * 2.0 * float(gs.heroes.warrior.patrol.eff))), "Might leaves gold alone (gear level 0)")
 	_pat_camp(gs); _pat_wear(gs, "warrior", "ring_furor", 2)
 	check(is_equal_approx(float(gs.patrol_perks("warrior").fx.all_pct), 10.0), "Furor +2: +10% materials")
 	var fy: Dictionary = _pat_full(gs)
-	var fe: float = gs.heroes.warrior.patrol.eff * gs.heroes.warrior.patrol.gear_mult
-	check(int(fy.iron_ore) == int(floor(3.0 * 2.0 * fe * 1.1)) and int(fy.gold) == int(floor(15.0 * 2.0 * gs.heroes.warrior.patrol.eff)), "Furor raises ore, not gold (%s)" % fy)
+	var f_gm: float = float(gs.heroes.warrior.patrol.gear_mult)
+	var f_mult := minf(gs.PATROL_MULT_CAP, 1.0 + (f_gm - 1.0) + 0.10)
+	check(int(fy.iron_ore) == int(floor(sew_ore * 2.0 * float(gs.heroes.warrior.patrol.eff) * f_mult)) and int(fy.gold) == int(floor(sew_g * 2.0 * float(gs.heroes.warrior.patrol.eff))), "Furor raises ore, not gold (%s)" % fy)
 	# Ring of Haste: more ground per hour -> more of everything; Evasion / Chains: more curios
 	_pat_camp(gs); _pat_wear(gs, "warrior", "ring_haste", 0)
 	check(is_equal_approx(float(gs.patrol_perks("warrior").fx.time_pct), 10.0), "Haste +0: +10% patrol time")
 	_pat_camp(gs, "warrior", "prison"); gs.facilities.guild.level = 3
 	var b8: Dictionary = _pat_full(gs, "warrior", "prison")
-	_pat_camp(gs, "warrior", "prison"); gs.facilities.guild.level = 3; _pat_wear(gs, "warrior", "ring_evasion", 4)
-	var e8: Dictionary = _pat_full(gs, "warrior", "prison")
-	check(int(e8._curios) > int(b8._curios), "Evasion +4 (+35%%) brings more curios on an 8h Prison patrol (%d vs %d)" % [int(e8._curios), int(b8._curios)])
+	_pat_camp(gs, "warrior", "halls"); gs.facilities.guild.level = 3
+	var bh: Dictionary = _pat_full(gs, "warrior", "halls")
+	_pat_camp(gs, "warrior", "halls"); gs.facilities.guild.level = 3; _pat_wear(gs, "warrior", "ring_evasion", 4)
+	var eh: Dictionary = _pat_full(gs, "warrior", "halls")
+	check(int(eh._curios) > int(bh._curios), "Evasion +4 (+35%%) brings more curios on an 8h Halls patrol (%d vs %d)" % [int(eh._curios), int(bh._curios)])
+	check(int(b8._curios) >= 1, "an 8h Prison patrol still finds curios (%d)" % int(b8._curios))
 	# Ring of Tenacity / Cape of Thorns: patrol power -> efficiency where the hero is under-geared
 	_pat_camp(gs, "warrior", "halls")
 	var e0: float = gs.patrol_efficiency("warrior", "halls")
 	_pat_wear(gs, "warrior", "ring_tenacity", 3)
-	check(gs.patrol_efficiency("warrior", "halls") > e0 and e0 < 1.25, "Tenacity +3 (+4 power) raises Halls efficiency (%.2f -> %.2f)" % [e0, gs.patrol_efficiency("warrior", "halls")])
+	check(gs.patrol_efficiency("warrior", "halls") > e0 and e0 < 1.0, "Tenacity +3 (+4 power) raises Halls efficiency (%.2f -> %.2f)" % [e0, gs.patrol_efficiency("warrior", "halls")])
 	# Ring of Elements: cheaper fee, capped at 50%
 	_pat_camp(gs)
-	var fee0 := int(gs.patrol_fee("sewers", "warrior").gold)
+	var fee_rate: float = float(DB.biomes.sewers.patrol_yield_per_hour.gold)
+	var fee_eff: float = gs.patrol_efficiency("warrior", "sewers")
+	var fee0: int = int(gs.patrol_fee("sewers", "warrior").gold)
+	check(fee0 == maxi(1, int(round(fee_rate * fee_eff))), "fee is 1h of efficiency-scaled gold (%d)" % fee0)
 	_pat_wear(gs, "warrior", "ring_elements", 1)
-	check(int(gs.patrol_fee("sewers", "warrior").gold) == int(fee0 * 0.8), "Elements +1 cuts the fee 20%")
-	check(int(gs.patrol_fee("sewers").gold) == fee0, "the fee without a hero is unchanged")
+	var fee_cut := int(gs.patrol_fee("sewers", "warrior").gold)
+	check(fee_cut == maxi(1, int(round(fee_rate * fee_eff * 0.8))), "Elements +1 cuts the fee 20% (%d -> %d)" % [fee0, fee_cut])
+	check(int(gs.patrol_fee("sewers").gold) == maxi(1, int(round(fee_rate))), "the fee without a hero is 1h of biome gold")
 	var g0: int = gs.mat("gold"); gs.start_patrol("warrior", "sewers")
-	check(g0 - gs.mat("gold") == int(fee0 * 0.8), "starting pays the cut fee")
+	check(g0 - gs.mat("gold") == fee_cut, "starting pays the cut fee")
 	gs.heroes.warrior.patrol = {}
 	gs.gear_by_uid(gs.heroes.warrior.ring).lvl = 20
-	check(int(gs.patrol_fee("sewers", "warrior").gold) == int(fee0 * 0.5), "the fee cut stops at 50%")
+	check(int(gs.patrol_fee("sewers", "warrior").gold) == maxi(1, int(round(fee_rate * fee_eff * 0.5))), "the fee cut stops at 50%")
 	# Chalice of Blood: a healing potion every 6h (-1h per level, min 2h); Horn of Plenty: rations
 	_pat_camp(gs); gs.facilities.guild.level = 3; _pat_wear(gs, "warrior", "chalice_blood", 2)
 	y = _pat_full(gs)
@@ -3984,10 +3995,10 @@ func test_patrol_perks(gs) -> void:
 	gs.heroes.mage.wand_cracked = true
 	check(gs.patrol_gear_level("mage") == 0, "a cracked staff wand doesn't")
 	var m := func(l): return gs.patrol_gear_mult_for(l)
-	check(m.call(4) > m.call(1) and m.call(100) > m.call(99) and m.call(400) > 3.9, "gear bonus keeps growing, no ceiling")
+	check(m.call(4) > m.call(1) and m.call(100) > m.call(99) and m.call(400) > 2.5, "gear bonus keeps growing, no ceiling")
 	check(m.call(2) - m.call(1) > m.call(11) - m.call(10), "gear bonus has diminishing returns")
-	check(is_equal_approx(m.call(16), 1.6), "16 levels = x1.6 materials")
-	# well geared vs baseline at the same biome: noticeably more, not runaway
+	check(is_equal_approx(m.call(16), 1.0 + gs.PATROL_GEAR_K * 4.0), "16 levels = +32%% materials before the 1.50 cap")
+	# well geared vs baseline at the same biome: additive bonuses, capped at 1.50 (DECISIONS #222)
 	_pat_camp(gs, "warrior", "caves"); gs.facilities.guild.level = 3
 	var bc: Dictionary = _pat_full(gs, "warrior", "caves")
 	var bc_eff: float = gs.heroes.warrior.patrol.eff
@@ -3996,9 +4007,8 @@ func test_patrol_perks(gs) -> void:
 	_pat_wear(gs, "warrior", "ring_might", 3); _pat_wear(gs, "warrior", "cape_thorns", 3)
 	var gc: Dictionary = _pat_full(gs, "warrior", "caves")
 	var gc_eff: float = gs.heroes.warrior.patrol.eff
-	# efficiency (power vs the biome gate) already paid for gear before #188; this is what gear adds on top of it
 	var ratio := (float(gc.iron_ore) / gc_eff) / (float(bc.iron_ore) / bc_eff)
-	check(ratio >= 1.5 and ratio <= 2.2, "geared Warrior (14 levels, Might +3) brings 1.5-2.2x the Caves ore per efficiency (x%.2f)" % ratio)
+	check(ratio >= 1.2 and ratio <= 1.55, "geared Warrior (14 levels, Might +3) brings ~1.2-1.5x the Caves ore per efficiency (x%.2f)" % ratio)
 	var gratio := (float(gc.gold) / gc_eff) / (float(bc.gold) / bc_eff)
 	check(is_equal_approx(gratio, 1.0), "gear level leaves gold alone: it is the sink (x%.2f)" % gratio)
 	# the patrol keeps what the hero left with: swapping or levelling gear mid-patrol changes nothing
@@ -4032,8 +4042,8 @@ func test_patrol_perks(gs) -> void:
 		var v := VBoxContainer.new(); v.size = Vector2(vs.x * 0.4, 0); add_child(v)
 		cs._patrol_list(v)
 		var texts: Array = v.find_children("*", "Label", true, false).filter(func(l): return l.has_meta("patrol_perk")).map(func(l): return String(l.text))
-		check("Gear Lv 4: +30% materials" in texts and "Ring of Wealth +2: +20% gold, curios: any ring" in texts, "%s: idle Warrior card lists gear bonus and Wealth (%s)" % [vs, texts])
-		check("Gear Lv 1: +15% materials" in texts and "Wand of Magic Missile +1: +2 patrol power" in texts, "%s: patrolling Mage card lists what she left with (%s)" % [vs, texts])
+		check("Gear Lv 4: +16% materials" in texts and "Ring of Wealth +2: +20% gold, curios: any ring" in texts, "%s: idle Warrior card lists gear bonus and Wealth (%s)" % [vs, texts])
+		check("Gear Lv 1: +8% materials" in texts and "Wand of Magic Missile +1: +2 patrol power" in texts, "%s: patrolling Mage card lists what she left with (%s)" % [vs, texts])
 		var bad := UIKit.collapsing_labels(v)
 		check(bad.is_empty(), "%s: perk lines keep their width" % vs)
 		v.queue_free(); cs.queue_free()
@@ -4042,21 +4052,31 @@ func test_gold_sinks(gs) -> void:
 	print("[gold sinks]")
 	gs.new_game()
 	var uid: int = gs.add_gear("shortsword", true, 1)
-	check(gs.item_upgrade_cost(uid) == {"iron_ore": 8, "gold": 40}, "+1->+2 costs 8 ore and 40 gold")
+	check(gs.item_upgrade_cost(uid) == {"iron_ore": 16, "gold": 120}, "+1->+2 Shortsword (T2) costs 16 ore and 120 gold")
+	check(gs.upgrade_step_cost(1, 5) == {"iron_ore": 20, "dark_gold": 6, "arcane_resin": 3, "gold": 75}, "T5 +0->+1 matches Plan 04")
+	check(gs.facility_upgrade_cost("blacksmith") == {"iron_ore": 35, "gold": 150}, "Blacksmith Lv1→2 is ore + gold only")
+	gs.facilities.blacksmith.level = 2
+	check(gs.facility_upgrade_cost("blacksmith") == {"iron_ore": 70, "dark_gold": 16, "gold": 400}, "Blacksmith Lv2→3 needs dark gold")
+	gs.facilities.blacksmith.level = 1
 	gs.heroes.warrior.cleared.append("sewers")
 	var fee := int(gs.patrol_fee("sewers").gold)
-	check(fee == int(15 * gs.patrol_max_hours() / 2.0) and fee > 0, "sewers patrol fee is half a full patrol's gold (%d)" % fee)
+	check(fee == int(round(float(DB.biomes.sewers.patrol_yield_per_hour.gold))) and fee > 0, "sewers patrol fee is 1h of biome gold (%d)" % fee)
+	gs.facilities.guild.level = 3
+	check(int(gs.patrol_fee("sewers").gold) == fee, "Guild hours do not raise the patrol fee")
+	gs.facilities.guild.level = 1
 	gs.mats.gold = fee - 1
 	check(gs.can_patrol("warrior", "sewers").begins_with("need"), "can't patrol without the fee")
 	gs.mats.gold = fee + 5
 	check(gs.start_patrol("warrior", "sewers") and gs.mat("gold") == 5, "starting a patrol pays the fee")
-	# masterwork: a max Blacksmith takes gear past +3 for steep gold
+	# masterwork: a max Blacksmith takes gear past +3 for steep gold + materials
 	gs.facilities.blacksmith.level = int(DB.facilities.blacksmith.max); gs.facilities.blacksmith.cap = gs.facilities.blacksmith.level
 	var mw: int = gs.add_gear("mace", true, 3)
-	gs.mats.gold = 3199; gs.mats.iron_ore = 100
+	var mw_cost: Dictionary = gs.item_upgrade_cost(mw)
+	check(int(mw_cost.gold) == 3200 and int(mw_cost.iron_ore) == 120 and int(mw_cost.get("dark_gold", 0)) == 12, "+4 masterwork T3 costs 120 ore, 12 dark gold, 3200 gold")
+	gs.mats.gold = 3199; gs.mats.iron_ore = 200; gs.mats.dark_gold = 50; gs.mats.arcane_resin = 50
 	check(gs.can_upgrade_item(mw).begins_with("need"), "+4 masterwork needs 3200 gold")
 	gs.mats.gold = 3200
-	check(gs.upgrade_item(mw) and gs.mat("gold") == 0, "+4 masterwork costs 3200 gold")
+	check(gs.upgrade_item(mw) and gs.mat("gold") == 0, "+4 masterwork spends its gold")
 	gs.gear_by_uid(mw).lvl = gs.MASTERWORK_MAX; gs.mats.gold = 99999
 	check(gs.can_upgrade_item(mw) != "", "masterwork stops at +%d" % gs.MASTERWORK_MAX)
 	# training: buy back lost levels, never past best - 2
@@ -4371,16 +4391,18 @@ func test_trinket_upgrades(gs) -> void:
 	var keep_fac: Dictionary = gs.facilities.duplicate(true); var keep_mats: Dictionary = gs.mats.duplicate(true)
 	var keep_wand: String = gs.heroes.mage.wand
 	gs.facilities.enchanter.level = 1
-	gs.mats.scroll_upgrade = 5; gs.mats.arcane_resin = 100; gs.mats.gold = 5000
+	gs.mats.scroll_upgrade = 5; gs.mats.arcane_resin = 100; gs.mats.dark_gold = 100; gs.mats.gold = 5000
 	var ru: int = gs.add_gear("ring_might", true)
 	check(gs.enchant_cap() == 0 and gs.can_upgrade_item(ru) != "", "a Lv1 Desk can't level rings (%s)" % gs.can_upgrade_item(ru))
 	check(gs.upgrade_max(ru) == 0, "upgrade_max is 0 at Desk Lv1")
 	gs.facilities.enchanter.level = 2
 	check(gs.can_upgrade_item(ru) == "", "a Lv2 Desk can level a ring to +1")
-	check(gs.upgrade_item(ru) and int(gs.gear_by_uid(ru).lvl) == 1 and gs.mat("scroll_upgrade") == 5 and gs.mat("arcane_resin") == 96 and gs.mat("gold") == 4925, "ring upgrade costs resin + gold, never a Scroll of Upgrade")
+	check(gs.upgrade_item(ru) and int(gs.gear_by_uid(ru).lvl) == 1 and gs.mat("scroll_upgrade") == 5 and gs.mat("arcane_resin") == 92 and gs.mat("dark_gold") == 96 and gs.mat("gold") == 4900, "ring upgrade costs resin + dark gold + gold, never a Scroll of Upgrade")
 	check(not gs.trinket_step_cost(1).has("scroll_upgrade") and not gs.trinket_step_cost(2).has("scroll_upgrade"), "no trinket level costs a Scroll (all 22 go to camp caps)")
-	check(gs.trinket_step_cost(2).arcane_resin == 8 and gs.trinket_step_cost(2).gold == 300, "+2 costs 8 resin + 300 gold")
+	check(gs.trinket_step_cost(2).arcane_resin == 16 and gs.trinket_step_cost(2).dark_gold == 8 and gs.trinket_step_cost(2).gold == 400, "+2 costs 16 resin + 8 dark gold + 400 gold")
 	check(gs.can_upgrade_item(ru).begins_with("Enchanter cap"), "the Desk caps the ring at +1")
+	gs.facilities.enchanter.level = 3
+	check(gs.enchant_cap() == 3 and gs.can_upgrade_item(ru) == "", "a Lv3 Desk raises the cap to +3")
 	var old_r := int(gs.heroes.warrior.ring); gs.heroes.warrior.ring = 0
 	var d0 := int(gs.hero_stats("warrior").dmg); gs.heroes.warrior.ring = ru
 	check(int(gs.hero_stats("warrior").dmg) == d0 + 2, "Might +1 gives +2 dmg")

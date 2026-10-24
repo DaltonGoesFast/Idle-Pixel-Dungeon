@@ -655,7 +655,10 @@ func _card_special() -> void:
 		var ok := cost.is_empty() or Delve.pay_possible(GameState, cost)
 		var why := "" if ok else "can't afford"
 		if o.has("requires_class") and o.requires_class != GameState.run.hero: why = "%s only" % DB.heroes[o.requires_class].name
-		v.add_child(UIKit.action(o.text, func(): _special_option(o), why))
+		var label: String = o.text
+		if cost.has("hp_pct") or cost.has("hp"):
+			label = label.replace("(-HP)", "(-%d HP)" % Delve.event_hp_cost(GameState, cost))
+		v.add_child(UIKit.action(label, func(): _special_option(o), why))
 
 func _special_option(o: Dictionary) -> void:
 	GameState.log_line("Chose: " + String(o.text), "info")
