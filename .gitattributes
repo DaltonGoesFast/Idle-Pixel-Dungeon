@@ -1,0 +1,2 @@
+tools/playtest.bat text eol=crlf
+tools/playtest.ps1 text eol=crlf

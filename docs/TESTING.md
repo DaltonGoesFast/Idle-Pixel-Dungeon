@@ -7,6 +7,7 @@
 | `xvfb-run -a godot --path . --rendering-driver opengl3 res://tests/screenshots.tscn` | Saves screenshots of camp/forge/delve/combat/boss at cover (484x1188) and inner (928x1080) sizes into `builds/shots/` (rendered at 2x and downsampled so 1-px font strokes survive; `SHOT_NATIVE=1` keeps the 2x images) |
 | `tools/verify_apk.sh builds/spd-tactics-vX.apk` | `apksigner verify` (Java from `PATH`, `JAVA_HOME`, or the Godot editor's Android Java SDK Path; fails if none),  checks the signer matches `tools/release_cert.sha256` (the published releases' certificate, so phones can update in place; `ALLOW_NEW_SIGNING_KEY=1` to override), unpacks the APK's `assets/`, and loads textures, font, JSON data and audio with desktop Godot - catches "no textures / no text" export bugs |
 | `tools/build.sh` | All of the above (except screenshots) + exports |
+| `tools\playtest.bat` | Windows. Both headless suites above, from the repo root, printed as they run and saved to `builds/playtest/playtest-YYYYMMDD-HHMMSS.log`. Godot is `%GODOT%`, else `%GODOT_BIN%`, else `godot` on PATH (same as `tools/build.sh`), else `Godot_v4.7.2-stable_win64_console.exe` in `C:\Users\dalto\Documents\My Games\idlrPD\` (the editor exe there is the last fallback). The console build beside a chosen editor exe is used when it exists. Exits with the first failing suite's Godot code. A double-click pauses at the end (`PLAYTEST_NO_PAUSE=1` skips that) |
 
 Tips:
 - Tests run as **scenes** (not `-s script`) because autoloads (`DB`, `GameState`...) only exist in a normal scene tree.
