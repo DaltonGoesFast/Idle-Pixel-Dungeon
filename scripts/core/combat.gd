@@ -55,12 +55,13 @@ var kill_ids := {}              # mob id -> kills this fight (milestones)
 var potions_drunk := 0          # healing potions drunk this fight, kept through a mid-fight save (Teetotaller)
 var floor := 1                  # delve floor for trap damage scaling (DECISIONS #220)
 var auto_used := false          # set by the combat screen once Auto Battle acts (the "By Hand" feat)
+var last_target := 0            # uid of last attacker / last foe the hero hit (SPD QuickSlot auto-aim, DECISIONS #231)
 
 ## room_rows: Array[String] of equal length (8/10/12); hs: GameState.hero_stats(); mob_ids fill slots 1..8 (B = boss).
 func setup(room_rows: Array, hs: Dictionary, hp: int, mob_ids: Array, darkness := false, pool := []) -> void:
 	terrain.clear(); units.clear(); danger.clear(); log_lines.clear(); events.clear(); traps.clear()
 	kills = 0; traps_found = 0; trap_ids_seen = []; dmg_in = 0; absorbed_total = 0; dmg_out = 0; hero_turns = 0
-	surprises = 0; kill_ids = {}; auto_used = false; hp_lost = 0; potions_drunk = 0
+	surprises = 0; kill_ids = {}; auto_used = false; hp_lost = 0; potions_drunk = 0; last_target = 0
 	remains = {}
 	if not pool.is_empty(): trap_pool = pool
 	time = 0.0; loot = 0; fallen_loot = 0; xp = 0; over = false; won = false; boss_killed = false; _uid = 0
@@ -121,7 +122,7 @@ func to_dict() -> Dictionary:
 	for k in traps: tr.append({"pos": [k.x, k.y], "id": traps[k].id, "hidden": traps[k].hidden})
 	return {"terrain": terrain, "w": w, "h": h, "units": us, "danger": dz, "traps": tr, "trap_pool": trap_pool, "kills": kills, "traps_found": traps_found, "trap_ids_seen": trap_ids_seen, "time": time, "log": Array(log_lines), "loot": loot,
 		"fallen_loot": fallen_loot, "xp": xp, "over": over, "won": won, "boss_killed": boss_killed, "uid": _uid, "floor": floor,
-		"surprises": surprises, "kill_ids": kill_ids, "auto_used": auto_used, "hp_lost": hp_lost, "potions_drunk": potions_drunk, "dmg_in": dmg_in, "absorbed_total": absorbed_total, "dmg_out": dmg_out, "hero_turns": hero_turns, "remains": remains.keys().map(func(k): return [k.x, k.y]), "trampled": trampled.keys().map(func(k): return [k.x, k.y])}
+		"surprises": surprises, "kill_ids": kill_ids, "auto_used": auto_used, "hp_lost": hp_lost, "potions_drunk": potions_drunk, "dmg_in": dmg_in, "absorbed_total": absorbed_total, "dmg_out": dmg_out, "hero_turns": hero_turns, "last_target": last_target, "remains": remains.keys().map(func(k): return [k.x, k.y]), "trampled": trampled.keys().map(func(k): return [k.x, k.y])}
 
 func from_dict(d: Dictionary) -> void:
 	trampled = {}
@@ -155,6 +156,7 @@ func from_dict(d: Dictionary) -> void:
 	surprises = int(d.get("surprises", 0)); auto_used = bool(d.get("auto_used", false)); hp_lost = int(d.get("hp_lost", 0)); potions_drunk = int(d.get("potions_drunk", 0))
 	dmg_in = int(d.get("dmg_in", 0)); absorbed_total = int(d.get("absorbed_total", 0))
 	dmg_out = int(d.get("dmg_out", 0)); hero_turns = int(d.get("hero_turns", 0))
+	last_target = int(d.get("last_target", 0))
 	kill_ids = {}
 	var ki: Dictionary = d.get("kill_ids", {})
 	for k in ki: kill_ids[String(k)] = int(ki[k])
@@ -199,8 +201,32 @@ func unit_at(p: Vector2i):
 		if u.hp > 0 and u.pos == p: return u
 	return null
 
+func unit_by_uid(uid: int):
+	if uid <= 0: return null
+	for u in units:
+		if int(u.uid) == uid and int(u.hp) > 0: return u
+	return null
+
 func enemies() -> Array:
 	return units.filter(func(u): return not u.has("hero") and u.hp > 0)
+
+## Remember who last hit the hero / who the hero last hit (SPD Char.lastTarget for QuickSlot auto-aim).
+func note_last_target(u: Dictionary) -> void:
+	if u.is_empty() or u.has("hero") or int(u.get("hp", 0)) <= 0: return
+	last_target = int(u.uid)
+
+## SPD QuickSlotButton.autoAim: last attacker if still a clear shot, else the nearest shootable foe. Vector2i(-1,-1) if none.
+func auto_bolt_pos() -> Vector2i:
+	if not has_ranged(): return Vector2i(-1, -1)
+	var lt = unit_by_uid(last_target)
+	if lt != null and can_bolt(lt.pos) and bolt_victim(lt.pos) == lt:
+		return lt.pos
+	var best = null; var bd := 999
+	for e in enemies():
+		if not can_bolt(e.pos) or bolt_victim(e.pos) != e: continue
+		var d := cheb(hero.pos, e.pos)
+		if d < bd: bd = d; best = e
+	return best.pos if best != null else Vector2i(-1, -1)
 
 func passable(p: Vector2i) -> bool:
 	var t := tile(p)
@@ -752,6 +778,7 @@ func _hero_melee(u: Dictionary, p: Vector2i) -> void:
 		hero.acc_catch = float(hero.get("acc_catch", 0.0)) + (a - 1.0)
 		if hero.acc_catch >= 1.0 - 0.0001: hero.acc_catch -= 1.0; sure = true
 	hit_mob(u, _melee_dmg(sur), sur, false, false, sure or unaware)
+	note_last_target(u)
 	reveal_to(u)
 	_melee_perks()
 	_end_hero_turn(float(hero.delay))
@@ -835,6 +862,7 @@ func hero_bolt(p: Vector2i) -> bool:
 	p = at
 	var hp_before := int(u.hp)
 	hit_mob(u, int(hero.bolt.dmg), sur, magic or hero.bolt.get("pierce", false), true)
+	note_last_target(u)
 	reveal_to(u)
 	if hero.get("perk", "") == "soul_heal" and magic and hero.hp > 0 and hero.hp < hero.ht:
 		var sh := mini(int(hero.ht) - int(hero.hp), maxi(1, (hp_before - maxi(0, int(u.hp))) / 3))
@@ -1052,7 +1080,10 @@ func _resolve_danger() -> void:
 				var dd := int(d.dmg)
 				if float(d.get("water_mult", 0.0)) > 0.0 and tile(hero.pos) == T.WATER:
 					dd = int(dd * float(d.water_mult)); _log("The water conducts the shock!")
-				if dd > 0: hit_hero(dd, d.src, d.get("pierce", false))
+				if dd > 0:
+					var atk = unit_by_uid(int(d.get("uid", 0)))
+					if atk != null: note_last_target(atk)
+					hit_hero(dd, d.src, d.get("pierce", false))
 				if d.has("debuff") and not over: add_debuff(String(d.debuff), float(d.get("debuff_t", 3)))
 				if d.has("poison") and not over:
 					hero.poison = int(hero.get("poison", 0)) + int(d.poison); _ev({"t": "sfx", "name": "debuff"})
@@ -1197,6 +1228,7 @@ func _mob_act(m: Dictionary) -> void:
 	if in_view and cheb(m.pos, hero.pos) == 1:
 		_ev({"t": "attack", "uid": m.uid, "to": hero.pos})
 		var hp_before: int = hero.hp + hero.barrier
+		note_last_target(m)
 		hit_hero(int(m.dmg), m.name)
 		if int(hero.get("thorns", 0)) > 0 and m.hp > 0 and hero.hp > 0:   # Cape of Thorns (DECISIONS #159)
 			_log("Thorns!"); hit_mob(m, int(hero.thorns), false, true)
@@ -1287,7 +1319,9 @@ func _flee(m: Dictionary) -> void:
 		var n: Vector2i = m.pos + d
 		if passable(n) and unit_at(n) == null and not traps.has(n) and cheb(n, hero.pos) > bd: bd = cheb(n, hero.pos); best = n
 	if best != null: _place(m, best)
-	elif cheb(m.pos, hero.pos) == 1: hit_hero(int(m.dmg), m.name)
+	elif cheb(m.pos, hero.pos) == 1:
+		note_last_target(m)
+		hit_hero(int(m.dmg), m.name)
 
 ## Tengu (SPD Prison boss). Phase 1: throws telegraphed shurikens from range, blinks away after being hurt.
 ## Phase 2 (<= half HP): also lobs bombs - a 3x3 red area that blows up 2 ticks later (bombs hurt mobs too).

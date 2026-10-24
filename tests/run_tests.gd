@@ -74,6 +74,7 @@ func _ready() -> void:
 	test_enchanter_tabs(gs)
 	test_identify_queue_all(gs)
 	test_blind_shots(gs)
+	test_bolt_auto_aim(gs)
 	test_vanilla_wands(gs)
 	test_artifact_lines(gs)
 	test_vanilla_artifacts(gs)
@@ -3432,6 +3433,23 @@ func test_blind_shots(gs) -> void:
 	r6.last_seen = [4, 1]
 	var sug: Dictionary = CombatBot.suggest(c6)
 	check(sug.get("mode", "") == "bolt" and sug.get("pos") == Vector2i(4, 1), "Auto Battle shoots where an unseen foe was last seen (%s)" % [sug])
+
+## DECISIONS #231: Bolt twice = last attacker if still a clear shot, else nearest shootable foe (SPD QuickSlot auto-aim).
+func test_bolt_auto_aim(gs) -> void:
+	print("[bolt auto-aim]")
+	var room := ["########", "#H.....#", "#......#", "#......#", "#......#", "#......#", "#.1...2#", "########"]
+	var ms: Dictionary = gs.hero_stats("mage")
+	check(ms.has("bolt") and not ms.bolt.get("infinite", false), "mage has a charged staff bolt")
+	var c := Combat.new(); c.setup(room, ms, int(ms.ht), ["rat", "rat"])
+	var near = c.enemies()[0]; var far = c.enemies()[1]; near.next = 999.0; far.next = 999.0
+	c._place(near, Vector2i(2, 6)); c._place(far, Vector2i(6, 6))
+	check(c.auto_bolt_pos() == near.pos, "with no last attacker, auto-aim picks the nearest clear shot")
+	c.note_last_target(far)
+	check(c.auto_bolt_pos() == far.pos, "auto-aim prefers the last attacker when that shot is clear")
+	c._place(c.hero, Vector2i(5, 5))   # adjacent to far: wand can still zap
+	check(c.can_bolt(far.pos) and c.auto_bolt_pos() == far.pos, "last attacker stays preferred at range 1 for a wand")
+	var d: Dictionary = JSON.parse_string(JSON.stringify(c.to_dict())); var c2 := Combat.new(); c2.from_dict(d)
+	check(int(c2.last_target) == int(far.uid), "last_target survives save/load")
 
 ## DECISIONS #139: the guided first fight is not covered by the Surprise tip.
 func test_guided_surprise_tip(gs) -> void:

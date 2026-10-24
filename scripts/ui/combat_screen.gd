@@ -172,7 +172,9 @@ func _refresh() -> void:
 	var line := "DR %d  Dmg %d%s   t=%.1f" % [h.dr, h.dmg, ("  Reach %d" % int(h.reach)) if int(h.get("reach", 1)) > 1 else "", combat.time]
 	if not h.bolt.is_empty():
 		if h.bolt.get("infinite", false): line += "\nTap any tile in range to shoot %s (%d dmg; it passes tall grass)" % [h.bolt.name, h.bolt.dmg]
-		else: line += "\nStaff charges %d/%d (%s, %d dmg, ignores DR)" % [h.charges, h.bolt.charges, h.bolt.name, h.bolt.dmg]
+		else:
+			line += "\nStaff charges %d/%d (%s, %d dmg, ignores DR)" % [h.charges, h.bolt.charges, h.bolt.name, h.bolt.dmg]
+			if mode == "bolt": line += "\nBolt again: nearest foe, or last attacker"
 	if combat.hidden(): line += "\nHIDDEN in shadows - enemies can't find you"
 	if int(h.get("poison", 0)) > 0: line += "\nPOISONED: -1 HP per turn for %d turns" % int(h.poison)
 	if combat.surprise_now():
@@ -203,7 +205,8 @@ func _refresh() -> void:
 	if not h.cloak.is_empty():
 		_btn("Cloak (%d/%d)" % [int(h.cloak_charges), _cloak_cap(h)], func(): _act(func(): combat.hero_cloak()), int(h.cloak_charges) > 0 and not combat.hidden())
 	if not h.bolt.is_empty() and not h.bolt.get("infinite", false):
-		_btn("Bolt (%d)" % h.charges, func(): mode = "" if mode == "bolt" else "bolt"; grid.mode = mode; _refresh(), h.charges > 0)
+		# First press: enter aim mode. Second press: fire at last attacker if still a clear shot, else nearest (SPD QuickSlot, DECISIONS #231).
+		_btn("Bolt: ON (%d)" % h.charges if mode == "bolt" else "Bolt (%d)" % h.charges, _bolt_press, h.charges > 0)
 	_btn("Search" if not h.get("searched", false) else "Search again", func(): _act(func(): combat.hero_search()))
 	_btn("Potion (%d)" % (potions - potions_used), _drink, potions - potions_used > 0 and h.hp < h.ht)
 	if Delve.scroll_passage_count(GameState) > 0:
@@ -293,6 +296,20 @@ func _refresh_log() -> void:
 	for l in combat.log_lines: log_label.append_text(l + "\n")
 	await get_tree().process_frame
 	if is_instance_valid(log_scroll): log_scroll.scroll_vertical = int(log_scroll.get_v_scroll_bar().max_value)
+
+## Staff Bolt button (DECISIONS #231): first tap enters aim mode; second tap fires at last attacker or nearest clear shot.
+func _bolt_press() -> void:
+	if finished or combat.hero.bolt.is_empty() or int(combat.hero.charges) <= 0: return
+	if mode == "bolt":
+		var at := combat.auto_bolt_pos()
+		if at.x >= 0:
+			_act(func():
+				if combat.hero_bolt(at):
+					mode = ""; grid.mode = ""
+			)
+			return
+		mode = ""; grid.mode = ""; _refresh(); return
+	mode = "bolt"; grid.mode = mode; _refresh()
 
 func _on_cell(c: Vector2i) -> void:
 	if finished: return
