@@ -16,10 +16,10 @@ const SPOTS := [   # page, sprite, frame w, frame h, x frac, y frac of the groun
 ]
 ## Unlocked heroes sit around the fire: [class, x offset in tiles from fire, y frac of ground for feet].
 const HERO_SEATS := [
-	["warrior", 0.95, 0.52],
-	["mage", -1.15, 0.52],
-	["rogue", 1.85, 0.64],
-	["huntress", -1.95, 0.64],
+	["warrior", 1.55, 0.50],
+	["mage", -1.70, 0.50],
+	["rogue", 2.65, 0.72],
+	["huntress", -2.75, 0.72],
 ]
 const FIRE_Y := 0.48   # campfire height, as a fraction of the ground
 const FAC := {"Forge": "blacksmith", "Enchanter": "enchanter", "Alchemy": "alchemy", "Guild": "guild"}
@@ -154,12 +154,13 @@ func ground_y(fy: float) -> float:
 	var top := sky_height()
 	return top + (size.y - top) * fy
 
-## On tall clearings (Fold cover / phones), pull facility and hero y-fractions toward the fire so empty
-## cobble does not dominate between the ring and the edges. Wide / near-square layouts leave spots alone.
-func pack_y(fy: float) -> float:
+## On tall clearings (Fold cover / phones), pull facility y-fractions toward the fire so empty cobble
+## does not dominate. `strength` < 1 softens the pull (heroes use a light pack so seats stay readable).
+## Wide / near-square layouts leave spots alone.
+func pack_y(fy: float, strength := 1.0) -> float:
 	var gh := size.y - sky_height()
 	var aspect := gh / maxf(1.0, size.x)
-	var pack := clampf((aspect - 0.78) / 0.55, 0.0, 1.0)
+	var pack := clampf((aspect - 0.78) / 0.55, 0.0, 1.0) * clampf(strength, 0.0, 1.0)
 	if pack <= 0.0:
 		return fy
 	return FIRE_Y + (fy - FIRE_Y) * lerpf(1.0, 0.58, pack)
@@ -208,7 +209,7 @@ func hero_rect(c: String) -> Rect2:
 	var hz := Vector2(12, 15) * kk * 2.0
 	for seat in HERO_SEATS:
 		if seat[0] != c: continue
-		var feet := Vector2(fire.x + float(seat[1]) * cs, ground_y(pack_y(float(seat[2]))) + kk * 6)
+		var feet := Vector2(fire.x + float(seat[1]) * cs, ground_y(pack_y(float(seat[2]), 0.35)) + kk * 6)
 		return Rect2((feet - Vector2(hz.x / 2.0, hz.y)).floor(), hz)
 	return Rect2()
 
