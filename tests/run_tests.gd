@@ -600,8 +600,9 @@ func test_delve(gs) -> void:
 	check(not Delve.pay(gs, {"iron_key": 1}), "can't pay without key")
 	Delve.reward(gs, {"item_unknown": "ring", "seeds": 2})
 	check(gs.run.pack_gear.size() == 1 and int(gs.run.pack.seeds) == 2, "reward to pack")
-	# death rules
-	var wuid: int = gs.heroes.warrior.weapon
+	# death rules (forged gear cracks; starters never do — DECISIONS #221)
+	var wuid: int = gs.add_gear("shortsword", true, 0)
+	gs.heroes.warrior.weapon = wuid
 	gs.heroes.warrior.level = 3
 	gs.end_run("death")
 	check(gs.gear_by_uid(wuid).cracked and gs.heroes.warrior.level == 1 and gs.heroes.warrior.str == 10, "death cracks gear & resets hero")
@@ -797,7 +798,8 @@ func test_backpack(gs) -> void:
 	c.apply_stats(gs.hero_stats("warrior")); c.hero_wait()
 	check(c.hero.next == t0 + 1.0 and c.hero.dr == gs.hero_stats("warrior").dr, "in-combat swap: new stats, 1 tick")
 	gs.end_run("death")
-	check(gs.gear_by_uid(old_w).get("cracked", false), "owned gear in the pack comes home (cracked) on death")
+	check(not gs.gear_by_uid(old_w).get("cracked", false), "class starter weapons in the pack never crack on death (DECISIONS #221)")
+	check(gs.gear_by_uid(int(gs.heroes.warrior.weapon)).get("cracked", false), "forged weapons crack on death")
 	var saved := {}
 
 func test_render(gs) -> void:
@@ -4161,8 +4163,53 @@ func test_barrier_spd(gs) -> void:
 	check(int(c.hero.barrier) == 4, "small Barrier decays slowly (5/20 per turn)")
 	gs.heroes.mage.unlocked = true; gs.start_run("mage", {}, "sewers", 2); gs.run.shield_next = 999
 	var cc = Delve.new_combat(gs, Delve.combat_event(gs.run, Delve.rng_for(gs.run, 1), ["rat"]))
-	check(int(cc.hero.barrier) <= int(cc.hero.ht), "Shielding never stacks Barrier above max HP")
+	check(int(cc.hero.barrier) <= int(cc.hero.ht) / 2, "Shielding never stacks Barrier above half max HP")
 	gs.end_run("abandon")
+	# Potion of Shielding scales with HT
+	gs.heroes.warrior.level = 20
+	check(gs.potion_shield("warrior") == maxi(10, int(gs.hero_stats("warrior").ht * 0.3)), "Shielding potion scales like Healing")
+	# Lv1 compare still reports armor Barrier when the hero cap is full (DECISIONS #221)
+	gs.heroes.warrior.level = 1; gs.heroes.warrior.str = 18
+	gs.heroes.warrior.armor = gs.add_gear("cloth_armor", true, 0)
+	var plate_uid: int = gs.add_gear("plate_armor", true, 0)
+	gs.start_run("warrior", {}, "sewers", 3)
+	gs.run.pack_gear.append(gs.gear_by_uid(plate_uid))
+	var cmp: Dictionary = gs.compare_equip(plate_uid)
+	check(cmp.get("barrier_capped", false) and String(gs.compare_text(cmp)).contains("Armor Barrier") and String(gs.compare_text(cmp)).contains("capped"), "Lv1 Plate compare shows armor Barrier under the ht/2 cap")
+	gs.end_run("abandon")
+	# Death clears biomes; starters never crack; Patch up is tier ≤2 only (DECISIONS #221)
+	gs.heroes.warrior.level = 12; gs.heroes.warrior.str = 16; gs.heroes.warrior.cleared = ["sewers", "prison"]
+	gs.heroes.warrior.subclass = "gladiator"; gs.boss_kills["warrior"] = ["sewers"]
+	var cloth: int = gs.add_gear("cloth_armor", true, 2)
+	var plate: int = gs.add_gear("plate_armor", true, 1)
+	var sword: int = gs.add_gear("shortsword", true, 1)
+	var start_w: int = gs.add_gear("worn_shortsword", true, 3)
+	gs.heroes.warrior.armor = cloth; gs.heroes.warrior.weapon = start_w
+	gs.start_run("warrior", {}, "sewers", 4)
+	gs.heroes.warrior.armor = plate; gs.heroes.warrior.weapon = sword
+	gs.run.pack_gear.append(gs.gear_by_uid(cloth)); gs.run.pack_gear[-1].owned = true
+	gs.run.pack_gear.append(gs.gear_by_uid(start_w)); gs.run.pack_gear[-1].owned = true
+	var before := {"hp": int(gs.run.hp)}; var dchg: Dictionary = Delve.defeat_changes(gs, before, {"hp": 1})
+	check("Biomes locked" in dchg.lost and "Strength reset to 10" in dchg.lost, "defeat card lists biomes locked and Str 10")
+	var starter_crack := false
+	for line in dchg.lost:
+		if "cracks" in String(line) and ("Cloth Armor" in String(line) or "Worn Shortsword" in String(line)): starter_crack = true
+	check(not starter_crack, "defeat card never lists starters as cracking")
+	gs.end_run("death")
+	check(gs.heroes.warrior.cleared.is_empty() and int(gs.heroes.warrior.str) == 10 and int(gs.heroes.warrior.level) == 1, "death clears biomes and resets to Lv1 / 10 Str")
+	check(gs.heroes.warrior.subclass == "gladiator" and "sewers" in gs.boss_kills.get("warrior", []), "death keeps subclass and boss kills")
+	check(not gs.gear_by_uid(cloth).get("cracked", false) and not gs.gear_by_uid(start_w).get("cracked", false), "Cloth and starter weapons never crack")
+	check(gs.gear_by_uid(plate).get("cracked", false) and gs.gear_by_uid(sword).get("cracked", false), "Plate and forged weapons still crack")
+	var cs_death = load("res://scripts/ui/camp_screen.gd").new()
+	check(gs.can_start_run("warrior") == "" and cs_death.start_biomes("warrior") == ["sewers"], "after death the delve picker is Sewers only")
+	cs_death.free()
+	# Patch up ignores tier 3+
+	for g in gs.gear: g.cracked = false
+	gs.gear_by_uid(plate).cracked = true; gs.mats.gold = 0; gs.mats.iron_ore = 0
+	check(gs.can_patch_up() == "no low-tier gear to patch", "Patch up ignores cracked Plate")
+	gs.gear_by_uid(sword).cracked = true
+	check(gs.can_patch_up() == "", "Patch up offers free repair for cracked Shortsword (tier 2)")
+	check(gs.patch_up() and not gs.gear_by_uid(sword).get("cracked", false) and gs.gear_by_uid(plate).get("cracked", false), "Patch up fixes the Shortsword and leaves Plate cracked")
 
 
 func test_bat_drain(gs) -> void:

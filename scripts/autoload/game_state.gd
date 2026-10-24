@@ -467,15 +467,33 @@ func compare_equip(uid: int) -> Dictionary:
 		h[slot] = old; gear.erase(g)
 	var out := {"dmg": [a.dmg, b.dmg], "dr": [a.dr, b.dr], "barrier": [a.barrier_max, b.barrier_max], "ht": [a.ht, b.ht]}
 	if a.has("bolt") or b.has("bolt"): out.bolt = [a.get("bolt", {}).get("dmg", 0), b.get("bolt", {}).get("dmg", 0)]
+	var req := Weapons.str_req(d, int(g.get("lvl", 0))) if Weapons.is_weapon(d) else int(d.get("str", 0))
+	if req > 0 and req > int(h.str): out.need_str = req
+	# Armor Barrier can rise on the piece while the hero's ht/2 cap hides it (DECISIONS #221)
+	if d.type == "armor" and g.get("known", true):
+		var cur := gear_by_uid(int(h.armor))
+		var cur_bar := 0 if cur.is_empty() or cur.get("cracked", false) else armor_barrier(DB.item(cur.id), int(cur.get("lvl", 0)))
+		var new_bar := armor_barrier(d, int(g.get("lvl", 0)))
+		out.armor_barrier = [cur_bar, new_bar]
+		out.barrier_cap = int(a.ht) / 2
+		var hero_d := int(b.barrier_max) - int(a.barrier_max)
+		var armor_d := new_bar - cur_bar
+		if armor_d != 0 and hero_d < armor_d:
+			out.barrier_capped = true
 	return out
 
 static func compare_text(cmp: Dictionary) -> String:
 	var parts := []
 	for k in ["dmg", "dr", "barrier", "ht", "bolt"]:
 		if not cmp.has(k): continue
+		if k == "barrier" and cmp.get("barrier_capped", false) and cmp.has("armor_barrier"):
+			var ab: Array = cmp.armor_barrier
+			parts.append("Armor Barrier %d->%d (capped at half max HP (%d))" % [ab[0], ab[1], int(cmp.barrier_cap)])
+			continue
 		var v: Array = cmp[k]
 		var tag := "" if v[0] == v[1] else (" (+%d)" % (v[1] - v[0]) if v[1] > v[0] else " (%d)" % (v[1] - v[0]))
 		parts.append("%s %d->%d%s" % [{"dmg": "Dmg", "dr": "DR", "barrier": "Barrier", "ht": "HP", "bolt": "Bolt"}[k], v[0], v[1], tag])
+	if cmp.has("need_str"): parts.append("(need Str %d)" % int(cmp.need_str))
 	return "  ".join(parts)
 
 ## Use a belt supply outside combat.
@@ -542,7 +560,9 @@ func delve_use_pack(k: String) -> bool:
 			var ht := int(hero_stats(c).ht)
 			run.hp = maxi(1, int(run.hp) - ht / 4); say("Choking gas! -%d HP." % (ht / 4))
 		"potion_shielding":
-			run.shield_next = int(run.get("shield_next", 0)) + 10; say("A shimmering shield: +10 Barrier in your next fight.")
+			var sh := potion_shield(c)
+			run.shield_next = int(run.get("shield_next", 0)) + sh
+			say("A shimmering shield: +%d Barrier in your next fight." % sh)
 		"scroll_identify":
 			var n := 0
 			for g in run.pack_gear:
@@ -626,6 +646,19 @@ func potion_heal(c: String) -> int:
 	var p: Dictionary = DB.materials.potion_healing
 	var hs := hero_stats(c)
 	return maxi(int(p.heal), int(float(hs.ht) * (float(p.get("heal_pct", 0.0)) + float(hs.get("potion_add", 0.0)))))
+
+## Potion of Shielding: same shape as healing; Delve.new_combat still clamps to ht/2 (DECISIONS #221).
+func potion_shield(c: String) -> int:
+	var p: Dictionary = DB.materials.potion_shielding
+	var hs := hero_stats(c)
+	return maxi(int(p.get("shield", 10)), int(float(hs.ht) * float(p.get("shield_pct", 0.3))))
+
+## Class starters and heirlooms never crack on death (DECISIONS #221).
+func _never_cracks(id: String) -> bool:
+	if DB.item(id).get("heirloom", false): return true
+	for hc in DB.heroes.values():
+		if String(hc.get("start_weapon", "")) == id or String(hc.get("start_armor", "")) == id: return true
+	return false
 
 func power_rating(c: String) -> int:
 	var s := hero_stats(c)
@@ -1086,22 +1119,19 @@ func upgrade_item_n(uid: int, n: int) -> bool:
 	for i in n: upgrade_item(uid)
 	return true
 
-## "Patch up" (DECISIONS #104): when no cracked item's repair is affordable, the Blacksmith repairs the cheapest
-## cracked weapon/armor for free, so a total wipe can never lock the player out.
+## "Patch up" (DECISIONS #104, #221): free repair of the cheapest cracked tier-1/2 weapon or armor only.
 func can_patch_up() -> String:
-	var cr := cracked_gear().filter(func(g): return DB.item(g.id).type in ["weapon", "armor"])
-	if cr.is_empty(): return "nothing to repair"
+	var cr := cracked_gear().filter(func(g): return DB.item(g.id).type in ["weapon", "armor"] and int(DB.item(g.id).get("tier", 1)) <= 2)
+	if cr.is_empty(): return "no low-tier gear to patch"
 	for g in cr:
 		if can_afford(repair_cost(g.uid)): return "you can afford a repair"
 	return ""
 
 func patch_up() -> bool:
 	if can_patch_up() != "": return false
-	var cr := cracked_gear().filter(func(g): return DB.item(g.id).type in ["weapon", "armor"])
+	var cr := cracked_gear().filter(func(g): return DB.item(g.id).type in ["weapon", "armor"] and int(DB.item(g.id).get("tier", 1)) <= 2)
 	cr.sort_custom(func(a, b):
-		var wa := 0 if DB.item(a.id).type in ["weapon", "armor"] else 1; var wb := 0 if DB.item(b.id).type in ["weapon", "armor"] else 1
-		if wa != wb: return wa < wb
-		return int(repair_cost(a.uid).iron_ore) < int(repair_cost(b.uid).iron_ore))
+		return int(repair_cost(a.uid).get("iron_ore", 0)) < int(repair_cost(b.uid).get("iron_ore", 0)))
 	var g: Dictionary = cr[0]; g.cracked = false
 	say("The Blacksmith patches up your %s for free." % gear_name(g), "positive"); touch(); return true
 
@@ -1782,18 +1812,18 @@ func end_run(result: String) -> void:
 					add_mat("potion_healing", 2 - mat("potion_healing")); log_line("The Camp healer sends you back to Goo with 2 Potions of Healing.", "positive")
 			for slot in ["weapon", "armor", "ring", "artifact"]:
 				var g := gear_by_uid(int(h.get(slot, 0)))
-				# heirlooms (Mage's Staff...) are permanent and never crack
-				if not g.is_empty() and not DB.item(g.id).get("heirloom", false): g.cracked = true
+				# heirlooms and class starters (Cloth, Worn Shortsword, Dagger, Gloves, Staff) never crack (DECISIONS #221)
+				if not g.is_empty() and not _never_cracks(String(g.id)): g.cracked = true
 			if String(h.get("wand", "")) != "" and int(h.get("wand_lvl", 0)) > 0: h.wand_cracked = true   # DECISIONS #158
 			for g in run.pack_gear:
 				if g.get("owned", false):
 					g.erase("owned")
-					if not DB.item(g.id).get("heirloom", false) and (DB.item(g.id).type != "wand" or int(g.get("lvl", 0)) > 0): g.cracked = true
+					if not _never_cracks(String(g.id)) and (DB.item(g.id).type != "wand" or int(g.get("lvl", 0)) > 0): g.cracked = true
 					gear.append(g)
 			h.best_level = maxi(int(h.get("best_level", 1)), int(h.level))
-			h.level = 1; h.xp = 0; h.str = 10; h.talents = []; h.str_found = []
+			h.level = 1; h.xp = 0; h.str = 10; h.talents = []; h.str_found = []; h.cleared = []
 			_owe_pack_sou()
-			say("%s fell. Pack lost, gear cracked, back to Lv1 / 10 Str." % DB.heroes[c].name)
+			say("%s fell. Pack lost, gear cracked, back to Lv1 / 10 Str. Biomes locked until you clear them again." % DB.heroes[c].name)
 			if mat("gold") < SAFETY_GOLD:
 				log_line("The Camp chips in %d gold so you can restock." % (SAFETY_GOLD - mat("gold")), "positive")
 				add_mat("gold", SAFETY_GOLD - mat("gold"))

@@ -794,3 +794,12 @@ T2 weapons (especially Spear and Sickle) matched or beat T4/T5 at equal upgrades
 - **Surprise:** multiply by `surprise_mult`, then subtract DR (min 1). Stealth weapons and Assassin pierce 50% DR. No surprise knockback — Shove/Slam/Blast Wave/Terror own displacement. Assassin keeps `2.5x` and half-pierce on any melee weapon.
 - **Combat.hero** copies `sub` and `level` (needed for Assassin pierce and later Warden). Worn Dart damage is `3 + floor/2`.
 Where it lives: `Weapons.min_dmg`, `data/items.json`, `GameState.hero_stats`, `Combat.hit_mob` / `_trigger`, `CombatBot._hits_to_kill`, `Delve.new_combat`.
+
+## 221. Death locks biomes; starters never crack; Barrier compare tells the truth
+Under-strength gear is crippling (#218/#220). Letting a dead hero keep cleared biomes and walk into Caves/Halls at 10 Str in repaired Plate was a trap. Banking Strength on death would have papered over that; clearing `cleared` closes the door instead.
+- **Death:** still Lv1 / 10 Str / empty talents and `str_found`. Also `cleared = []`. `boss_kills`, mask, and subclass stay. Defeat card: "Strength reset to 10" and "Biomes locked".
+- **Never crack:** `cloth_armor` and every class `start_weapon` (`worn_shortsword`, `dagger`, `studded_gloves`, `mages_staff`), including upgrades — same rule as heirlooms. Other equipped/owned gear still cracks.
+- **Barrier cap stays** at `ht / 2`. Compare and Paperdoll show the armor's own Barrier and note when the cap eats the increase ("capped at half max HP").
+- **Potion of Shielding** scales like Healing (`max(10, 30% HT)`), then `Delve.new_combat` clamps to `ht / 2`.
+- **Patch up** only repairs cracked tier ≤ 2 weapons/armor.
+Where it lives: `GameState.end_run` / `_never_cracks` / `compare_equip` / `potion_shield` / `can_patch_up`, `Delve.defeat_changes` / `new_combat`, `Paperdoll._delta_text`, `CampScreen.gear_lines`, `data/items.json` `potion_shielding`.

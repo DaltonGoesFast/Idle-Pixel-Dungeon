@@ -792,6 +792,8 @@ func gear_lines(g: Dictionary) -> Array:
 			if d.has("barrier"): bits.append("Barrier %d" % GameState.armor_barrier(d, int(g.lvl)))
 			if d.has("str"): bits.append("Str %d" % int(d.str))
 		if not bits.is_empty(): out.append("  ".join(bits))
+		if d.type == "armor" and d.has("str") and int(d.str) > int(GameState.heroes.get(chosen_hero, {}).get("str", 10)):
+			out.append("Because of your inadequate strength this armor's protection is reduced and its Barrier is lost.")
 		if d.has("desc"): out.append(d.desc)
 		elif bits.is_empty() and not Weapons.is_weapon(d): out.append(Codex.item_line(g.id))
 		out.append_array(Codex.artifact_lines(g, GameState.enchant_cap(), GameState.ARTIFACT_XP_PER_LVL))   # DECISIONS #164

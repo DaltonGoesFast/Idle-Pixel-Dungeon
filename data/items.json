@@ -676,7 +676,9 @@
    "icon": "POTION_HOLDER",
    "unknown": true,
    "kind": "potion",
-   "desc": "Your next fight starts with +10 Barrier.",
+   "shield": 10,
+   "shield_pct": 0.3,
+   "desc": "Your next fight starts with +max(10, 30% of max HP) Barrier, up to half your max HP.",
    "badge": "POTION_SHIELDING"
   },
   "scroll_identify": {

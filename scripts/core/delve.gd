@@ -209,8 +209,8 @@ static func new_combat(gs, ev: Dictionary) -> Combat:
 	c.floor = int(run.get("floor", 1))
 	run.fighting_goo = "goo" in ev.mobs
 	if run.fighting_goo: _weaken_goo(gs, c)
-	if int(run.get("shield_next", 0)) > 0:   # Potion of Shielding (SPD-like cap: Barrier <= max HP)
-		c.hero.barrier = mini(int(c.hero.ht), int(c.hero.barrier) + int(run.shield_next)); run.shield_next = 0
+	if int(run.get("shield_next", 0)) > 0:   # Potion of Shielding: stacks then clamps to ht/2 like gear Barrier (DECISIONS #221)
+		c.hero.barrier = mini(int(c.hero.ht) / 2, int(c.hero.barrier) + int(run.shield_next)); run.shield_next = 0
 		c._log("Your shield shimmers: +Barrier.")
 	if not run.get("next_fx", {}).is_empty():
 		c.apply_fx(run.next_fx); run.next_fx = {}
@@ -444,15 +444,18 @@ static func defeat_changes(gs, before: Dictionary, res: Dictionary) -> Dictionar
 		var n := int(run.pack[k])
 		if n > 0: lost.append("-%d %s" % [n, DB.display_name(String(k))])
 	for g in run.pack_gear:
-		if g.get("owned", false): lost.append("%s cracks" % gs.gear_name(g))
+		if g.get("owned", false):
+			if gs._never_cracks(String(g.id)): continue   # starters / heirlooms never crack (DECISIONS #221)
+			lost.append("%s cracks" % gs.gear_name(g))
 		else: lost.append(gs.gear_name(g))
 	var h: Dictionary = gs.heroes[run.hero]
 	for slot in ["weapon", "armor", "ring", "artifact"]:
 		var g: Dictionary = gs.gear_by_uid(int(h.get(slot, 0)))
-		if g.is_empty() or DB.item(g.id).get("heirloom", false): continue
+		if g.is_empty() or gs._never_cracks(String(g.id)): continue
 		lost.append("%s cracks" % gs.gear_name(g))
 	if int(h.level) > 1: lost.append("Level reset to 1")
 	if int(h.str) != 10: lost.append("Strength reset to 10")
+	if not h.get("cleared", []).is_empty(): lost.append("Biomes locked")
 	var pots := int(res.get("potions_used", 0))
 	if pots > 0: lost.append("-%d %s" % [pots, DB.display_name("potion_healing")])
 	var note := ""

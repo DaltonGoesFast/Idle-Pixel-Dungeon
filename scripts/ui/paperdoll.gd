@@ -135,11 +135,18 @@ static func _staff_charges(s: Dictionary) -> int:
 	var bolt: Dictionary = s.get("bolt", {})
 	return 0 if bolt.is_empty() or bolt.get("infinite", false) else int(bolt.get("charges", 0))
 
-static func _delta_text(a: Dictionary, b: Dictionary) -> Array:   # [text, better?]
+static func _delta_text(a: Dictionary, b: Dictionary, cand: Dictionary = {}, hero_str := -1) -> Array:   # [text, better?]
 	var parts := []; var score := 0
 	for k in [["ht", "HP"], ["dmg", "Dmg"], ["dr", "DR"], ["barrier_max", "Barrier"]]:
 		var d := int(b.get(k[0], 0)) - int(a.get(k[0], 0))
 		if d != 0: parts.append("%s %s%d" % [k[1], "+" if d > 0 else "", d]); score += d
+	# Armor Barrier rise hidden by ht/2: still show the piece's Barrier (DECISIONS #221)
+	if not cand.is_empty() and DB.item(cand.id).type == "armor" and cand.get("known", true):
+		var cap := int(a.ht) / 2
+		var new_bar := GameState.armor_barrier(DB.item(cand.id), int(cand.get("lvl", 0)))
+		var hero_d := int(b.barrier_max) - int(a.barrier_max)
+		if new_bar > 0 and hero_d < new_bar:
+			parts.append("Armor Barrier %d (capped at half max HP (%d))" % [new_bar, cap])
 	# Ring of Energy: count staff charges actually gained, not the raw bonus (no staff, no charges: DECISIONS #126)
 	var dc := _staff_charges(b) - _staff_charges(a)
 	if dc != 0: parts.append("Charges %s%d" % ["+" if dc > 0 else "", dc]); score += dc
@@ -149,6 +156,10 @@ static func _delta_text(a: Dictionary, b: Dictionary) -> Array:   # [text, bette
 	if ds != 0: parts.append("Search %s%d" % ["+" if ds > 0 else "", ds]); score += ds
 	var dh := int(round((1.0 - float(b.get("hunger_mult", 1.0))) * 100)) - int(round((1.0 - float(a.get("hunger_mult", 1.0))) * 100))
 	if dh != 0: parts.append("Satiety %s%d%%" % ["+" if dh > 0 else "", dh]); score += dh
+	if not cand.is_empty() and hero_str >= 0:
+		var d := DB.item(cand.id)
+		var req := Weapons.str_req(d, int(cand.get("lvl", 0))) if Weapons.is_weapon(d) else int(d.get("str", 0))
+		if req > hero_str: parts.append("(need Str %d)" % req)
 	return ["no stat change" if parts.is_empty() else "  ".join(parts), score]
 
 static func _detail(c: String, s: String, mode: String, refresh: Callable, on_equip_in_combat: Callable) -> Control:
@@ -185,7 +196,7 @@ static func _detail(c: String, s: String, mode: String, refresh: Callable, on_eq
 			if DB.item(g.id).type != want or who == c: continue
 			var why := GameState.can_equip(c, g.uid)
 			if why.begins_with("heirloom"): continue
-			var dt: Array = _delta_text(base, _stats_with(c, s, g.uid)) if why == "" else [why, 0]
+			var dt: Array = _delta_text(base, _stats_with(c, s, g.uid), g, int(GameState.heroes[c].str)) if why == "" else [why, 0]
 			var cd := [g, dt, why, func(): GameState.equip(c, g.uid), who]
 			if who == "": cands.append(cd)
 			else: worn_list.append(cd)   # gear other heroes wear comes after the free pieces
