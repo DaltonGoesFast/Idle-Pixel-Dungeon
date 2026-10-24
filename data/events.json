@@ -327,7 +327,7 @@
      "text": "Forage",
      "reward": {
       "seeds": 2,
-      "dew": 3
+      "dew": 2
      }
     },
     {
@@ -344,7 +344,7 @@
      "requires_class": "huntress",
      "reward": {
       "seeds": 4,
-      "dew": 5
+      "dew": 3
      }
     },
     {

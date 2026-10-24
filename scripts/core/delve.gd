@@ -62,14 +62,17 @@ static func advance(gs, pct: float) -> Dictionary:
 		run.supplies.torch -= 1; run.torch = minf(100.0, run.torch + TORCH_RESTORE); gs.say("Lit a fresh torch.")
 	if run.satiety < 20.0 and int(run.supplies.get("ration", 0)) > 0:
 		run.supplies.ration -= 1; run.satiety = minf(100.0, run.satiety + RATION_RESTORE); gs.say("Ate a ration."); gs.add_stat("rations_eaten", 1); gs._mystical_meal()
-	# passive gathering: biome-scaled gold every 4%, +1 dew every 12% (DECISIONS #222)
+	# passive gathering: biome-scaled gold every 8%, dew on a biome interval (DECISIONS #230)
 	# counted on the pinned haul line; individual drips are not logged
 	var step := int(run.progress / 4.0)
 	var gold_n := biome_gold_per_tick(String(run.biome))
+	var dew_every := biome_dew_interval(String(run.biome))
 	while run.gather < step:
 		run.gather += 1
-		gs.pack_add("gold", gold_n)
-		if run.gather % 3 == 0: gs.pack_add("dew", 1)
+		if run.gather % 2 == 0:
+			gs.pack_add("gold", gold_n)
+		if dew_every > 0 and run.gather % dew_every == 0:
+			gs.pack_add("dew", 1)
 	# torch / food warnings, once per threshold per floor (DECISIONS #101)
 	var warns: Array = run.get("warned", [])
 	var wk := func(k: String, cond: bool, text: String, kind: String):
@@ -262,7 +265,7 @@ static func special_fight_event(run: Dictionary, o: Dictionary) -> Dictionary:
 		mobs = sets[r.randi() % sets.size()].mobs
 	return {"kind": "combat", "room": o.room, "mobs": fill_mobs(mobs, o.room)}
 
-## Biome gold drip per 4% of a floor (Sewers 1 … Halls 5).
+## Biome gold drip per gold tick (every 8% of a floor; Sewers 1 … Halls 5).
 static func biome_gold_per_tick(biome: String) -> int:
 	match biome:
 		"prison": return 2
@@ -270,6 +273,15 @@ static func biome_gold_per_tick(biome: String) -> int:
 		"city": return 4
 		"halls": return 5
 		_: return 1
+
+## Gather ticks (4% each) between dew drops. Sewers ~1/floor (~5/delve); denser later.
+static func biome_dew_interval(biome: String) -> int:
+	match biome:
+		"prison": return 16
+		"caves": return 12
+		"city": return 10
+		"halls": return 8
+		_: return 25
 
 ## Flat `hp` or percent `hp_pct` (floor max(5, pct * HT)). Plan 12 C.
 static func event_hp_cost(gs, cost: Dictionary) -> int:
