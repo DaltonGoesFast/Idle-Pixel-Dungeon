@@ -55,7 +55,11 @@ object PatrolViews {
         } else {
             RemoteViews(context.packageName, R.layout.patrol_widget_compact)
         }
-        views.setOnClickPendingIntent(R.id.root, PatrolOpen.pending(context))
+        // @android:id/background is what Android 12+ clips to the system corner radius.
+        // clipToOutline is set from values-v31, at inflate time. RemoteViews cannot call it.
+        val open = PatrolOpen.pending(context)
+        views.setOnClickPendingIntent(android.R.id.background, open)
+        views.setOnClickPendingIntent(R.id.root, open)
         val rows = PatrolJson.rows(PatrolStore.readSnapshot(context))
         if (height >= LARGE_MIN_DP) bindLarge(views, rows) else bindCompact(views, rows)
         return views

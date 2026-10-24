@@ -5774,6 +5774,15 @@ func test_patrol_widget(gs) -> void:
 	check(kt.contains("Patrol back!") and kt.contains("LARGE_MIN_DP"), "widget has a compact layout and a taller one")
 	var info := FileAccess.get_file_as_string("res://addons/patrol_widget/android/src/main/res/xml/patrol_widget_info.xml")
 	check(info.contains("110dp") and info.contains("patrol_widget_compact") and info.contains("patrol_widget_large"), "widget provider targets a short cover-screen size and can grow")
+	var compact := FileAccess.get_file_as_string("res://addons/patrol_widget/android/src/main/res/layout/patrol_widget_compact.xml")
+	var large := FileAccess.get_file_as_string("res://addons/patrol_widget/android/src/main/res/layout/patrol_widget_large.xml")
+	check(compact.contains("@android:id/background") and large.contains("@android:id/background"), "widget root is the system background view the launcher rounds")
+	check(compact.contains("paddingLeft=\"14dp\"") and large.contains("padding=\"16dp\""), "widget text stays padded clear of the rounded corners")
+	var clip := FileAccess.get_file_as_string("res://addons/patrol_widget/android/src/main/res/values-v31/styles.xml")
+	check(clip.contains("android:clipToOutline"), "Android 12 clips the widget to its outline")
+	var bg31 := FileAccess.get_file_as_string("res://addons/patrol_widget/android/src/main/res/drawable-v31/patrol_widget_bg.xml")
+	var bg := FileAccess.get_file_as_string("res://addons/patrol_widget/android/src/main/res/drawable/patrol_widget_bg.xml")
+	check(bg31.contains("system_app_widget_background_radius") and bg31.contains("android:left=\"3dp\"") and bg.contains("android:left=\"3dp\"") and bg.contains("8dp"), "gold stroke is inset, and Android 12 uses the system corner radius")
 	gs.settings.dev_tools = had_dev
 	gs.settings.patrol_notify = false
 	gs.new_game()

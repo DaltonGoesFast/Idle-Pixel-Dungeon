@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- The patrol widget's gold border follows the phone's widget corner on Android 12 and up, and sits inset from that edge so the launcher's rounded mask does not cut the corners off (DECISIONS #229).
 - Android home screen can show a patrol widget (a short countdown on the Fold cover, a list when it is taller) and, if you turn on Patrol alerts in Settings, a notification when a patrol is ready to recall. Alerts are off until you enable them. PC and the browser are unchanged, and the game still runs if the Android plugin is not in the build (DECISIONS #229, +tests).
 - The post-fight "Wake at Camp" button (and other UIKit buttons) no longer stretch into a tall empty slab when a wrapping label sits beside them. Defeat keeps its message and the button in a normal-height column (DECISIONS #228, +test).
 - Camp facilities go to Lv5 (Scroll budget still 22). Blacksmith L1 is repair-only; craft tier matches level (T5 at L5); gear upgrades cap at +1/+2/+3 from L2/L3/L4 (no masterwork +4..+6). Guild pack 3/4/5/7/10 and patrols 2/4/8/12/16h; Alchemy belt 2/2/3/4/5; Enchanter ID/slots/caps extend through L5 (DECISIONS #227).
