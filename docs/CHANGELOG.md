@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Camp overhaul: drifting clouds and twinkling stars (firelight still clipped off the sky), all unlocked heroes seated around a roomier fire (tap to select), bubbling alchemy pot with scrolling water, Expedition biome pick via levelicons, and facility "!" when a Scroll can unlock a slot (DECISIONS #225).
 
 ## 0.49.1
 - Camp horizon grass no longer covers the Forge and Enchanter on wide fullscreen layouts. Side strips stay when the scene is wider than tall, and the NPCs, the hero, and the barrels paint above the grass (+tests).

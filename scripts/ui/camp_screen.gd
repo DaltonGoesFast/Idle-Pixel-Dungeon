@@ -1,7 +1,7 @@
-## CampScreen: the persistent Surface Camp hub (DECISIONS #82, #124).
-## Layout: a one-line resource strip, then a drawn camp scene (CampScene) where you tap the NPCs to open the facilities.
-## The scene takes the free space; a dock under it (beside it when wide) holds hero portraits, the destination, then Delve.
-## On the wide dock the patrol list scrolls in whatever room is left under Delve, so the start button stays with the biome it uses.
+## CampScreen: the persistent Surface Camp hub (DECISIONS #82, #124, #225).
+## Layout: a one-line resource strip, then a drawn camp scene (CampScene) where you tap the NPCs to open the facilities
+## and tap seated heroes to select them. The dock holds hero portraits, a Delve action with the current biome icon,
+## and (when wide) patrols. Biome pick lives in the Expedition window as levelicons.
 ## Facilities, Stash, Heroes, Journal and Settings open as SPD windows over the hub. Item lists are
 ## SPD-style item-slot grids; tapping a slot opens an info window with its actions.
 ## Content is rebuilt from GameState on every change.
@@ -100,7 +100,9 @@ func _build_shell() -> void:
 	frame.size_flags_stretch_ratio = 1.0 if portrait else 1.35
 	root_box.add_child(frame)
 	scene = CampScene.new(); scene.custom_minimum_size = Vector2(0, UIKit.font_size * 10)
-	scene.picked.connect(open_page); frame.add_child(scene)
+	scene.picked.connect(open_page)
+	scene.hero_picked.connect(func(c: String): chosen_hero = c; rebuild())
+	frame.add_child(scene)
 	side = UIKit.vbox(); side.size_flags_horizontal = SIZE_EXPAND_FILL
 	side.size_flags_vertical = SIZE_SHRINK_END if portrait else SIZE_EXPAND_FILL
 	root_box.add_child(side)
@@ -139,25 +141,25 @@ func _build_side() -> void:
 	side.add_child(UIKit.label(hero_line(chosen_hero), 0.85, Color("ffd27a")))
 	if not h.patrol.is_empty() and portrait:
 		side.add_child(UIKit.label("On patrol - recall at the Guild.", 0.8, Color("c9a96e")))
-	# biome picker (start at any biome after the one this hero has cleared)
-	side.add_child(UIKit.label("Destination", 0.8, Color("bdb3a0")))
-	var bf := HFlowContainer.new(); side.add_child(bf)
-	var ok := start_biomes(chosen_hero)
-	for b in DB.biomes:
-		var d: Dictionary = DB.biomes[b]
-		var bb := UIKit.button(d.name, func(): chosen_biome = b; rebuild(), b in ok,
-			"Floors %d-%d" % [d.floors[0], d.floors[1]] if b in ok else "Clear the previous biome with this hero first")
-		if b != chosen_biome: UIKit.secondary(bb)
-		bb.size_flags_horizontal = 0; bb.custom_minimum_size.x = UIKit.font_size * 4.5
-		bf.add_child(bb)
-		if not (b in ok): break   # show only the next locked one
-	# Delve sits with the destination it uses. A disabled reason (hero out on patrol) stays on screen
-	# instead of falling off the bottom of a short dock.
-	var go := UIKit.action("Delve: %s" % DB.biomes[chosen_biome].name, func(): open_page("Delve"), GameState.can_start_run(chosen_hero))
-	go.name = "DelveGo"
-	var delve_btn := go.get_child(0) as Button
-	if delve_btn: delve_btn.custom_minimum_size.y = UIKit.btn_height() * 1.35
-	side.add_child(go)
+	# Delve opens Expedition (biome pick + supplies). A dock chip shows the current destination icon.
+	# Named DelveGo so dock layout tests still find the row above PatrolScroll.
+	var delve_row := VBoxContainer.new()
+	delve_row.name = "DelveGo"
+	delve_row.size_flags_horizontal = SIZE_EXPAND_FILL
+	side.add_child(delve_row)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", int(UIKit.font_size * 0.35))
+	delve_row.add_child(row)
+	var dest := _biome_chip(chosen_biome, true)
+	dest.size_flags_horizontal = 0
+	row.add_child(dest)
+	var go_btn := UIKit.button("Delve", func(): open_page("Delve"), GameState.can_start_run(chosen_hero) == "")
+	go_btn.custom_minimum_size.y = UIKit.btn_height() * 1.35
+	go_btn.size_flags_horizontal = SIZE_EXPAND_FILL
+	row.add_child(go_btn)
+	var why := GameState.can_start_run(chosen_hero)
+	if why != "":
+		delve_row.add_child(UIKit.label(why, 0.75, Color("c9a96e")))
 	if not portrait:
 		# wide dock: patrols fill the rest and scroll. The cover stays lean; Guild still has the full page.
 		side.add_child(UIKit.label("Patrols (max %dh)" % int(GameState.patrol_max_hours()), 0.8, Color("bdb3a0")))
@@ -208,6 +210,63 @@ func start_biomes(c: String) -> Array:
 	for b in DB.biomes:
 		if b in GameState.heroes[c].get("cleared", []) and DB.biomes[b].has("next"): out.append(DB.biomes[b].next)
 	return out
+
+## Compact destination preview: levelicon + short name (dock chip, or label under a pick button).
+func _biome_chip(biome: String, with_name := true) -> Control:
+	var d: Dictionary = DB.biomes[biome]
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", int(UIKit.font_size * 0.25))
+	row.tooltip_text = "%s — floors %d-%d" % [d.name, d.floors[0], d.floors[1]]
+	var ic := UIKit.level_pixel(biome)
+	ic.size_flags_vertical = SIZE_SHRINK_CENTER
+	row.add_child(ic)
+	if with_name:
+		var nm := UIKit.chip_label(d.name, 0.85, Color("ffd27a"))
+		nm.size_flags_vertical = SIZE_SHRINK_CENTER
+		row.add_child(nm)
+	return row
+
+## Expedition biome picker: levelicon buttons through the first locked biome (same unlock rule as the old dock chips).
+func _biome_pick_row(parent: VBoxContainer) -> void:
+	parent.add_child(UIKit.label("Destination", 0.85, Color("bdb3a0")))
+	var row := HFlowContainer.new()
+	row.add_theme_constant_override("h_separation", int(UIKit.font_size * 0.35))
+	row.add_theme_constant_override("v_separation", int(UIKit.font_size * 0.25))
+	parent.add_child(row)
+	var ok := start_biomes(chosen_hero)
+	for b in DB.biomes:
+		var d: Dictionary = DB.biomes[b]
+		var unlocked := b in ok
+		var tip := "Floors %d-%d, boss: %s" % [d.floors[0], d.floors[1], DB.mobs.get(d.get("boss", ""), {}).get("name", "?")] if unlocked else "Clear the previous biome with this hero first"
+		var bb := Button.new()
+		bb.focus_mode = FOCUS_NONE
+		bb.tooltip_text = tip
+		bb.disabled = not unlocked
+		var sz := UIKit.font_size * 3.2
+		bb.custom_minimum_size = Vector2(sz, sz + UIKit.font_size * 1.1)
+		var sel := b == chosen_biome and unlocked
+		for st in ["normal", "hover", "pressed", "disabled"]:
+			bb.add_theme_stylebox_override(st, UIKit.chrome("red_button" if sel else "grey_button", Color(1, 1, 1) if st != "disabled" else Color(0.5, 0.5, 0.5), UIKit.font_size * 0.25))
+		var biome_id := b
+		bb.pressed.connect(func():
+			Sfx.play("click")
+			chosen_biome = biome_id
+			rebuild())
+		var ic := UIKit.level_pixel(b)
+		ic.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
+		ic.offset_bottom = -int(UIKit.font_size * 1.05)
+		ic.mouse_filter = MOUSE_FILTER_IGNORE
+		if not unlocked: ic.modulate = Color(1, 1, 1, 0.35)
+		bb.add_child(ic)
+		var lab := UIKit.label(d.name, 0.7, Color("ffffaa") if sel else Color("bdb3a0"))
+		lab.set_anchors_and_offsets_preset(PRESET_BOTTOM_WIDE)
+		lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		lab.offset_top = -UIKit.font_size * 1.0
+		lab.mouse_filter = MOUSE_FILTER_IGNORE
+		lab.autowrap_mode = TextServer.AUTOWRAP_OFF
+		bb.add_child(lab)
+		row.add_child(bb)
+		if not unlocked: break
 
 # ------------------------------------------------------------ windows
 ## Open a page (facility, Stash, Heroes, Journal, Settings or Delve) as an SPD window over the hub.
@@ -452,6 +511,7 @@ func _page_delve() -> void:
 	var v := _p("Delve")
 	if GameState.owed_sou > 0:
 		v.add_child(UIKit.label("Owed: %d Scroll%s of Upgrade - beat any boss to recover." % [GameState.owed_sou, "" if GameState.owed_sou == 1 else "s"], 0.85, Color("ffff66")))
+	_biome_pick_row(v)
 	var b: Dictionary = DB.biomes[chosen_biome]
 	var hd := UIKit.hbox(v)
 	var tr := UIKit.pixel(_hero_tex(chosen_hero), maxi(2, int(UIKit.font_size / 6.0))); tr.size_flags_vertical = SIZE_SHRINK_CENTER

@@ -49,7 +49,7 @@ Priority: **P1** fix before a public build, **P2** next polish pass, **P3** nice
 | 34 | Unlock row: `cost_row` expands (DECISIONS #168), so "have N" is pushed to the far right beside Unlock, away from the Scroll cost it qualifies. Keep the chip next to the cost | report 2a078e4 | P3 | S |
 | 35 | "Scrolls only unlock a slot, they don't raise the level" now lives only in the Unlock tooltip, and touch screens never show tooltips. The Filled/Open/Locked words carry it for now. A first-Scroll tip could say it once | report 2a078e4 | P3 | S |
 | 36 | Scroll of Upgrade has no description in the stash item window (`_materials.scroll_upgrade` has no `desc`). It should say that it unlocks one facility slot | report 2a078e4 | P2 | S |
-| 37 | The camp scene's "!" badge fires only when a facility can Upgrade, never when you hold enough Scrolls to Unlock a slot, so nothing points at a first Goo Scroll | report 2a078e4 | P2 | S |
+| 37 | ~~The camp scene's "!" badge fires only when a facility can Upgrade, never when you hold enough Scrolls to Unlock a slot~~ **Done** (#225): also when a Scroll unlock is affordable | report 2a078e4 | P2 | S |
 
 ## Rooms and maps
 | # | Item | Source | Pri | Effort |

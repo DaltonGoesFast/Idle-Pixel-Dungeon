@@ -253,6 +253,28 @@ static func pixel(tex: Texture2D, k: int, box := Vector2.ZERO) -> PixelIcon:
 	t.custom_minimum_size = box if box != Vector2.ZERO else tex.get_size() * maxi(1, k)
 	return t
 
+## Biome destination icon from assets/ui/levelicons.png (16x16 strip: sewers → prison → caves → city → halls).
+static var _level_icons := {}
+static var _level_atlas: Texture2D
+const LEVEL_ICON_ORDER := ["sewers", "prison", "caves", "city", "halls"]
+static func level_icon(biome: String, scale := -1) -> Texture2D:
+	var i := LEVEL_ICON_ORDER.find(biome)
+	if i < 0: i = 0
+	var k := maxi(1, scale if scale > 0 else px_scale)
+	var key := "%s|%d" % [biome, k]
+	if not _level_icons.has(key):
+		if _level_atlas == null: _level_atlas = load("res://assets/ui/levelicons.png")
+		var at := AtlasTexture.new(); at.atlas = _level_atlas; at.region = Rect2(i * 16, 0, 16, 16)
+		var img := at.get_image()
+		img.resize(16 * k, 16 * k, Image.INTERPOLATE_NEAREST)
+		_level_icons[key] = ImageTexture.create_from_image(img)
+	return _level_icons[key]
+
+## PixelIcon for a biome's levelicon (nearest-upscaled).
+static func level_pixel(biome: String, k := -1) -> PixelIcon:
+	var sk := maxi(1, k if k > 0 else maxi(2, int(font_size / 10.0)))
+	return pixel(level_icon(biome, sk), 1)
+
 ## Row: [icon] text
 static func icon_row(id: String, text: String, scale := 1.0) -> HBoxContainer:
 	var h := HBoxContainer.new()
