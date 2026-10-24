@@ -241,8 +241,8 @@ var _haul_label: Label
 var _haul_text := ""
 const LOG_LINES := 8
 ## SPD-coloured log under the bar; rebuilt only when a line is added.
-## The haul line stays pinned above it and updates in place as gold and materials come in.
-func _mount_log(parent: Control, limit: int = LOG_LINES, show_haul := true) -> void:
+## Haul totals live in the Found (lost on death) chip row, not a duplicate log line.
+func _mount_log(parent: Control, limit: int = LOG_LINES, show_haul := false) -> void:
 	if show_haul:
 		_haul_label = UIKit.label("", 0.8, GameState.LOG_COLORS.positive)
 		_haul_text = "\t"
@@ -518,7 +518,7 @@ func _show_card() -> void:
 			log_host.add_child(UIKit.button("Return to encounter", _restore_encounter))
 		var hint := "The bar holds until you deal with the encounter." if _is_encounter(_under) else ("Exploring... encounters every ~20-25%." if running else "Paused.")
 		log_host.add_child(UIKit.label(hint, 0.9, Color("9a8f7c")))
-		_mount_log(log_host, LOG_LINES, true)
+		_mount_log(log_host, LOG_LINES, false)
 		return
 	if main and pending.kind in ["door", "special", "floor_done", "campfire"]: main.tip(pending.kind)
 	match pending.kind:
