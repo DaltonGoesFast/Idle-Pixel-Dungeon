@@ -24,9 +24,17 @@ const TIP_LAYER := 100
 var tip_layer: CanvasLayer
 var _id_timer := 0.0
 
-## DECISIONS #224: only the browser build needs integer content scale (CSS/DPR wobble). Editor and native exports keep fractional.
-static func use_integer_content_scale(is_web: bool = OS.has_feature("web")) -> bool:
-	return is_web
+## DECISIONS #224: integer content scale on web when at least 1× of the design size fits (crisp pixels).
+## Godot clips instead of shrinking when integer scale would be below 1×, so desktop browsers and most
+## phone windows stay fractional; CSS `image-rendering: pixelated` still keeps the canvas nearest-neighbour.
+static func use_integer_content_scale(is_web: bool = OS.has_feature("web"), win: Vector2i = DisplayServer.window_get_size()) -> bool:
+	if not is_web:
+		return false
+	var bw: float = float(ProjectSettings.get_setting("display/window/size/viewport_width"))
+	var bh: float = float(ProjectSettings.get_setting("display/window/size/viewport_height"))
+	if bw <= 0.0 or bh <= 0.0 or win.x <= 0 or win.y <= 0:
+		return false
+	return float(win.x) >= bw and float(win.y) >= bh
 
 ## DECISIONS #232: Desktop UI when set to desktop, or Auto on non-mobile. Mobile OS feature covers Android/iOS.
 static func resolve_desktop_ui(settings: Dictionary = GameState.settings, is_mobile: bool = OS.has_feature("mobile")) -> bool:
@@ -35,10 +43,13 @@ static func resolve_desktop_ui(settings: Dictionary = GameState.settings, is_mob
 		"mobile": return false
 		_: return not is_mobile
 
-func _ready() -> void:
-	Keybinds.apply()
+func _apply_content_scale() -> void:
 	var root := get_tree().root
 	root.content_scale_stretch = Window.CONTENT_SCALE_STRETCH_INTEGER if use_integer_content_scale() else Window.CONTENT_SCALE_STRETCH_FRACTIONAL
+
+func _ready() -> void:
+	Keybinds.apply()
+	_apply_content_scale()
 	set_anchors_and_offsets_preset(PRESET_FULL_RECT)
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	var bg := ColorRect.new(); bg.color = Color("1b1712"); bg.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
@@ -76,6 +87,7 @@ func _process(delta: float) -> void:
 		GameState.tick_identify()
 
 func _relayout() -> void:
+	_apply_content_scale()
 	var vs := get_viewport_rect().size
 	portrait = vs.x / vs.y < 0.85
 	desktop_ui = resolve_desktop_ui()

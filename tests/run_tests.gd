@@ -2816,8 +2816,12 @@ func test_export_presets() -> void:
 	check(found_web, "Web export preset exists")
 	check(FileAccess.file_exists("res://tools/deploy_web.sh"), "web deploy script present")
 	var Main: GDScript = load("res://scripts/ui/main.gd")
-	check(not Main.use_integer_content_scale(false) and Main.use_integer_content_scale(true),
-		"integer content scale only on the web export (DECISIONS #224)")
+	check(not Main.use_integer_content_scale(false, Vector2i(2000, 2500)),
+		"native / editor never force integer content scale (DECISIONS #224)")
+	check(Main.use_integer_content_scale(true, Vector2i(2000, 2500)),
+		"web uses integer content scale when the window fits the design size (DECISIONS #224)")
+	check(not Main.use_integer_content_scale(true, Vector2i(1280, 720)),
+		"web stays fractional when the window is smaller than the design (no clip)")
 	check(String(ProjectSettings.get_setting("display/window/stretch/scale_mode", "fractional")) != "integer",
 		"project stretch scale stays fractional so the editor embed is not oversized")
 	for s in cfg.get_sections():
