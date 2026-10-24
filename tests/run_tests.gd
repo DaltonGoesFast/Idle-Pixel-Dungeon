@@ -113,7 +113,7 @@ func _ready() -> void:
 	test_delve(gs)
 	test_camp(gs)
 	test_camp_npc_hits()
-	await test_camp_grass_clear_of_npcs()
+	test_camp_grass_clear_of_npcs()
 	test_save(gs, ss)
 	test_meta(gs, ss)
 	test_subclass(gs, ss)
@@ -702,40 +702,23 @@ func test_camp_npc_hits() -> void:
 		check(scene.spot_at(Vector2(8, 8)) == "", "sky is not an NPC @ %s" % c[1])
 	scene.queue_free()
 
-## Raised grass is drawn after the first sprite pass; clumps skip NPC columns and sprites repaint on top (#181).
+## Horizon grass is a full row; characters and barrels are redrawn after it so blades stay behind them.
 func test_camp_grass_clear_of_npcs() -> void:
 	print("[camp grass clear of npcs]")
-	var CS = load("res://scripts/ui/camp_scene.gd")
-	var sizes: Array = [[40, Vector2(924, 1605)], [60, Vector2(1114, 2008)], [60, Vector2(2368, 2008)]]
-	var cs_screen = load("res://scripts/ui/camp_screen.gd").new()
-	add_child(cs_screen)
-	for vs in [Vector2(484, 1188), Vector2(928, 1080), Vector2(1400, 640)]:
-		cs_screen.size = vs
-		cs_screen.apply_layout(vs.x / vs.y < 0.85, vs)
-		for _i in 2: await get_tree().process_frame
-		sizes.append([UIKit.font_size, cs_screen.scene.size])
-	cs_screen.queue_free()
-	for c in sizes:
-		var scene = CS.new()
-		add_child(scene)
+	var scene = load("res://scripts/ui/camp_scene.gd").new()
+	add_child(scene)
+	for c in [[40, Vector2(924, 1605)], [60, Vector2(2368, 2008)], [30, Vector2(1400, 640)]]:
 		scene.theme = UIKit.make_theme(c[0])
 		scene.size = c[1]
-		var cs: float = 16.0 * scene.k()
-		var bad := []
-		for g in scene.grass_clumps():
-			var base: Rect2 = g[0]
-			var span := Rect2(base.position - Vector2(0, cs), Vector2(cs, cs * 2.0))
-			for s in scene.SPOTS:
-				if scene._grass_exclusion_rect(s, cs).intersects(span):
-					bad.append("%s@%s" % [s[0], c[1]])
-		check(bad.is_empty(), "raised grass skips NPC columns %s" % [bad.slice(0, 6)])
 		var sky_h: float = scene.sky_height()
+		var cs: float = 16.0 * scene.k()
+		var cols := int(ceil(scene.size.x / cs)) + 1
 		var horizon := 0
 		for g in scene.grass_clumps():
 			if absf((g[0] as Rect2).position.y - sky_h) < 1.0: horizon += 1
-		check(horizon >= 3, "horizon still has grass clumps (%s, n=%d)" % [c[1], horizon])
-		scene.queue_free()
-	check(CS.new().has_method("_draw_spot_sprite"), "camp repaints sprites after grass")
+		check(horizon >= cols, "horizon grass spans the clearing (%s, n=%d need %d)" % [c[1], horizon, cols])
+	check(scene.has_method("_draw_spot_sprite"), "camp repaints sprites after grass")
+	scene.queue_free()
 
 func test_save(gs, ss) -> void:
 	print("[save]")

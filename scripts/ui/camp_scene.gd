@@ -308,24 +308,13 @@ func _hits_prop(rc: Rect2, cs: float, props: Array) -> bool:
 	var span := Rect2(rc.position - Vector2(0, cs), Vector2(cs, cs * 2.0)).grow(-1.0)
 	return props.any(func(p): return (p as Rect2).intersects(span))
 
-## Raised grass must stay off sprites; wide panels need extra headroom for horizon overhangs.
-func _grass_exclusion_rect(s: Array, cs: float) -> Rect2:
-	return spot_rect(s).grow_individual(cs * 1.5, cs * 3.0, cs * 1.5, cs * 0.5)
-
-## True when a clump's tile+overhang span would touch a facility sprite.
+## True when a clearing tuft would cover an NPC (horizon grass uses draw-order instead).
 func _hits_spot(rc: Rect2, cs: float) -> bool:
 	var span := Rect2(rc.position - Vector2(0, cs), Vector2(cs, cs * 2.0))
-	return SPOTS.any(func(sp): return _grass_exclusion_rect(sp, cs).intersects(span))
+	return SPOTS.any(func(sp): return spot_rect(sp).merge(label_rect(sp)).grow(cs * 0.3).intersects(span))
 
-## Full horizon row on tall/narrow camp panels; on wide ones keep only side strips (inner/wide desktop).
-func _horizon_grass_at(center_x: float, sky_h: float) -> bool:
-	var ground_h := size.y - sky_h
-	if ground_h < 1.0 or size.x <= ground_h * 1.05:
-		return true
-	return center_x <= size.x * 0.07 or center_x >= size.x * 0.93
-
-## Raised grass clumps to draw: [base rect, kind, sway]. Horizon row + clearing tufts; gaps where an
-## NPC, barrel, path, or the resting hero sits so blades never layer over them (Forge/Enchanter reach the horizon).
+## Raised grass clumps: [base rect, kind, sway]. Horizon is a full row (characters redrawn on top);
+## clearing tufts stay off the path, NPCs, barrels, and hero.
 func grass_clumps(hero_r: Rect2 = Rect2()) -> Array:
 	var kk := k(); var cs := 16.0 * kk
 	var sky_h := sky_height()
@@ -338,11 +327,9 @@ func grass_clumps(hero_r: Rect2 = Rect2()) -> Array:
 		hero_r = Rect2(Vector2(fire.x + cs * 0.9, fire.y + kk * 6 - hz.y).floor(), hz)
 	var props := _prop_rects(cs)
 	var grass := []
-	# horizon: SPD raised high grass whose tops reach into the sky (also skip NPC columns — #181 missed this row)
+	# full horizon of SPD raised high grass; NPCs/barrels/hero are painted after this pass
 	for x in cols:
 		var hr := Rect2(ox + x * cs, sky_h, cs, cs)
-		if not _horizon_grass_at(hr.get_center().x, sky_h): continue
-		if _hits_spot(hr, cs) or _hits_prop(hr, cs, props): continue
 		grass.append([hr, 0 if (x * 7) % 3 else 1, 0.0])
 	for y in rows:
 		for x in cols:
