@@ -113,7 +113,7 @@ func _ready() -> void:
 	test_delve(gs)
 	test_camp(gs)
 	test_camp_npc_hits()
-	test_camp_grass_clear_of_npcs()
+	await test_camp_grass_clear_of_npcs()
 	test_save(gs, ss)
 	test_meta(gs, ss)
 	test_subclass(gs, ss)
@@ -702,12 +702,22 @@ func test_camp_npc_hits() -> void:
 		check(scene.spot_at(Vector2(8, 8)) == "", "sky is not an NPC @ %s" % c[1])
 	scene.queue_free()
 
-## Raised grass is drawn after the first sprite pass; clumps skip wide NPC columns and sprites repaint on top (#181).
+## Raised grass is drawn after the first sprite pass; clumps skip NPC columns and sprites repaint on top (#181).
 func test_camp_grass_clear_of_npcs() -> void:
 	print("[camp grass clear of npcs]")
-	var scene = load("res://scripts/ui/camp_scene.gd").new()
-	add_child(scene)
-	for c in [[40, Vector2(924, 1605)], [60, Vector2(1114, 2008)], [60, Vector2(2368, 2008)]]:
+	var CS = load("res://scripts/ui/camp_scene.gd")
+	var sizes: Array = [[40, Vector2(924, 1605)], [60, Vector2(1114, 2008)], [60, Vector2(2368, 2008)]]
+	var cs_screen = load("res://scripts/ui/camp_screen.gd").new()
+	add_child(cs_screen)
+	for vs in [Vector2(484, 1188), Vector2(928, 1080), Vector2(1400, 640)]:
+		cs_screen.size = vs
+		cs_screen.apply_layout(vs.x / vs.y < 0.85, vs)
+		for _i in 2: await get_tree().process_frame
+		sizes.append([UIKit.font_size, cs_screen.scene.size])
+	cs_screen.queue_free()
+	for c in sizes:
+		var scene = CS.new()
+		add_child(scene)
 		scene.theme = UIKit.make_theme(c[0])
 		scene.size = c[1]
 		var cs: float = 16.0 * scene.k()
@@ -716,11 +726,19 @@ func test_camp_grass_clear_of_npcs() -> void:
 			var base: Rect2 = g[0]
 			var span := Rect2(base.position - Vector2(0, cs), Vector2(cs, cs * 2.0))
 			for s in scene.SPOTS:
-				if scene.spot_rect(s).grow(cs).intersects(span):
+				if scene._grass_exclusion_rect(s, cs).intersects(span):
 					bad.append("%s@%s" % [s[0], c[1]])
 		check(bad.is_empty(), "raised grass skips NPC columns %s" % [bad.slice(0, 6)])
-		check(scene.has_method("_draw_spot_sprite"), "camp repaints sprites after grass")
-	scene.queue_free()
+		var sky_h: float = scene.sky_height()
+		if scene.size.x > (scene.size.y - sky_h) * 1.05:
+			var mid := 0
+			for g in scene.grass_clumps():
+				var cx: float = (g[0] as Rect2).get_center().x
+				if cx > scene.size.x * 0.07 and cx < scene.size.x * 0.93 and absf((g[0] as Rect2).position.y - sky_h) < 1.0:
+					mid += 1
+			check(mid == 0, "wide camp keeps horizon grass off the center (%s, mid=%d)" % [c[1], mid])
+		scene.queue_free()
+	check(CS.new().has_method("_draw_spot_sprite"), "camp repaints sprites after grass")
 
 func test_save(gs, ss) -> void:
 	print("[save]")
@@ -2792,6 +2810,13 @@ func test_export_presets() -> void:
 		check(String(cfg.get_value(s, "exclude_filter", "")).contains("tests/*"), "Web preset excludes tests")
 	check(found_web, "Web export preset exists")
 	check(FileAccess.file_exists("res://tools/deploy_web.sh"), "web deploy script present")
+	check(String(ProjectSettings.get_setting("display/window/stretch/scale_mode", "")) == "integer",
+		"integer stretch scale keeps pixel font strokes even (DECISIONS #224)")
+	for s in cfg.get_sections():
+		if s.ends_with(".options") or String(cfg.get_value(s, "platform", "")) != "Web": continue
+		var inc := String(cfg.get_value(s + ".options", "html/head_include", ""))
+		check(inc.contains("image-rendering:pixelated") and inc.contains("#canvas"),
+			"Web head_include nearest-neighbours the canvas when the browser CSS-scales it")
 
 ## DECISIONS #140: Godot's Gradle export checks res://android/.build_version before running Gradle;
 ## tools/build.sh must write it alongside android/build when unpacking android_source.zip.

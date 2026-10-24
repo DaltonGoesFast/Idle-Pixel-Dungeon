@@ -257,7 +257,8 @@ func _draw() -> void:
 		var d := clampf((gc.distance_to(fire) / lrad - 0.3) / 0.65, 0.0, 1.0)
 		var v := 1.0 - 0.5 * d * 0.5
 		_raised(g[0], g[1], g[2], Color(v, v, v))
-	# horizon blades are full-width tiles; neighbors still overlap wide sprites, so paint characters again
+	# raised tiles can overlap wide sprites on neighbor columns; paint props and characters again
+	for b in _barrels(cs): _raised(b[0], b[1])
 	draw_texture_rect_region(hs, hero_r, Rect2((hf % cols_h) * 12, (hf / cols_h + GameState.armor_tier(hero)) * 15, 12, 15), SceneFX.firelit(hero_r.get_center(), fire, frad, flk))
 	for s in SPOTS:
 		_draw_spot_sprite(s, fire, frad, flk)
@@ -307,10 +308,21 @@ func _hits_prop(rc: Rect2, cs: float, props: Array) -> bool:
 	var span := Rect2(rc.position - Vector2(0, cs), Vector2(cs, cs * 2.0)).grow(-1.0)
 	return props.any(func(p): return (p as Rect2).intersects(span))
 
-## True when a raised clump's tile+overhang span would touch a facility sprite (one tile margin for wide NPCs).
+## Raised grass must stay off sprites; wide panels need extra headroom for horizon overhangs.
+func _grass_exclusion_rect(s: Array, cs: float) -> Rect2:
+	return spot_rect(s).grow_individual(cs * 1.5, cs * 3.0, cs * 1.5, cs * 0.5)
+
+## True when a clump's tile+overhang span would touch a facility sprite.
 func _hits_spot(rc: Rect2, cs: float) -> bool:
 	var span := Rect2(rc.position - Vector2(0, cs), Vector2(cs, cs * 2.0))
-	return SPOTS.any(func(sp): return spot_rect(sp).grow(cs).intersects(span))
+	return SPOTS.any(func(sp): return _grass_exclusion_rect(sp, cs).intersects(span))
+
+## Full horizon row on tall/narrow camp panels; on wide ones keep only side strips (inner/wide desktop).
+func _horizon_grass_at(center_x: float, sky_h: float) -> bool:
+	var ground_h := size.y - sky_h
+	if ground_h < 1.0 or size.x <= ground_h * 1.05:
+		return true
+	return center_x <= size.x * 0.07 or center_x >= size.x * 0.93
 
 ## Raised grass clumps to draw: [base rect, kind, sway]. Horizon row + clearing tufts; gaps where an
 ## NPC, barrel, path, or the resting hero sits so blades never layer over them (Forge/Enchanter reach the horizon).
@@ -329,6 +341,7 @@ func grass_clumps(hero_r: Rect2 = Rect2()) -> Array:
 	# horizon: SPD raised high grass whose tops reach into the sky (also skip NPC columns — #181 missed this row)
 	for x in cols:
 		var hr := Rect2(ox + x * cs, sky_h, cs, cs)
+		if not _horizon_grass_at(hr.get_center().x, sky_h): continue
 		if _hits_spot(hr, cs) or _hits_prop(hr, cs, props): continue
 		grass.append([hr, 0 if (x * 7) % 3 else 1, 0.0])
 	for y in rows:
