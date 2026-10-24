@@ -3514,8 +3514,8 @@ func test_no_collapsing_labels(gs) -> void:
 		check(bad2.is_empty(), "combat screen + victory card: no wrapping label without width %s" % [bad2])
 		cb.queue_free(); gs.end_run("abandon")
 
-## Wide camp dock: Delve sits under the destination, and the patrol list opens at the top
-## so the first hero's timer and loot stay on screen.
+## Camp dock: Delve sits under the destination, and the patrol list opens at the top
+## so the first hero's timer and loot stay on screen. Portrait also shows patrols; the camp frame is height-capped.
 func test_camp_dock(gs) -> void:
 	print("[camp dock]")
 	gs.new_game()
@@ -3550,9 +3550,15 @@ func test_camp_dock(gs) -> void:
 	for b in sc.find_children("*", "Button", true, false):
 		if b.text == "Recall": recall = b; break
 	check(recall != null and title != null and absf(recall.get_global_rect().position.y - title.get_global_rect().position.y) < UIKit.btn_height(), "Recall sits on the hero's name row")
-	cs.apply_layout(true, Vector2(480, 1000))
-	await get_tree().process_frame
-	check(cs.side.find_child("PatrolScroll", true, false) == null and cs.side.find_child("DelveGo", true, false) != null, "cover dock keeps Delve and leaves patrols to the Guild")
+	var cover := Vector2(480, 1000)
+	cs.size = cover
+	cs.apply_layout(true, cover)
+	for _j in 2: await get_tree().process_frame
+	var go_p: Control = cs.side.find_child("DelveGo", true, false)
+	var sc_p: ScrollContainer = cs.side.find_child("PatrolScroll", true, false)
+	check(go_p != null and sc_p != null and go_p.get_index() < sc_p.get_index(), "cover dock: Delve stays above the patrol list")
+	var frame: Control = cs.find_child("CampFrame", true, false)
+	check(frame != null and frame.custom_maximum_size.y > 0.0 and frame.custom_maximum_size.y <= cover.x * 0.95 + 1.0, "cover caps camp frame near square (%s)" % [frame.custom_maximum_size if frame else null])
 	cs.queue_free()
 	UIKit.make_theme(fs0)
 

@@ -1,7 +1,7 @@
 ## CampScreen: the persistent Surface Camp hub (DECISIONS #82, #124, #225).
 ## Layout: a one-line resource strip, then a drawn camp scene (CampScene) where you tap the NPCs to open the facilities
 ## and tap seated heroes to select them. The dock holds hero portraits, a Delve action with the current biome icon,
-## and (when wide) patrols. Biome pick lives in the Expedition window as levelicons.
+## and patrols (compact on portrait; full scroll on wide). Biome pick lives in the Expedition window as levelicons.
 ## Facilities, Stash, Heroes, Journal and Settings open as SPD windows over the hub. Item lists are
 ## SPD-style item-slot grids; tapping a slot opens an info window with its actions.
 ## Content is rebuilt from GameState on every change.
@@ -95,18 +95,37 @@ func _build_shell() -> void:
 	root_box = VBoxContainer.new() if portrait else HBoxContainer.new()
 	root_box.size_flags_vertical = SIZE_EXPAND_FILL; outer.add_child(root_box)
 	root_box.add_theme_constant_override("separation", int(UIKit.font_size * 0.4))
-	var frame := PanelContainer.new(); frame.add_theme_stylebox_override("panel", UIKit.chrome("window", Color.WHITE, UIKit.font_size * 0.25))
+	var frame := PanelContainer.new(); frame.name = "CampFrame"
+	frame.add_theme_stylebox_override("panel", UIKit.chrome("window", Color.WHITE, UIKit.font_size * 0.25))
 	frame.size_flags_vertical = SIZE_EXPAND_FILL; frame.size_flags_horizontal = SIZE_EXPAND_FILL
-	frame.size_flags_stretch_ratio = 1.0 if portrait else 1.35
+	# Portrait: share leftover height with the dock (~half) and cap the clearing near square so cobble
+	# does not swallow the column. Wide: scene keeps the larger stretch share.
+	frame.size_flags_stretch_ratio = 1.1 if portrait else 1.35
 	root_box.add_child(frame)
 	scene = CampScene.new(); scene.custom_minimum_size = Vector2(0, UIKit.font_size * 10)
 	scene.picked.connect(open_page)
 	scene.hero_picked.connect(func(c: String): chosen_hero = c; rebuild())
 	frame.add_child(scene)
 	side = UIKit.vbox(); side.size_flags_horizontal = SIZE_EXPAND_FILL
-	side.size_flags_vertical = SIZE_SHRINK_END if portrait else SIZE_EXPAND_FILL
+	side.size_flags_vertical = SIZE_EXPAND_FILL
+	side.size_flags_stretch_ratio = 1.0
 	root_box.add_child(side)
 	win_layer = null; info_layer = null
+	if not resized.is_connected(_cap_camp_frame):
+		resized.connect(_cap_camp_frame)
+	_cap_camp_frame()
+
+## Portrait only: keep the camp frame from growing taller than ~width so the dock can hold patrols.
+func _cap_camp_frame() -> void:
+	var frame := find_child("CampFrame", true, false) as Control
+	if frame == null:
+		return
+	if not portrait:
+		frame.custom_maximum_size = Vector2.ZERO
+		return
+	var w := root_box.size.x if root_box != null and root_box.size.x > 1.0 else size.x
+	var max_h := maxf(UIKit.font_size * 12.0, w * 0.95)
+	frame.custom_maximum_size = Vector2(0, max_h)
 
 func rebuild() -> void:
 	if not is_inside_tree() or summary == null: return
@@ -137,10 +156,7 @@ func _build_side() -> void:
 	var hr := HFlowContainer.new(); hr.add_theme_constant_override("h_separation", int(UIKit.font_size * 0.4)); side.add_child(hr)
 	for c in GameState.heroes:
 		hr.add_child(_hero_slot(c))
-	var h: Dictionary = GameState.heroes[chosen_hero]
 	side.add_child(UIKit.label(hero_line(chosen_hero), 0.85, Color("ffd27a")))
-	if not h.patrol.is_empty() and portrait:
-		side.add_child(UIKit.label("On patrol - recall at the Guild.", 0.8, Color("c9a96e")))
 	# Delve opens Expedition (biome pick + supplies). A dock chip shows the current destination icon.
 	# Named DelveGo so dock layout tests still find the row above PatrolScroll.
 	var delve_row := VBoxContainer.new()
@@ -160,16 +176,16 @@ func _build_side() -> void:
 	var why := GameState.can_start_run(chosen_hero)
 	if why != "":
 		delve_row.add_child(UIKit.label(why, 0.75, Color("c9a96e")))
-	if not portrait:
-		# wide dock: patrols fill the rest and scroll. The cover stays lean; Guild still has the full page.
-		side.add_child(UIKit.label("Patrols (max %dh)" % int(GameState.patrol_max_hours()), 0.8, Color("bdb3a0")))
-		var sc := ScrollContainer.new(); sc.name = "PatrolScroll"; sc.size_flags_vertical = SIZE_EXPAND_FILL
-		sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-		sc.follow_focus = false
-		side.add_child(sc)
-		var pv := UIKit.vbox(sc); pv.size_flags_horizontal = SIZE_EXPAND_FILL
-		pv.size_flags_vertical = SIZE_SHRINK_BEGIN
-		_patrol_list(pv)
+	# Patrols fill leftover dock space on both layouts (portrait reclaim of capped camp height).
+	# Guild still has the full page for supplies / upgrade.
+	side.add_child(UIKit.label("Patrols (max %dh)" % int(GameState.patrol_max_hours()), 0.8, Color("bdb3a0")))
+	var sc := ScrollContainer.new(); sc.name = "PatrolScroll"; sc.size_flags_vertical = SIZE_EXPAND_FILL
+	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	sc.follow_focus = false
+	side.add_child(sc)
+	var pv := UIKit.vbox(sc); pv.size_flags_horizontal = SIZE_EXPAND_FILL
+	pv.size_flags_vertical = SIZE_SHRINK_BEGIN
+	_patrol_list(pv)
 
 ## The selected hero's stats in one line under the portraits.
 func hero_line(c: String) -> String:
@@ -1539,7 +1555,7 @@ func _page_guild() -> void:
 	v.add_child(UIKit.label("Idle heroes patrol a cleared biome in real time and bring back upgrade fuel.", 0.8, Color("bdb3a0")))
 	_patrol_list(v)
 
-## One card per unlocked hero: idle biome buttons, or progress + Recall. Used by Guild and the wide camp dock.
+## One card per unlocked hero: idle biome buttons, or progress + Recall. Used by Guild and the camp dock.
 func _patrol_list(v: Control) -> void:
 	for c in GameState.heroes:
 		var h: Dictionary = GameState.heroes[c]
