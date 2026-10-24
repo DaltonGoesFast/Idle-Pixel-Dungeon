@@ -98,9 +98,10 @@ func _build_shell() -> void:
 	var frame := PanelContainer.new(); frame.name = "CampFrame"
 	frame.add_theme_stylebox_override("panel", UIKit.chrome("window", Color.WHITE, UIKit.font_size * 0.25))
 	frame.size_flags_vertical = SIZE_EXPAND_FILL; frame.size_flags_horizontal = SIZE_EXPAND_FILL
-	# Portrait: share leftover height with the dock (~half) and cap the clearing near square so cobble
-	# does not swallow the column. Wide: scene keeps the larger stretch share.
-	frame.size_flags_stretch_ratio = 1.1 if portrait else 1.35
+	# Portrait: give the dock a larger stretch share so cobble does not swallow the column. Avoid
+	# custom_maximum_size here — at fixed embed sizes it can run before the first real layout and
+	# collapse the clearing until a resize. Wide: scene keeps the larger share.
+	frame.size_flags_stretch_ratio = 0.9 if portrait else 1.35
 	root_box.add_child(frame)
 	scene = CampScene.new(); scene.custom_minimum_size = Vector2(0, UIKit.font_size * 10)
 	scene.picked.connect(open_page)
@@ -108,24 +109,9 @@ func _build_shell() -> void:
 	frame.add_child(scene)
 	side = UIKit.vbox(); side.size_flags_horizontal = SIZE_EXPAND_FILL
 	side.size_flags_vertical = SIZE_EXPAND_FILL
-	side.size_flags_stretch_ratio = 1.0
+	side.size_flags_stretch_ratio = 1.2 if portrait else 1.0
 	root_box.add_child(side)
 	win_layer = null; info_layer = null
-	if not resized.is_connected(_cap_camp_frame):
-		resized.connect(_cap_camp_frame)
-	_cap_camp_frame()
-
-## Portrait only: keep the camp frame from growing taller than ~width so the dock can hold patrols.
-func _cap_camp_frame() -> void:
-	var frame := find_child("CampFrame", true, false) as Control
-	if frame == null:
-		return
-	if not portrait:
-		frame.custom_maximum_size = Vector2.ZERO
-		return
-	var w := root_box.size.x if root_box != null and root_box.size.x > 1.0 else size.x
-	var max_h := maxf(UIKit.font_size * 12.0, w * 0.95)
-	frame.custom_maximum_size = Vector2(0, max_h)
 
 func rebuild() -> void:
 	if not is_inside_tree() or summary == null: return

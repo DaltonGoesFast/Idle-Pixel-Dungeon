@@ -3515,7 +3515,7 @@ func test_no_collapsing_labels(gs) -> void:
 		cb.queue_free(); gs.end_run("abandon")
 
 ## Camp dock: Delve sits under the destination, and the patrol list opens at the top
-## so the first hero's timer and loot stay on screen. Portrait also shows patrols; the camp frame is height-capped.
+## so the first hero's timer and loot stay on screen. Portrait also shows patrols; dock stretch beats the camp frame.
 func test_camp_dock(gs) -> void:
 	print("[camp dock]")
 	gs.new_game()
@@ -3558,7 +3558,8 @@ func test_camp_dock(gs) -> void:
 	var sc_p: ScrollContainer = cs.side.find_child("PatrolScroll", true, false)
 	check(go_p != null and sc_p != null and go_p.get_index() < sc_p.get_index(), "cover dock: Delve stays above the patrol list")
 	var frame: Control = cs.find_child("CampFrame", true, false)
-	check(frame != null and frame.custom_maximum_size.y > 0.0 and frame.custom_maximum_size.y <= cover.x * 0.95 + 1.0, "cover caps camp frame near square (%s)" % [frame.custom_maximum_size if frame else null])
+	check(frame != null and frame.size.y > UIKit.font_size * 8.0, "cover keeps a usable camp frame height (%s)" % [frame.size if frame else null])
+	check(frame.size_flags_stretch_ratio < cs.side.size_flags_stretch_ratio, "cover dock stretch share beats the camp frame")
 	cs.queue_free()
 	UIKit.make_theme(fs0)
 
