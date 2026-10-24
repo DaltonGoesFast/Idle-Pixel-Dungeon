@@ -63,6 +63,11 @@ static func build(v: VBoxContainer, show_dev := true, on_wiped: Callable = Calla
 		GameState.set_setting("tutorial", not tut); SaveSystem.save_game(); GameState.touch()))
 	v.add_child(UIKit.button("Replay the tutorial tips", func():
 		GameState.tutorial_done.clear(); GameState.settings.tutorial = true; SaveSystem.save_game(); GameState.touch()))
+	v.add_child(UIKit.header("Patrols"))
+	var alerts: bool = GameState.settings.get("patrol_notify", false)
+	v.add_child(UIKit.button("Patrol alerts: %s" % ("ON" if alerts else "OFF"), func():
+		PatrolBridge.set_alerts(not alerts)))
+	v.add_child(UIKit.label("On Android, a notification when a patrol is ready to recall. Off by default. PC and the browser ignore it.", 0.75, Color("9a8f7c")))
 	if show_dev and dev_tools_allowed():
 		var dev: bool = GameState.settings.get("dev_tools", false)
 		v.add_child(UIKit.button("Developer tools: %s" % ("shown" if dev else "hidden"), func():
@@ -75,7 +80,7 @@ static func build(v: VBoxContainer, show_dev := true, on_wiped: Callable = Calla
 			v.add_child(UIKit.button("+100 gold, +10 of every material", func():
 				for k in ["gold", "iron_ore", "dark_gold", "seeds", "arcane_resin", "iron_key", "ration", "torch", "potion_healing", "scroll_passage", "scroll_upgrade"]: GameState.add_mat(k, 100 if k == "gold" else 10)
 				GameState.touch()))
-			v.add_child(UIKit.button("Fast-forward 1 hour (timers)", func(): GameState.time_offset += 3600; GameState.tick_identify(); GameState.touch()))
+			v.add_child(UIKit.button("Fast-forward 1 hour (timers)", func(): GameState.skip_time(3600)))
 	# Wipe is always in the main Settings list (every platform, Camp and delve), above the credits (DECISIONS #212).
 	v.add_child(UIKit.button(WIPE_BTN, func(): show_wipe_confirm(v, show_dev, on_wiped, on_rebuild)))
 	v.add_child(UIKit.label(CREDITS, 0.75, Color("9a8f7c")))

@@ -46,6 +46,7 @@ func _ready() -> void:
 	GameState.toast.connect(_toast)
 	GameState.settings_changed.connect(_relayout)
 	get_viewport().size_changed.connect(_relayout)
+	PatrolBridge.open_guild.connect(_open_guild_patrols)
 	_relayout()
 	GameState.tick_identify()
 	if Telemetry.needs_notice(): show_data_notice()
@@ -53,6 +54,8 @@ func _ready() -> void:
 	else:
 		show_delve()
 		if GameState.run.has("active_fight"): delve.resume_fight()
+	if PatrolBridge.take_open():
+		_open_guild_patrols()
 
 func _process(delta: float) -> void:
 	# toasts never cover a tutorial card (they keep their timers and reappear when it closes)
@@ -97,6 +100,15 @@ func _set_screen(s: Control) -> void:
 	screen = s
 	host.add_child(s)
 	_layout_screen()
+
+## Home-screen widget and the return notification open the Guild patrol list when no delve is in progress.
+func _open_guild_patrols() -> void:
+	if not GameState.run.is_empty():
+		return
+	if screen == null or screen.get_script() != CampScreen:
+		show_camp()
+	if screen and screen.has_method("open_guild_patrols"):
+		screen.open_guild_patrols()
 
 func show_camp() -> void:
 	if delve: delve.queue_free(); delve = null

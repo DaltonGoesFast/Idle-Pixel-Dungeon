@@ -56,6 +56,7 @@ func _ready() -> void:
 	test_strength_once(gs)
 	test_gold_sinks(gs)
 	test_patrol_perks(gs)
+	test_patrol_widget(gs)
 	test_goo_spd(gs)
 	test_level_cap(gs)
 	test_dew_sink(gs)
@@ -621,17 +622,20 @@ func test_camp(gs) -> void:
 	print("[camp]")
 	gs.new_game()
 	gs.add_mat("iron_ore", 80); gs.add_mat("gold", 500); gs.add_mat("seeds", 10); gs.add_mat("dew", 40); gs.add_mat("arcane_resin", 5)
+	# DECISIONS #227: Blacksmith Lv1 is repair-only. Shortsword is T2 (Lv2). Cap is +0/+1/+2/+3.
+	check(not gs.craft("blacksmith", "forge_shortsword"), "Lv1 blacksmith does not forge a shortsword")
+	check(gs.forge_cap() == 0, "Lv1 forge cap is +0")
+	check(not gs.upgrade_facility("blacksmith"), "facility capped without SoU")
+	gs.add_mat("scroll_upgrade", 1)
+	check(gs.apply_sou("blacksmith") and gs.upgrade_facility("blacksmith"), "SoU breaks cap")
 	check(gs.craft("blacksmith", "forge_shortsword"), "forge shortsword")
 	var ss = gs.gear.filter(func(g): return g.id == "shortsword")[0]
 	check(gs.can_equip("warrior", ss.uid) == "", "can equip shortsword")
 	gs.equip("warrior", ss.uid)
 	check(gs.hero_stats("warrior").dmg == maxi(1, int(7 / 3)), "str 10 < 12 req: damage / (1 + missing Str)")
-	check(gs.can_craft("blacksmith", "forge_sword") != "", "sword needs blacksmith lv2")
-	check(gs.upgrade_item(ss.uid), "upgrade +1 (cap = blacksmith level 1)")
+	check(gs.can_craft("blacksmith", "forge_sword") != "", "sword needs blacksmith lv3")
+	check(gs.upgrade_item(ss.uid), "upgrade +1 (cap +1 at blacksmith lv2)")
 	check(not gs.upgrade_item(ss.uid), "can't exceed blacksmith cap")
-	check(not gs.upgrade_facility("blacksmith"), "facility capped without SoU")
-	gs.add_mat("scroll_upgrade", 1)
-	check(gs.apply_sou("blacksmith") and gs.upgrade_facility("blacksmith"), "SoU breaks cap")
 	check(gs.craft("alchemy", "brew_healing") and gs.mat("potion_healing") == 2, "brew potion")
 	check(gs.craft("enchanter", "scribe_passage"), "scribe passage")
 	# identify queue
@@ -1919,6 +1923,7 @@ func test_equipped_owner_marks(gs) -> void:
 	var arm: Button = _slot_uid(cs.win_layer, armor)
 	var arm_frame: StyleBoxFlat = arm.get_theme_stylebox("normal") if arm else null
 	check(arm != null and arm.get_node_or_null("OwnerBar") != null and arm_frame != null and arm_frame.border_color.is_equal_approx(Color("ff5040")), "cracked armor stays red and still names who wears it")
+	gs.facilities.blacksmith.level = 2
 	cs.section["Forge"] = "upgrade"
 	cs.open_page("Forge")
 	var forge_spare: Button = _slot_uid(cs.win_layer, spare)
@@ -2585,7 +2590,7 @@ func test_encounter_summary(gs) -> void:
 	await get_tree().process_frame
 	var dcard: Control = cs_loss.buttons.get_node_or_null("DefeatResults")
 	var wake = _find_btn(dcard, "Wake at Camp") if dcard else null
-	var wake_h := wake.get_combined_minimum_size().y if wake else 0.0
+	var wake_h: float = wake.get_combined_minimum_size().y if wake else 0.0
 	check(dcard != null and wake != null and UIKit.collapsing_labels(cs_loss).is_empty(),
 		"Defeat keeps its message and Wake at Camp in a column (no collapsing label)")
 	check(wake_h > 0.0 and wake_h <= UIKit.btn_height() * 2.5,
@@ -3054,7 +3059,7 @@ func test_facility_cap(gs) -> void:
 	m_slot.free(); m_slot2.free(); cs.queue_free()
 	# Scrolls unlock a locked slot. Materials fill an open one. The two actions are not one button.
 	gs.facilities.enchanter.level = 1; gs.facilities.enchanter.cap = 2
-	var need := gs.sou_cap_cost("enchanter")
+	var need: int = gs.sou_cap_cost("enchanter")
 	gs.mats.scroll_upgrade = need; gs.mats.arcane_resin = 0; gs.mats.gold = 0
 	var camp = load("res://scripts/ui/camp_screen.gd").new(); add_child(camp)
 	camp.open_page("Enchanter")
@@ -5696,3 +5701,86 @@ func test_barrier_segments(gs) -> void:
 	check(wide.dividers.size() == 2 and wide.dividers.all(func(dv): return dv.size.x == 2.0), "wide segments keep the full line width")
 	check(StatusPane.barrier_seg_rects(Rect2(0, 0, 66, 5), 0.5, 0.5, 3, 2.0).is_empty(), "no width, no blue")
 	check(StatusPane.divider_width(1.5, 3.0) == 1.0, "a divider is at least 1 px")
+
+## DECISIONS #229: the widget snapshot and the return-alarm list. The Android plugin is optional;
+## this run has no singleton, so push() must no-op. Reward is the full haul, not the partial one.
+func test_patrol_widget(gs) -> void:
+	print("[patrol widget]")
+	gs.new_game()
+	gs.settings.patrol_notify = false
+	var had_dev = gs.settings.get("dev_tools", false)
+	gs.settings.dev_tools = false
+	check(gs.settings.get("patrol_notify", true) == false, "patrol alerts default off")
+	check(not Engine.has_singleton("PatrolWidget"), "PatrolWidget singleton is absent off Android")
+	PatrolBridge.push(gs)
+	gs.add_mat("gold", 500)
+	gs.heroes.warrior.cleared = ["sewers"]
+	gs.heroes.mage.unlocked = true
+	gs.heroes.mage.cleared = ["sewers"]
+	check(gs.can_patrol("warrior", "sewers") == "", "warrior can patrol (%s)" % gs.can_patrol("warrior", "sewers"))
+	check(gs.start_patrol("warrior", "sewers"), "warrior sets out")
+	var early: Dictionary = gs.patrol_preview("warrior")
+	check(int(early.get("gold", 0)) == 0, "a patrol that just left has not accrued gold yet")
+	var snap: Dictionary = PatrolBridge.snapshot(gs)
+	check(snap.patrols.size() == 1 and snap.alarms.size() == 1, "one patrol, one return alarm")
+	check(not bool(snap.patrols[0].full) and not bool(snap.alarms[0].notify), "still out, and alerts are off")
+	check(String(snap.patrols[0].reward).to_lower().contains("gold"), "the widget stores the full haul (%s)" % snap.patrols[0].reward)
+	check(int(snap.alarms[0].at) == int(snap.patrols[0].back_at), "the alarm is the return timestamp")
+	check(String(snap.alarms[0].title) == "Patrol back!" and String(snap.alarms[0].body).contains("Warrior"), "alarm copy names the hero")
+	var unix_now := int(floor(Time.get_unix_time_from_system()))
+	var expect := unix_now + int(round(float(gs.heroes.warrior.patrol.max_h) * 3600.0))
+	check(absi(int(snap.patrols[0].back_at) - expect) <= 3, "return is the hour cap from now (%d vs %d)" % [int(snap.patrols[0].back_at), expect])
+	var back0 := int(snap.patrols[0].back_at)
+	gs.skip_time(1800)
+	check(gs.can_patrol("mage", "sewers") == "" and gs.start_patrol("mage", "sewers"), "mage sets out half an hour later")
+	snap = PatrolBridge.snapshot(gs)
+	check(snap.patrols.size() == 2 and String(snap.patrols[0].id) == "warrior", "sooner patrol is listed first")
+	check(absi(back0 - int(snap.patrols[0].back_at) - 1800) <= 3, "fast-forward moves the wall-clock return (%d -> %d)" % [back0, int(snap.patrols[0].back_at)])
+	gs.settings.patrol_notify = true
+	var plan: Array = PatrolBridge.alarm_plan(PatrolBridge.snapshot(gs))
+	check(plan.size() == 2 and bool(plan[0].notify) and bool(plan[1].notify), "turning alerts on marks both alarms")
+	gs.collect_patrol("warrior")
+	snap = PatrolBridge.snapshot(gs)
+	check(snap.patrols.size() == 1 and String(snap.patrols[0].id) == "mage" and snap.alarms.size() == 1, "recalling cancels that alarm and leaves the other")
+	gs.skip_time(3 * 3600)
+	snap = PatrolBridge.snapshot(gs)
+	check(snap.patrols.size() == 1 and bool(snap.patrols[0].full) and snap.alarms.is_empty(), "a finished patrol stays on the widget with no future alarm")
+	check(String(snap.patrols[0].reward).to_lower().contains("gold"), "a finished patrol still shows its haul")
+	gs.collect_patrol("mage")
+	check(PatrolBridge.snapshot(gs).patrols.is_empty(), "recalling the last patrol clears the snapshot")
+	PatrolBridge.set_alerts(false)
+	check(gs.settings.patrol_notify == false, "set_alerts(false) sticks with no plugin")
+	PatrolBridge.set_alerts(true)
+	check(gs.settings.patrol_notify == true, "set_alerts(true) does not wait on a permission dialog off Android")
+	PatrolBridge.set_alerts(false)
+	var SP: GDScript = load("res://scripts/ui/settings_panel.gd")
+	var v := VBoxContainer.new()
+	SP.build(v, false)
+	var btn: Button = null
+	for c in v.get_children():
+		if c is Button and String(c.text) == "Patrol alerts: OFF":
+			btn = c
+	check(btn != null, "Settings shows Patrol alerts, default off")
+	if btn != null:
+		btn.pressed.emit()
+		check(gs.settings.patrol_notify == true, "the Settings toggle turns alerts on")
+	v.free()
+	PatrolBridge.set_alerts(false)
+	check(not PatrolBridge.take_open(), "no widget tap is waiting")
+	PatrolBridge.queued_open = true
+	check(PatrolBridge.take_open() and not PatrolBridge.take_open(), "a widget tap is consumed once")
+	var Camp: GDScript = load("res://scripts/ui/camp_screen.gd")
+	var cs: Node = Camp.new()
+	check(cs.has_method("open_guild_patrols"), "camp can open the Guild patrol list")
+	cs.free()
+	var proj := FileAccess.get_file_as_string("res://project.godot")
+	check(proj.contains("patrol_bridge.gd") and proj.contains("res://addons/patrol_widget/plugin.cfg"), "autoload and export plugin are enabled")
+	var exp := FileAccess.get_file_as_string("res://addons/patrol_widget/export_plugin.gd")
+	check(exp.contains("POST_NOTIFICATIONS") and exp.contains("PatrolWidget-debug.aar") and exp.contains("SCHEDULE_EXACT_ALARM"), "export plugin ships the permission set and the AAR")
+	var kt := FileAccess.get_file_as_string("res://addons/patrol_widget/android/src/main/kotlin/com/daltongoesfast/spdtactics/patrol/PatrolWidgetProvider.kt")
+	check(kt.contains("Patrol back!") and kt.contains("LARGE_MIN_DP"), "widget has a compact layout and a taller one")
+	var info := FileAccess.get_file_as_string("res://addons/patrol_widget/android/src/main/res/xml/patrol_widget_info.xml")
+	check(info.contains("110dp") and info.contains("patrol_widget_compact") and info.contains("patrol_widget_large"), "widget provider targets a short cover-screen size and can grow")
+	gs.settings.dev_tools = had_dev
+	gs.settings.patrol_notify = false
+	gs.new_game()

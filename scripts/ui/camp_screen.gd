@@ -272,6 +272,11 @@ func _biome_pick_row(parent: VBoxContainer) -> void:
 		if not unlocked: break
 
 # ------------------------------------------------------------ windows
+## Widget / notification tap: Guild, on the Patrols section (the switcher otherwise opens Supplies).
+func open_guild_patrols() -> void:
+	section["Guild"] = "patrols"
+	open_page("Guild")
+
 ## Open a page (facility, Stash, Heroes, Journal, Settings or Delve) as an SPD window over the hub.
 func open_page(p: String) -> void:
 	if not (p in PAGE_ORDER): return
