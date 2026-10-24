@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.49.3
+- Desktop interface mode: PC combat can use a full-bleed grid, a roomier bottom toolbar, and a combat log on the left. Settings switches Mobile and Desktop and remaps the combat keys. The toolbar Menu opens the same Settings panel as Camp and Delve. Status and delve bars stay phone-width on ultrawide screens, and SPD bar fills keep their rounded corners when they stretch wide.
+- Tapping Bolt a second time auto-aims at the last attacker, or the nearest foe, like SPD's QuickSlot.
+- Floor finds drop less dew (1, was 2-3) and less gold, so early delves stop turning into free potions.
+- The delve no longer repeats "Collected this delve"; the Found bar already shows the haul. Toolbar slots stay the same height when they show a count.
+
 ## 0.49.2
 - Android home screen can show a patrol widget (a short countdown on the Fold cover, a list when it is taller) and, if you turn on Patrol alerts in Settings, a notification when a patrol is ready to recall. Alerts are off until you enable them. PC and the browser are unchanged, and the game still runs if the Android plugin is not in the build (DECISIONS #229, +tests).
 - The post-fight "Wake at Camp" button (and other UIKit buttons) no longer stretch into a tall empty slab when a wrapping label sits beside them. Defeat keeps its message and the button in a normal-height column (DECISIONS #228, +test).
