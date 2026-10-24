@@ -622,17 +622,20 @@ func test_camp(gs) -> void:
 	print("[camp]")
 	gs.new_game()
 	gs.add_mat("iron_ore", 80); gs.add_mat("gold", 500); gs.add_mat("seeds", 10); gs.add_mat("dew", 40); gs.add_mat("arcane_resin", 5)
+	# DECISIONS #227: Blacksmith Lv1 is repair-only. Shortsword is T2 (Lv2). Cap is +0/+1/+2/+3.
+	check(not gs.craft("blacksmith", "forge_shortsword"), "Lv1 blacksmith does not forge a shortsword")
+	check(gs.forge_cap() == 0, "Lv1 forge cap is +0")
+	check(not gs.upgrade_facility("blacksmith"), "facility capped without SoU")
+	gs.add_mat("scroll_upgrade", 1)
+	check(gs.apply_sou("blacksmith") and gs.upgrade_facility("blacksmith"), "SoU breaks cap")
 	check(gs.craft("blacksmith", "forge_shortsword"), "forge shortsword")
 	var ss = gs.gear.filter(func(g): return g.id == "shortsword")[0]
 	check(gs.can_equip("warrior", ss.uid) == "", "can equip shortsword")
 	gs.equip("warrior", ss.uid)
 	check(gs.hero_stats("warrior").dmg == maxi(1, int(7 / 3)), "str 10 < 12 req: damage / (1 + missing Str)")
-	check(gs.can_craft("blacksmith", "forge_sword") != "", "sword needs blacksmith lv2")
-	check(gs.upgrade_item(ss.uid), "upgrade +1 (cap = blacksmith level 1)")
+	check(gs.can_craft("blacksmith", "forge_sword") != "", "sword needs blacksmith lv3")
+	check(gs.upgrade_item(ss.uid), "upgrade +1 (cap +1 at blacksmith lv2)")
 	check(not gs.upgrade_item(ss.uid), "can't exceed blacksmith cap")
-	check(not gs.upgrade_facility("blacksmith"), "facility capped without SoU")
-	gs.add_mat("scroll_upgrade", 1)
-	check(gs.apply_sou("blacksmith") and gs.upgrade_facility("blacksmith"), "SoU breaks cap")
 	check(gs.craft("alchemy", "brew_healing") and gs.mat("potion_healing") == 2, "brew potion")
 	check(gs.craft("enchanter", "scribe_passage"), "scribe passage")
 	# identify queue
@@ -1920,6 +1923,7 @@ func test_equipped_owner_marks(gs) -> void:
 	var arm: Button = _slot_uid(cs.win_layer, armor)
 	var arm_frame: StyleBoxFlat = arm.get_theme_stylebox("normal") if arm else null
 	check(arm != null and arm.get_node_or_null("OwnerBar") != null and arm_frame != null and arm_frame.border_color.is_equal_approx(Color("ff5040")), "cracked armor stays red and still names who wears it")
+	gs.facilities.blacksmith.level = 2
 	cs.section["Forge"] = "upgrade"
 	cs.open_page("Forge")
 	var forge_spare: Button = _slot_uid(cs.win_layer, spare)
@@ -2586,7 +2590,7 @@ func test_encounter_summary(gs) -> void:
 	await get_tree().process_frame
 	var dcard: Control = cs_loss.buttons.get_node_or_null("DefeatResults")
 	var wake = _find_btn(dcard, "Wake at Camp") if dcard else null
-	var wake_h := wake.get_combined_minimum_size().y if wake else 0.0
+	var wake_h: float = wake.get_combined_minimum_size().y if wake else 0.0
 	check(dcard != null and wake != null and UIKit.collapsing_labels(cs_loss).is_empty(),
 		"Defeat keeps its message and Wake at Camp in a column (no collapsing label)")
 	check(wake_h > 0.0 and wake_h <= UIKit.btn_height() * 2.5,
@@ -3055,7 +3059,7 @@ func test_facility_cap(gs) -> void:
 	m_slot.free(); m_slot2.free(); cs.queue_free()
 	# Scrolls unlock a locked slot. Materials fill an open one. The two actions are not one button.
 	gs.facilities.enchanter.level = 1; gs.facilities.enchanter.cap = 2
-	var need := gs.sou_cap_cost("enchanter")
+	var need: int = gs.sou_cap_cost("enchanter")
 	gs.mats.scroll_upgrade = need; gs.mats.arcane_resin = 0; gs.mats.gold = 0
 	var camp = load("res://scripts/ui/camp_screen.gd").new(); add_child(camp)
 	camp.open_page("Enchanter")
