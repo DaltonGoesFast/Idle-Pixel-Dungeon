@@ -2573,6 +2573,24 @@ func test_encounter_summary(gs) -> void:
 	var clean_txt := _node_text(cs_clean.buttons.get_node_or_null("VictoryResults"))
 	check(clean_txt.contains("Victory") and clean_txt.contains("Got") and not clean_txt.contains("Lost"), "post-battle victory results hide the Lost category when nothing was lost")
 	cs_clean.queue_free()
+	# DECISIONS #228: Defeat used to put a wrapping label in the HFlow next to Wake at Camp, so the
+	# label collapsed to one letter per line and the button stretched to half the screen.
+	var cs_loss = load("res://scripts/ui/combat_screen.gd").new()
+	cs_loss.setup(fight_ev, func(_r): pass)
+	add_child(cs_loss)
+	cs_loss.size = Vector2(968, 1188)
+	cs_loss.apply_layout(true, Vector2(968, 1188))
+	cs_loss.combat.over = true; cs_loss.combat.won = false; cs_loss.combat.hero.hp = 0
+	cs_loss._act(func(): pass)
+	await get_tree().process_frame
+	var dcard: Control = cs_loss.buttons.get_node_or_null("DefeatResults")
+	var wake = _find_btn(dcard, "Wake at Camp") if dcard else null
+	var wake_h := wake.get_combined_minimum_size().y if wake else 0.0
+	check(dcard != null and wake != null and UIKit.collapsing_labels(cs_loss).is_empty(),
+		"Defeat keeps its message and Wake at Camp in a column (no collapsing label)")
+	check(wake_h > 0.0 and wake_h <= UIKit.btn_height() * 2.5,
+		"Wake at Camp stays normal height after a loss (was %s, btn %s)" % [wake_h, UIKit.btn_height()])
+	cs_loss.queue_free()
 	scr._open_summary("Free cache", PackedStringArray(["+14 Gold", "+13 XP"]), PackedStringArray())
 	var shield: ColorRect = scr.get_node("EncounterSummary/SummaryShield")
 	check(shield.color.a == 0.0 and shield.mouse_filter == Control.MOUSE_FILTER_STOP and scr.get_node("EncounterSummary").mouse_filter == Control.MOUSE_FILTER_STOP, "an event's result window doesn't darken the scene, but taps behind it are still blocked")

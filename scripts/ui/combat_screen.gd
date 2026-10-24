@@ -504,8 +504,20 @@ func _result_buttons() -> void:
 			UIKit.as_toolbar(b)
 			row.add_child(b)
 	else:
-		buttons.add_child(UIKit.label("Defeat... the pack is lost and your gear cracks.", 1.0, Color("ff7070")))
-		_btn("Wake at Camp", _finish)
+		# Column, not a bare label in the HFlow: a wrapping Label with no width collapses to one
+		# letter per line and used to stretch Wake at Camp to half the screen (DECISIONS #228).
+		var col := UIKit.vbox()
+		col.name = "DefeatResults"
+		col.size_flags_horizontal = SIZE_EXPAND_FILL
+		var msg := UIKit.label("Defeat... the pack is lost and your gear cracks.", 1.0, Color("ff7070"))
+		msg.size_flags_horizontal = SIZE_EXPAND_FILL
+		msg.custom_minimum_size.x = UIKit.font_size * SIDE_MIN_FS
+		col.add_child(msg)
+		var wake := UIKit.button("Wake at Camp", _finish)
+		wake.custom_minimum_size.x = UIKit.font_size * 6.5
+		UIKit.as_toolbar(wake)
+		col.add_child(wake)
+		buttons.add_child(col)
 
 ## Rows the Victory list shows before it scrolls (a heading counts as a row).
 const VICTORY_ROWS := 6

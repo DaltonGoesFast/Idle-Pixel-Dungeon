@@ -26,6 +26,9 @@ static func button(text: String, cb: Callable, enabled := true, tooltip := "") -
 	b.custom_minimum_size.y = btn_height()
 	b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	# Never stretch to a tall sibling's height (a wrapping label in the same HBox/HFlow used to
+	# make Wake at Camp and Swap fill half the screen — DECISIONS #228).
+	b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	if tooltip != "": b.tooltip_text = tooltip
 	b.pressed.connect(func(): Sfx.play("click"); cb.call())
 	return b
