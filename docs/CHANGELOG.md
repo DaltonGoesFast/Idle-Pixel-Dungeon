@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Camp facilities go to Lv5 (Scroll budget still 22). Blacksmith L1 is repair-only; craft tier matches level (T5 at L5); gear upgrades cap at +1/+2/+3 from L2/L3/L4 (no masterwork +4..+6). Guild pack 3/4/5/7/10 and patrols 2/4/8/12/16h; Alchemy belt 2/2/3/4/5; Enchanter ID/slots/caps extend through L5 (DECISIONS #227).
 - Until you beat Goo or use three of them, each delve that starts without a Scroll of Passage gets a free one so you can bank the pack early; unused free scrolls do not enter the stash (DECISIONS #226).
 - Camp overhaul: drifting clouds and twinkling stars (firelight still clipped off the sky), all unlocked heroes seated around a roomier fire (tap to select), bubbling alchemy pot with scrolling water, Expedition biome pick via levelicons, and facility "!" when a Scroll can unlock a slot (DECISIONS #225).
 

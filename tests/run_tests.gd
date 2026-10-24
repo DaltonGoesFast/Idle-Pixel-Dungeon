@@ -302,7 +302,7 @@ func test_fullrun(gs) -> void:
 			for c in gs.heroes: gs.heroes[c].unlocked = true
 			gs.add_mat("potion_healing", 2); gs.add_mat("ration", 4); gs.add_mat("torch", 6); gs.facilities.alchemy.level = 3
 			_kit_tier2(gs, cls)
-			gs.facilities.guild.level = 3   # late-game pack cap 10 (DECISIONS #144)
+			gs.facilities.guild.level = 5   # late-game pack cap 10
 			var r := RunSim.play(gs, cls, {"ration": 6, "torch": 8, "potion_healing": 4}, 2000 + seed, true, "prison")
 			if r.result == "extract" and r.biome == "prison": wins += 1
 			else: deaths.append("f%d" % r.floor)
@@ -468,7 +468,7 @@ func test_city(gs) -> void:
 			var hh: Dictionary = gs.heroes[cls]
 			hh.level = 12; hh.str = 16; hh.mask = true; hh.subclass = DB.heroes[cls].subclasses.keys()[0]
 			hh.armor = gs.add_gear("scale_armor", true, 1); hh.weapon = gs.add_gear("longsword", true, 1)
-			gs.facilities.guild.level = 3   # late-game pack cap 10 (DECISIONS #144)
+			gs.facilities.guild.level = 5   # late-game pack cap 10
 			var rr := RunSim.play(gs, cls, {"ration": 8, "torch": 9, "potion_healing": 5}, 5000 + seed, true, "city")
 			if rr.result == "extract" and rr.biome == "city": cw += 1
 			else: ends.append("f%d L%d" % [rr.floor, rr.level])
@@ -559,7 +559,7 @@ func test_cavesrun(gs) -> void:
 			h.armor = gs.add_gear("mail_armor", true, 1)
 			# tier-3 weapon for every melee class; the Rogue's Dagger+3 only kept up while the cloak refilled every fight (DECISIONS #206)
 			if cls in ["warrior", "huntress", "rogue"]: h.weapon = gs.add_gear("mace", true, 1)
-			gs.facilities.guild.level = 3   # late-game pack cap 10 (DECISIONS #144)
+			gs.facilities.guild.level = 5   # late-game pack cap 10
 			var r := RunSim.play(gs, cls, {"ration": 8, "torch": 9, "potion_healing": 5}, 3000 + seed, true, "caves")
 			if r.result == "extract" and r.biome == "caves": wins += 1
 			else: ends.append("f%d L%d" % [r.floor, r.level])
@@ -1542,7 +1542,7 @@ func test_weapon_loot(gs) -> void:
 	var lv := {}
 	for r in DB.recipes.blacksmith:
 		if String(r.out) in forged: lv[r.out] = int(r.min_level)
-	check(lv.worn_shortsword == 1 and lv.shortsword == 1 and lv.sword == 2 and lv.longsword == 3 and lv.greatsword == 3, "sword recipes by Forge level")
+	check(lv.worn_shortsword == 2 and lv.shortsword == 2 and lv.sword == 3 and lv.longsword == 4 and lv.greatsword == 5, "sword recipes by Forge level (L1 repair-only; T5 at L5)")
 	var found := []
 	for t in range(1, 6): found += Weapons.pool(t)
 	var all_w: Array = DB.items.keys().filter(func(k): return Weapons.is_weapon(DB.items[k]) and not DB.items[k].get("heirloom", false))
@@ -3007,17 +3007,19 @@ func test_food_sources(gs) -> void:
 func test_facility_cap(gs) -> void:
 	print("[facility cap]")
 	gs.new_game()
+	var mx := int(DB.facilities.guild.max)
+	check(mx == 5, "facilities max at 5 levels")
 	gs.facilities.guild.level = 2   # the reported state: level above the stored cap 1
 	check(gs.facility_cap("guild") == 2, "a level above the stored cap counts as the cap")
-	var t: String = gs.facility_title("Guild Hall", 2, gs.facility_cap("guild"), int(DB.facilities.guild.max))
-	check(t.contains("Lv 2 / 3") and not t.contains("/ 1") and t.contains("cap 2"), "header shows level / max and the blocking cap (%s)" % t)
+	var t: String = gs.facility_title("Guild Hall", 2, gs.facility_cap("guild"), mx)
+	check(t.contains("Lv 2 / 5") and not t.contains("/ 1") and t.contains("cap 2"), "header shows level / max and the blocking cap (%s)" % t)
 	check(gs.can_upgrade_facility("guild").begins_with("unlock a slot"), "level 2 at cap 2 has no open slot")
 	gs.mats.scroll_upgrade = gs.sou_cap_cost("guild")
 	check(gs.apply_sou("guild") and gs.facility_cap("guild") == 3, "Scrolls raise the cap from the effective cap (2 -> 3)")
 	gs.mats.gold = 1000; gs.mats.iron_ore = 100
 	check(gs.can_upgrade_facility("guild") == "" and gs.upgrade_facility("guild"), "upgrade allowed once the cap is raised")
-	check(not gs.facility_title("Guild Hall", 3, 3, 3).contains("cap"), "no cap note at max level")
-	check(gs.facility_title("Forge", 1, 2, 3) == "Forge   Lv 1 / 3", "no cap note while the cap is not blocking")
+	check(not gs.facility_title("Guild Hall", 5, 5, 5).contains("cap"), "no cap note at max level")
+	check(gs.facility_title("Forge", 1, 2, 5) == "Forge   Lv 1 / 5", "no cap note while the cap is not blocking")
 	gs.facilities.guild.level = 2; gs.facilities.guild.cap = 1
 	gs.from_dict(JSON.parse_string(JSON.stringify(gs.to_dict())))
 	check(int(gs.facilities.guild.cap) == 2, "loading a save repairs cap < level")
@@ -3034,7 +3036,8 @@ func test_facility_cap(gs) -> void:
 	m_slot.free(); m_slot2.free(); cs.queue_free()
 	# Scrolls unlock a locked slot. Materials fill an open one. The two actions are not one button.
 	gs.facilities.enchanter.level = 1; gs.facilities.enchanter.cap = 2
-	gs.mats.scroll_upgrade = 4; gs.mats.arcane_resin = 0; gs.mats.gold = 0
+	var need := gs.sou_cap_cost("enchanter")
+	gs.mats.scroll_upgrade = need; gs.mats.arcane_resin = 0; gs.mats.gold = 0
 	var camp = load("res://scripts/ui/camp_screen.gd").new(); add_child(camp)
 	camp.open_page("Enchanter")
 	var fold0 = camp.win_layer.find_child("FacilityFold", true, false)
@@ -3050,12 +3053,12 @@ func test_facility_cap(gs) -> void:
 	unlock.pressed.emit()
 	check(gs.facility_cap("enchanter") == 3 and gs.mat("scroll_upgrade") == 0, "Unlock slot spends the scrolls and opens one slot")
 	check(camp.fac_open.get("enchanter", false) and camp.win_layer.find_child("FacilitySlots", true, false) != null, "fold stays open after Unlock rebuilds the window")
-	check(camp.win_layer.find_child("UnlockSlot", true, false) == null, "no unlock row once every slot is unlocked")
+	check(camp.win_layer.find_child("UnlockSlot", true, false) != null, "Unlock remains while later slots are still locked toward max 5")
 	var row = camp.win_layer.find_child("FacilitySlots", true, false)
 	var states: Array = []
 	if row:
 		for c in row.get_children(): states.append(str(c.get_meta("state")))
-	check(str(states) == str(["filled", "open", "open"]), "level 1 at cap 3 is one filled slot and two open %s" % str(states))
+	check(str(states) == str(["filled", "open", "open", "locked", "locked"]), "level 1 at cap 3 / max 5 is one filled, two open, two locked %s" % str(states))
 	gs.mats.arcane_resin = 20; gs.mats.gold = 200; camp._fill_window()
 	var fill2 = camp.win_layer.find_child("FillSlot", true, false)
 	check(fill2 != null and not fill2.disabled, "Upgrade enables once a slot is open and the materials are in hand")
@@ -3065,6 +3068,8 @@ func test_facility_cap(gs) -> void:
 	camp._fill_window()
 	var u2 = camp.win_layer.find_child("UnlockSlot", true, false)
 	check(u2 != null and u2.disabled and _node_text(camp.win_layer).contains("Unlock a slot first"), "with no open slot, Upgrade says to unlock first and the scroll row stays visible")
+	gs.facilities.enchanter.cap = int(DB.facilities.enchanter.max); camp._fill_window()
+	check(camp.win_layer.find_child("UnlockSlot", true, false) == null, "no unlock row once every slot is unlocked")
 	camp.queue_free()
 
 ## DECISIONS #175: every vendor pins a materials bar under the title; facility upgrade is a collapsed fold.
@@ -3123,7 +3128,7 @@ func test_max_all_supplies(gs) -> void:
 	print("[max all supplies]")
 	gs.new_game()
 	gs.mats.ration = 14; gs.mats.torch = 3; gs.mats.potion_healing = 9; gs.mats.scroll_passage = 0
-	gs.facilities.guild.level = 3   # pack cap 10 (DECISIONS #144)
+	gs.facilities.guild.level = 5   # pack cap 10
 	var cs = load("res://scripts/ui/camp_screen.gd").new(); add_child(cs)
 	var caps: Dictionary = cs.supply_max()
 	check(caps.ration == 10 and caps.torch == 3 and caps.potion_healing == gs.belt_size() and caps.scroll_passage == 0, "supply max = stash capped per row (%s)" % [caps])
@@ -3139,13 +3144,13 @@ func test_max_all_supplies(gs) -> void:
 	check(b3 != null and not b3.disabled, "lowering one supply re-enables Max all")
 	cs.close_page(); cs.queue_free()
 
-## DECISIONS #144: rations/torches per expedition are capped by Guild level (3/6/10); the Supplies rows, Max all and
+## DECISIONS #144/#227: rations/torches per expedition are capped by Guild level (3/4/5/7/10); the Supplies rows, Max all and
 ## start_run all use GameState.supply_cap.
 func test_guild_pack_cap(gs) -> void:
 	print("[guild pack cap]")
 	gs.new_game(); gs.mats.ration = 20; gs.mats.torch = 20
-	var want := [3, 6, 10]
-	for lvl in [1, 2, 3]:
+	var want := [3, 4, 5, 7, 10]
+	for lvl in range(1, 6):
 		gs.facilities.guild.level = lvl
 		check(gs.supply_cap("ration") == want[lvl - 1] and gs.supply_cap("torch") == want[lvl - 1], "Guild Lv%d packs up to %d rations/torches" % [lvl, want[lvl - 1]])
 	check(gs.supply_cap("potion_healing") == gs.belt_size() and gs.supply_cap("scroll_passage") == 1, "potion and Passage caps unchanged")
@@ -3154,10 +3159,10 @@ func test_guild_pack_cap(gs) -> void:
 	cs.open_page("Delve")
 	check(cs.supply_max().ration == 3 and cs.supply_max().torch == 3, "Supplies rows show max 3 at Guild Lv1")
 	var hint = cs.win_layer.find_child("GuildCapHint", true, false)
-	check(hint != null and String(hint.text).contains("Upgrade Guild") and String(hint.text).contains("Lv2: 6"), "Supplies shows the Guild cap and how to raise it (%s)" % (hint.text if hint else "none"))
+	check(hint != null and String(hint.text).contains("Upgrade Guild") and String(hint.text).contains("Lv2: 4"), "Supplies shows the Guild cap and how to raise it (%s)" % (hint.text if hint else "none"))
 	cs.max_all_supplies()
 	check(cs.loadout.ration == 3 and cs.loadout.torch == 3, "Max all stops at the Guild cap")
-	cs.close_page(); gs.facilities.guild.level = 3; cs.open_page("Delve")
+	cs.close_page(); gs.facilities.guild.level = int(DB.facilities.guild.max); cs.open_page("Delve")
 	check(cs.win_layer.find_child("GuildCapHint", true, false) == null, "no upgrade hint at Guild max level")
 	cs.close_page(); cs.queue_free()
 	gs.facilities.guild.level = 1
@@ -3224,9 +3229,9 @@ func test_identify_rework(gs) -> void:
 	print("[identify rework]")
 	# timers and slots per Desk level
 	var secs := []; var slots := []
-	for lvl in [1, 2, 3]:
+	for lvl in range(1, 6):
 		_id_reset(gs, lvl); secs.append(gs.identify_seconds()); slots.append(gs.identify_slots())
-	check(secs == [180.0, 120.0, 60.0] and slots == [1, 2, 3], "identify takes 3/2/1 min with 1/2/3 slots by Desk level (%s %s)" % [secs, slots])
+	check(secs == [180.0, 120.0, 60.0, 45.0, 30.0] and slots == [1, 2, 3, 4, 5], "identify timers/slots by Desk level (%s %s)" % [secs, slots])
 	# the user's queue: 7 Garnet + 2 Ruby at Lv1 used to take 90 minutes one after another
 	_id_reset(gs, 1)
 	var garnets := _id_add(gs, "ring_might", 7); var rubies := _id_add(gs, "ring_tenacity", 2)
@@ -4087,6 +4092,16 @@ func test_gold_sinks(gs) -> void:
 	check(gs.facility_upgrade_cost("blacksmith") == {"iron_ore": 35, "gold": 150}, "Blacksmith Lv1→2 is ore + gold only")
 	gs.facilities.blacksmith.level = 2
 	check(gs.facility_upgrade_cost("blacksmith") == {"iron_ore": 70, "dark_gold": 16, "gold": 400}, "Blacksmith Lv2→3 needs dark gold")
+	gs.facilities.blacksmith.level = 3
+	check(gs.facility_upgrade_cost("blacksmith") == {"iron_ore": 120, "dark_gold": 30, "gold": 800}, "Blacksmith Lv3→4 costs")
+	gs.facilities.blacksmith.level = 4
+	check(gs.facility_upgrade_cost("blacksmith") == {"iron_ore": 180, "dark_gold": 45, "gold": 1200}, "Blacksmith Lv4→5 costs")
+	check(gs.forge_cap() == 3, "Blacksmith Lv4 forge cap is +3")
+	gs.facilities.blacksmith.level = 1
+	check(gs.forge_cap() == 0 and gs.can_craft("blacksmith", "forge_worn_shortsword").begins_with("needs Blacksmith"), "L1 is repair-only (no craft, no upgrades)")
+	gs.facilities.blacksmith.level = 2
+	gs.mats.iron_ore = 20; gs.mats.gold = 100
+	check(gs.forge_cap() == 1 and gs.can_craft("blacksmith", "forge_worn_shortsword") == "", "L2 unlocks T1/T2 craft and +1 upgrades")
 	gs.facilities.blacksmith.level = 1
 	gs.heroes.warrior.cleared.append("sewers")
 	var fee := int(gs.patrol_fee("sewers").gold)
@@ -4098,17 +4113,14 @@ func test_gold_sinks(gs) -> void:
 	check(gs.can_patrol("warrior", "sewers").begins_with("need"), "can't patrol without the fee")
 	gs.mats.gold = fee + 5
 	check(gs.start_patrol("warrior", "sewers") and gs.mat("gold") == 5, "starting a patrol pays the fee")
-	# masterwork: a max Blacksmith takes gear past +3 for steep gold + materials
-	gs.facilities.blacksmith.level = int(DB.facilities.blacksmith.max); gs.facilities.blacksmith.cap = gs.facilities.blacksmith.level
+	# forge upgrade hard-caps at +3 (no masterwork)
+	gs.facilities.blacksmith.level = 4; gs.facilities.blacksmith.cap = 4
 	var mw: int = gs.add_gear("mace", true, 3)
-	var mw_cost: Dictionary = gs.item_upgrade_cost(mw)
-	check(int(mw_cost.gold) == 3200 and int(mw_cost.iron_ore) == 120 and int(mw_cost.get("dark_gold", 0)) == 12, "+4 masterwork T3 costs 120 ore, 12 dark gold, 3200 gold")
-	gs.mats.gold = 3199; gs.mats.iron_ore = 200; gs.mats.dark_gold = 50; gs.mats.arcane_resin = 50
-	check(gs.can_upgrade_item(mw).begins_with("need"), "+4 masterwork needs 3200 gold")
-	gs.mats.gold = 3200
-	check(gs.upgrade_item(mw) and gs.mat("gold") == 0, "+4 masterwork spends its gold")
-	gs.gear_by_uid(mw).lvl = gs.MASTERWORK_MAX; gs.mats.gold = 99999
-	check(gs.can_upgrade_item(mw) != "", "masterwork stops at +%d" % gs.MASTERWORK_MAX)
+	gs.mats.gold = 99999; gs.mats.iron_ore = 200
+	check(gs.can_upgrade_item(mw) != "", "gear at +3 cannot upgrade further (cap +%d)" % gs.forge_cap())
+	gs.gear_by_uid(mw).lvl = 2
+	check(gs.can_upgrade_item(mw) == "" and gs.upgrade_item(mw) and int(gs.gear_by_uid(mw).lvl) == 3, "+2 -> +3 works at Blacksmith Lv4")
+	check(gs.can_upgrade_item(mw) != "", "stops at +3")
 	# training: buy back lost levels, never past best - 2
 	gs.heroes.mage.unlocked = true; gs.heroes.mage.level = 1; gs.heroes.mage.best_level = 6
 	check(gs.train_cap("mage") == 4, "retrain up to best level - 2")
@@ -4433,6 +4445,9 @@ func test_trinket_upgrades(gs) -> void:
 	check(gs.can_upgrade_item(ru).begins_with("Enchanter cap"), "the Desk caps the ring at +1")
 	gs.facilities.enchanter.level = 3
 	check(gs.enchant_cap() == 3 and gs.can_upgrade_item(ru) == "", "a Lv3 Desk raises the cap to +3")
+	gs.facilities.enchanter.level = 5
+	check(gs.enchant_cap() == 5, "a Lv5 Desk raises the cap to +5")
+	gs.facilities.enchanter.level = 3
 	var old_r := int(gs.heroes.warrior.ring); gs.heroes.warrior.ring = 0
 	var str0 := int(gs.hero_stats("warrior").str); var ht0m := int(gs.hero_stats("warrior").ht)
 	gs.heroes.warrior.ring = ru
@@ -4710,12 +4725,17 @@ func test_camp_sou_budget(gs) -> void:
 		check(gs.sou_cap_cost(id) == 1, "%s: first cap raise is 1 Scroll (first boss kill buys it)" % id)
 	gs.mats.scroll_upgrade = 1
 	check(gs.apply_sou("blacksmith") and gs.mat("scroll_upgrade") == 0, "1 Scroll raises the Blacksmith cap to 2")
-	check(gs.sou_cap_cost("blacksmith") >= 4, "last cap raise is steep (%d)" % gs.sou_cap_cost("blacksmith"))
-	gs.mats.scroll_upgrade = gs.sou_cap_cost("blacksmith") - 1
-	check(not gs.apply_sou("blacksmith") and gs.facility_cap("blacksmith") == 2, "short of Scrolls: cap unchanged, nothing spent")
-	check(gs.mat("scroll_upgrade") == gs.sou_cap_cost("blacksmith") - 1, "no Scrolls spent on a failed raise")
-	gs.mats.scroll_upgrade += 1
-	check(gs.apply_sou("blacksmith") and gs.facility_cap("blacksmith") == 3 and gs.mat("scroll_upgrade") == 0, "enough Scrolls: cap 3")
+	check(gs.sou_cap_cost("blacksmith") == 1, "second raise is still 1 Scroll (%d)" % gs.sou_cap_cost("blacksmith"))
+	gs.mats.scroll_upgrade = 1
+	check(gs.apply_sou("blacksmith") and gs.facility_cap("blacksmith") == 3, "cap 3")
+	check(gs.sou_cap_cost("blacksmith") == 2, "third raise costs 2 Scrolls")
+	gs.mats.scroll_upgrade = 1
+	check(not gs.apply_sou("blacksmith") and gs.facility_cap("blacksmith") == 3, "short of Scrolls: cap unchanged, nothing spent")
+	check(gs.mat("scroll_upgrade") == 1, "no Scrolls spent on a failed raise")
+	gs.mats.scroll_upgrade = 2
+	check(gs.apply_sou("blacksmith") and gs.facility_cap("blacksmith") == 4 and gs.mat("scroll_upgrade") == 0, "enough Scrolls: cap 4")
+	gs.mats.scroll_upgrade = 2
+	check(gs.apply_sou("blacksmith") and gs.facility_cap("blacksmith") == 5, "cap 5 (max)")
 	check(gs.sou_cap_cost("blacksmith") == 0 and not gs.apply_sou("blacksmith"), "no raise past max")
 	# first-kill rule: a repeat kill grants nothing, so the supply is the hard limit
 	gs.new_game(); gs.start_run("warrior", {})

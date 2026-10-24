@@ -996,15 +996,23 @@ func _page_stash() -> void:
 			gg.add_child(_mark_worn(slot, int(g.uid)))
 
 # ------------------------------------------------------------ Facilities
-const NEXT_TEXT := {"blacksmith": "Gear upgrade cap +%d", "alchemy": "Potion belt %d slots", "enchanter": "Faster identification, +1 identify slot, ring/wand cap +%d", "guild": "Patrols up to %dh"}
+const NEXT_TEXT := {"alchemy": "Potion belt %d slots", "enchanter": "Faster identification, +1 identify slot, ring/wand cap +%d", "guild": "Patrols up to %dh"}
 
 func _preview(id: String, lvl: int) -> String:
 	match id:
-		"blacksmith": return NEXT_TEXT[id] % lvl
-		"alchemy": return (NEXT_TEXT[id] % (lvl + 1)) + (", Starter Elixirs" if lvl == 2 else "")
-		"guild": return NEXT_TEXT[id] % [2, 4, 8][clampi(lvl - 1, 0, 2)]
-		"enchanter": return NEXT_TEXT[id] % maxi(0, lvl - 1)
-		_: return NEXT_TEXT[id] % lvl
+		"blacksmith":
+			match lvl:
+				2: return "Craft T1–T2, upgrade cap +1"
+				3: return "Craft T3, upgrade cap +2"
+				4: return "Craft T4, upgrade cap +3"
+				5: return "Craft T5"
+				_: return "Repair only"
+		"alchemy":
+			var belt: int = [2, 2, 3, 4, 5][clampi(lvl - 1, 0, 4)]
+			return (NEXT_TEXT[id] % belt) + (", Starter Elixirs" if lvl == 2 else "")
+		"guild": return NEXT_TEXT[id] % [2, 4, 8, 12, 16][clampi(lvl - 1, 0, 4)]
+		"enchanter": return NEXT_TEXT[id] % [0, 1, 3, 4, 5][clampi(lvl - 1, 0, 4)]
+		_: return NEXT_TEXT.get(id, "Level %d") % lvl
 
 ## Collapsed Upgrade tab at the top of the scroll: expands the facility slots, Unlock, and level-up cost.
 func _facility_header(v: VBoxContainer, id: String) -> void:
@@ -1400,7 +1408,12 @@ func _page_facility(page: String, id: String) -> void:
 	if id == "blacksmith":
 		var nc0 := GameState.cracked_gear().size()
 		var sec := _switcher(v, page, [["craft", "Craft"], ["upgrade", "Upgrade & repair" + (" (%d cracked)" % nc0 if nc0 else "")], ["rings", "Rings"]])
-		if sec == "craft": _recipe_slots(v, id, "Recipes (tap for details)")
+		if sec == "craft":
+			if GameState.facility_level("blacksmith") < 2:
+				v.add_child(UIKit.header("Craft"))
+				v.add_child(UIKit.label("Lv1 is repair only. Upgrade the Blacksmith to Lv2 to forge gear (tier matches facility level; T5 at Lv5).", 0.85, Color("9a9488")))
+			else:
+				_recipe_slots(v, id, "Recipes (tap for details)")
 		elif sec == "rings": _ring_forge_section(v)
 		else: _forge_upgrade_section(v)
 		return
@@ -1421,7 +1434,10 @@ func _page_facility(page: String, id: String) -> void:
 	_recipe_slots(v, id, "Recipes (tap for details)")
 
 func _forge_upgrade_section(v: VBoxContainer) -> void:
-	v.add_child(UIKit.header("Upgrade & repair (cap +%d)" % GameState.forge_cap()))
+	var fcap := GameState.forge_cap()
+	v.add_child(UIKit.header("Upgrade & repair (cap +%d)" % fcap))
+	if fcap <= 0:
+		v.add_child(UIKit.label("Lv1 is repair only. Upgrade the Blacksmith to raise the gear upgrade cap (+1 at Lv2, +3 max at Lv4).", 0.85, Color("9a9488")))
 	var rw := UIKit.hbox(v)
 	var nc := GameState.cracked_gear().size()
 	var rl := UIKit.label("Cracked: %d" % nc, 0.85, Color("ff8a7a") if nc else Color("9a9488")); rl.size_flags_vertical = SIZE_SHRINK_CENTER; rl.autowrap_mode = TextServer.AUTOWRAP_OFF; rw.add_child(rl)

@@ -874,11 +874,13 @@ func facility_level(id: String) -> int:
 	return int(facilities[id].level)
 
 func facility_upgrade_cost(id: String) -> Dictionary:
-	# Blacksmith: ore+gold only to Lv2; dark gold only on Lv2→Lv3 (DECISIONS #222 / Plan 12 C)
+	# Blacksmith: hardcoded steps; dark gold from Lv2→Lv3 onward
 	if id == "blacksmith":
 		match facility_level(id):
 			1: return {"iron_ore": 35, "gold": 150}
 			2: return {"iron_ore": 70, "dark_gold": 16, "gold": 400}
+			3: return {"iron_ore": 120, "dark_gold": 30, "gold": 800}
+			4: return {"iron_ore": 180, "dark_gold": 45, "gold": 1200}
 			_: return {}
 	var base: Dictionary = DB.facilities[id].upgrade_cost
 	var o := {}
@@ -973,29 +975,24 @@ func craft(fac: String, rid: String) -> bool:
 	check_unlocks()
 	touch(); return true
 
-## Tier-scaled forge upgrades (DECISIONS #222). Masterwork (+4..+6 at Blacksmith Lv3) uses the heavy branch.
-const MASTERWORK_MAX := 6
+## Tier-scaled forge upgrades. Cap is +3 at Blacksmith Lv4+ (no masterwork).
+const FORGE_UPGRADE_MAX := 3
+## Legacy alias; gear already past +3 keeps its level but cannot be upgraded further.
+const MASTERWORK_MAX := FORGE_UPGRADE_MAX
 static func upgrade_step_cost(next_lvl: int, tier := 1) -> Dictionary:
 	var t := clampi(tier, 1, 5)
 	var out := {}
-	if next_lvl > 3:
-		out.iron_ore = 10 * t * next_lvl
-		out.gold = 200 * next_lvl * next_lvl
-		if t >= 3: out.dark_gold = (3 if t == 3 else 5 if t == 4 else 8) * next_lvl
-		if t >= 3: out.arcane_resin = (2 if t == 3 else 3 if t == 4 else 5) * next_lvl
-	else:
-		out.iron_ore = 4 * t * next_lvl
-		out.gold = 15 * t * next_lvl * next_lvl
-		if t == 4: out.dark_gold = 4 * next_lvl
-		elif t >= 5:
-			out.dark_gold = 6 * next_lvl
-			out.arcane_resin = 3 * next_lvl
+	out.iron_ore = 4 * t * next_lvl
+	out.gold = 15 * t * next_lvl * next_lvl
+	if t == 4: out.dark_gold = 4 * next_lvl
+	elif t >= 5:
+		out.dark_gold = 6 * next_lvl
+		out.arcane_resin = 3 * next_lvl
 	return out
 
-## Highest level the Forge can take gear to right now.
+## Highest level the Forge can take gear to right now. L1 repair-only (0); +1/+2/+3 at Lv2/3/4+.
 func forge_cap() -> int:
-	var l := facility_level("blacksmith")
-	return MASTERWORK_MAX if l >= int(DB.facilities.blacksmith.max) else l
+	return [0, 1, 2, 3, 3][clampi(facility_level("blacksmith") - 1, 0, 4)]
 
 func item_upgrade_cost(uid: int) -> Dictionary:
 	var g := gear_by_uid(uid)
@@ -1057,7 +1054,7 @@ func is_trinket(g: Dictionary) -> bool:
 	return not g.is_empty() and DB.item(g.id).type in ["ring", "wand", "artifact"] and not DB.item(g.id).get("heirloom", false)
 
 func enchant_cap() -> int:
-	return [0, 1, 3][clampi(facility_level("enchanter") - 1, 0, 2)]
+	return [0, 1, 3, 4, 5][clampi(facility_level("enchanter") - 1, 0, 4)]
 
 static func trinket_step_cost(next_lvl: int) -> Dictionary:
 	return {"arcane_resin": 8 * next_lvl, "dark_gold": 4 * next_lvl, "gold": 100 * next_lvl * next_lvl}
@@ -1372,11 +1369,11 @@ const IDENTIFY_RUSH_GOLD_PER_MIN := 15.0   # Finish now: 15 gold per minute of D
 const IDENTIFY_RUSH_MIN := 5
 
 func identify_seconds() -> float:
-	return [180.0, 120.0, 60.0][clampi(facility_level("enchanter") - 1, 0, 2)]   # 3 / 2 / 1 minutes
+	return [180.0, 120.0, 60.0, 45.0, 30.0][clampi(facility_level("enchanter") - 1, 0, 4)]
 
 ## Items the Desk identifies at the same time (one per level).
 func identify_slots() -> int:
-	return clampi(facility_level("enchanter"), 1, 3)
+	return clampi(facility_level("enchanter"), 1, 5)
 
 ## The type is known (one was identified, forged, bought or found known), so this one only needs a tap.
 func type_known(id: String) -> bool:
@@ -1574,7 +1571,7 @@ func _migrate_id_queue() -> void:
 # ---------------------------------------------------------------- Offline Patrols
 ## Guild hours cap; a hero's own cap adds their Timekeeper's Hourglass (DECISIONS #188).
 func patrol_max_hours(c := "") -> float:
-	var base: float = [2.0, 4.0, 8.0][clampi(facility_level("guild") - 1, 0, 2)]
+	var base: float = [2.0, 4.0, 8.0, 12.0, 16.0][clampi(facility_level("guild") - 1, 0, 4)]
 	if c == "" or not heroes.has(c): return base
 	return base + float(patrol_perks(c).fx.get("max_hours", 0.0))
 
@@ -1804,7 +1801,7 @@ func supply_cap(k: String) -> int:
 	return 10
 
 func belt_size() -> int:
-	return facility_level("alchemy") + 1
+	return [2, 2, 3, 4, 5][clampi(facility_level("alchemy") - 1, 0, 4)]
 
 func can_start_run(c: String) -> String:
 	var h: Dictionary = heroes[c]
