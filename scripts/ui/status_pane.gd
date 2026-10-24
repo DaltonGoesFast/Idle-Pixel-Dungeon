@@ -104,10 +104,38 @@ static func barrier_seg_rects(bar: Rect2, a: float, b: float, segs: int, line: f
 static func divider_width(seg_w: float, line: float) -> float:
 	return clampf(floorf(seg_w / 3.0), 1.0, maxf(1.0, line))
 
+## Blood / shield / exp strips have 1px transparent corners for rounding. Stretch only the middle so
+## those corners stay one game-pixel (× pane scale) instead of blowing out into black corner gaps.
 func _strip(src: Rect2, dst: Rect2, frac: float) -> void:
 	frac = clampf(frac, 0.0, 1.0)
 	if frac <= 0.0: return
-	draw_texture_rect_region(tex, Rect2(dst.position, Vector2(floorf(dst.size.x * frac), dst.size.y)), Rect2(src.position, Vector2(maxf(1.0, src.size.x * frac), src.size.y)))
+	var dw := floorf(dst.size.x * frac)
+	if dw < 1.0: return
+	_bar_patch(src, Rect2(dst.position, Vector2(dw, dst.size.y)))
+
+func _bar_patch(src: Rect2, dst: Rect2) -> void:
+	var sx := src.position.x; var sy := src.position.y
+	var sw := src.size.x; var sh := src.size.y
+	var dx := dst.position.x; var dy := dst.position.y
+	var dw := dst.size.x; var dh := dst.size.y
+	var m := maxf(1.0, floorf(dh / sh))   # 1 source px → pane scale
+	if dw < m * 2.0:
+		draw_texture_rect_region(tex, dst, Rect2(sx + 1.0, sy, maxf(1.0, sw - 2.0), sh))
+		return
+	var ml := m; var mr := m
+	var mt := minf(m, floorf(dh / 2.0)); var mb := minf(m, dh - mt)
+	draw_texture_rect_region(tex, Rect2(dx, dy, ml, mt), Rect2(sx, sy, 1, 1))
+	draw_texture_rect_region(tex, Rect2(dx + dw - mr, dy, mr, mt), Rect2(sx + sw - 1, sy, 1, 1))
+	draw_texture_rect_region(tex, Rect2(dx, dy + dh - mb, ml, mb), Rect2(sx, sy + sh - 1, 1, 1))
+	draw_texture_rect_region(tex, Rect2(dx + dw - mr, dy + dh - mb, mr, mb), Rect2(sx + sw - 1, sy + sh - 1, 1, 1))
+	if dw > ml + mr:
+		draw_texture_rect_region(tex, Rect2(dx + ml, dy, dw - ml - mr, mt), Rect2(sx + 1, sy, sw - 2, 1))
+		draw_texture_rect_region(tex, Rect2(dx + ml, dy + dh - mb, dw - ml - mr, mb), Rect2(sx + 1, sy + sh - 1, sw - 2, 1))
+	if dh > mt + mb:
+		draw_texture_rect_region(tex, Rect2(dx, dy + mt, ml, dh - mt - mb), Rect2(sx, sy + 1, 1, sh - 2))
+		draw_texture_rect_region(tex, Rect2(dx + dw - mr, dy + mt, mr, dh - mt - mb), Rect2(sx + sw - 1, sy + 1, 1, sh - 2))
+	if dw > ml + mr and dh > mt + mb:
+		draw_texture_rect_region(tex, Rect2(dx + ml, dy + mt, dw - ml - mr, dh - mt - mb), Rect2(sx + 1, sy + 1, sw - 2, sh - 2))
 
 func _draw() -> void:
 	if d.is_empty(): return

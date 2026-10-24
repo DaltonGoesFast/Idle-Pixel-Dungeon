@@ -66,6 +66,8 @@ const CHROME := {"window": [0, 0, 20, 20, 6], "silver": [86, 0, 22, 22, 7], "toa
 static var px_scale := 3
 static var _toolbar_tex: Texture2D
 static var _toolbar_k := 0
+static var _status_pane_tex: Texture2D
+static var _status_pane_k := 0
 static var _ui_icons := {}
 
 ## App version shown on Camp and Settings (project.godot application/config/version).
@@ -79,6 +81,14 @@ static func _toolbar_atlas() -> Texture2D:
 		img.resize(img.get_width() * px_scale, img.get_height() * px_scale, Image.INTERPOLATE_NEAREST)
 		_toolbar_tex = ImageTexture.create_from_image(img); _toolbar_k = px_scale
 	return _toolbar_tex
+
+## status_pane.png upscaled like chrome so ProgressBar 9-patch margins stay crisp pixels.
+static func _status_pane_atlas() -> Texture2D:
+	if _status_pane_tex == null or _status_pane_k != px_scale:
+		var img: Image = (load("res://assets/ui/status_pane.png") as Texture2D).get_image()
+		img.resize(img.get_width() * px_scale, img.get_height() * px_scale, Image.INTERPOLATE_NEAREST)
+		_status_pane_tex = ImageTexture.create_from_image(img); _status_pane_k = px_scale
+	return _status_pane_tex
 
 ## SPD toolbar button frame (grey bevelled slot, toolbar.png 64,0 22x24, 3px border).
 static func toolbar_style(tint := Color.WHITE) -> StyleBoxTexture:
@@ -378,9 +388,15 @@ static func make_theme(fs: int) -> Theme:
 	th.set_stylebox("tab_unselected", "TabBar", tab)
 	th.set_stylebox("tab_hovered", "TabBar", hover)
 	th.set_stylebox("tab_selected", "TabBar", tab_sel)
-	# progress bars: SPD toast frame + the status pane's yellow exp strip
+	# progress bars: SPD toast frame + status pane exp strip as a 9-patch (1px rounded corners stay
+	# sharp when the fill stretches; a plain stretch left black corner blobs — same fix as StatusPane)
 	var pb_bg := chrome("toast", Color(0.7, 0.7, 0.7), 0)
-	var pb_fg := StyleBoxTexture.new(); pb_fg.texture = load("res://assets/ui/status_pane.png"); pb_fg.region_rect = Rect2(0, 121, 128, 7)
+	var pb_fg := StyleBoxTexture.new()
+	var pk := px_scale
+	pb_fg.texture = _status_pane_atlas()
+	pb_fg.region_rect = Rect2(0, 121 * pk, 128 * pk, 7 * pk)
+	pb_fg.set_texture_margin_all(pk)
+	pb_fg.set_content_margin_all(0)
 	th.set_stylebox("background", "ProgressBar", pb_bg)
 	th.set_stylebox("fill", "ProgressBar", pb_fg)
 	th.set_constant("separation", "VBoxContainer", int(fs * 0.4))
