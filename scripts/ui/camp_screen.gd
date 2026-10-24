@@ -233,10 +233,11 @@ func _biome_pick_row(parent: VBoxContainer) -> void:
 	row.add_theme_constant_override("h_separation", int(UIKit.font_size * 0.35))
 	row.add_theme_constant_override("v_separation", int(UIKit.font_size * 0.25))
 	parent.add_child(row)
-	var ok := start_biomes(chosen_hero)
+	var ok: Array = start_biomes(chosen_hero)
 	for b in DB.biomes:
-		var d: Dictionary = DB.biomes[b]
-		var unlocked := b in ok
+		var biome := String(b)
+		var d: Dictionary = DB.biomes[biome]
+		var unlocked: bool = biome in ok
 		var tip := "Floors %d-%d, boss: %s" % [d.floors[0], d.floors[1], DB.mobs.get(d.get("boss", ""), {}).get("name", "?")] if unlocked else "Clear the previous biome with this hero first"
 		var bb := Button.new()
 		bb.focus_mode = FOCUS_NONE
@@ -244,15 +245,15 @@ func _biome_pick_row(parent: VBoxContainer) -> void:
 		bb.disabled = not unlocked
 		var sz := UIKit.font_size * 3.2
 		bb.custom_minimum_size = Vector2(sz, sz + UIKit.font_size * 1.1)
-		var sel := b == chosen_biome and unlocked
+		var sel: bool = biome == chosen_biome and unlocked
 		for st in ["normal", "hover", "pressed", "disabled"]:
 			bb.add_theme_stylebox_override(st, UIKit.chrome("red_button" if sel else "grey_button", Color(1, 1, 1) if st != "disabled" else Color(0.5, 0.5, 0.5), UIKit.font_size * 0.25))
-		var biome_id := b
+		var biome_id := biome
 		bb.pressed.connect(func():
 			Sfx.play("click")
 			chosen_biome = biome_id
 			rebuild())
-		var ic := UIKit.level_pixel(b)
+		var ic := UIKit.level_pixel(biome)
 		ic.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
 		ic.offset_bottom = -int(UIKit.font_size * 1.05)
 		ic.mouse_filter = MOUSE_FILTER_IGNORE
