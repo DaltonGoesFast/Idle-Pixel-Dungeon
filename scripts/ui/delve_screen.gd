@@ -373,17 +373,28 @@ func _refresh_controls() -> void:
 		mark.mouse_filter = MOUSE_FILTER_IGNORE; mark.set_anchors_and_offsets_preset(PRESET_TOP_RIGHT)
 		mark.grow_horizontal = GROW_DIRECTION_BEGIN; bm.add_child(mark)
 
-## One square SPD toolbar slot: icon, an optional short count, and the full name as its tooltip.
+## One square SPD toolbar slot: icon, an optional short count overlaid inside the same frame, and the full name as its tooltip.
+## Counts are Label children, not Button.text — stacking icon+text on the Button grew those slots taller than the rest.
 func _slot(tip: String, icon_name: String, text: String, cb: Callable) -> Button:
-	var b := UIKit.button(text, cb, true, tip)
+	var b := UIKit.button("", cb, true, tip)
 	UIKit.as_toolbar(b, icon_name)
 	b.icon = _slot_icon(icon_name)
 	b.autowrap_mode = TextServer.AUTOWRAP_OFF
 	b.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	b.vertical_icon_alignment = VERTICAL_ALIGNMENT_TOP if text != "" else VERTICAL_ALIGNMENT_CENTER
-	b.add_theme_font_size_override("font_size", UIKit.font_px(UIKit.font_size * 0.75))
 	b.custom_minimum_size = Vector2(0, UIKit.btn_height() * 1.2)
 	b.size_flags_horizontal = SIZE_EXPAND_FILL
+	if text != "":
+		var l := UIKit.label(text, 0.75)
+		l.name = "Count"
+		l.autowrap_mode = TextServer.AUTOWRAP_OFF
+		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		l.set_anchors_and_offsets_preset(PRESET_BOTTOM_WIDE)
+		l.offset_top = -UIKit.font_size * 0.95
+		l.mouse_filter = MOUSE_FILTER_IGNORE
+		l.add_theme_color_override("font_outline_color", Color("000000"))
+		l.add_theme_constant_override("outline_size", maxi(2, UIKit.px_scale))
+		b.add_child(l)
 	controls.add_child(b)
 	return b
 
