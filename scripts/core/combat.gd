@@ -413,9 +413,16 @@ func hit_mob(m: Dictionary, raw: int, surprise := false, magic := false, ranged 
 			var eff_dr := int(m.dr)
 			if (not ranged and int(hero.get("sur_bonus", 0)) > 0) or String(hero.get("sub", "")) == "assassin":
 				eff_dr /= 2
+			# Warden bow: 50% pierce on surprise (or grass — handled below for non-surprise)
+			elif ranged and String(hero.get("sub", "")) == "warden":
+				eff_dr /= 2
 			dmg = maxi(1, dmg - eff_dr)
 	elif magic: dmg = raw
-	else: dmg = maxi(0, raw - int(m.dr))
+	else:
+		var eff_dr2 := int(m.dr)
+		if ranged and String(hero.get("sub", "")) == "warden" and (tile(hero.pos) == T.GRASS or trampled.has(hero.pos)):
+			eff_dr2 /= 2
+		dmg = maxi(0, raw - eff_dr2)
 	# Snakes (SPD evasion): melee only connects on a surprise; magic never misses (SPD);
 	# a bow shot is slipped once per fight, then connects (DECISIONS #172)
 	var snake_slips: bool = m.get("evade_unless_surprise", false) and not surprise and not magic and not sure
@@ -791,7 +798,9 @@ func _melee_dmg(sur := false) -> int:
 	match hero.get("perk", ""):
 		"rage":
 			if int(hero.hp) * 2 < int(hero.ht): d = int(d * 1.2)
-		"combo": d += mini(int(hero.combo), 3)
+		"combo":
+			var stacks := mini(int(hero.combo), 3)
+			d += maxi(stacks, int(d * 0.10 * stacks))
 	if has_debuff("weak"): d = maxi(1, int(d * WEAK_MULT))
 	return d
 
@@ -800,7 +809,7 @@ func _melee_perks() -> void:
 		"combo": hero.combo = int(hero.combo) + 1
 		"battle_recharge":
 			hero.combo = int(hero.combo) + 1
-			if hero.combo % 5 == 0 and not hero.bolt.is_empty() and int(hero.charges) < int(hero.bolt.charges):
+			if hero.combo % 3 == 0 and not hero.bolt.is_empty() and int(hero.charges) < int(hero.bolt.charges):
 				hero.charges += 1; _log("The staff hums: +1 charge.")
 
 func hero_bolt(p: Vector2i) -> bool:
@@ -992,7 +1001,8 @@ func _end_hero_turn(cost: float) -> void:
 	hero_turns += 1
 	hero.next += cost
 	_decay_barrier(cost)
-	if hero.get("perk", "") == "grass_heal" and (tile(hero.pos) == T.GRASS or trampled.has(hero.pos)) and hero.hp < hero.ht: hero.hp += 1
+	if hero.get("perk", "") == "grass_heal" and (tile(hero.pos) == T.GRASS or trampled.has(hero.pos)) and hero.hp < hero.ht:
+		hero.hp = mini(int(hero.ht), int(hero.hp) + 1 + int(hero.get("level", 1)) / 8)
 	_tick_poison(hero)
 	if not over: run_until_hero()
 

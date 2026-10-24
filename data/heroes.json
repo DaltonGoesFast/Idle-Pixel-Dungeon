@@ -26,7 +26,7 @@
    },
    "gladiator": {
     "name": "Gladiator",
-    "desc": "Combo: each melee hit in this fight adds +1 damage (max +3).",
+    "desc": "Combo: each melee hit adds +10% damage (min +1 per stack, max 3 stacks).",
     "perk": "combo"
    }
   }
@@ -58,7 +58,7 @@
   "subclasses": {
    "battlemage": {
     "name": "Battlemage",
-    "desc": "Every 5th melee hit with the staff restores 1 staff charge.",
+    "desc": "Melee hits with the staff deal +wand level bonus damage, and every 3rd melee hit restores 1 staff charge.",
     "perk": "battle_recharge"
    },
    "warlock": {
@@ -102,9 +102,9 @@
    },
    "freerunner": {
     "name": "Freerunner",
-    "desc": "Fast and slippery: attacks take 20% less time, +1 DR.",
+    "desc": "Fast and slippery: attacks take 20% less time, +2 DR.",
     "delay_mult": 0.8,
-    "dr_add": 1
+    "dr_add": 2
    }
   }
  },
@@ -140,10 +140,10 @@
    },
    "warden": {
     "name": "Warden",
-    "desc": "Nature's aid: +2 Barrier, +1 DR, and ending a turn in tall grass heals 1 HP.",
-    "barrier_add": 2,
+    "desc": "Nature's aid: +4 Barrier, +2 DR. Spirit Bow surprise or grass shots pierce 50% DR. Ending a turn in tall grass heals 1 + level/8 HP.",
+    "barrier_add": 4,
     "perk": "grass_heal",
-    "dr_add": 1
+    "dr_add": 2
    }
   }
  }

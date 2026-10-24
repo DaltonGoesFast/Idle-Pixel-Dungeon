@@ -47,7 +47,7 @@
   },
   "surprise": {
    "title": "Surprise attack!",
-   "text": "Step through a doorway so it closes behind you, or circle a tall-grass tile so the foe loses sight of you. Your next hit is a Surprise: x1.5 damage, ignores armor, and knocks them back - into a chasm for an instant kill. Snakes slip melee hits that are not a Surprise, but magic always hits them and bows hit after the first shot."
+   "text": "Step through a doorway so it closes behind you, or circle a tall-grass tile so the foe loses sight of you. Your next hit is a Surprise: x1.5 damage (Assassin x2.5) that never misses, then enemy armor still applies. Stealth blades and Assassins also pierce 50% of that armor. Snakes slip melee hits that are not a Surprise, but magic always hits them and bows hit after the first shot."
   },
   "telegraph": {
    "title": "Red tiles = danger",

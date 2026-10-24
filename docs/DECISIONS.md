@@ -812,3 +812,14 @@ Forge/upgrade/repair costs ignored item tier, and patrol multipliers stacked pas
 - **Patrols:** efficiency cap `1.0`, gear `K=0.08`, gear+perk bonuses add and cap at `1.50`. Revised biome yields (Halls `63g / 4 ore / 1.4 dark gold / 0.7 resin`). Fee is 1 hour of expected gold.
 - **Delve:** no early dark gold on `glint` / `cells` / `cell_block`; trimmed `armory` and `crystal_vein`. Passive gold scales 1–5 by biome. Event HP costs use `max(5, 15% or 20% HT)`.
 Where it lives: `GameState.upgrade_step_cost` / `repair_cost` / `trinket_*` / `facility_upgrade_cost` / `patrol_*`, `data/recipes.json`, `data/facilities.json`, `data/biomes.json`, `data/events.json`, `Delve.advance` / `event_hp_cost`.
+
+## 223. Heirlooms, subclasses, Force, Might, and artifact hours
+City/Halls DR made flat early-game bonuses (Force +2, Gladiator +1, Cape 1–2, staff melee, Spirit Bow) invisible, and artifact fight-XP leveled them too fast relative to Desk costs.
+- **Staff:** `dmg_per_levels` 3, plus `+2` per imbued wand level. Battlemage adds wand-level damage and restores a charge every 3rd hit.
+- **Spirit Bow:** `3 + level / 2`. Warden: +4 Barrier / +2 DR, 50% pierce on surprise or grass bow shots, grass heal `1 + level / 8`.
+- **Ring of Force:** Tier 1 weapons only (no heirlooms). Damage targets 10% above the forged sword your Strength can equip (at least +2), at upgrade `min(6, weapon + ring)`, applied as DPS so Studded Gloves do not double it. Str 18/20 use Greatsword, not Greataxe.
+- **Gladiator** combo `+10%` per stack (min +1). **Freerunner** `+2` DR. **Cape of Thorns** `2 + 1` per level.
+- **Ring of Might** grants Strength and max HP; effective Strength drives weapon/armor requirements and the Force sword tier.
+- **Artifacts:** one `use_hours` meter (patrol hours + 8h per boss kill, including repeats). Every 24h is `+1`, banked up to Desk cap. Desk repairs; no buyable levels. Per-fight XP removed.
+- **Ambush:** CombatBot cap 3, cover search depth 2, skip when `no_surprise`. Status line, tutorial, and codex match.
+Where it lives: `GameState.hero_stats` / `forged_sword_dmg` / `add_artifact_use`, `Combat.hit_mob` / `_melee_*` / grass heal, `CombatBot`, `Delve` boss hours, `data/items.json` / `heroes.json` / `tutorial.json`, `codex.gd`, camp/combat UI.

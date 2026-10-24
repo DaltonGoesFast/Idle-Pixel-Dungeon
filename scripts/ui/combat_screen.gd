@@ -175,7 +175,12 @@ func _refresh() -> void:
 		else: line += "\nStaff charges %d/%d (%s, %d dmg, ignores DR)" % [h.charges, h.bolt.charges, h.bolt.name, h.bolt.dmg]
 	if combat.hidden(): line += "\nHIDDEN in shadows - enemies can't find you"
 	if int(h.get("poison", 0)) > 0: line += "\nPOISONED: -1 HP per turn for %d turns" % int(h.poison)
-	if combat.surprise_now(): line += "\nThey lost sight of you: next attack is a SURPRISE (x%s, then DR)" % Weapons.num(float(h.surprise_mult), 1)
+	if combat.surprise_now():
+		var pierce := ""
+		if int(h.get("sur_bonus", 0)) > 0 or String(h.get("sub", "")) == "assassin": pierce = ", 50% DR pierce"
+		elif String(h.get("sub", "")) == "warden" and combat.has_ranged() and not h.bolt.get("magic", true): pierce = ", 50% DR pierce"
+		elif h.bolt.get("pierce", false): pierce = ", ignores DR"
+		line += "\nSurprise ready (%.1fx dmg, can't miss%s)" % [float(h.surprise_mult), pierce]
 	if combat.enemies().any(func(e): return e.get("evade_unless_surprise", false)):
 		line += "\nSnake: melee needs a Surprise; magic always hits, bows after the first shot"
 	status.text = line

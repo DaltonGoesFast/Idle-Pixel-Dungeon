@@ -255,15 +255,14 @@ static func _blind_shot(c: Combat, es: Array) -> Dictionary:
 			if c.can_bolt(ls): return {"act": "tap", "pos": ls, "mode": "bolt", "why": "blind shot where %s was last seen" % e.name}
 	return {}
 
-const AMBUSH_CAP := 8
-const REACH_WAIT_CAP := 6   # bot turns per fight spent letting foes walk into a Spear/Glaive/Whip's reach (#207)   # bot turns per fight spent hiding/waiting for a Surprise before it just fights
+const AMBUSH_CAP := 3
+const REACH_WAIT_CAP := 6   # bot turns per fight spent letting foes walk into a Spear/Glaive/Whip's reach (#207)
 
-## SPD ambush for every class (DECISIONS #177): while every foe can see us, step to the nearest cell none of them can
-## see (doors, grass, pillars, corners); while one is still hunting our last-seen cell out of sight, wait for it to
-## walk into reach (it arrives unaware -> Surprise swing or shot). Bounded by AMBUSH_CAP turns per fight, never vs
-## bosses, never while hurt or under a telegraph, so fights fall back to normal play instead of stalling.
+## SPD ambush for every class (DECISIONS #177, #223): step into nearby cover for a Surprise. Cap 3 turns, cover
+## search depth 2, skip when the weapon cannot surprise.
 static func _ambush(c: Combat, es: Array) -> Dictionary:
 	var h: Dictionary = c.hero
+	if h.get("no_surprise", false): return {}
 	if int(h.get("bot_ambush", 0)) >= AMBUSH_CAP: return {}
 	if es.any(func(e): return e.get("boss", false) or e.get("fist", false) or e.get("stationary", false)): return {}
 	if es.size() > 2: return {}   # vs a crowd, hiding just lets them arrive together (sim: more deaths)
@@ -274,18 +273,18 @@ static func _ambush(c: Combat, es: Array) -> Dictionary:
 	var unseen := es.filter(func(e): return not c.sees(e.pos, h.pos))
 	if unseen.size() == es.size():
 		# Hidden from all: wait while someone is still coming to our last-seen cell
-		if es.any(func(e): return e.get("state", "hunting") == "hunting" and Combat.cheb(e.pos, h.pos) <= 4):
+		if es.any(func(e): return e.get("state", "hunting") == "hunting" and Combat.cheb(e.pos, h.pos) <= 3):
 			h.bot_ambush = int(h.get("bot_ambush", 0)) + 1
 			return {"act": "wait", "why": "wait in cover for a Surprise"}
 		return {}
 	# Only start an ambush when a Surprise could pay off: some foe within reach of the setup
-	if not es.any(func(e): return Combat.cheb(e.pos, h.pos) <= 4): return {}
+	if not es.any(func(e): return Combat.cheb(e.pos, h.pos) <= 3): return {}
 	var hide := _cover_step(c, es)
 	if hide.x < 0: return {}
 	h.bot_ambush = int(h.get("bot_ambush", 0)) + 1
 	return {"act": "tap", "pos": hide, "mode": "", "why": "break sight for a Surprise"}
 
-## First step toward the nearest cell (<= 4 steps) no living foe can see and no foe is next to.
+## First step toward the nearest cell (<= 2 steps) no living foe can see and no foe is next to.
 static func _cover_step(c: Combat, es: Array) -> Vector2i:
 	var h: Dictionary = c.hero
 	var prev := {h.pos: h.pos}; var q := [h.pos]; var depth := {h.pos: 0}
@@ -294,7 +293,7 @@ static func _cover_step(c: Combat, es: Array) -> Vector2i:
 		if cur != h.pos and es.all(func(e): return not c.sees(e.pos, cur) and Combat.cheb(e.pos, cur) > 1):
 			while prev[cur] != h.pos: cur = prev[cur]
 			return cur
-		if int(depth[cur]) >= 4: continue
+		if int(depth[cur]) >= 2: continue
 		for d in Combat.DIRS:
 			var n: Vector2i = cur + d
 			if prev.has(n) or not c.passable(n) or c.unit_at(n) != null or c.is_danger(n) or c.visible_trap(n): continue

@@ -49,7 +49,7 @@ static func item_line(id: String) -> String:
 			if Weapons.reach(it) > 1: wb.append("reach %d" % Weapons.reach(it))
 			if Weapons.acc(it) != 1.0: wb.append("accurate" if Weapons.acc(it) > 1.0 else "inaccurate")
 			if it.has("block"): wb.append("blocks 0-%d" % Weapons.block_max(it, 0))
-			if it.has("surprise_pct"): wb.append("strong surprise")
+			if it.has("surprise_pct"): wb.append("strong surprise, pierces 50% DR on surprise")
 			if it.get("no_surprise", false): wb.append("no surprise")
 			wb.append("%d Str" % int(it.str))
 			return ", ".join(wb)
@@ -58,6 +58,8 @@ static func item_line(id: String) -> String:
 		"ring":
 			var bits := []
 			if it.has("dmg_bonus"): bits.append("+%d dmg" % it.dmg_bonus)
+			if it.has("str_bonus"): bits.append("+%d Strength" % it.str_bonus)
+			if it.has("ht_bonus") and not it.has("charges_bonus"): bits.append("+%d max HP" % it.ht_bonus)
 			if it.has("barrier_bonus"): bits.append("+%d Barrier" % it.barrier_bonus)
 			if it.has("dr_bonus"): bits.append("+%d DR" % it.dr_bonus)
 			if it.has("gold_mult"): bits.append("+%d%% gold" % int(round((float(it.gold_mult) - 1.0) * 100)))
@@ -65,7 +67,7 @@ static func item_line(id: String) -> String:
 			if it.has("move_cost"): bits.append("%d%% faster steps" % int(round((1.0 - float(it.move_cost)) * 100)))
 			if it.has("bolt_bonus"): bits.append("+%d ranged dmg" % it.bolt_bonus)
 			if it.has("elem_resist"): bits.append("-%d%% magic dmg taken" % int(round((1.0 - float(it.elem_resist)) * 100)))
-			if it.has("force_bonus"): bits.append("+%d dmg with tier-1 weapons" % it.force_bonus)
+			if it.has("force_bonus"): bits.append("Tier-1 weapons hit like the sword your Strength can equip")
 			if it.has("charges_bonus"): bits.append("+%d staff charge, +%d HP" % [it.charges_bonus, it.get("ht_bonus", 0)])
 			return "ring, " + ", ".join(bits)
 		"artifact": return "artifact, " + String(it.get("desc", ""))
@@ -95,7 +97,7 @@ static func _wand_extra(it: Dictionary) -> String:
 const ARTIFACT_STATS := {"ht_bonus": ["Max HP", "", 1.0], "search_add": ["Search radius", "", 1.0], "hunger_mult": ["Hunger", "%", 100.0],
 	"thorns": ["Thorns", " dmg", 1.0], "freeze_start": ["Opening freeze", " ticks", 1.0], "grass_root": ["Grass root", " ticks", 1.0],
 	"chain_root": ["Chain hold", " ticks", 1.0], "loot_mult": ["Fight gold", "%", 100.0]}
-static func artifact_lines(g: Dictionary, cap: int, xp_per := 8) -> Array:
+static func artifact_lines(g: Dictionary, cap: int, _xp_per := 8) -> Array:
 	var d: Dictionary = DB.item(g.id); var out := []
 	if d.get("type", "") != "artifact" or d.get("heirloom", false): return out
 	var lv := int(g.get("lvl", 0)); var pl: Dictionary = d.get("per_level", {})
@@ -116,7 +118,7 @@ static func artifact_lines(g: Dictionary, cap: int, xp_per := 8) -> Array:
 			txt = "%s %s%s" % [spec[0], str(snappedf(v, 0.01)), spec[1]]
 			if step != 0.0: txt += " (+%s per level)" % str(snappedf(step, 0.01))
 		out.append(txt)
-	var need := xp_per * (lv + 1)
-	if lv >= cap: out.append("Level +%d (Desk cap +%d: upgrade the Enchanter's Desk to grow)" % [lv, cap])
-	else: out.append("Level +%d / cap +%d - %d of %d won fights to +%d" % [lv, cap, int(g.get("xp", 0)), need, lv + 1])
+	var hours := int(floor(float(g.get("use_hours", 0.0))))
+	if lv >= cap: out.append("Level +%d (Desk cap +%d: upgrade the Enchanter's Desk to grow; %dh banked)" % [lv, cap, hours])
+	else: out.append("Level +%d / cap +%d - %d / 24h use to +%d" % [lv, cap, hours, lv + 1])
 	return out

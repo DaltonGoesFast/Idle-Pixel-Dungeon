@@ -190,6 +190,12 @@ static func armor_dr(ad: Dictionary, al: int) -> int:
 static func armor_barrier(ad: Dictionary, al: int) -> int:
 	return int(ad.get("barrier", 0)) + int(floor(float(ad.get("barrier_per_lvl", 0.0)) * maxi(0, al)))
 
+## Forged sword damage for Ring of Force: Worn / Shortsword / Sword / Longsword / Greatsword (DECISIONS #223).
+const FORCE_SWORDS := ["worn_shortsword", "shortsword", "sword", "longsword", "greatsword"]
+static func forged_sword_dmg(tier: int, lvl: int) -> int:
+	var id: String = FORCE_SWORDS[clampi(tier, 1, 5) - 1]
+	return Weapons.dmg(DB.item(id), lvl)
+
 func hero_stats(c: String) -> Dictionary:
 	var h: Dictionary = heroes[c]
 	var def: Dictionary = DB.heroes[c]
@@ -200,14 +206,25 @@ func hero_stats(c: String) -> Dictionary:
 	var wd := DB.item(w.id) if w_ok else DB.item(def.start_weapon)
 	var ad := DB.item(a.id) if a_ok else DB.item(def.get("start_armor", "cloth_armor"))
 	var wl := int(w.get("lvl", 0)) if w_ok else 0; var al := int(a.get("lvl", 0)) if a_ok else 0
+	# Ring of Might: Strength + max HP; effective Str gates gear and Force (DECISIONS #223)
+	var ring_str := 0
+	if not r.is_empty() and r.known and not r.cracked:
+		var rd0 := DB.item(r.id)
+		ring_str = int(rd0.get("str_bonus", 0)) + trinket_bonus(r, "str_bonus")
+	var eff_str := int(h.str) + ring_str
 	var dmg := Weapons.dmg(wd, wl)          # SPD min/max at this level, averaged (DECISIONS #207)
 	if wd.has("dmg_per_levels"): dmg += int(h.level) / int(wd.dmg_per_levels)
+	var wnl := 0 if h.get("wand_cracked", false) else int(h.get("wand_lvl", 0))
+	var wid := String(w.id) if w_ok else String(def.start_weapon)
+	if wid == "mages_staff":
+		dmg += 2 * wnl   # staff melee scales with imbued wand level
+		if String(h.get("subclass", "")) == "battlemage": dmg += wnl
 	# Strength gate: under-strength weapon divides damage by (1 + missing Str) and zeroes block; under-strength armor divides DR and zeroes Barrier (DECISIONS #218, #220)
-	var str_short := maxi(0, Weapons.str_req(wd, wl) - int(h.str))
+	var str_short := maxi(0, Weapons.str_req(wd, wl) - eff_str)
 	if str_short > 0: dmg = maxi(1, int(dmg / (1 + str_short)))
 	var adr := armor_dr(ad, al)
 	var abar := armor_barrier(ad, al)
-	var armor_str_short := maxi(0, int(ad.get("str", 10)) - int(h.str))
+	var armor_str_short := maxi(0, int(ad.get("str", 10)) - eff_str)
 	if armor_str_short > 0:
 		adr = adr / (1 + armor_str_short)
 		abar = 0
@@ -218,9 +235,18 @@ func hero_stats(c: String) -> Dictionary:
 		var rd := DB.item(r.id)
 		dmg += int(rd.get("dmg_bonus", 0)) + trinket_bonus(r, "dmg_bonus"); barrier += int(rd.get("barrier_bonus", 0)) + trinket_bonus(r, "barrier_bonus")
 		dr += int(rd.get("dr_bonus", 0)) + trinket_bonus(r, "dr_bonus")
-		if int(wd.get("tier", 1)) <= 1: dmg += int(rd.get("force_bonus", 0)) + trinket_bonus(r, "force_bonus")   # Ring of Force (DECISIONS #157)
+		# Ring of Force: Tier 1 weapons only, never heirlooms; DPS toward forged sword for Strength tier (DECISIONS #223)
+		if int(wd.get("tier", 1)) <= 1 and not wd.get("heirloom", false) and rd.has("force_bonus"):
+			var ftier := clampi((eff_str - 8) / 2, 1, 5)
+			var flvl := mini(6, wl + int(r.get("lvl", 0)))
+			var ref := forged_sword_dmg(ftier, flvl)
+			var target := ref + maxi(2, int(round(float(ref) * 0.10)))
+			var delay := maxf(0.5, float(wd.get("delay", 1.0)))
+			var base_dps := float(Weapons.dmg(wd, wl)) / delay
+			var add_dps := maxf(0.0, float(target) - base_dps)
+			dmg += int(round(add_dps * delay))
 	var s := {"starter_weapon": not w_ok, "starter_armor": not a_ok, "class": c, "name": def.name, "sprite": def.sprite, "fw": def.fw, "fh": def.fh, "row": armor_tier(c),
-		"ht": int(def.base_ht) + int(def.ht_per_level) * (int(h.level) - 1), "level": int(h.level),
+		"ht": int(def.base_ht) + int(def.ht_per_level) * (int(h.level) - 1), "level": int(h.level), "str": eff_str,
 		"dmg": dmg, "dr": dr, "barrier_max": barrier, "delay": float(wd.get("delay", 1.0)),
 		"surprise_mult": float(wd.get("surprise_mult", 1.5)), "abilities": def.abilities,
 		# SPD weapon properties (DECISIONS #207): reach in tiles, accuracy, dagger-family surprise roll, Flail / too heavy = no surprise
@@ -249,7 +275,6 @@ func hero_stats(c: String) -> Dictionary:
 		s.bolt_bonus = int(s.get("bolt_bonus", 0)) + int(ed.get("bolt_bonus", 0)) + trinket_bonus(eq, "bolt_bonus")
 	if "bolt" in def.abilities and h.wand != "":
 		var wn := DB.item(h.wand)
-		var wnl := 0 if h.get("wand_cracked", false) else int(h.get("wand_lvl", 0))   # DECISIONS #158: wand levels (dormant while cracked)
 		s.bolt = {"dmg": int(wn.bolt_dmg) + int(h.level) / 2 + wnl, "charges": int(wn.charges) + int(h.level) / int(def.get("charge_per_levels", 99)) + wnl / 2, "recharge": int(wn.recharge),
 			"burns_grass": wn.get("burns_grass", false), "chains_water": wn.get("chains_water", false), "name": wn.name, "magic": true}
 		# vanilla wand effects (DECISIONS #156); scale with hero level like the bolt damage
@@ -262,9 +287,8 @@ func hero_stats(c: String) -> Dictionary:
 		if wn.has("reveal"): s.bolt.reveal = int(wn.reveal)
 		if wn.has("root"): s.bolt.root = float(wn.root); s.bolt.grow = wn.get("grow", false)
 	if "shoot" in def.abilities:
-		# SPD Spirit Bow: (1 + lvl/5) - (6 + lvl/2.5), collapsed to the average
 		var lv := int(h.level)
-		s.bolt = {"dmg": (1 + lv / 5 + 6 + int(lv / 2.5)) / 2, "charges": 0, "infinite": true, "recharge": 0,
+		s.bolt = {"dmg": 3 + lv / 2, "charges": 0, "infinite": true, "recharge": 0,
 			"name": "the Spirit Bow", "magic": false}
 	if "cloak" in def.abilities:
 		# charges carry across the expedition (DECISIONS #206): a fight starts with what the run has left
@@ -470,7 +494,7 @@ func compare_equip(uid: int) -> Dictionary:
 	var out := {"dmg": [a.dmg, b.dmg], "dr": [a.dr, b.dr], "barrier": [a.barrier_max, b.barrier_max], "ht": [a.ht, b.ht]}
 	if a.has("bolt") or b.has("bolt"): out.bolt = [a.get("bolt", {}).get("dmg", 0), b.get("bolt", {}).get("dmg", 0)]
 	var req := Weapons.str_req(d, int(g.get("lvl", 0))) if Weapons.is_weapon(d) else int(d.get("str", 0))
-	if req > 0 and req > int(h.str): out.need_str = req
+	if req > 0 and req > int(a.get("str", h.str)): out.need_str = req
 	# Armor Barrier can rise on the piece while the hero's ht/2 cap hides it (DECISIONS #221)
 	if d.type == "armor" and g.get("known", true):
 		var cur := gear_by_uid(int(h.armor))
@@ -664,7 +688,7 @@ func _never_cracks(id: String) -> bool:
 
 func power_rating(c: String) -> int:
 	var s := hero_stats(c)
-	return int(heroes[c].str) + int(s.dmg / 3) + s.dr
+	return int(s.get("str", heroes[c].str)) + int(s.dmg / 3) + s.dr
 
 func can_equip(c: String, uid: int) -> String:
 	var g := gear_by_uid(uid)
@@ -1052,16 +1076,26 @@ func trinket_bonus_f(g: Dictionary, key: String) -> float:
 	if g.is_empty() or g.get("cracked", false): return 0.0
 	return float(DB.item(g.id).get("per_level", {}).get(key, 0.0)) * int(g.get("lvl", 0))
 
+const ARTIFACT_HOURS_PER_LVL := 24.0
+const ARTIFACT_BOSS_HOURS := 8.0
+## Legacy constant kept for Codex call sites; use-meter is hours (DECISIONS #223).
 const ARTIFACT_XP_PER_LVL := 8
-## A won fight charges the equipped artifact; at 8 x (next level) XP it levels, up to the Desk cap.
-func charge_artifact(c: String) -> void:
+
+## Add hours to the equipped artifact's use meter; every 24h banks +1 up to the Desk cap.
+func add_artifact_use(c: String, hours: float) -> void:
+	if hours <= 0.0: return
 	var a := gear_by_uid(int(heroes[c].get("artifact", 0)))
 	if a.is_empty() or a.cracked or not a.known or DB.item(a.id).get("heirloom", false): return
-	if int(a.lvl) >= enchant_cap(): return
-	a.xp = int(a.get("xp", 0)) + 1
-	if int(a.xp) >= ARTIFACT_XP_PER_LVL * (int(a.lvl) + 1):
-		a.xp = 0; a.lvl = int(a.lvl) + 1
-		say("%s grows stronger (+%d)." % [DB.item(a.id).name, a.lvl], "positive")
+	a.use_hours = float(a.get("use_hours", 0.0)) + hours
+	var gained := 0
+	while float(a.use_hours) >= ARTIFACT_HOURS_PER_LVL and int(a.lvl) < enchant_cap():
+		a.use_hours = float(a.use_hours) - ARTIFACT_HOURS_PER_LVL
+		a.lvl = int(a.lvl) + 1; gained += 1
+	if gained > 0: say("%s grows stronger (+%d)." % [DB.item(a.id).name, a.lvl], "positive")
+
+## No longer levels from fight wins (use meter instead). Kept as a no-op for old call sites.
+func charge_artifact(_c: String) -> void:
+	pass
 
 ## The wand imbued in the Mage's Staff (it lives on the hero, not in gear).
 func staff_wand_cost() -> Dictionary:
@@ -1731,6 +1765,9 @@ func collect_patrol(c: String) -> Dictionary:
 		if not String(k).begins_with("_"): yld[String(k)] = int(y[k])
 	Telemetry.track("patrol_end", {"class": c, "biome": String(p.biome), "hours": float(y._hours), "curios": int(y._curios), "yield": yld,
 		"perks": fx.keys(), "gear_level": int(p.get("gear_lvl", 0)), "eff": float(p.get("eff", 0.0))})
+	# Artifact use meter: hours actually worked while it was equipped (DECISIONS #223)
+	var worked := float(y._hours) * (1.0 + float(fx.get("time_pct", 0.0)) / 100.0)
+	add_artifact_use(c, worked)
 	heroes[c].patrol = {}
 	add_stat("patrols", 1); add_stat("patrol_hours", int(float(y._hours))); add_stat("patrol_curios", int(y._curios))
 	add_stat("gold_banked", int(y.get("gold", 0)))

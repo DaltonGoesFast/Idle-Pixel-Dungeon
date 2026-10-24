@@ -640,8 +640,9 @@ func test_camp(gs) -> void:
 	gs.tick_identify(); check(not gs.gear_by_uid(ring).known, "not identified instantly")
 	gs.time_offset += gs.identify_seconds() + 1
 	gs.tick_identify(); check(gs.gear_by_uid(ring).known, "identified after the timer")
-	var dmg0: int = gs.hero_stats("warrior").dmg
-	gs.equip("warrior", ring); check(gs.hero_stats("warrior").dmg == dmg0 + 1, "ring of might +1")
+	var ht0: int = int(gs.hero_stats("warrior").ht)
+	gs.equip("warrior", ring)
+	check(int(gs.hero_stats("warrior").str) == 11 and int(gs.hero_stats("warrior").ht) == ht0 + 5, "Ring of Might +0 is +1 Strength and +5 max HP")
 	# patrols
 	check(gs.can_patrol("warrior", "sewers") != "", "patrol needs cleared biome")
 	gs.heroes.warrior.cleared.append("sewers")
@@ -733,11 +734,11 @@ func test_subclass(gs, ss) -> void:
 	c.setup(["########","#......#","#.H1...#","#......#","#......#","#......#","#......#","########"], gs.hero_stats("warrior"), 999, ["rat"])
 	var hits := []
 	c.hero.combo = 2
-	check(c._melee_dmg() == int(c.hero.dmg) + 2, "gladiator combo adds damage")
+	check(c._melee_dmg() == int(c.hero.dmg) + maxi(2, int(c.hero.dmg * 0.20)), "gladiator combo adds 10% per stack (min +1)")
 	gs.heroes.mage.mask = true; gs.choose_subclass("mage", "battlemage")
 	c.setup(["########","#......#","#.H1...#","#......#","#......#","#......#","#......#","########"], gs.hero_stats("mage"), 999, ["rat"])
-	c.hero.charges = 0; c.hero.combo = 4; c._melee_perks()
-	check(c.hero.charges == 1, "battlemage: every 5th melee hit restores a charge")
+	c.hero.charges = 0; c.hero.combo = 2; c._melee_perks()
+	check(c.hero.charges == 1, "battlemage: every 3rd melee hit restores a charge")
 
 func test_talents(gs) -> void:
 	print("[talents]")
@@ -4404,22 +4405,26 @@ func test_trinket_upgrades(gs) -> void:
 	gs.facilities.enchanter.level = 3
 	check(gs.enchant_cap() == 3 and gs.can_upgrade_item(ru) == "", "a Lv3 Desk raises the cap to +3")
 	var old_r := int(gs.heroes.warrior.ring); gs.heroes.warrior.ring = 0
-	var d0 := int(gs.hero_stats("warrior").dmg); gs.heroes.warrior.ring = ru
-	check(int(gs.hero_stats("warrior").dmg) == d0 + 2, "Might +1 gives +2 dmg")
+	var str0 := int(gs.hero_stats("warrior").str); var ht0m := int(gs.hero_stats("warrior").ht)
+	gs.heroes.warrior.ring = ru
+	check(int(gs.hero_stats("warrior").str) == str0 + 1 and int(gs.hero_stats("warrior").ht) == ht0m + 10, "Might +1 is +1 Str and +10 max HP")
 	gs.gear_by_uid(ru).cracked = true
-	check(int(gs.hero_stats("warrior").dmg) == d0, "a cracked ring does nothing")
+	check(int(gs.hero_stats("warrior").str) == str0, "a cracked ring does nothing")
 	gs.facilities.enchanter.level = 1
 	check(gs.can_repair(ru).begins_with("needs Enchanter"), "ring repair needs Desk Lv2")
 	check(gs.can_patch_up() != "" or true, "patch up ignores rings")
 	gs.facilities.enchanter.level = 2
 	check(gs.repair(ru) and not gs.gear_by_uid(ru).cracked, "Desk Lv2 repairs the ring")
 	gs.heroes.warrior.ring = old_r
-	# artifact: no scrolls, levels by won fights up to the cap, repair at Lv2
+	# artifact: levels from 24h use meter (patrol / boss kills), repair at Lv2
 	var au: int = gs.add_gear("chalice_blood", true)
 	check(gs.can_upgrade_item(au) == "artifacts level up by use", "artifacts don't take Scrolls")
 	var old_a := int(gs.heroes.warrior.get("artifact", 0)); gs.heroes.warrior.artifact = au
+	gs.facilities.enchanter.level = 2
 	for i in 30: gs.charge_artifact("warrior")
-	check(int(gs.gear_by_uid(au).lvl) == 1, "won fights level the artifact, capped at the Desk cap (+%d)" % gs.gear_by_uid(au).lvl)
+	check(int(gs.gear_by_uid(au).lvl) == 0, "fight wins no longer level artifacts")
+	gs.add_artifact_use("warrior", 24.0)
+	check(int(gs.gear_by_uid(au).lvl) == 1, "24h of use levels the artifact (+%d)" % gs.gear_by_uid(au).lvl)
 	gs.gear_by_uid(au).cracked = true
 	gs.facilities.enchanter.level = 1
 	check(gs.can_repair(au).begins_with("needs Enchanter's Desk Lv2"), "artifact repair needs Desk Lv2")
@@ -4473,7 +4478,14 @@ func test_vanilla_rings(gs) -> void:
 	var hp0 := int(c2.hero.hp); c2.hit_hero(6, "Fire", true)
 	check(hp0 - int(c2.hero.hp) == 4, "elements cuts piercing damage by a third (took %d)" % (hp0 - int(c2.hero.hp)))
 	var fs: Dictionary = _ring_stats(gs, "rogue", "ring_force")
-	check(int(fs.dmg) == int(_ring_stats(gs, "rogue", "").dmg) + 2, "force adds tier-1 melee damage (rogue dagger)")
+	check(int(fs.dmg) == 7, "Force lifts a Str-10 dagger to the Worn Shortsword target (7)")
+	gs.heroes.warrior.str = 18; gs.heroes.warrior.weapon = gs.add_gear("worn_shortsword", true, 0)
+	var f18: Dictionary = _ring_stats(gs, "warrior", "ring_force")
+	check(int(f18.dmg) == 22, "Force at Str 18 on Worn Shortsword targets Greatsword +10% (22)")
+	gs.heroes.mage.unlocked = true; gs.heroes.mage.str = 18; gs.heroes.mage.weapon = gs.add_gear("mages_staff", true, 0)
+	var staff_f: int = int(_ring_stats(gs, "mage", "ring_force").dmg)
+	var staff_0: int = int(_ring_stats(gs, "mage", "").dmg)
+	check(staff_f == staff_0, "Force never applies to the Mage's Staff (heirloom)")
 
 ## DECISIONS #160: per-level values for Furor, Haste, Elements, Force, Sharpshooting.
 func test_ring_levels(gs) -> void:
@@ -4487,7 +4499,7 @@ func test_ring_levels(gs) -> void:
 	check(is_equal_approx(float(lv.call("warrior", "ring_haste", 2).move_cost), 0.75), "Haste +2 steps cost 0.75")
 	check(is_equal_approx(float(lv.call("warrior", "ring_haste", 9).move_cost), 0.6), "Haste is floored at 0.6")
 	check(float(lv.call("warrior", "ring_elements", 2).elem_resist) < 0.67, "Elements resists more with level")
-	check(int(lv.call("rogue", "ring_force", 2).dmg) == int(lv.call("rogue", "ring_force", 0).dmg) + 2, "Force +1 dmg per level")
+	check(int(lv.call("rogue", "ring_force", 2).dmg) > int(lv.call("rogue", "ring_force", 0).dmg), "Force levels raise the reference sword")
 	check(int(lv.call("huntress", "ring_sharpshooting", 2).bolt.dmg) == int(lv.call("huntress", "ring_sharpshooting", 0).bolt.dmg) + 1, "Sharpshooting +1 per 2 levels")
 
 ## DECISIONS #159: vanilla artifacts.
@@ -4509,7 +4521,7 @@ func test_vanilla_artifacts(gs) -> void:
 	r.hp = 50; c._place(r, Vector2i(2, 1))
 	for i in 3: c.hero_wait()
 	check(int(r.hp) < 50, "Cape of Thorns hurts a melee attacker (rat hp %d)" % r.hp)
-	check(int(_art_stats(gs, "cape_thorns", 2).thorns) == 2, "the cape gains thorns with level")
+	check(int(_art_stats(gs, "cape_thorns", 2).thorns) == 4, "the cape gains thorns with level (2 + 1/lvl)")
 	st = _art_stats(gs, "timekeepers_hourglass")
 	c = Combat.new(); c.setup(room, st, int(st.ht), ["rat"])
 	check(float(c.enemies()[0].next) >= 0.5, "the Hourglass freezes enemies at the start")
@@ -4526,14 +4538,14 @@ func test_vanilla_artifacts(gs) -> void:
 ## DECISIONS #164: artifact stats and per-level growth in camp item details.
 func test_artifact_lines(gs) -> void:
 	print("[artifact lines]")
-	var g := {"uid": 1, "id": "cape_thorns", "lvl": 2, "known": true, "cracked": false, "xp": 3}
+	var g := {"uid": 1, "id": "cape_thorns", "lvl": 2, "known": true, "cracked": false, "use_hours": 3}
 	var L: Array = Codex.artifact_lines(g, 2)
-	check(L.any(func(x): return String(x).begins_with("Thorns 2 dmg") and String(x).contains("every 2 levels")), "cape shows thorns at its level and the step (%s)" % [L])
+	check(L.any(func(x): return String(x).begins_with("Thorns 4 dmg") and String(x).contains("per level")), "cape shows thorns at its level and the step (%s)" % [L])
 	check(String(L[-1]).contains("Desk cap +2"), "a capped artifact says the Desk caps it")
-	g = {"uid": 2, "id": "thieves_armband", "lvl": 1, "known": true, "cracked": false, "xp": 5}
+	g = {"uid": 2, "id": "thieves_armband", "lvl": 1, "known": true, "cracked": false, "use_hours": 5}
 	L = Codex.artifact_lines(g, 2)
 	check(L.any(func(x): return String(x).begins_with("Fight gold +15%") and String(x).contains("+5% per level")), "armband shows +15%% at +1 and +5%% per level (%s)" % [L])
-	check(String(L[-1]).contains("5 of 16 won fights to +2"), "XP progress to the next level (%s)" % L[-1])
+	check(String(L[-1]).contains("5 / 24h use to +2"), "use-hour progress to the next level (%s)" % L[-1])
 	g = {"uid": 3, "id": "timekeepers_hourglass", "lvl": 0, "known": true, "cracked": false}
 	check(Codex.artifact_lines(g, 1).any(func(x): return String(x).begins_with("Opening freeze 0.5 ticks")), "hourglass shows its freeze")
 	check(Codex.artifact_lines({"uid": 4, "id": "ring_might", "lvl": 0}, 2).is_empty(), "non-artifacts get no artifact lines")

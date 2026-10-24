@@ -90,8 +90,8 @@
   "icon": "MAGES_STAFF",
   "spd_desc": "Crafted by the Mage himself, this staff is a unique magical weapon which can be imbued with a wand.",
   "heirloom": true,
-  "dmg_per_levels": 6,
-  "note": "Heirloom: +1 melee damage every 6 hero levels (DECISIONS #64)"
+  "dmg_per_levels": 3,
+  "note": "Heirloom: +1 melee every 3 hero levels, +2 per imbued wand level (DECISIONS #223)"
  },
  "shortsword": {
   "name": "Shortsword",
@@ -525,12 +525,14 @@
   "name": "Ring of Might",
   "type": "ring",
   "unknown_name": "Garnet Ring",
-  "dmg_bonus": 1,
+  "str_bonus": 1,
+  "ht_bonus": 5,
   "icon": "RING_GARNET",
   "badge": "RING_MIGHT",
-  "desc": "+1 melee damage. (+1 per level)",
+  "desc": "+1 Strength and +5 max HP. Strength rises again at +2/+3; +5 HP per level.",
   "per_level": {
-   "dmg_bonus": 1
+   "str_bonus": 0.5,
+   "ht_bonus": 5
   },
   "patrol": {
    "iron_ore_pct": [
@@ -1113,7 +1115,7 @@
   "force_bonus": 2,
   "icon": "RING_QUARTZ",
   "badge": "RING_FORCE",
-  "desc": "+2 melee damage while wielding a tier-1 weapon (fists, dagger, gloves, staff). +1 per level.",
+  "desc": "On a Tier 1 weapon (not heirlooms), hit a little harder than the forged sword your Strength could equip (10% above, at least +2). Weapon and ring levels add toward the reference upgrade.",
   "per_level": {
    "force_bonus": 1
   },
@@ -1179,12 +1181,12 @@
  "cape_thorns": {
   "name": "Cape of Thorns",
   "type": "artifact",
-  "thorns": 1,
+  "thorns": 2,
   "per_level": {
-   "thorns": 0.5
+   "thorns": 1
   },
   "icon": "ARTIFACT_CAPE",
-  "desc": "An enemy that hits you in melee takes 1 damage back (+1 per 2 levels; levels by use).",
+  "desc": "An enemy that hits you in melee takes 2 damage back (+1 per level). Levels from 24h of use (patrol or boss kills).",
   "patrol": {
    "power": [
     1,

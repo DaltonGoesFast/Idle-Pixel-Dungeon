@@ -1371,7 +1371,7 @@ func _forge_upgrade_section(v: VBoxContainer) -> void:
 		var cracked: bool = g.get("cracked", false)
 		# weapons/armor upgrade here; cracked artifacts come here to be repaired.
 		# Rings have their own section (DECISIONS #98, #107).
-		if not (t in ["weapon", "armor"]) and not (cracked and t == "artifact"): continue
+		if not (t in ["weapon", "armor"]): continue   # cracked artifacts repair at the Desk only (DECISIONS #223)
 		var cost: Dictionary = GameState.repair_cost(g.uid) if cracked else GameState.item_upgrade_cost(g.uid)
 		var why: String = GameState.can_repair(g.uid) if cracked else GameState.can_upgrade_item(g.uid)
 		var uid: int = int(g.uid)
@@ -1401,8 +1401,9 @@ func _attune_section(v: VBoxContainer) -> void:
 	for g in GameState.gear:
 		if not GameState.is_trinket(g) or not g.known: continue
 		var cracked: bool = g.get("cracked", false)
-		if DB.item(g.id).type == "artifact" and not cracked: continue
 		var why2: String = GameState.can_repair(g.uid) if cracked else GameState.can_upgrade_item(g.uid)
+		if DB.item(g.id).type == "artifact" and not cracked:
+			why2 = "levels from 24h of use"
 		var uid: int = int(g.uid)
 		var slot := item_slot(gear_icon(g), "", "+%d" % g.lvl if g.lvl > 0 else "", func(): _open_gear_forge(uid),
 			Color(1, 0.55, 0.5) if cracked else Color.WHITE, "6bff6b" if why2 == "" else "", g)

@@ -572,7 +572,6 @@ static func apply_fight_result(gs, ev: Dictionary, res: Dictionary, reward: Dict
 	gs.pack_add("gold", int(round(int(res.loot) * float(gs.hero_stats(run.hero).get("gold_mult", 1.0)) * float(gs.hero_stats(run.hero).get("loot_mult", 1.0)))))   # Ring of Wealth
 	# every 4th won fight drops an unknown potion or scroll (SPD-style consumable loot, DECISIONS #80)
 	run.fights_won = int(run.get("fights_won", 0)) + 1
-	gs.charge_artifact(run.hero)   # DECISIONS #158
 	if gs.cloak_cap(run.hero) > 0:   # Cloak of Shadows: charges persist, a cleared fight gives 1 back (DECISIONS #206)
 		var got: int = gs.cloak_after_fight(int(res.get("cloak_charges", gs.cloak_charges(run.hero))))
 		if got > 0: gs.log_line("The Cloak of Shadows recharges (%d/%d)." % [int(run.cloak_charges), gs.cloak_cap(run.hero)], "positive")
@@ -585,6 +584,7 @@ static func apply_fight_result(gs, ev: Dictionary, res: Dictionary, reward: Dict
 	if not reward.is_empty(): gs.say("Reward: " + reward(gs, reward))
 	if res.boss_killed:
 		run.boss_dead = true
+		gs.add_artifact_use(run.hero, gs.ARTIFACT_BOSS_HOURS)   # every boss kill, including repeats (DECISIONS #223)
 		# boss larders: every boss leaves rations on the belt so a healthy hero can press on (DECISIONS #110)
 		run.supplies.ration = int(run.supplies.get("ration", 0)) + BOSS_RATIONS
 		gs.say("The boss's larder: +%d Rations." % BOSS_RATIONS, "positive")
