@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Until you beat Goo or use three of them, each delve that starts without a Scroll of Passage gets a free one so you can bank the pack early; unused free scrolls do not enter the stash (DECISIONS #226).
 - Camp overhaul: drifting clouds and twinkling stars (firelight still clipped off the sky), all unlocked heroes seated around a roomier fire (tap to select), bubbling alchemy pot with scrolling water, Expedition biome pick via levelicons, and facility "!" when a Scroll can unlock a slot (DECISIONS #225).
 
 ## 0.49.1

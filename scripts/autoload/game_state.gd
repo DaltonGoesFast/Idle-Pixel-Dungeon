@@ -22,8 +22,10 @@ var boss_kills: Dictionary = {}    # class -> [biome ids]  (first kill per class
 ## text_scale multiplies the UI font size; haptics = vibrate on hits/traps (Android); dev_tools shows the Developer section.
 var settings := {"sfx": 0.8, "music": 0.5, "haptics": true, "text_scale": 1.0, "dev_tools": false, "tutorial": true,
 	"delve_speed": 1.0, "lighting": true, "full_auto": false}
+const FREE_PASSAGE_USES := 3   # free Scroll of Passage each run until Goo or this many uses (DECISIONS #226)
 const STATS_DEFAULT := {"potions_brewed": 0, "deepest_floor": 0, "runs": 0, "deaths": 0, "extractions": 0, "kills": 0,
 	"traps_found": 0, "hidden_doors": 0, "goo_kills": 0, "tengu_kills": 0, "goo_losses": 0,
+	"free_passage_uses": 0,
 	# milestone counters (DECISIONS #195); per-mob kills are "kill_<mob>" keys added as they happen
 	"dm300_kills": 0, "dking_kills": 0, "yog_kills": 0, "gold_banked": 0, "gold_spent": 0, "items_upgraded": 0, "items_forged": 0,
 	"items_found": 0, "items_identified": 0, "potions_drunk": 0, "scrolls_read": 0, "rations_eaten": 0, "surprises": 0,
@@ -1201,6 +1203,17 @@ const SAFETY_GOLD := 30
 func needs_relief() -> bool:
 	return mat("ration") == 0 and mat("torch") == 0 and mat("gold") < RELIEF_GOLD
 
+## First-run soft landing (DECISIONS #226): a free Passage each delve until Goo falls or FREE_PASSAGE_USES are spent.
+func free_passage_eligible() -> bool:
+	return int(stats.get("goo_kills", 0)) == 0 and int(stats.get("free_passage_uses", 0)) < FREE_PASSAGE_USES
+
+func free_passage_left() -> int:
+	if int(stats.get("goo_kills", 0)) > 0: return 0
+	return maxi(0, FREE_PASSAGE_USES - int(stats.get("free_passage_uses", 0)))
+
+func note_free_passage_use() -> void:
+	stats.free_passage_uses = int(stats.get("free_passage_uses", 0)) + 1
+
 func cracked_gear() -> Array:
 	return gear.filter(func(g): return g.get("cracked", false))
 
@@ -1811,12 +1824,17 @@ func start_run(c: String, loadout: Dictionary, biome := "sewers", seed := -1) ->
 	for k in SUPPLY_KEYS:
 		var n := mini(mini(int(loadout.get(k, 0)), mat(k)), supply_cap(k))
 		sup[k] = n; add_mat(k, -n)
+	var free_passage := false
+	if free_passage_eligible() and int(sup.get("scroll_passage", 0)) == 0:
+		sup.scroll_passage = 1
+		free_passage = true
+		say("The Camp scribes you a free Scroll of Passage (%d left, or until Goo falls)." % free_passage_left(), "positive")
 	var s := hero_stats(c)
 	var f0 := int(DB.biomes[biome].floors[0])
 	run = {"hero": c, "biome": biome, "floor": f0, "progress": 0.0, "torch": 100.0, "satiety": 100.0,
 		"hp": s.ht, "pack": {}, "pack_gear": [], "supplies": sup, "seed": seed if seed >= 0 else int(now()) % 100000,
 		"events": [], "next_event": 0, "gather": 0, "starve": 0, "milestones_done": [], "pending_loot": 0, "boss_dead": false,
-		"haul": {}}
+		"haul": {}, "free_passage": free_passage}
 	if cloak_cap(c) > 0: run.cloak_charges = cloak_cap(c)   # a fresh expedition starts with a full cloak (DECISIONS #206)
 	stats.runs += 1; note_floor(f0)
 	var team := {}
@@ -1859,8 +1877,11 @@ func end_run(result: String) -> void:
 	var c: String = run.hero
 	var h: Dictionary = heroes[c]
 	_track_run_end(result)
-	# unused supplies always go back to the stash (they were never "found")
-	for k in run.supplies: add_mat(k, int(run.supplies[k]))
+	# unused supplies always go back to the stash (they were never "found"); an unused free Passage does not (DECISIONS #226)
+	for k in run.supplies:
+		var n := int(run.supplies[k])
+		if k == "scroll_passage" and run.get("free_passage", false) and n > 0: n -= 1
+		if n > 0: add_mat(k, n)
 	match result:
 		"extract":
 			var banked := int(run.pack.get("gold", 0))

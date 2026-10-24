@@ -521,6 +521,10 @@ func _page_delve() -> void:
 	hv.add_child(UIKit.label("%s  ->  %s" % [DB.heroes[chosen_hero].name, b.name], 1.0, Color("ffd27a")))
 	hv.add_child(UIKit.label("Floors %d-%d, boss: %s. Recommended: Lv %d, Strength %d." % [b.floors[0], b.floors[1], DB.mobs.get(b.get("boss", ""), {}).get("name", "?"), int(b.get("rec_level", 1)), b.str_gate], 0.8, Color("bdb3a0")))
 	hv.add_child(UIKit.label("Extract at a boss campfire or with a Scroll of Passage. Dying loses the pack.", 0.75, Color("9a9488")))
+	if GameState.free_passage_eligible():
+		var left := GameState.free_passage_left()
+		var fp := UIKit.label("Free Scroll of Passage on this delve (%d use%s left, or until you beat Goo)." % [left, "" if left == 1 else "s"], 0.8, Color("88cc88"))
+		fp.name = "FreePassageHint"; fp.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART; hv.add_child(fp)
 	var caps := supply_max()
 	for k in SUPPLY_KEYS: loadout[k] = clampi(int(loadout.get(k, 0)), 0, int(caps[k]))
 	var sh := UIKit.hbox(v)

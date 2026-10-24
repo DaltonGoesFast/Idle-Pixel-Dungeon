@@ -663,6 +663,9 @@ static func use_scroll_passage(gs) -> bool:
 	if scroll_passage_count(gs) <= 0: return false
 	if int(gs.run.get("supplies", {}).get("scroll_passage", 0)) > 0:
 		gs.run.supplies.scroll_passage = int(gs.run.supplies.scroll_passage) - 1
+		if gs.run.get("free_passage", false):   # DECISIONS #226: spending the Camp's free scroll counts toward the cap
+			gs.run.free_passage = false
+			gs.note_free_passage_use()
 	else:
 		gs.run.pack.scroll_passage = int(gs.run.pack.scroll_passage) - 1
 	gs.run.erase("active_fight")
