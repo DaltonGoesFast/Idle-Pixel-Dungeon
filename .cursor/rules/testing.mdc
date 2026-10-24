@@ -1,0 +1,35 @@
+---
+description: Do not run Godot headless test suites unless the user asks
+alwaysApply: true
+---
+
+# Godot tests — user-initiated only
+
+Full suites take several minutes (two cold Godot startups). **Do not run them to “verify” work, before commit, or because the change touches gameplay.**
+
+## Do not run unless the user asks
+
+Never start these (or equivalent) on your own:
+
+- `res://tests/run_tests.tscn`
+- `res://tests/ui_smoke.tscn`
+- `res://tests/screenshots.tscn`
+- `playtest.bat` (repo root or `tools/playtest.bat`)
+- `tools/build.sh` or any command whose main purpose is export + full test pass
+
+Reading test code, editing `tests/`, or explaining failures from logs the user pasted is fine without running Godot.
+
+## When the user asks to test
+
+Treat these as explicit permission to run Godot (run only what they name):
+
+- “run tests”, “playtest”, “run the suite”, “ui_smoke”, “run_tests”
+- “verify in Godot”, “make sure tests pass”, “fix until green” **when they clearly mean execute the suites**
+
+If they only want a code change, implement it and stop — do not add a test run “while you’re here.”
+
+When you do run headless tests, use the Godot binary path from the **godot-path** rule and prefer `Godot_v4.7.2-stable_win64_console.exe` when it exists. See `docs/TESTING.md` for scenes and tagged subsets (e.g. balance-only slices) if the user wants something narrower than the full suite.
+
+## If you’re unsure
+
+Ask once: “Want me to run `run_tests`, `ui_smoke`, or both?” Do not launch Godot without an answer.
