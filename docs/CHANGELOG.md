@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+## 0.49.1
+- Camp horizon grass no longer covers the Forge and Enchanter on wide fullscreen layouts. Side strips stay when the scene is wider than tall, and the NPCs, the hero, and the barrels paint above the grass (+tests).
+
 ## 0.49.0
 - Class heirlooms and late-game trinkets catch up to City/Halls: Mage's Staff scales with wand level (`+2` per imbued level, `dmg_per_levels` 3) and Battlemage recharges every 3rd hit; Spirit Bow is `3 + level/2` and Warden pierces half DR on surprise/grass shots with stronger Barrier/DR and scaled grass heal; Ring of Force lifts Tier 1 weapons toward the forged sword your Strength can equip (Greatsword at 18+); Gladiator combo is +10% per stack; Ring of Might grants Strength and HP; artifacts level from a 24-hour use meter (patrol + 8h per boss) instead of fight XP; Auto Battle ambushes are rarer (DECISIONS #223, +tests).
 - Economy sinks scale with tier: forge, upgrade, and repair costs rise for T4/T5 (and need dark gold / resin), rings and wands pay resin + dark gold + gold up to Desk cap `+0/+1/+3`, and Blacksmith Lv1→2 is ore+gold only (dark gold on Lv2→3). Patrol efficiency caps at 1.0, gear+perk bonuses add to a 1.50 ceiling, biome yields fund about one Tier 5 weapon per four geared Halls patrols, and the fee is one hour of expected gold. Early dark gold leaves Sewers/Prison room rewards; passive gold and event HP costs scale by biome and max HP (DECISIONS #222, +tests).
