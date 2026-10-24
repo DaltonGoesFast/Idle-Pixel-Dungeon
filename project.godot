@@ -24,10 +24,11 @@ SaveSystem="*res://scripts/autoload/save_system.gd"
 Sfx="*res://scripts/autoload/sfx.gd"
 Updater="*res://scripts/autoload/updater.gd"
 Telemetry="*res://scripts/autoload/telemetry.gd"
+PatrolBridge="*res://scripts/platform/patrol_bridge.gd"
 
 [editor_plugins]
 
-enabled=PackedStringArray("res://addons/apk_install/plugin.cfg")
+enabled=PackedStringArray("res://addons/apk_install/plugin.cfg", "res://addons/patrol_widget/plugin.cfg")
 
 [display]
 

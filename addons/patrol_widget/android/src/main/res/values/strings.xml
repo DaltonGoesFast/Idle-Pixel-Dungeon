@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="patrol_widget_name">SPD Patrols</string>
+    <string name="patrol_widget_desc">Countdowns for heroes out on patrol. Short on a cover screen; resize it to list everyone.</string>
+    <string name="patrol_back">Patrol back!</string>
+    <string name="patrol_none">No patrols out</string>
+</resources>

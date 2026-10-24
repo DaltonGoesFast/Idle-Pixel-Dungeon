@@ -20,8 +20,9 @@ var facilities: Dictionary = {}    # id -> {level, cap}
 var id_queue: Array = []           # [{uid, ready_at}]
 var boss_kills: Dictionary = {}    # class -> [biome ids]  (first kill per class drops a Scroll of Upgrade)
 ## text_scale multiplies the UI font size; haptics = vibrate on hits/traps (Android); dev_tools shows the Developer section.
+## patrol_notify (default off) asks Android to ping when a patrol is ready; PC and web ignore it (DECISIONS #229).
 var settings := {"sfx": 0.8, "music": 0.5, "haptics": true, "text_scale": 1.0, "dev_tools": false, "tutorial": true,
-	"delve_speed": 1.0, "lighting": true, "full_auto": false}
+	"delve_speed": 1.0, "lighting": true, "full_auto": false, "patrol_notify": false}
 const FREE_PASSAGE_USES := 3   # free Scroll of Passage each run until Goo or this many uses (DECISIONS #226)
 const STATS_DEFAULT := {"potions_brewed": 0, "deepest_floor": 0, "runs": 0, "deaths": 0, "extractions": 0, "kills": 0,
 	"traps_found": 0, "hidden_doors": 0, "goo_kills": 0, "tengu_kills": 0, "goo_losses": 0,
@@ -39,6 +40,7 @@ var tutorial_done: Array = []      # onboarding steps already shown
 var last_result := ""              # "extract" / "death" / "abandon" of the run that just ended (not saved)
 var run: Dictionary = {}           # empty when no expedition is active
 var time_offset := 0.0             # debug fast-forward; saved so patrol and identify timers survive a relaunch
+var _suspend_patrol_sync := false  # from_dict's new_game must not publish an empty widget snapshot
 var messages: PackedStringArray = []
 
 func _ready() -> void:
@@ -99,6 +101,19 @@ func touch() -> void:
 	if not heroes.is_empty(): check_milestones()
 	changed.emit()
 
+## Publish patrol countdowns to the Android widget. No-op until PatrolBridge is in the tree, and no-op without the plugin.
+func sync_patrol_widget() -> void:
+	var bridge := get_node_or_null("/root/PatrolBridge")
+	if bridge and bridge.has_method("push"):
+		bridge.push(self)
+
+## Developer fast-forward. Moves patrol return timestamps, not just the identify queue.
+func skip_time(seconds: float) -> void:
+	time_offset += seconds
+	tick_identify()
+	sync_patrol_widget()
+	touch()
+
 # ---------------------------------------------------------------- setup
 ## Scrolls of Upgrade lost in a death come back on the next boss kill, any hero (DECISIONS #103).
 var owed_sou := 0
@@ -125,6 +140,8 @@ func new_game() -> void:
 		heroes[c] = {"class": c, "unlocked": h.unlocked_by_default, "level": 1, "xp": 0, "str": 10, "str_found": [],
 			"weapon": add_gear(h.start_weapon), "armor": add_gear(h.start_armor), "ring": 0, "artifact": 0,
 			"wand": "wand_magic_missile" if c == "mage" else "", "cleared": [], "patrol": {}, "mask": false, "subclass": "", "talents": []}
+	if not _suspend_patrol_sync:
+		sync_patrol_widget()
 
 func add_gear(id: String, known := true, lvl := 0) -> int:
 	var g := {"uid": next_uid, "id": id, "lvl": lvl, "cracked": false, "known": known}
@@ -1604,7 +1621,7 @@ func start_patrol(c: String, biome: String) -> bool:
 	Telemetry.track("patrol_start", {"class": c, "biome": biome, "max_hours": float(heroes[c].patrol.max_h), "eff": float(heroes[c].patrol.eff),
 		"gear_level": int(heroes[c].patrol.gear_lvl), "gear_mult": float(heroes[c].patrol.gear_mult), "perks": pk.fx.keys(), "fee_gold": int(fee.get("gold", 0)),
 		"hero_level": int(heroes[c].level)})
-	say("%s sets out to patrol the %s." % [DB.heroes[c].name, DB.biomes[biome].name]); touch(); return true
+	say("%s sets out to patrol the %s." % [DB.heroes[c].name, DB.biomes[biome].name]); sync_patrol_widget(); touch(); return true
 
 ## Efficiency: hero power (plus patrol power perks) vs biome strength gate, clamped 0.25..1.0 (DECISIONS #222).
 func patrol_efficiency(c: String, biome: String) -> float:
@@ -1722,8 +1739,9 @@ func patrol_curio_pool(fx: Dictionary) -> Array:
 	return out
 
 ## What the patrol would bring back if recalled now. Patrols started before #188 (no "v") are worked out from the
-## hero's gear today, the way they always were.
-func patrol_preview(c: String) -> Dictionary:
+## hero's gear today, the way they always were. `at` is a game-clock timestamp (now() by default) so the widget
+## can ask for the full haul without moving the clock.
+func patrol_preview(c: String, at := -1.0) -> Dictionary:
 	var p: Dictionary = heroes[c].patrol
 	if p.is_empty(): return {}
 	var b: Dictionary = DB.biomes[p.biome]
@@ -1732,7 +1750,8 @@ func patrol_preview(c: String) -> Dictionary:
 	var max_h := float(p.get("max_h", patrol_max_hours(c))) if snap else patrol_max_hours(c)
 	var eff := float(p.get("eff", 1.0)) if snap else patrol_efficiency(c, p.biome)
 	var gm := float(p.get("gear_mult", 1.0)) if snap else patrol_gear_mult(c)
-	var hours := clampf((now() - float(p.start)) / 3600.0, 0.0, max_h)
+	var t := now() if at < 0.0 else at
+	var hours := clampf((t - float(p.start)) / 3600.0, 0.0, max_h)
 	var worked := hours * (1.0 + float(fx.get("time_pct", 0.0)) / 100.0)   # Ring of Haste: more ground per hour
 	var allp := float(fx.get("all_pct", 0.0))
 	var out := {}
@@ -1781,7 +1800,7 @@ func collect_patrol(c: String) -> Dictionary:
 	heroes[c].patrol = {}
 	add_stat("patrols", 1); add_stat("patrol_hours", int(float(y._hours))); add_stat("patrol_curios", int(y._curios))
 	add_stat("gold_banked", int(y.get("gold", 0)))
-	say("%s returns from patrol (%.1fh)." % [DB.heroes[c].name, y._hours]); touch()
+	say("%s returns from patrol (%.1fh)." % [DB.heroes[c].name, y._hours]); sync_patrol_widget(); touch()
 	return y
 
 # ---------------------------------------------------------------- expeditions
@@ -2105,6 +2124,7 @@ func to_dict() -> Dictionary:
 		"time_offset": time_offset}
 
 func from_dict(d: Dictionary) -> void:
+	_suspend_patrol_sync = true
 	new_game()
 	looks = d.get("looks", {}); ided = d.get("ided", {})
 	if looks.is_empty(): _roll_appearances()
@@ -2130,7 +2150,9 @@ func from_dict(d: Dictionary) -> void:
 	for k in stats: stats[k] = int(stats[k])
 	time_offset = float(d.get("time_offset", 0.0))   # older saves: no fast-forward
 	_fix_types()
+	_suspend_patrol_sync = false
 	touch()
+	sync_patrol_widget()
 
 ## Old saves (DECISIONS #98): gear from before item ID lacks known/cracked, and early ring ids used gem names.
 const LEGACY_IDS := {"ring_garnet": "ring_might", "ring_ruby": "ring_tenacity", "ring_topaz": "ring_evasion",
