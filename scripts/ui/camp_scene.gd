@@ -46,18 +46,21 @@ func _ready() -> void:
 
 var _acc := 0.0
 func _process(d: float) -> void:
-	# Perf (DECISIONS #88): the scene's pixel animations run at ~15 fps, so redraw at 15 fps, not every frame
+	# Camp motion (clouds, fire, stars, pot) at ~60 fps so drift and flicker stay smooth (#225).
 	t += d; _acc += d
-	if _acc >= 1.0 / 15.0 and is_visible_in_tree():
+	if _acc >= 1.0 / 60.0 and is_visible_in_tree():
 		_acc = 0.0; queue_redraw()
 
 func _sprite(n: String) -> Texture2D:
 	if not tex.has(n): tex[n] = load("res://assets/sprites/%s.png" % n)
 	return tex[n]
 
-## Integer pixel scale: the clearing is ~11 tiles wide, and the scale is never below 2.
+## Integer pixel scale: cover fits ~12×7 tiles; wide/fullscreen fits ~16×9 so the clearing is not huge.
 func k() -> float:
-	return maxf(2.0, floorf(minf(size.x / (16.0 * 11.0), size.y / (16.0 * 6.0))))
+	var wide := size.x > size.y * 1.1
+	var tw := 16.0 if wide else 12.0
+	var th := 9.0 if wide else 7.0
+	return maxf(2.0, floorf(minf(size.x / (16.0 * tw), size.y / (16.0 * th))))
 
 var _mask_cache := {}
 
@@ -309,15 +312,19 @@ func _draw() -> void:
 	var r := RandomNumberGenerator.new(); r.seed = 7
 	for i in 40:
 		var p := Vector2(r.randf() * size.x, r.randf() * sky_h * 0.9)
-		var base := 0.35 + 0.5 * r.randf()
+		var base := 0.45 + 0.55 * r.randf()
 		var phase := r.randf() * TAU
-		var w := 1.2 + r.randf() * 1.8
-		var a := base * (0.55 + 0.45 * (0.5 + 0.5 * sin(t * w + phase)))
-		draw_rect(Rect2(p.floor(), Vector2(kk, kk)), Color(1, 1, 0.9, a))
+		# Faster, deeper pulse so twinkle reads at a glance (every 3rd star blinks harder).
+		var w := 2.8 + r.randf() * 4.2
+		var pulse := 0.5 + 0.5 * sin(t * w + phase)
+		if i % 3 == 0: pulse = pulse * pulse * pulse
+		var a := base * (0.12 + 0.88 * pulse)
+		if a > 0.08:
+			draw_rect(Rect2(p.floor(), Vector2(kk, kk)), Color(1, 1, 0.9, a))
 	for i in 3:
 		var cl: Rect2 = [Rect2(88, 0, 49, 20), Rect2(88, 20, 49, 22), Rect2(88, 42, 50, 18)][i]
 		var span := size.x + cl.size.x * kk
-		var drift := t * (10.0 + float(i) * 4.0) * kk   # ~10–18 px/s at scale 1, scaled with k
+		var drift := t * (14.0 + float(i) * 5.0) * kk   # ~14–24 px/s at scale 1
 		var cx: float = fposmod(size.x * 0.06 + i * size.x / 2.5 + drift, span) - cl.size.x * kk
 		var cy := minf(4 * kk + i * 9 * kk, sky_h - cl.size.y * kk * 0.75)
 		draw_texture_rect_region(surface, Rect2(Vector2(cx, cy).floor(), cl.size * kk * 0.75), cl, Color(1, 1, 1, 0.55))
