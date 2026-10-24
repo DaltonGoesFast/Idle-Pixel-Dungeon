@@ -113,6 +113,7 @@ func _ready() -> void:
 	test_delve(gs)
 	test_camp(gs)
 	test_camp_npc_hits()
+	test_camp_grass_clear_of_npcs()
 	test_save(gs, ss)
 	test_meta(gs, ss)
 	test_subclass(gs, ss)
@@ -699,6 +700,26 @@ func test_camp_npc_hits() -> void:
 			check(scene.spot_at(Vector2(lr.get_center().x, lr.end.y - 2)) == page, "%s name bottom @ %s" % [page, c[1]])
 			check(scene.spot_at(lr.position + Vector2(3, lr.size.y * 0.6)) == page, "%s name left @ %s" % [page, c[1]])
 		check(scene.spot_at(Vector2(8, 8)) == "", "sky is not an NPC @ %s" % c[1])
+	scene.queue_free()
+
+## Raised grass is drawn after the first sprite pass; clumps skip wide NPC columns and sprites repaint on top (#181).
+func test_camp_grass_clear_of_npcs() -> void:
+	print("[camp grass clear of npcs]")
+	var scene = load("res://scripts/ui/camp_scene.gd").new()
+	add_child(scene)
+	for c in [[40, Vector2(924, 1605)], [60, Vector2(1114, 2008)], [60, Vector2(2368, 2008)]]:
+		scene.theme = UIKit.make_theme(c[0])
+		scene.size = c[1]
+		var cs: float = 16.0 * scene.k()
+		var bad := []
+		for g in scene.grass_clumps():
+			var base: Rect2 = g[0]
+			var span := Rect2(base.position - Vector2(0, cs), Vector2(cs, cs * 2.0))
+			for s in scene.SPOTS:
+				if scene.spot_rect(s).grow(cs).intersects(span):
+					bad.append("%s@%s" % [s[0], c[1]])
+		check(bad.is_empty(), "raised grass skips NPC columns %s" % [bad.slice(0, 6)])
+		check(scene.has_method("_draw_spot_sprite"), "camp repaints sprites after grass")
 	scene.queue_free()
 
 func test_save(gs, ss) -> void:

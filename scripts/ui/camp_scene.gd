@@ -176,6 +176,24 @@ func spot_at(p: Vector2) -> String:
 			best = s[0]
 	return best
 
+## Shadow + sprite for a facility spot (firelit). Drawn before the night pass, then again after raised grass.
+func _draw_spot_sprite(s: Array, fire: Vector2, frad: float, flk: float) -> void:
+	var kk := k()
+	var sr := spot_rect(s)
+	draw_texture_rect_region(load("res://assets/ui/shadow.png"), Rect2(sr.position.x + sr.size.x * 0.1, sr.end.y - kk * 3, sr.size.x * 0.8, kk * 5), Rect2(0, 0, 6, 6), Color(1, 1, 1, 0.6))
+	if hot == s[0]: draw_rect(sr.grow(kk * 2), Color(1, 1, 0.6, 0.18))
+	match s[1]:
+		"_pot":
+			draw_texture_rect_region(_masked(64, [4, 10], true), sr, Rect2(0, 0, 16, 16), SceneFX.firelit(sr.get_center(), fire, frad, flk))
+		"_chest":
+			var cr := UIKit.item_rect(36); var cz := cr.size * floorf(sr.size.x / 16.0)
+			draw_texture_rect_region(items, Rect2((sr.get_center() - cz / 2.0).floor(), cz), cr, SceneFX.firelit(sr.get_center(), fire, frad, flk))
+		_:
+			var fw: int = s[2]
+			var an: Array = NPC_IDLE[s[1]]; var fl: Array = an[1]
+			var frame: int = fl[int((t + s[4] * 3.0) * float(an[0])) % fl.size()]
+			draw_texture_rect_region(_sprite(s[1]), sr, Rect2(frame * fw, 0, fw, s[3]), SceneFX.firelit(sr.get_center(), fire, frad, flk))
+
 func _draw() -> void:
 	var kk := k(); var cs := 16.0 * kk
 	var sky_h := sky_height()
@@ -205,26 +223,8 @@ func _draw() -> void:
 			_tile(rc, (0 if h % 3 else 6) if path else (2 if h % 4 else 8))
 	var hz := Vector2(12, 15) * kk * 2.0
 	var hero_r := Rect2(Vector2(fire.x + cs * 0.9, fire.y + kk * 6 - hz.y).floor(), hz)   # the resting hero
-	var props := _prop_rects(cs)   # barrels: base cell + the cell its top reaches into
-	# horizon: a row of SPD raised high grass (DECISIONS #179) whose tops reach up into the sky
-	var grass := []   # [rect, kind, sway]: drawn after the night pass so the blades are not darkened twice
-	for x in cols:
-		var hr := Rect2(ox + x * cs, sky_h, cs, cs)
-		if not _hits_prop(hr, cs, props): grass.append([hr, 0 if (x * 7) % 3 else 1, 0.0])
-	# scenery (DECISIONS #179): SPD grass tufts and tall grass sway around the clearing, barrels by the Guild
-	# and the Forge, all from the sewers tile sheet; kept off the path and the NPC spots
-	for y in rows:
-		for x in cols:
-			var h2 := absi((x * 2654435761) ^ (y * 40503) ^ 0x5bd1)
-			var rc2 := Rect2(ox + x * cs, sky_h + y * cs, cs, cs)
-			var c2 := rc2.get_center()
-			if absf(c2.x - fire.x) < cs * 1.6 or y == 0: continue
-			# the clump covers its cell and the cell above (overhang) and is drawn over the NPCs: keep both clear
-			var span := Rect2(rc2.position - Vector2(0, cs), Vector2(cs, cs * 2.0))
-			if SPOTS.any(func(sp): return spot_rect(sp).merge(label_rect(sp)).grow(cs * 0.3).intersects(span)): continue
-			if _hits_prop(rc2, cs, props) or hero_r.grow(cs * 0.3).intersects(span): continue   # never over the hero
-			if h2 % 9 == 0:   # tall grass clump: SPD raised high grass, top half in the cell above
-				grass.append([rc2, h2 & 1, roundf(sin(t * 1.6 + x * 0.9 + y)) * kk])
+	# raised grass after the night pass (not darkened twice); never over NPCs, barrels, or the hero
+	var grass: Array = grass_clumps(hero_r)
 	_scenery(kk, cs, fire)
 	# campfire: SPD embers tile under a FlameParticle fire with sparks and smoke, and a flickering warm glow
 	var fr := Rect2((fire - Vector2(cs, cs) / 2.0).floor(), Vector2(cs, cs))
@@ -242,23 +242,10 @@ func _draw() -> void:
 	var cols_h := int(hs.get_width() / 12)
 	var frad := minf(size.x, size.y - sky_h) * 0.75   # firelight reach: warm amber flicker on nearby sprites
 	draw_texture_rect_region(hs, hero_r, Rect2((hf % cols_h) * 12, (hf / cols_h + GameState.armor_tier(hero)) * 15, 12, 15), SceneFX.firelit(hero_r.get_center(), fire, frad, flk))
-	# facilities
 	var font := get_theme_default_font()
 	var fs := UIKit.font_px(UIKit.font_size * 0.85)
 	for s in SPOTS:
-		var sr := spot_rect(s)
-		draw_texture_rect_region(load("res://assets/ui/shadow.png"), Rect2(sr.position.x + sr.size.x * 0.1, sr.end.y - kk * 3, sr.size.x * 0.8, kk * 5), Rect2(0, 0, 6, 6), Color(1, 1, 1, 0.6))
-		if hot == s[0]: draw_rect(sr.grow(kk * 2), Color(1, 1, 0.6, 0.18))
-		match s[1]:
-			"_pot": draw_texture_rect_region(_masked(64, [4, 10], true), sr, Rect2(0, 0, 16, 16), SceneFX.firelit(sr.get_center(), fire, frad, flk))   # pot without its baked plank floor
-			"_chest":   # trimmed SPD frame, centred on whole pixels (DECISIONS #89)
-				var cr := UIKit.item_rect(36); var cz := cr.size * floorf(sr.size.x / 16.0)
-				draw_texture_rect_region(items, Rect2((sr.get_center() - cz / 2.0).floor(), cz), cr, SceneFX.firelit(sr.get_center(), fire, frad, flk))
-			_:
-				var fw: int = s[2]
-				var an: Array = NPC_IDLE[s[1]]; var fl: Array = an[1]
-				var frame: int = fl[int((t + s[4] * 3.0) * float(an[0])) % fl.size()]
-				draw_texture_rect_region(_sprite(s[1]), sr, Rect2(frame * fw, 0, fw, s[3]), SceneFX.firelit(sr.get_center(), fire, frad, flk))
+		_draw_spot_sprite(s, fire, frad, flk)
 	# night: the clearing darkens away from the fire, the sky stays readable (DECISIONS #179)
 	SceneFX.darkness(self, Rect2(0, sky_h, size.x, size.y - sky_h), fire, minf(size.x, size.y - sky_h) * 0.62 * flk, 0.5)
 	SceneFX.glow(self, fire, cs * 1.2 * flk, Color(1.0, 0.7, 0.3, 0.12), ground)
@@ -270,6 +257,10 @@ func _draw() -> void:
 		var d := clampf((gc.distance_to(fire) / lrad - 0.3) / 0.65, 0.0, 1.0)
 		var v := 1.0 - 0.5 * d * 0.5
 		_raised(g[0], g[1], g[2], Color(v, v, v))
+	# horizon blades are full-width tiles; neighbors still overlap wide sprites, so paint characters again
+	draw_texture_rect_region(hs, hero_r, Rect2((hf % cols_h) * 12, (hf / cols_h + GameState.armor_tier(hero)) * 15, 12, 15), SceneFX.firelit(hero_r.get_center(), fire, frad, flk))
+	for s in SPOTS:
+		_draw_spot_sprite(s, fire, frad, flk)
 	for s in SPOTS:
 		var sr := spot_rect(s)
 		# name plate: SPD-ish yellow text with a dark backing
@@ -315,6 +306,42 @@ func _prop_rects(cs: float) -> Array:
 func _hits_prop(rc: Rect2, cs: float, props: Array) -> bool:
 	var span := Rect2(rc.position - Vector2(0, cs), Vector2(cs, cs * 2.0)).grow(-1.0)
 	return props.any(func(p): return (p as Rect2).intersects(span))
+
+## True when a raised clump's tile+overhang span would touch a facility sprite (one tile margin for wide NPCs).
+func _hits_spot(rc: Rect2, cs: float) -> bool:
+	var span := Rect2(rc.position - Vector2(0, cs), Vector2(cs, cs * 2.0))
+	return SPOTS.any(func(sp): return spot_rect(sp).grow(cs).intersects(span))
+
+## Raised grass clumps to draw: [base rect, kind, sway]. Horizon row + clearing tufts; gaps where an
+## NPC, barrel, path, or the resting hero sits so blades never layer over them (Forge/Enchanter reach the horizon).
+func grass_clumps(hero_r: Rect2 = Rect2()) -> Array:
+	var kk := k(); var cs := 16.0 * kk
+	var sky_h := sky_height()
+	var cols := int(ceil(size.x / cs)) + 1
+	var rows := int(ceil((size.y - sky_h) / cs)) + 1
+	var ox := floorf((size.x - cols * cs) / 2.0)
+	var fire := Vector2(size.x * 0.5, ground_y(FIRE_Y))
+	if not hero_r.has_area():
+		var hz := Vector2(12, 15) * kk * 2.0
+		hero_r = Rect2(Vector2(fire.x + cs * 0.9, fire.y + kk * 6 - hz.y).floor(), hz)
+	var props := _prop_rects(cs)
+	var grass := []
+	# horizon: SPD raised high grass whose tops reach into the sky (also skip NPC columns — #181 missed this row)
+	for x in cols:
+		var hr := Rect2(ox + x * cs, sky_h, cs, cs)
+		if _hits_spot(hr, cs) or _hits_prop(hr, cs, props): continue
+		grass.append([hr, 0 if (x * 7) % 3 else 1, 0.0])
+	for y in rows:
+		for x in cols:
+			var h2 := absi((x * 2654435761) ^ (y * 40503) ^ 0x5bd1)
+			var rc2 := Rect2(ox + x * cs, sky_h + y * cs, cs, cs)
+			var c2 := rc2.get_center()
+			if absf(c2.x - fire.x) < cs * 1.6 or y == 0: continue
+			var span := Rect2(rc2.position - Vector2(0, cs), Vector2(cs, cs * 2.0))
+			if _hits_spot(rc2, cs) or _hits_prop(rc2, cs, props) or hero_r.grow(cs * 0.3).intersects(span): continue
+			if h2 % 9 == 0:
+				grass.append([rc2, h2 & 1, roundf(sin(t * 1.6 + x * 0.9 + y)) * kk])
+	return grass
 
 ## Badge rule: a facility upgrade is affordable, or an identification is finished.
 func _has_news(page: String) -> bool:
