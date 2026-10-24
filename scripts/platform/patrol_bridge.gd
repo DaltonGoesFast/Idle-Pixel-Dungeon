@@ -12,6 +12,9 @@ const OPEN_SECTION := "patrols"
 
 var queued_open := false
 
+## What the last push did. Settings shows this so a phone can confirm the plugin without logcat.
+var last_send := "not yet"
+
 func _ready() -> void:
 	var p = _plugin()
 	if p != null:
@@ -19,8 +22,15 @@ func _ready() -> void:
 			p.open_guild.connect(_on_plugin_open)
 		if p.has_signal("notification_permission"):
 			p.notification_permission.connect(_on_notification_permission)
-		if String(p.consumeOpenTarget()) == "guild":
+		# Consume before markReady. Resume must not clear the flag, and markReady must not emit,
+		# until this has copied a cold-start tap into queued_open for Main.
+		if p.has_method("consumeOpenTarget") and String(p.consumeOpenTarget()) == "guild":
 			queued_open = true
+		if p.has_method("markReady"):
+			p.markReady()
+		print("PatrolWidget: singleton loaded")
+	else:
+		print("PatrolWidget: singleton not loaded")
 	# SaveSystem has already loaded (this autoload is after it). Publish whatever is on disk.
 	push()
 
@@ -38,7 +48,24 @@ func take_open() -> bool:
 	return true
 
 func _on_plugin_open() -> void:
+	# Main connects after this autoload. An emit with nobody listening would swallow the tap.
+	if open_guild.get_connections().is_empty():
+		queued_open = true
+		print("PatrolWidget: open queued until the camp screen connects")
+		return
 	open_guild.emit()
+
+## Settings line. "Android plugin not loaded" means the v2 singleton never registered, so the widget stays empty.
+func status_line() -> String:
+	var p = _plugin()
+	if p == null:
+		return "Patrol widget: Android plugin not loaded (%s)" % last_send
+	var java := "plugin loaded"
+	if p.has_method("debugStatus"):
+		java = String(p.debugStatus())
+	elif not p.has_method("updateSnapshot"):
+		java = "updateSnapshot missing"
+	return "Patrol widget: %s. Last send: %s." % [java, last_send]
 
 ## Android 13+ asks the first time alerts are turned on. Granted turns the setting on.
 ## 1 = granted. Anything else leaves alerts off.
@@ -69,10 +96,20 @@ func set_alerts(on: bool) -> void:
 
 ## Write the current snapshot. No plugin means nothing happens and the game keeps running.
 func push(gs = null) -> void:
+	var body := snapshot(gs)
+	var n := (body.get("patrols", []) as Array).size()
 	var p = _plugin()
-	if p == null or not p.has_method("updateSnapshot"):
+	if p == null:
+		last_send = "plugin not loaded (%d patrols)" % n
+		print("PatrolWidget: ", status_line())
 		return
-	p.updateSnapshot(JSON.stringify(snapshot(gs)))
+	if not p.has_method("updateSnapshot"):
+		last_send = "updateSnapshot missing (%d patrols)" % n
+		print("PatrolWidget: ", status_line())
+		return
+	p.updateSnapshot(JSON.stringify(body))
+	last_send = "sent %d patrol%s" % [n, "" if n == 1 else "s"]
+	print("PatrolWidget: ", status_line())
 
 ## Widget payload. back_at is a unix timestamp on the wall clock, so the widget can count down
 ## after the process is gone. reward is the full haul, not whatever has accrued so far.

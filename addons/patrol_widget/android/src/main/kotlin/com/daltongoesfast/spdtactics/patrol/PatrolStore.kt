@@ -6,6 +6,7 @@ import org.json.JSONObject
 
 /** Snapshot written by the game. The widget and alarms only read this; they do not run patrol math. */
 object PatrolStore {
+    private val openLock = Any()
     const val PREFS = "spd_patrol"
     const val KEY_SNAPSHOT = "snapshot"
     const val KEY_ALARM_IDS = "alarm_ids"
@@ -36,8 +37,20 @@ object PatrolStore {
         prefs(ctx).edit().putBoolean(KEY_OPEN, true).commit()
     }
 
-    fun clearOpen(ctx: Context) {
-        prefs(ctx).edit().putBoolean(KEY_OPEN, false).commit()
+    /** Read and clear. One caller wins when resume and the tap receiver both see the flag. */
+    fun takeOpen(ctx: Context): Boolean {
+        synchronized(openLock) {
+            val p = prefs(ctx)
+            if (!p.getBoolean(KEY_OPEN, false)) return false
+            p.edit().putBoolean(KEY_OPEN, false).commit()
+            return true
+        }
+    }
+
+    fun describe(ctx: Context): String {
+        val raw = prefs(ctx).getString(KEY_SNAPSHOT, "") ?: ""
+        val rows = PatrolJson.rows(readSnapshot(ctx))
+        return "snapshot ${raw.length} chars, ${rows.size} patrols, open=${peekOpen(ctx)}"
     }
 
     fun alarmIds(ctx: Context): Set<String> {

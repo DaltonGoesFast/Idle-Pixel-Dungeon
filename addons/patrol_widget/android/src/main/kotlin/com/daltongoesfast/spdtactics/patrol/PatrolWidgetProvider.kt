@@ -4,17 +4,34 @@ import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
 import android.content.Context
+import android.content.Intent
 import android.os.Bundle
 import android.os.SystemClock
+import android.util.Log
 import android.view.View
 import android.widget.RemoteViews
+import org.godotengine.godot.plugin.GodotPluginRegistry
 
 /** Home-screen widget. Compact under 100dp tall (Fold cover); the taller layout lists up to four patrols. */
 class PatrolWidgetProvider : AppWidgetProvider() {
+    override fun onReceive(context: Context, intent: Intent) {
+        if (intent.action == ACTION_OPEN) {
+            Log.i(TAG, "widget/notification tap")
+            PatrolOpen.launch(context)
+            return
+        }
+        super.onReceive(context, intent)
+    }
+
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
+        Log.i(TAG, "onUpdate ids=${appWidgetIds.size} ${PatrolStore.describe(context)}")
         for (id in appWidgetIds) {
-            val opts = appWidgetManager.getAppWidgetOptions(id)
-            appWidgetManager.updateAppWidget(id, PatrolViews.render(context, opts))
+            try {
+                val opts = appWidgetManager.getAppWidgetOptions(id)
+                appWidgetManager.updateAppWidget(id, PatrolViews.render(context, opts))
+            } catch (t: Throwable) {
+                Log.e(TAG, "onUpdate $id failed", t)
+            }
         }
     }
 
@@ -28,12 +45,55 @@ class PatrolWidgetProvider : AppWidgetProvider() {
     }
 
     companion object {
-        fun refresh(context: Context) {
+        private const val TAG = "PatrolWidget"
+        const val ACTION_OPEN = "com.daltongoesfast.spdtactics.patrol.OPEN"
+
+        init {
+            // This receiver is a manifest component, so R8 keeps it. Godot loads the plugin by
+            // Class.forName + getConstructor(Godot). A release minify that ignores consumer rules
+            // would otherwise delete that constructor and the singleton would never appear.
+            try {
+                Class.forName("com.daltongoesfast.spdtactics.patrol.PatrolWidgetPlugin")
+                    .getDeclaredConstructor(org.godotengine.godot.Godot::class.java)
+            } catch (t: Throwable) {
+                Log.w(TAG, "plugin class not reachable from the widget receiver", t)
+            }
+        }
+
+        fun placedCount(context: Context): Int {
+            val mgr = AppWidgetManager.getInstance(context)
+            val cn = ComponentName(context, PatrolWidgetProvider::class.java)
+            return mgr.getAppWidgetIds(cn).size
+        }
+
+        fun refresh(context: Context): Int {
             val mgr = AppWidgetManager.getInstance(context)
             val cn = ComponentName(context, PatrolWidgetProvider::class.java)
             val ids = mgr.getAppWidgetIds(cn)
+            Log.i(TAG, "refresh widgets=${ids.size} ${PatrolStore.describe(context)}")
             for (id in ids) {
-                mgr.updateAppWidget(id, PatrolViews.render(context, mgr.getAppWidgetOptions(id)))
+                try {
+                    mgr.updateAppWidget(id, PatrolViews.render(context, mgr.getAppWidgetOptions(id)))
+                } catch (t: Throwable) {
+                    Log.e(TAG, "updateAppWidget $id failed", t)
+                }
+            }
+            return ids.size
+        }
+
+        /** Tap while the process is up. Cold start leaves the flag for consumeOpenTarget. */
+        fun notifyPluginOfOpen() {
+            try {
+                val plugin = GodotPluginRegistry.getPluginRegistry().getPlugin("PatrolWidget") as? PatrolWidgetPlugin
+                if (plugin == null) {
+                    Log.i(TAG, "open flag set, plugin singleton not in the registry")
+                    return
+                }
+                plugin.deliverOpenFromOutside()
+            } catch (t: IllegalStateException) {
+                Log.i(TAG, "open flag set, plugin registry not ready")
+            } catch (t: Throwable) {
+                Log.w(TAG, "open notify failed", t)
             }
         }
     }

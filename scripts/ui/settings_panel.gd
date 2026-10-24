@@ -68,6 +68,7 @@ static func build(v: VBoxContainer, show_dev := true, on_wiped: Callable = Calla
 	v.add_child(UIKit.button("Patrol alerts: %s" % ("ON" if alerts else "OFF"), func():
 		PatrolBridge.set_alerts(not alerts)))
 	v.add_child(UIKit.label("On Android, a notification when a patrol is ready to recall. Off by default. PC and the browser ignore it.", 0.75, Color("9a8f7c")))
+	v.add_child(UIKit.label(PatrolBridge.status_line(), 0.75, Color("9a8f7c")))
 	if show_dev and dev_tools_allowed():
 		var dev: bool = GameState.settings.get("dev_tools", false)
 		v.add_child(UIKit.button("Developer tools: %s" % ("shown" if dev else "hidden"), func():

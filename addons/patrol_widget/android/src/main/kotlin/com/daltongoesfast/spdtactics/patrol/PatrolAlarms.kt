@@ -14,7 +14,7 @@ import android.util.Log
  * The receiver refreshes the widget and, when the snapshot asked for it, posts the notification.
  */
 object PatrolAlarms {
-    private const val TAG = "PatrolAlarms"
+    private const val TAG = "PatrolWidget"
     private const val MISSED_WINDOW_MS = 6L * 3600L * 1000L
 
     fun replace(ctx: Context, json: String?, fromBoot: Boolean) {
@@ -48,15 +48,24 @@ object PatrolAlarms {
     }
 
     private fun schedule(am: AlarmManager, atMs: Long, pi: PendingIntent) {
-        try {
-            if (Build.VERSION.SDK_INT >= 31 && am.canScheduleExactAlarms()) {
-                am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, atMs, pi)
-                return
-            }
-        } catch (e: SecurityException) {
-            Log.w(TAG, "exact alarm denied, using while-idle", e)
+        // API 31+ needs the exact-alarm grant. API 23-30 can call setExactAndAllowWhileIdle with no grant.
+        val sdk = Build.VERSION.SDK_INT
+        val exactOk = sdk < 31 || try {
+            am.canScheduleExactAlarms()
+        } catch (_: Exception) {
+            false
         }
-        if (Build.VERSION.SDK_INT >= 23) {
+        if (sdk >= 23 && exactOk) {
+            try {
+                am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, atMs, pi)
+                Log.i(TAG, "exact alarm at $atMs sdk=$sdk")
+                return
+            } catch (e: SecurityException) {
+                Log.w(TAG, "exact alarm denied, using while-idle", e)
+            }
+        }
+        if (sdk >= 23) {
+            Log.i(TAG, "inexact alarm at $atMs sdk=$sdk")
             am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, atMs, pi)
         } else {
             am.set(AlarmManager.RTC_WAKEUP, atMs, pi)
@@ -80,6 +89,7 @@ object PatrolAlarms {
 
 class PatrolAlarmReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
+        Log.i("PatrolWidget", "alarm fired id=${intent?.getStringExtra("id")}")
         val id = intent?.getStringExtra("id") ?: ""
         if (id.isNotEmpty() && intent?.getBooleanExtra("notify", false) == true) {
             val fired = PatrolStore.firedIds(context)
@@ -100,7 +110,10 @@ class PatrolAlarmReceiver : BroadcastReceiver() {
 
 class PatrolBootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
-        if (intent?.action != Intent.ACTION_BOOT_COMPLETED) return
+        val action = intent?.action
+        // An update wipes AlarmManager entries. MY_PACKAGE_REPLACED reschedules from the stored snapshot, same as boot.
+        if (action != Intent.ACTION_BOOT_COMPLETED && action != Intent.ACTION_MY_PACKAGE_REPLACED) return
+        Log.i("PatrolWidget", "reschedule from snapshot on $action ${PatrolStore.describe(context)}")
         val raw = PatrolStore.prefs(context).getString(PatrolStore.KEY_SNAPSHOT, "") ?: ""
         PatrolAlarms.replace(context, raw, fromBoot = true)
         PatrolWidgetProvider.refresh(context)

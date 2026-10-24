@@ -5754,6 +5754,11 @@ func test_patrol_widget(gs) -> void:
 		if c is Button and String(c.text) == "Patrol alerts: OFF":
 			btn = c
 	check(btn != null, "Settings shows Patrol alerts, default off")
+	var status_lbl := false
+	for c in v.get_children():
+		if c is Label and String(c.text).begins_with("Patrol widget:"):
+			status_lbl = String(c.text).contains("not loaded")
+	check(status_lbl, "Settings shows whether the Android plugin loaded")
 	if btn != null:
 		btn.pressed.emit()
 		check(gs.settings.patrol_notify == true, "the Settings toggle turns alerts on")
@@ -5770,6 +5775,14 @@ func test_patrol_widget(gs) -> void:
 	check(proj.contains("patrol_bridge.gd") and proj.contains("res://addons/patrol_widget/plugin.cfg"), "autoload and export plugin are enabled")
 	var exp := FileAccess.get_file_as_string("res://addons/patrol_widget/export_plugin.gd")
 	check(exp.contains("POST_NOTIFICATIONS") and exp.contains("PatrolWidget-debug.aar") and exp.contains("SCHEDULE_EXACT_ALARM"), "export plugin ships the permission set and the AAR")
+	check(exp.contains("org.godotengine.plugin.v2.PatrolWidget"), "export plugin registers the v2 singleton on the app manifest")
+	var manifest := FileAccess.get_file_as_string("res://addons/patrol_widget/android/src/main/AndroidManifest.xml")
+	var alarms_kt := FileAccess.get_file_as_string("res://addons/patrol_widget/android/src/main/kotlin/com/daltongoesfast/spdtactics/patrol/PatrolAlarms.kt")
+	check(manifest.contains("MY_PACKAGE_REPLACED") and alarms_kt.contains("ACTION_MY_PACKAGE_REPLACED"), "an app update reschedules patrol alarms from the stored snapshot")
+	check(alarms_kt.contains("sdk < 31 ||") and alarms_kt.contains("setExactAndAllowWhileIdle"), "exact alarms are used on API 23-30 without the Android 12 grant")
+	var plugin_kt := FileAccess.get_file_as_string("res://addons/patrol_widget/android/src/main/kotlin/com/daltongoesfast/spdtactics/patrol/PatrolWidgetPlugin.kt")
+	check(plugin_kt.contains("godotReady") and plugin_kt.contains("markReady") and plugin_kt.contains("hostContext"), "a widget tap is not consumed before the game connects")
+	check(PatrolBridge.status_line().begins_with("Patrol widget:") and PatrolBridge.status_line().contains("not loaded"), "off Android the readout says the plugin is not loaded")
 	var kt := FileAccess.get_file_as_string("res://addons/patrol_widget/android/src/main/kotlin/com/daltongoesfast/spdtactics/patrol/PatrolWidgetProvider.kt")
 	check(kt.contains("Patrol back!") and kt.contains("LARGE_MIN_DP"), "widget has a compact layout and a taller one")
 	var info := FileAccess.get_file_as_string("res://addons/patrol_widget/android/src/main/res/xml/patrol_widget_info.xml")

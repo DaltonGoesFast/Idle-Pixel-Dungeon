@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Sending a patrol updates the Android home-screen widget. The export writes the plugin into the app manifest, the snapshot is stored even when Godot calls in without an activity, and Settings plus logcat tag `PatrolWidget` show whether the plugin loaded and the snapshot was written. Return alarms are exact on Android 6–11, they are scheduled again after an app update, and a widget or notification tap waits until the game is listening before it opens the Guild (DECISIONS #229).
 - The patrol widget's gold border follows the phone's widget corner on Android 12 and up, and sits inset from that edge so the launcher's rounded mask does not cut the corners off (DECISIONS #229).
 - Android home screen can show a patrol widget (a short countdown on the Fold cover, a list when it is taller) and, if you turn on Patrol alerts in Settings, a notification when a patrol is ready to recall. Alerts are off until you enable them. PC and the browser are unchanged, and the game still runs if the Android plugin is not in the build (DECISIONS #229, +tests).
 - The post-fight "Wake at Camp" button (and other UIKit buttons) no longer stretch into a tall empty slab when a wrapping label sits beside them. Defeat keeps its message and the button in a normal-height column (DECISIONS #228, +test).

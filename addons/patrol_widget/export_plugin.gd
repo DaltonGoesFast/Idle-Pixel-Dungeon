@@ -38,3 +38,9 @@ class PatrolWidgetExport extends EditorExportPlugin:
 <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
 """
+
+	## Godot writes this into the app manifest. The AAR also declares it; both are required so a
+	## merger that drops library application meta-data still registers the v2 singleton.
+	func _get_android_manifest_application_element_contents(_platform: EditorExportPlatform, _debug: bool) -> String:
+		return """<meta-data android:name="org.godotengine.plugin.v2.PatrolWidget" android:value="com.daltongoesfast.spdtactics.patrol.PatrolWidgetPlugin" />
+"""
