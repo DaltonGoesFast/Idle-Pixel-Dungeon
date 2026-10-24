@@ -1,6 +1,6 @@
 ## CombatScreen: hosts GridView + controls (Wait, Shove/Bolt modes, Potion, Hint/Auto) + scrollable log.
 ## Mobile: portrait = grid on top / panel below; wide = grid left / panel right (Fold).
-## Desktop (DECISIONS #232): full-bleed grid, StatusPane on top, bottom toolbar + compact log (vanilla SPD).
+## Desktop (DECISIONS #232): StatusPane on top, log | grid mid row (log ~1/3), bottom toolbar + Menu.
 extends Control
 
 const GridView := preload("res://scripts/ui/grid_view.gd")
@@ -13,6 +13,7 @@ var event: Dictionary
 var reward: Dictionary = {}
 var split: BoxContainer
 var desk: VBoxContainer
+var desk_mid: HBoxContainer
 var grid
 var side: VBoxContainer
 var header_label: Label
@@ -41,6 +42,9 @@ var bag_host: VBoxContainer
 ## Mid-fight Scroll of Passage confirm (DECISIONS #202). Open = Auto Battle waits; Cancel spends no turn.
 var passage_confirm := false
 var passage_layer: Control
+## Desktop/Mobile Settings overlay (pauses Auto while open).
+var menu_open := false
+var menu_layer: Control
 var guide := 0
 var guide_label: Label
 ## Class skill / mode buttons for combat_skill_1 / _2 keybinds (Shove, Slam, Cloak, Bolt in build order).
@@ -131,18 +135,18 @@ func _reparent(n: Node, parent: Node) -> void:
 func _assemble_chrome() -> void:
 	# Pull kept widgets off the old chrome before freeing it (otherwise add_child fails and only
 	# a new empty toolbar shows — which is what the broken Desktop fight looked like).
-	var keep := [grid, pane, status, guide_label, header_label, log_scroll, bag_layer, passage_layer]
+	var keep := [grid, pane, status, guide_label, header_label, log_scroll, bag_layer, passage_layer, menu_layer]
 	for n in keep:
 		if n and is_instance_valid(n) and n.get_parent():
 			n.get_parent().remove_child(n)
 	for c in get_children():
 		remove_child(c)
 		c.queue_free()
-	split = null; desk = null; side = null; toolbar_scroll = null; buttons = null
+	split = null; desk = null; desk_mid = null; side = null; toolbar_scroll = null; buttons = null
 	result_layer = null
 	if desktop_ui:
 		desk = VBoxContainer.new(); desk.name = "DeskChrome"
-		desk.add_theme_constant_override("separation", int(UIKit.font_size * 0.25))
+		desk.add_theme_constant_override("separation", int(UIKit.font_size * 0.3))
 		add_child(desk)
 		_pin_full_rect(desk)
 		# Top chrome (SPD status strip)
@@ -156,25 +160,31 @@ func _assemble_chrome() -> void:
 		if guide_label:
 			guide_label.size_flags_vertical = SIZE_SHRINK_BEGIN
 			_reparent(guide_label, desk)
-		# Arena fills the middle
-		grid.size_flags_vertical = SIZE_EXPAND_FILL
-		grid.size_flags_horizontal = SIZE_EXPAND_FILL
-		grid.size_flags_stretch_ratio = 1.0
-		_reparent(grid, desk)
-		# Compact log + bottom toolbar (never expand — they were eating the arena)
-		log_scroll.size_flags_vertical = SIZE_SHRINK_BEGIN
+		# Mid: combat log (left ~1/3) | dungeon grid (right ~2/3)
+		desk_mid = HBoxContainer.new(); desk_mid.name = "DeskMid"
+		desk_mid.add_theme_constant_override("separation", int(UIKit.font_size * 0.4))
+		desk_mid.size_flags_vertical = SIZE_EXPAND_FILL
+		desk_mid.size_flags_horizontal = SIZE_EXPAND_FILL
+		desk.add_child(desk_mid)
 		log_scroll.size_flags_horizontal = SIZE_EXPAND_FILL
-		log_scroll.custom_minimum_size.y = UIKit.font_size * 2.8
-		_reparent(log_scroll, desk)
+		log_scroll.size_flags_vertical = SIZE_EXPAND_FILL
+		log_scroll.size_flags_stretch_ratio = 1.0
+		log_scroll.custom_minimum_size = Vector2.ZERO
+		_reparent(log_scroll, desk_mid)
+		grid.size_flags_horizontal = SIZE_EXPAND_FILL
+		grid.size_flags_vertical = SIZE_EXPAND_FILL
+		grid.size_flags_stretch_ratio = 2.0
+		_reparent(grid, desk_mid)
+		# Bottom toolbar — roomy SPD action bar
 		toolbar_scroll = ScrollContainer.new()
 		toolbar_scroll.size_flags_vertical = SIZE_SHRINK_BEGIN
 		toolbar_scroll.size_flags_horizontal = SIZE_EXPAND_FILL
 		toolbar_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-		toolbar_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_NEVER
-		toolbar_scroll.custom_minimum_size.y = UIKit.btn_height() + 4.0
+		toolbar_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+		toolbar_scroll.custom_minimum_size.y = _desk_toolbar_h()
 		desk.add_child(toolbar_scroll)
 		buttons = HBoxContainer.new()
-		buttons.add_theme_constant_override("separation", int(UIKit.font_size * 0.2))
+		buttons.add_theme_constant_override("separation", int(UIKit.font_size * 0.45))
 		buttons.size_flags_vertical = SIZE_SHRINK_CENTER
 		toolbar_scroll.add_child(buttons)
 	else:
@@ -192,6 +202,8 @@ func _assemble_chrome() -> void:
 		_reparent(status, side)
 		buttons = HFlowContainer.new(); side.add_child(buttons)
 		log_scroll.size_flags_vertical = SIZE_EXPAND_FILL
+		log_scroll.size_flags_horizontal = SIZE_EXPAND_FILL
+		log_scroll.size_flags_stretch_ratio = 1.0
 		log_scroll.custom_minimum_size.y = UIKit.font_size * 4
 		_reparent(log_scroll, side)
 
@@ -206,24 +218,31 @@ static func wide_grid_side(area: Vector2, side_min: float, sep: float) -> float:
 	var need := maxf(side_min, UIKit.font_size * SIDE_MIN_FS)
 	return floorf(maxf(0.0, minf(area.y, minf(area.x * 0.6, area.x - need - sep))))
 
-## Reserved height above/below the desktop arena (status + log + toolbar + seps).
+func _desk_toolbar_h() -> float:
+	return UIKit.btn_height() * 1.25 + 8.0
+
+## Reserved height above/below the desktop mid row (status + toolbar + seps).
 func _desktop_chrome_h() -> float:
 	var fs := float(UIKit.font_size)
 	var top := StatusPane.PANE_H * float(maxi(2, UIKit.px_scale)) + fs * 1.4
 	if guide_label and guide_label.get_parent() == desk:
 		top += fs * 2.2
-	var bot := fs * 2.8 + UIKit.btn_height() + 4.0
-	return top + bot + fs * 1.0
+	return top + _desk_toolbar_h() + fs * 0.8
 
 func _fit_split() -> void:
 	if grid == null or _area == Vector2.ZERO: return
 	if desktop_ui:
 		_pin_full_rect(desk)
-		# Explicit arena size so the grid never collapses to 0 when VBox expand fails.
-		var side := floorf(maxf(64.0, minf(_area.x, _area.y - _desktop_chrome_h())))
-		grid.custom_minimum_size = Vector2(side, side)
-		grid.size_flags_horizontal = SIZE_SHRINK_CENTER
+		var sep := float(desk_mid.get_theme_constant("separation")) if desk_mid else 8.0
+		var mid_h := floorf(maxf(64.0, _area.y - _desktop_chrome_h()))
+		var log_w := floorf(_area.x / 3.0)
+		var grid_side := floorf(maxf(64.0, minf(_area.x - log_w - sep, mid_h)))
+		log_scroll.custom_minimum_size = Vector2(log_w, mid_h)
+		grid.custom_minimum_size = Vector2(grid_side, grid_side)
+		grid.size_flags_horizontal = SIZE_EXPAND_FILL
 		grid.size_flags_vertical = SIZE_EXPAND_FILL
+		if toolbar_scroll:
+			toolbar_scroll.custom_minimum_size.y = _desk_toolbar_h()
 		return
 	if _portrait:
 		grid.custom_minimum_size = Vector2(_area.x, _area.x)
@@ -245,18 +264,20 @@ func side_min_width() -> float:
 func _process(d: float) -> void:
 	if main and main.tip_open(): return
 	if finished: return
-	if passage_confirm: return
+	if passage_confirm or menu_open or bag_open: return
 	if auto:
 		_auto_t += d
 		if _auto_t > 0.35:
 			_auto_t = 0.0; _do_bot()
 
-## Combat keyboard (DECISIONS #232). Bag / Passage / tip own cancel first.
+## Combat keyboard (DECISIONS #232). Bag / Passage / Menu / tip own cancel first.
 func _unhandled_input(event: InputEvent) -> void:
 	if main and main.tip_open(): return
 	if not event is InputEventKey: return
 	if Keybinds.just_pressed("combat_cancel", event):
 		get_viewport().set_input_as_handled()
+		if menu_open:
+			menu_open = false; _refresh(); return
 		if bag_open:
 			bag_open = false; _refresh(); return
 		if passage_confirm:
@@ -264,7 +285,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		if mode != "":
 			mode = ""; grid.mode = ""; _refresh(); return
 		return
-	if finished or passage_confirm or bag_open: return
+	if finished or passage_confirm or bag_open or menu_open: return
 	if auto and not Keybinds.just_pressed("combat_auto", event): return
 	for action in Keybinds.MOVE_DIR.keys():
 		if Keybinds.just_pressed(action, event):
@@ -296,9 +317,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 
 const BTN_ICONS := {"Wait": "wait", "Search": "search", "Search again": "search", "Bag": "backpack", "Hint": "info",
-	"Auto": "busy", "Auto: ON": "busy", "Shove": "arrow", "Shove: ON": "arrow", "Scroll of Passage": "scroll", "Passage": "scroll"}
+	"Auto": "busy", "Auto: ON": "busy", "Shove": "arrow", "Shove: ON": "arrow", "Scroll of Passage": "scroll",
+	"Passage": "scroll", "Menu": "prefs"}
 const BTN_PREFIX_ICONS := {"Slam": "warning", "Potion": "plus", "Cloak": "buffs", "Bolt": "target", "Scroll of Passage": "scroll", "Passage": "scroll"}
-## Desktop toolbar: short labels, no wrap, fixed slot height (vanilla SPD bottom bar).
+## Desktop toolbar: short labels, no wrap, roomy slots (vanilla SPD bottom bar).
 const DESK_LABELS := {"Scroll of Passage": "Passage", "Search again": "Search"}
 func _btn(text: String, cb: Callable, enabled := true, skill := false) -> void:
 	var label := String(DESK_LABELS.get(text, text)) if desktop_ui else text
@@ -306,7 +328,7 @@ func _btn(text: String, cb: Callable, enabled := true, skill := false) -> void:
 	if desktop_ui:
 		b.autowrap_mode = TextServer.AUTOWRAP_OFF
 		b.clip_text = true
-		b.custom_minimum_size = Vector2(UIKit.font_size * 5.5, UIKit.btn_height())
+		b.custom_minimum_size = Vector2(UIKit.font_size * 7.2, UIKit.btn_height() * 1.2)
 		b.size_flags_horizontal = SIZE_SHRINK_BEGIN
 		b.size_flags_vertical = SIZE_SHRINK_CENTER
 	else:
@@ -392,11 +414,13 @@ func _refresh() -> void:
 	_btn("Potion (%d)" % (potions - potions_used), _drink, potions - potions_used > 0 and h.hp < h.ht)
 	if Delve.scroll_passage_count(GameState) > 0:
 		_btn("Scroll of Passage", _ask_passage)
-	_btn("Bag", func(): bag_open = not bag_open; set_meta("bag_scroll", 0); _refresh())
+	_btn("Bag", func(): bag_open = not bag_open; menu_open = false; set_meta("bag_scroll", 0); _refresh())
 	_btn("Hint", _hint)
 	_btn("Auto: ON" if auto else "Auto", func(): auto = not auto; _refresh())
+	_btn("Menu", func(): menu_open = not menu_open; bag_open = false; _refresh())
 	_refresh_log()
 	_refresh_bag()
+	_refresh_menu()
 	_refresh_passage()
 	_fit_split()
 
@@ -444,6 +468,39 @@ func _equip_in_combat() -> void:
 	var hs := GameState.hero_stats(GameState.run.hero)
 	_act(func(): combat.apply_stats(hs); combat._log("%s swaps gear." % combat.hero.name); combat.hero_wait())
 	heal = GameState.potion_heal(GameState.run.hero)
+
+## In-fight Settings (same panel as Camp / Delve). Auto Battle waits while open.
+func _refresh_menu() -> void:
+	if menu_layer and is_instance_valid(menu_layer):
+		set_meta("menu_scroll", menu_layer.get_meta("sc").scroll_vertical if menu_layer.has_meta("sc") else 0)
+		menu_layer.queue_free()
+	menu_layer = null
+	if not menu_open or finished: return
+	var close := func(): menu_open = false; _refresh()
+	menu_layer = Control.new(); menu_layer.name = "MenuLayer"
+	menu_layer.set_anchors_and_offsets_preset(PRESET_FULL_RECT); add_child(menu_layer)
+	var dim := ColorRect.new(); dim.color = Color(0, 0, 0, 0.6)
+	dim.set_anchors_and_offsets_preset(PRESET_FULL_RECT); menu_layer.add_child(dim)
+	dim.gui_input.connect(func(e: InputEvent):
+		if (e is InputEventMouseButton and e.button_index == MOUSE_BUTTON_LEFT and e.pressed) or (e is InputEventScreenTouch and e.pressed):
+			dim.accept_event(); close.call())
+	var pc := PanelContainer.new(); pc.name = "MenuPanel"; pc.clip_contents = true; menu_layer.add_child(pc)
+	pc.add_theme_stylebox_override("panel", UIKit.chrome("window", Color.WHITE, UIKit.font_size * 0.6))
+	var r := bag_rect(size if size.x > 0 and size.y > 0 else get_viewport_rect().size)
+	pc.position = r.position; pc.size = r.size; pc.custom_minimum_size = r.size
+	var v := UIKit.vbox(pc)
+	var tr := UIKit.hbox(v)
+	var ic := UIKit.pixel(UIKit.spd_icon("prefs"), 1); ic.size_flags_vertical = SIZE_SHRINK_CENTER; tr.add_child(ic)
+	var tl := UIKit.header("Settings"); tl.size_flags_horizontal = SIZE_EXPAND_FILL; tr.add_child(tl)
+	var x := UIKit.button("X", close); UIKit.secondary(x); x.custom_minimum_size = Vector2.ONE * UIKit.btn_height()
+	x.size_flags_horizontal = SIZE_SHRINK_END; tr.add_child(x)
+	var sc := ScrollContainer.new(); sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	sc.size_flags_vertical = SIZE_EXPAND_FILL; v.add_child(sc); menu_layer.set_meta("sc", sc)
+	var body := UIKit.vbox(sc); body.size_flags_horizontal = SIZE_EXPAND_FILL
+	SettingsPanel.build(body, false, func(): if main: main.show_camp(), func():
+		UIKit.clear(body); SettingsPanel.build(body, false, func(): if main: main.show_camp(), func(): pass))
+	var keep := int(get_meta("menu_scroll", 0))
+	(func(): if is_instance_valid(sc): sc.scroll_vertical = keep).call_deferred()
 
 ## Guided first fight: a step banner + a glowing tile showing exactly what to tap. Never blocks input.
 func _guide_update() -> void:
@@ -561,6 +618,7 @@ func _ask_passage() -> void:
 	passage_confirm = true
 	auto = false
 	bag_open = false
+	menu_open = false
 	_refresh()
 
 func _cancel_passage() -> void:
