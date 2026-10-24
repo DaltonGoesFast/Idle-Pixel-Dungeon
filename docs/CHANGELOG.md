@@ -1,11 +1,13 @@
 # Changelog
 
 ## Unreleased
+
+## 0.49.2
 - Android home screen can show a patrol widget (a short countdown on the Fold cover, a list when it is taller) and, if you turn on Patrol alerts in Settings, a notification when a patrol is ready to recall. Alerts are off until you enable them. PC and the browser are unchanged, and the game still runs if the Android plugin is not in the build (DECISIONS #229, +tests).
 - The post-fight "Wake at Camp" button (and other UIKit buttons) no longer stretch into a tall empty slab when a wrapping label sits beside them. Defeat keeps its message and the button in a normal-height column (DECISIONS #228, +test).
 - Camp facilities go to Lv5 (Scroll budget still 22). Blacksmith L1 is repair-only; craft tier matches level (T5 at L5); gear upgrades cap at +1/+2/+3 from L2/L3/L4 (no masterwork +4..+6). Guild pack 3/4/5/7/10 and patrols 2/4/8/12/16h; Alchemy belt 2/2/3/4/5; Enchanter ID/slots/caps extend through L5 (DECISIONS #227).
 - Until you beat Goo or use three of them, each delve that starts without a Scroll of Passage gets a free one so you can bank the pack early; unused free scrolls do not enter the stash (DECISIONS #226).
-- Camp overhaul: drifting clouds and twinkling stars (firelight still clipped off the sky), all unlocked heroes seated around a roomier fire (tap to select), bubbling alchemy pot with scrolling water, Expedition biome pick via levelicons, and facility "!" when a Scroll can unlock a slot (DECISIONS #225).
+- Camp overhaul: drifting clouds and twinkling stars (firelight still clipped off the sky), all unlocked heroes seated around a roomier fire (tap to select), bubbling alchemy pot with scrolling water, Expedition biome pick via levelicons, and facility "!" when a Scroll can unlock a slot (DECISIONS #225). The camp no longer collapses on the first frame. Seats spread so the four classes are not stacked on the fire. Portrait camp packs NPCs toward the fire and shows patrols in the dock. Wide layouts zoom out, clouds drift slower, a full grass row sits on the horizon with NPCs on top, and web text stays crisp.
 
 ## 0.49.1
 - Camp horizon grass no longer covers the Forge and Enchanter on wide fullscreen layouts. Side strips stay when the scene is wider than tall, and the NPCs, the hero, and the barrels paint above the grass (+tests).
