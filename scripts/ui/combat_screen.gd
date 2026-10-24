@@ -1,8 +1,10 @@
 ## CombatScreen: hosts GridView + controls (Wait, Shove/Bolt modes, Potion, Hint/Auto) + scrollable log.
-## Portrait (Fold cover): grid on top, panel below. Wide (Fold inner): grid left, panel right.
+## Mobile: portrait = grid on top / panel below; wide = grid left / panel right (Fold).
+## Desktop (DECISIONS #232): full-bleed grid, StatusPane on top, bottom toolbar + compact log (vanilla SPD).
 extends Control
 
 const GridView := preload("res://scripts/ui/grid_view.gd")
+const Keybinds := preload("res://scripts/ui/keybinds.gd")
 
 var main: Control
 var combat: Combat
@@ -10,13 +12,17 @@ var on_done: Callable
 var event: Dictionary
 var reward: Dictionary = {}
 var split: BoxContainer
+var desk: VBoxContainer
 var grid
 var side: VBoxContainer
+var header_label: Label
 var status: Label
 var pane: StatusPane
-var buttons: HFlowContainer
+var buttons: Container
+var toolbar_scroll: ScrollContainer
 var log_scroll: ScrollContainer
 var log_label: RichTextLabel
+var result_layer: Control
 var mode := ""
 var potions := 0
 var potions_used := 0
@@ -37,6 +43,9 @@ var passage_confirm := false
 var passage_layer: Control
 var guide := 0
 var guide_label: Label
+## Class skill / mode buttons for combat_skill_1 / _2 keybinds (Shove, Slam, Cloak, Bolt in build order).
+var _skill_cbs: Array = []
+var _skill_enabled: Array = []
 
 ## `saved` (optional) = Combat.to_dict() from GameState.run.active_fight when resuming after the app was killed.
 func setup(ev: Dictionary, done: Callable, saved := {}) -> void:
@@ -62,45 +71,95 @@ func setup(ev: Dictionary, done: Callable, saved := {}) -> void:
 		else: auto = true
 
 func _ready() -> void:
-	split = BoxContainer.new(); add_child(split); split.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
-	split.add_theme_constant_override("separation", 12)
 	grid = GridView.new(); grid.tapped.connect(_on_cell)
 	if not GameState.run.is_empty():
 		grid.tileset = DB.biomes[GameState.run.biome].tile
 		grid.water_name = DB.biomes[GameState.run.biome].get("water", "water0")
 		grid.lighting = bool(GameState.settings.get("lighting", true))
-	split.add_child(grid)
 	grid.set_combat(combat)
-	side = UIKit.vbox(split); side.size_flags_horizontal = SIZE_EXPAND_FILL; side.size_flags_vertical = SIZE_EXPAND_FILL
-	side.add_child(UIKit.header("BOSS: " + DB.mobs[event.mobs[0]].name if event.get("boss", false) else "Combat"))
+	header_label = UIKit.header("BOSS: " + DB.mobs[event.mobs[0]].name if event.get("boss", false) else "Combat")
 	if not event.get("boss", false) and bool(GameState.settings.get("tutorial", true)) and not ("guided_fight" in GameState.tutorial_done):
 		guide = 1
 		guide_label = UIKit.label("", 1.0, Color("9fd3ff")); guide_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		side.add_child(guide_label)
-	pane = StatusPane.new(); side.add_child(pane)
+	pane = StatusPane.new()
 	var hs0 := combat.hero
 	pane.set_hero(String(hs0.sprite), int(hs0.fw), int(hs0.fh), int(hs0.get("row", 0)))
-	status = UIKit.label(""); side.add_child(status)
-	buttons = HFlowContainer.new(); side.add_child(buttons)
-	log_scroll = ScrollContainer.new(); log_scroll.size_flags_vertical = SIZE_EXPAND_FILL
+	status = UIKit.label("")
+	log_scroll = ScrollContainer.new()
 	log_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	log_scroll.custom_minimum_size.y = UIKit.font_size * 4
 	var bg := UIKit.chrome("toast", Color(0.75, 0.75, 0.75))
 	log_scroll.add_theme_stylebox_override("panel", bg)
-	side.add_child(log_scroll)
 	log_label = RichTextLabel.new(); log_label.fit_content = true; log_label.scroll_active = false
 	log_label.size_flags_horizontal = SIZE_EXPAND_FILL; log_scroll.add_child(log_label)
+	_assemble_chrome()
 	_refresh()
 	if main: main.tip("boss" if event.get("boss", false) else "first_fight")
 
 var _portrait := true
 var _area := Vector2.ZERO
+var desktop_ui := false
 
-func apply_layout(portrait: bool, s: Vector2) -> void:
-	_portrait = portrait; _area = s
-	split.vertical = portrait
-	grid.size_flags_vertical = SIZE_SHRINK_BEGIN if portrait else SIZE_FILL
+func apply_layout(portrait: bool, s: Vector2, desk_ui := false) -> void:
+	var changed := desk_ui != desktop_ui or (split == null and desk == null)
+	_portrait = portrait; _area = s; desktop_ui = desk_ui
+	if changed or (desktop_ui and desk == null) or (not desktop_ui and split == null):
+		_assemble_chrome()
+	if desktop_ui:
+		if desk: desk.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
+		grid.size_flags_vertical = SIZE_EXPAND_FILL
+		grid.size_flags_horizontal = SIZE_EXPAND_FILL
+	elif split:
+		split.vertical = portrait
+		grid.size_flags_vertical = SIZE_SHRINK_BEGIN if portrait else SIZE_FILL
 	_refresh()
+
+## Build Mobile split or Desktop column without freeing GridView / StatusPane mid-fight.
+func _assemble_chrome() -> void:
+	for c in get_children():
+		remove_child(c)
+	split = null; desk = null; side = null; toolbar_scroll = null
+	if result_layer and is_instance_valid(result_layer):
+		result_layer.queue_free()
+	result_layer = null
+	if desktop_ui:
+		desk = VBoxContainer.new(); desk.name = "DeskChrome"
+		desk.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
+		desk.add_theme_constant_override("separation", int(UIKit.font_size * 0.25))
+		add_child(desk)
+		desk.add_child(pane)
+		desk.add_child(status)
+		if guide_label: desk.add_child(guide_label)
+		grid.size_flags_vertical = SIZE_EXPAND_FILL
+		grid.size_flags_horizontal = SIZE_EXPAND_FILL
+		grid.custom_minimum_size = Vector2.ZERO
+		desk.add_child(grid)
+		log_scroll.size_flags_vertical = SIZE_SHRINK_BEGIN
+		log_scroll.custom_minimum_size.y = UIKit.font_size * 2.8
+		desk.add_child(log_scroll)
+		toolbar_scroll = ScrollContainer.new()
+		toolbar_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+		toolbar_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+		toolbar_scroll.custom_minimum_size.y = UIKit.btn_height() + UIKit.font_size * 0.4
+		desk.add_child(toolbar_scroll)
+		buttons = HBoxContainer.new()
+		buttons.add_theme_constant_override("separation", int(UIKit.font_size * 0.2))
+		toolbar_scroll.add_child(buttons)
+	else:
+		split = BoxContainer.new(); split.name = "MobileSplit"
+		split.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
+		split.add_theme_constant_override("separation", 12)
+		add_child(split)
+		split.add_child(grid)
+		side = UIKit.vbox(split)
+		side.size_flags_horizontal = SIZE_EXPAND_FILL; side.size_flags_vertical = SIZE_EXPAND_FILL
+		side.add_child(header_label)
+		if guide_label: side.add_child(guide_label)
+		side.add_child(pane)
+		side.add_child(status)
+		buttons = HFlowContainer.new(); side.add_child(buttons)
+		log_scroll.size_flags_vertical = SIZE_EXPAND_FILL
+		log_scroll.custom_minimum_size.y = UIKit.font_size * 4
+		side.add_child(log_scroll)
 
 ## The side column never gets less than SIDE_MIN_FS font sizes, nor less than what its widest row needs.
 const SIDE_MIN_FS := 13.0
@@ -115,6 +174,9 @@ static func wide_grid_side(area: Vector2, side_min: float, sep: float) -> float:
 
 func _fit_split() -> void:
 	if grid == null or _area == Vector2.ZERO: return
+	if desktop_ui:
+		grid.custom_minimum_size = Vector2.ZERO
+		return
 	if _portrait:
 		grid.custom_minimum_size = Vector2(_area.x, _area.x)
 		return
@@ -125,6 +187,7 @@ func _fit_split() -> void:
 ## it was last laid out at, so after a wide layout a smaller window would keep that width as the column's floor and
 ## crush the arena (Bugbot on #113). The log wraps to whatever width the column gets.
 func side_min_width() -> float:
+	if side == null: return UIKit.font_size * SIDE_MIN_FS
 	var w := 0.0
 	for c in side.get_children():
 		if c == log_scroll or not (c is Control) or not (c as Control).visible: continue
@@ -140,17 +203,66 @@ func _process(d: float) -> void:
 		if _auto_t > 0.35:
 			_auto_t = 0.0; _do_bot()
 
+## Combat keyboard (DECISIONS #232). Bag / Passage / tip own cancel first.
+func _unhandled_input(event: InputEvent) -> void:
+	if main and main.tip_open(): return
+	if not event is InputEventKey: return
+	if Keybinds.just_pressed("combat_cancel", event):
+		get_viewport().set_input_as_handled()
+		if bag_open:
+			bag_open = false; _refresh(); return
+		if passage_confirm:
+			_cancel_passage(); return
+		if mode != "":
+			mode = ""; grid.mode = ""; _refresh(); return
+		return
+	if finished or passage_confirm or bag_open: return
+	if auto and not Keybinds.just_pressed("combat_auto", event): return
+	for action in Keybinds.MOVE_DIR.keys():
+		if Keybinds.just_pressed(action, event):
+			get_viewport().set_input_as_handled()
+			var step: Vector2i = combat.hero.pos + Keybinds.MOVE_DIR[action]
+			_act(func(): combat.hero_tap(step, mode))
+			return
+	if Keybinds.just_pressed("combat_wait", event):
+		get_viewport().set_input_as_handled(); _act(func(): combat.hero_wait()); return
+	if Keybinds.just_pressed("combat_search", event):
+		get_viewport().set_input_as_handled(); _act(func(): combat.hero_search()); return
+	if Keybinds.just_pressed("combat_bag", event):
+		get_viewport().set_input_as_handled(); bag_open = not bag_open; set_meta("bag_scroll", 0); _refresh(); return
+	if Keybinds.just_pressed("combat_hint", event):
+		get_viewport().set_input_as_handled(); _hint(); return
+	if Keybinds.just_pressed("combat_auto", event):
+		get_viewport().set_input_as_handled(); auto = not auto; _refresh(); return
+	if Keybinds.just_pressed("combat_potion", event):
+		get_viewport().set_input_as_handled(); _drink(); return
+	if Keybinds.just_pressed("combat_skill_1", event) and _skill_cbs.size() > 0:
+		get_viewport().set_input_as_handled()
+		if _skill_enabled.size() > 0 and _skill_enabled[0]:
+			_skill_cbs[0].call()
+		return
+	if Keybinds.just_pressed("combat_skill_2", event) and _skill_cbs.size() > 1:
+		get_viewport().set_input_as_handled()
+		if _skill_enabled.size() > 1 and _skill_enabled[1]:
+			_skill_cbs[1].call()
+		return
+
 const BTN_ICONS := {"Wait": "wait", "Search": "search", "Search again": "search", "Bag": "backpack", "Hint": "info",
 	"Auto": "busy", "Auto: ON": "busy", "Shove": "arrow", "Shove: ON": "arrow", "Scroll of Passage": "scroll"}
 const BTN_PREFIX_ICONS := {"Slam": "warning", "Potion": "plus", "Cloak": "buffs", "Bolt": "target", "Scroll of Passage": "scroll"}
-func _btn(text: String, cb: Callable, enabled := true) -> void:
+func _btn(text: String, cb: Callable, enabled := true, skill := false) -> void:
 	var b := UIKit.button(text, cb, enabled)
-	b.custom_minimum_size.x = UIKit.font_size * 6.5
+	b.custom_minimum_size.x = UIKit.font_size * (5.0 if desktop_ui else 6.5)
+	if desktop_ui:
+		b.size_flags_horizontal = SIZE_SHRINK_BEGIN
 	var ic: String = BTN_ICONS.get(text, "")
 	for pre in BTN_PREFIX_ICONS:
 		if text.begins_with(pre): ic = BTN_PREFIX_ICONS[pre]
 	UIKit.as_toolbar(b, ic)   # SPD toolbar slots for in-fight actions
 	buttons.add_child(b)
+	if skill:
+		_skill_cbs.append(cb)
+		_skill_enabled.append(enabled)
 
 func _refresh() -> void:
 	if status == null: return
@@ -194,19 +306,25 @@ func _refresh() -> void:
 		if combat.surprise_ready() and (guide == 0 or guide >= 4): main.tip("surprise")
 		if not combat.danger.is_empty(): main.tip("telegraph")
 		if combat.traps.values().any(func(t): return not t.hidden): main.tip("trap")
-	UIKit.clear(buttons)
+	if buttons: UIKit.clear(buttons)
+	_skill_cbs.clear(); _skill_enabled.clear()
+	_clear_result_layer()
 	if finished:
 		_result_buttons(); _refresh_log(); _refresh_bag(); _refresh_passage(); _fit_split(); return
 	_btn("Wait", func(): _act(func(): combat.hero_wait()))
 	if "shove" in h.abilities:
-		_btn("Shove: ON" if mode == "shove" else "Shove", func(): mode = "" if mode == "shove" else "shove"; grid.mode = mode; _refresh())
+		_btn("Shove: ON" if mode == "shove" else "Shove", func():
+			mode = "" if mode == "shove" else "shove"
+			grid.mode = mode
+			_refresh()
+		, true, true)
 	if "slam" in h.abilities:
-		_btn("Slam (%d)" % h.slams, func(): _act(func(): combat.hero_slam()), int(h.slams) > 0 and combat.enemies().any(func(e): return Combat.cheb(e.pos, h.pos) == 1))
+		_btn("Slam (%d)" % h.slams, func(): _act(func(): combat.hero_slam()), int(h.slams) > 0 and combat.enemies().any(func(e): return Combat.cheb(e.pos, h.pos) == 1), true)
 	if not h.cloak.is_empty():
-		_btn("Cloak (%d/%d)" % [int(h.cloak_charges), _cloak_cap(h)], func(): _act(func(): combat.hero_cloak()), int(h.cloak_charges) > 0 and not combat.hidden())
+		_btn("Cloak (%d/%d)" % [int(h.cloak_charges), _cloak_cap(h)], func(): _act(func(): combat.hero_cloak()), int(h.cloak_charges) > 0 and not combat.hidden(), true)
 	if not h.bolt.is_empty() and not h.bolt.get("infinite", false):
 		# First press: enter aim mode. Second press: fire at last attacker if still a clear shot, else nearest (SPD QuickSlot, DECISIONS #231).
-		_btn("Bolt: ON (%d)" % h.charges if mode == "bolt" else "Bolt (%d)" % h.charges, _bolt_press, h.charges > 0)
+		_btn("Bolt: ON (%d)" % h.charges if mode == "bolt" else "Bolt (%d)" % h.charges, _bolt_press, h.charges > 0, true)
 	_btn("Search" if not h.get("searched", false) else "Search again", func(): _act(func(): combat.hero_search()))
 	_btn("Potion (%d)" % (potions - potions_used), _drink, potions - potions_used > 0 and h.hp < h.ht)
 	if Delve.scroll_passage_count(GameState) > 0:
@@ -483,15 +601,47 @@ func _ensure_victory_summary() -> void:
 		if potions_used > 0: lost.append("-%d %s" % [potions_used, DB.display_name("potion_healing")]); icons[lost[-1]] = {"id": "potion_healing", "known": true, "drop": true}
 		_summary = {"got": got, "lost": lost, "icons": icons}
 
+func _clear_result_layer() -> void:
+	if result_layer and is_instance_valid(result_layer):
+		result_layer.queue_free()
+	result_layer = null
+
+## Desktop: floating chrome card over the grid. Mobile: same content in the side toolbar column.
+func _result_host() -> Control:
+	if not desktop_ui:
+		return buttons
+	_clear_result_layer()
+	result_layer = Control.new(); result_layer.name = "ResultLayer"
+	result_layer.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
+	add_child(result_layer)
+	var dim := ColorRect.new(); dim.color = Color(0, 0, 0, 0.45)
+	dim.set_anchors_and_offsets_preset(PRESET_FULL_RECT); dim.mouse_filter = MOUSE_FILTER_STOP
+	result_layer.add_child(dim)
+	var pc := PanelContainer.new(); pc.name = "ResultPanel"; result_layer.add_child(pc)
+	pc.add_theme_stylebox_override("panel", UIKit.chrome("window", Color.WHITE, UIKit.font_size * 0.6))
+	var vs := size if size.x > 0 and size.y > 0 else get_viewport_rect().size
+	var w := minf(vs.x * 0.7, UIKit.font_size * 32.0)
+	var h := minf(vs.y * 0.7, UIKit.font_size * 28.0)
+	pc.position = ((vs - Vector2(w, h)) / 2.0).floor(); pc.size = Vector2(w, h); pc.custom_minimum_size = Vector2(w, 0)
+	var host := UIKit.vbox(pc)
+	host.size_flags_horizontal = SIZE_EXPAND_FILL
+	host.size_flags_vertical = SIZE_EXPAND_FILL
+	return host
+
 func _result_buttons() -> void:
+	var host := _result_host()
 	if combat.won:
 		_ensure_victory_summary()
-		var card := UIKit.card()
-		card.name = "VictoryResults"
-		card.size_flags_horizontal = SIZE_EXPAND_FILL
-		buttons.add_child(card)
-		var box := UIKit.vbox(card, int(UIKit.font_size * 0.25))
-		box.size_flags_horizontal = SIZE_EXPAND_FILL
+		var card := UIKit.card() if not desktop_ui else host
+		if not desktop_ui:
+			card.name = "VictoryResults"
+			card.size_flags_horizontal = SIZE_EXPAND_FILL
+			host.add_child(card)
+		var box := card if desktop_ui else UIKit.vbox(card, int(UIKit.font_size * 0.25))
+		if desktop_ui:
+			box.add_theme_constant_override("separation", int(UIKit.font_size * 0.25))
+		else:
+			box.size_flags_horizontal = SIZE_EXPAND_FILL
 		box.add_child(UIKit.header("Victory"))
 		var icons: Dictionary = _summary.get("icons", {})
 		var lines := VBoxContainer.new(); lines.name = "VictoryLines"
@@ -505,6 +655,7 @@ func _result_buttons() -> void:
 		var sc := ScrollContainer.new(); sc.name = "VictoryList"
 		sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 		sc.size_flags_horizontal = SIZE_EXPAND_FILL
+		sc.size_flags_vertical = SIZE_EXPAND_FILL if desktop_ui else SIZE_SHRINK_BEGIN
 		sc.add_child(lines)
 		box.add_child(sc)
 		sc.custom_minimum_size.y = victory_list_h(lines)
@@ -523,9 +674,11 @@ func _result_buttons() -> void:
 	else:
 		# Column, not a bare label in the HFlow: a wrapping Label with no width collapses to one
 		# letter per line and used to stretch Wake at Camp to half the screen (DECISIONS #228).
-		var col := UIKit.vbox()
-		col.name = "DefeatResults"
-		col.size_flags_horizontal = SIZE_EXPAND_FILL
+		var col := host if desktop_ui else UIKit.vbox()
+		if not desktop_ui:
+			col.name = "DefeatResults"
+			col.size_flags_horizontal = SIZE_EXPAND_FILL
+			host.add_child(col)
 		var msg := UIKit.label("Defeat... the pack is lost and your gear cracks.", 1.0, Color("ff7070"))
 		msg.size_flags_horizontal = SIZE_EXPAND_FILL
 		msg.custom_minimum_size.x = UIKit.font_size * SIDE_MIN_FS
@@ -534,7 +687,6 @@ func _result_buttons() -> void:
 		wake.custom_minimum_size.x = UIKit.font_size * 6.5
 		UIKit.as_toolbar(wake)
 		col.add_child(wake)
-		buttons.add_child(col)
 
 ## Rows the Victory list shows before it scrolls (a heading counts as a row).
 const VICTORY_ROWS := 6

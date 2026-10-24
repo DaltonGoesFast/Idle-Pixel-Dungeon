@@ -58,7 +58,7 @@ func _camp_update_label() -> String:
 		return "Update v%s" % Updater.remote_version
 	return "Update"
 
-func apply_layout(p: bool, _size: Vector2) -> void:
+func apply_layout(p: bool, _size: Vector2, _desktop := false) -> void:
 	if p == portrait and root_box != null: rebuild(); return
 	portrait = p
 	_build_shell(); rebuild()

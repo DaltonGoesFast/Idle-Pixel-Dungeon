@@ -3,8 +3,11 @@
 class_name SettingsPanel
 extends RefCounted
 
+const Keybinds := preload("res://scripts/ui/keybinds.gd")
+
 const TEXT_SIZES := [["Small", 0.85], ["Normal", 1.0], ["Large", 1.15], ["Huge", 1.3]]
 const DELVE_SPEEDS := [["Slow", 0.5], ["Normal", 1.0], ["Fast", 1.5], ["Faster", 2.0]]
+const INTERFACES := [["Auto", "auto"], ["Mobile", "mobile"], ["Desktop", "desktop"]]
 
 const WIPE_BTN := "Wipe save data"
 const WIPE_TITLE := "Wipe save data?"
@@ -57,6 +60,16 @@ static func build(v: VBoxContainer, show_dev := true, on_wiped: Callable = Calla
 		var b := UIKit.button(("> " if cur else "") + t[0], func():
 			GameState.set_setting("text_scale", t[1]); SaveSystem.save_game(); GameState.touch())
 		b.custom_minimum_size.x = UIKit.font_size * 5; flow.add_child(b)
+	v.add_child(UIKit.header("Interface"))
+	var iface_flow := HFlowContainer.new(); v.add_child(iface_flow)
+	var cur_iface := String(GameState.settings.get("interface", "auto"))
+	for t in INTERFACES:
+		var cur := cur_iface == String(t[1])
+		var b := UIKit.button(("> " if cur else "") + t[0], func():
+			GameState.set_setting("interface", t[1]); SaveSystem.save_game(); GameState.touch())
+		b.custom_minimum_size.x = UIKit.font_size * 5; iface_flow.add_child(b)
+	v.add_child(UIKit.label("Auto uses Desktop on PC and the browser, Mobile on phones. Desktop combat is full-grid with a bottom toolbar like vanilla SPD.", 0.75, Color("9a8f7c")))
+	_build_keybinds(v, show_dev, on_wiped, on_rebuild)
 	v.add_child(UIKit.header("Help"))
 	var tut: bool = GameState.settings.get("tutorial", true)
 	v.add_child(UIKit.button("Tutorial tips: %s" % ("ON" if tut else "OFF"), func():
@@ -118,11 +131,82 @@ static func is_wipe_confirm(v: Node) -> bool:
 		elif c is Button and String(c.text) == WIPE_CANCEL: cancel = true
 	return title and wipe and cancel
 
+## Combat keybinds list + Rebind / Reset (DECISIONS #232).
+static func _build_keybinds(v: VBoxContainer, show_dev: bool, on_wiped: Callable, on_rebuild: Callable) -> void:
+	v.add_child(UIKit.header("Keybinds"))
+	v.add_child(UIKit.label("Combat controls. Click Rebind, then press a key. Esc cancels listening; Backspace clears that binding.", 0.75, Color("9a8f7c")))
+	for action in Keybinds.ACTION_ORDER:
+		var row := UIKit.hbox(v)
+		var name := UIKit.label(String(Keybinds.LABELS.get(action, action)), 0.85)
+		name.custom_minimum_size.x = UIKit.font_size * 8; name.autowrap_mode = TextServer.AUTOWRAP_OFF
+		row.add_child(name)
+		var keys := UIKit.label(Keybinds.binding_text(action), 0.8, Color("c9a96e"))
+		keys.size_flags_horizontal = Control.SIZE_EXPAND_FILL; keys.autowrap_mode = TextServer.AUTOWRAP_OFF
+		row.add_child(keys)
+		var act := action
+		row.add_child(UIKit.button("Rebind", func():
+			_show_rebind(v, act, show_dev, on_wiped, on_rebuild)))
+	v.add_child(UIKit.button("Reset keybinds", func():
+		Keybinds.reset_defaults(); GameState.touch()))
+
+## Listen for the next key; Esc cancels; Backspace clears the action's keys.
+static func _show_rebind(v: VBoxContainer, action: String, show_dev: bool, on_wiped: Callable, on_rebuild: Callable) -> void:
+	UIKit.clear(v)
+	var title := String(Keybinds.LABELS.get(action, action))
+	v.add_child(UIKit.header("Rebind: " + title))
+	v.add_child(UIKit.label("Press a key… Esc cancels. Backspace clears.", 0.9, Color("9fd3ff")))
+	v.add_child(UIKit.secondary(UIKit.button("Cancel", func():
+		if on_rebuild.is_valid():
+			on_rebuild.call()
+		else:
+			UIKit.clear(v); build(v, show_dev, on_wiped, on_rebuild))))
+	v.set_meta("rebind_action", action)
+	v.set_meta("rebind_show_dev", show_dev)
+	v.set_meta("rebind_on_wiped", on_wiped)
+	v.set_meta("rebind_on_rebuild", on_rebuild)
+	if not v.has_node("RebindListener"):
+		v.add_child(RebindListener.new())
+
 ## Update section (Android / Windows).
 static func _build_update(v: VBoxContainer) -> void:
 	if not Updater.supports_platform():
 		return
 	v.add_child(UpdateBlock.new())
+
+## Captures one key while the rebind panel is open, then rebuilds Settings.
+class RebindListener extends Node:
+	func _ready() -> void:
+		set_process_unhandled_input(true)
+
+	func _unhandled_input(event: InputEvent) -> void:
+		if not (event is InputEventKey) or not event.pressed or event.echo:
+			return
+		var v: Node = get_parent()
+		if v == null or not v.has_meta("rebind_action"):
+			return
+		var action: String = v.get_meta("rebind_action")
+		var show_dev: bool = v.get_meta("rebind_show_dev", true)
+		var on_wiped: Callable = v.get_meta("rebind_on_wiped", Callable())
+		var on_rebuild: Callable = v.get_meta("rebind_on_rebuild", Callable())
+		var key: Key = event.keycode if event.keycode != KEY_NONE else event.physical_keycode
+		get_viewport().set_input_as_handled()
+		if key == KEY_ESCAPE:
+			pass
+		elif key == KEY_BACKSPACE:
+			var saved: Dictionary = GameState.settings.get("keybinds", {}).duplicate(true)
+			if typeof(saved) != TYPE_DICTIONARY:
+				saved = {}
+			saved[action] = []
+			GameState.set_setting("keybinds", saved)
+			Keybinds.apply()
+			SaveSystem.save_game()
+		else:
+			Keybinds.rebind(action, int(key))
+		if on_rebuild.is_valid():
+			on_rebuild.call()
+		else:
+			UIKit.clear(v); SettingsPanel.build(v, show_dev, on_wiped, on_rebuild)
+		queue_free()
 
 ## Live status + button; connects to Updater while in the tree.
 class UpdateBlock extends VBoxContainer:

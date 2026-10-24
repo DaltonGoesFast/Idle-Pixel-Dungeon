@@ -1,11 +1,12 @@
 ## Main: root of the app. Owns layout (Fold cover/inner, safe areas, theme scale) and screen switching.
-## Screens: CampScreen, DelveScreen, CombatScreen. Each screen implements apply_layout(portrait, size).
+## Screens: CampScreen, DelveScreen, CombatScreen. Each screen implements apply_layout(portrait, size, desktop_ui).
 extends Control
 
 const CampScreen := preload("res://scripts/ui/camp_screen.gd")
 const DelveScreen := preload("res://scripts/ui/delve_screen.gd")
 const CombatScreen := preload("res://scripts/ui/combat_screen.gd")
 const TipOverlay := preload("res://scripts/ui/tip_overlay.gd")
+const Keybinds := preload("res://scripts/ui/keybinds.gd")
 
 var margin: MarginContainer
 var host: Control
@@ -13,6 +14,7 @@ var toast_box: VBoxContainer
 var screen: Control
 var delve: Control           # kept alive while a combat runs on top of it
 var portrait := true
+var desktop_ui := false
 var tips: Control            # TipOverlay (tutorial cards above everything), the only child of tip_layer
 ## Tutorial tips live on their own CanvasLayer above the default canvas (DECISIONS #213). A z_index only orders
 ## siblings inside one canvas, so the delve's encounter window (z 20), its result/Defeat layer (z 30) or anything a
@@ -26,7 +28,15 @@ var _id_timer := 0.0
 static func use_integer_content_scale(is_web: bool = OS.has_feature("web")) -> bool:
 	return is_web
 
+## DECISIONS #232: Desktop UI when set to desktop, or Auto on non-mobile. Mobile OS feature covers Android/iOS.
+static func resolve_desktop_ui(settings: Dictionary = GameState.settings, is_mobile: bool = OS.has_feature("mobile")) -> bool:
+	match String(settings.get("interface", "auto")):
+		"desktop": return true
+		"mobile": return false
+		_: return not is_mobile
+
 func _ready() -> void:
+	Keybinds.apply()
 	var root := get_tree().root
 	root.content_scale_stretch = Window.CONTENT_SCALE_STRETCH_INTEGER if use_integer_content_scale() else Window.CONTENT_SCALE_STRETCH_FRACTIONAL
 	set_anchors_and_offsets_preset(PRESET_FULL_RECT)
@@ -68,6 +78,7 @@ func _process(delta: float) -> void:
 func _relayout() -> void:
 	var vs := get_viewport_rect().size
 	portrait = vs.x / vs.y < 0.85
+	desktop_ui = resolve_desktop_ui()
 	var l := 12.0; var t := 12.0; var r := 12.0; var b := 12.0
 	var safe := DisplayServer.get_display_safe_area()
 	var win := DisplayServer.window_get_size()
@@ -75,9 +86,12 @@ func _relayout() -> void:
 		var k := vs.x / float(win.x)
 		l += safe.position.x * k; t += safe.position.y * k
 		r += (win.x - safe.end.x) * k; b += (win.y - safe.end.y) * k
+	# Desktop chrome uses less padding so the dungeon fills like vanilla SPD.
+	if desktop_ui:
+		l = minf(l, 8.0); t = minf(t, 8.0); r = minf(r, 8.0); b = minf(b, 8.0)
 	var cap := minf(vs.x, vs.y) * 0.2
 	for p in [["left", l], ["top", t], ["right", r], ["bottom", b]]:
-		margin.add_theme_constant_override("margin_" + p[0], int(clampf(p[1], 8.0, cap)))
+		margin.add_theme_constant_override("margin_" + p[0], int(clampf(p[1], 4.0 if desktop_ui else 8.0, cap)))
 	var fs := int(clampf(minf(vs.x, vs.y) / 24.0 * float(GameState.settings.get("text_scale", 1.0)), 14, 60))
 	theme = UIKit.make_theme(fs)
 	get_window().theme = theme   # popups / anything parented outside Main inherit the SPD theme too
@@ -92,7 +106,7 @@ func content_size() -> Vector2:
 
 func _layout_screen() -> void:
 	screen.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
-	screen.apply_layout(portrait, content_size())
+	screen.apply_layout(portrait, content_size(), desktop_ui)
 
 func _set_screen(s: Control) -> void:
 	if screen and screen != delve: screen.queue_free()

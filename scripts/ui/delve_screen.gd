@@ -89,7 +89,7 @@ func _place_window() -> void:
 	if win_dim.position != dr.position or win_dim.size != dr.size:
 		win_dim.position = dr.position; win_dim.size = dr.size
 
-func apply_layout(p: bool, s: Vector2) -> void:
+func apply_layout(p: bool, s: Vector2, _desktop := false) -> void:
 	portrait = p
 	bar.custom_minimum_size.y = UIKit.font_size * 1.6
 	win_panel.add_theme_stylebox_override("panel", UIKit.chrome("window", Color.WHITE, UIKit.font_size * 0.6))

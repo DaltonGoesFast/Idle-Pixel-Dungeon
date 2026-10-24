@@ -21,8 +21,10 @@ var id_queue: Array = []           # [{uid, ready_at}]
 var boss_kills: Dictionary = {}    # class -> [biome ids]  (first kill per class drops a Scroll of Upgrade)
 ## text_scale multiplies the UI font size; haptics = vibrate on hits/traps (Android); dev_tools shows the Developer section.
 ## patrol_notify (default off) asks Android to ping when a patrol is ready; PC and web ignore it (DECISIONS #229).
+## interface: auto|mobile|desktop — Auto picks Desktop off phones (DECISIONS #232). keybinds: combat InputMap overrides.
 var settings := {"sfx": 0.8, "music": 0.5, "haptics": true, "text_scale": 1.0, "dev_tools": false, "tutorial": true,
-	"delve_speed": 1.0, "lighting": true, "full_auto": false, "patrol_notify": false}
+	"delve_speed": 1.0, "lighting": true, "full_auto": false, "patrol_notify": false,
+	"interface": "auto", "keybinds": {}}
 const FREE_PASSAGE_USES := 3   # free Scroll of Passage each run until Goo or this many uses (DECISIONS #226)
 const STATS_DEFAULT := {"potions_brewed": 0, "deepest_floor": 0, "runs": 0, "deaths": 0, "extractions": 0, "kills": 0,
 	"traps_found": 0, "hidden_doors": 0, "goo_kills": 0, "tengu_kills": 0, "goo_losses": 0,
@@ -2147,6 +2149,11 @@ func from_dict(d: Dictionary) -> void:
 	for id in milestones_claimed:
 		if not (id in milestones_reached): milestones_reached.append(id)
 	settings.text_scale = float(settings.text_scale); settings.delve_speed = float(settings.delve_speed)
+	var iface := String(settings.get("interface", "auto"))
+	if iface not in ["auto", "mobile", "desktop"]:
+		settings.interface = "auto"
+	if typeof(settings.get("keybinds", {})) != TYPE_DICTIONARY:
+		settings.keybinds = {}
 	for k in stats: stats[k] = int(stats[k])
 	time_offset = float(d.get("time_offset", 0.0))   # older saves: no fast-forward
 	_fix_types()
