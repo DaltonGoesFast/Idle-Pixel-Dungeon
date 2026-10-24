@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Weapon tiers pull apart: T2 weapons scale slower (Shortsword 7 at +0, Spear 8), T4/T5 scale faster (Greatsword 20 at +0, Longsword +3 = 25), and being under Strength divides weapon damage instead of subtracting 2 per point. Surprise attacks still hit for 1.5x (Assassin 2.5x) but now subtract enemy armor afterward — stealth blades and Assassins pierce half of it — and no longer knock foes back. Worn Dart traps deal `3 + floor/2` damage (DECISIONS #220, +tests).
 - On Windows, `tools\playtest.bat` runs the headless suites (`run_tests`, then `ui_smoke`) and saves each run under `builds/playtest/`. When a run finishes it prints pass or fail for each suite and the log path, then waits: press a key for the next numbered run, or close the window to stop. If the console build is not installed, it uses the editor exe at `C:\Users\dalto\Documents\My Games\idlrPD\Godot_v4.7.2-stable_win64.exe` (DECISIONS #219).
 
 ## 0.48.0

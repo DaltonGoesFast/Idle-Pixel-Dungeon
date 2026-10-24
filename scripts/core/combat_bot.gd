@@ -87,7 +87,7 @@ static func suggest(c: Combat, potions := 0, heal_amount := 10) -> Dictionary:
 		var slamable := adj.filter(func(e): return not e.get("evade_unless_surprise", false))
 		if slamable.size() >= 3 or into_chasm:
 			return {"act": "slam", "why": "slam the crowd"}
-	# 3a2. A Surprise that can land this turn beats a normal swing: x surprise_mult, no DR, knockback.
+	# 3a2. A Surprise that can land this turn beats a normal swing: x surprise_mult then DR.
 	# Cash it before cloaking or clearing someone else — the window closes once they see you.
 	var sur_hit := _surprise_strike(c, reach_l)
 	if not sur_hit.is_empty(): return sur_hit
@@ -349,19 +349,14 @@ static func _nearest_door(c: Combat, from: Vector2i) -> Vector2i:
 			if d < bd: bd = d; best = p
 	return best
 
-## Swing now at the adjacent foe a Surprise would hit hardest. Any ready Surprise counts:
-## bonus damage, no DR, and knockback, so it beats a normal swing on someone else.
+## Swing now at the adjacent foe a Surprise would hit hardest (x surprise_mult, then DR; no knockback, DECISIONS #220).
 static func _surprise_strike(c: Combat, adj: Array) -> Dictionary:
 	var best = null
 	var best_hits := 99
 	var best_bonus := -1
 	for e in adj:
 		if not c.surprise_against(e): continue
-		var dir: Vector2i = e.pos - c.hero.pos
-		dir = Vector2i(signi(dir.x), signi(dir.y))   # knockback moves 1 tile, even from a reach weapon's 2-3 (#207)
 		var hits := _hits_to_kill(c, e)
-		# Knockback into a chasm finishes anyone the blow itself would not.
-		if hits > 1 and c.tile(e.pos + dir) == Combat.T.CHASM and not e.get("boss", false): hits = 1
 		var bonus := (2 if e.get("evade_unless_surprise", false) else 0) + int(e.dr)
 		if best == null or hits < best_hits or (hits == best_hits and bonus > best_bonus):
 			best = e
@@ -380,9 +375,7 @@ static func _surprise_shot(c: Combat, es: Array) -> Dictionary:
 	var best_bonus := -1
 	for e in es:
 		if not c.surprise_against(e) or not _can_shoot(c, e): continue
-		var raw := int(h.bolt.dmg)
-		var dmg := int(float(raw) * float(h.surprise_mult))
-		var hits := 99 if dmg <= 0 else int(ceil(float(e.hp) / float(dmg)))
+		var hits := _hits_to_kill_ranged(c, e, true)
 		var bonus := (2 if e.get("evade_unless_surprise", false) else 0) + int(e.dr)
 		if best == null or hits < best_hits or (hits == best_hits and bonus > best_bonus):
 			best = e
@@ -499,9 +492,33 @@ static func _hits_to_kill(c: Combat, e: Dictionary) -> int:
 	if e.get("evade_unless_surprise", false) and not sur: return 99
 	if sur and c.hero.get("no_surprise", false): sur = false
 	var raw := int(c.hero.dmg) + (int(c.hero.get("sur_bonus", 0)) if sur else 0)
-	# A Surprise ignores DR and multiplies; a normal swing does not.
-	var d := float(int(float(raw) * float(c.hero.surprise_mult))) if sur else float(maxi(0, raw - int(e.dr)))
-	if not c.surprise_against(e): d *= minf(1.0, float(c.hero.get("acc", 1.0)))   # an inaccurate weapon's misses (#207)
+	var d: float
+	if sur:
+		d = float(int(float(raw) * float(c.hero.surprise_mult)))
+		var eff_dr := int(e.dr)
+		if int(c.hero.get("sur_bonus", 0)) > 0 or String(c.hero.get("sub", "")) == "assassin":
+			eff_dr /= 2
+		d = float(maxi(1, int(d) - eff_dr))
+	else:
+		d = float(maxi(0, raw - int(e.dr)))
+		d *= minf(1.0, float(c.hero.get("acc", 1.0)))   # an inaccurate weapon's misses (#207)
+	if d <= 0.0: return 99
+	return int(ceil(float(e.hp) / d))
+
+## Spirit Bow hits-to-kill (surprise multiplies then subtracts DR unless the bolt pierces, DECISIONS #220).
+static func _hits_to_kill_ranged(c: Combat, e: Dictionary, sur: bool) -> int:
+	var h: Dictionary = c.hero
+	var raw := int(h.bolt.dmg)
+	var magic: bool = h.bolt.get("magic", false) or h.bolt.get("pierce", false)
+	var d: float
+	if sur:
+		d = float(int(float(raw) * float(h.surprise_mult)))
+		if not magic:
+			d = float(maxi(1, int(d) - int(e.dr)))
+	elif magic:
+		d = float(raw)
+	else:
+		d = float(maxi(0, raw - int(e.dr)))
 	if d <= 0.0: return 99
 	return int(ceil(float(e.hp) / d))
 

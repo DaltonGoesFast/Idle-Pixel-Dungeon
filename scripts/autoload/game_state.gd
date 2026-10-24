@@ -200,16 +200,17 @@ func hero_stats(c: String) -> Dictionary:
 	var wl := int(w.get("lvl", 0)) if w_ok else 0; var al := int(a.get("lvl", 0)) if a_ok else 0
 	var dmg := Weapons.dmg(wd, wl)          # SPD min/max at this level, averaged (DECISIONS #207)
 	if wd.has("dmg_per_levels"): dmg += int(h.level) / int(wd.dmg_per_levels)
-	# Strength gate: missing weapon Str costs 2 damage/point; under-strength armor divides DR by (1 + missing Str) and gives 0 armor Barrier (DECISIONS #218)
+	# Strength gate: under-strength weapon divides damage by (1 + missing Str) and zeroes block; under-strength armor divides DR and zeroes Barrier (DECISIONS #218, #220)
 	var str_short := maxi(0, Weapons.str_req(wd, wl) - int(h.str))
-	dmg = maxi(1, dmg - 2 * str_short)
+	if str_short > 0: dmg = maxi(1, int(dmg / (1 + str_short)))
 	var adr := armor_dr(ad, al)
 	var abar := armor_barrier(ad, al)
 	var armor_str_short := maxi(0, int(ad.get("str", 10)) - int(h.str))
 	if armor_str_short > 0:
 		adr = adr / (1 + armor_str_short)
 		abar = 0
-	var dr := adr + Weapons.block_dr(wd, wl)   # Rapier, Quarterstaff, Katana, shields block (#207)
+	var w_block := 0 if str_short > 0 else Weapons.block_dr(wd, wl)
+	var dr := adr + w_block   # Rapier, Quarterstaff, Katana, shields block (#207)
 	var barrier := int(def.base_barrier) + int(def.heirloom_barrier) + abar
 	if not r.is_empty() and r.known and not r.cracked:
 		var rd := DB.item(r.id)
@@ -217,7 +218,7 @@ func hero_stats(c: String) -> Dictionary:
 		dr += int(rd.get("dr_bonus", 0)) + trinket_bonus(r, "dr_bonus")
 		if int(wd.get("tier", 1)) <= 1: dmg += int(rd.get("force_bonus", 0)) + trinket_bonus(r, "force_bonus")   # Ring of Force (DECISIONS #157)
 	var s := {"starter_weapon": not w_ok, "starter_armor": not a_ok, "class": c, "name": def.name, "sprite": def.sprite, "fw": def.fw, "fh": def.fh, "row": armor_tier(c),
-		"ht": int(def.base_ht) + int(def.ht_per_level) * (int(h.level) - 1),
+		"ht": int(def.base_ht) + int(def.ht_per_level) * (int(h.level) - 1), "level": int(h.level),
 		"dmg": dmg, "dr": dr, "barrier_max": barrier, "delay": float(wd.get("delay", 1.0)),
 		"surprise_mult": float(wd.get("surprise_mult", 1.5)), "abilities": def.abilities,
 		# SPD weapon properties (DECISIONS #207): reach in tiles, accuracy, dagger-family surprise roll, Flail / too heavy = no surprise

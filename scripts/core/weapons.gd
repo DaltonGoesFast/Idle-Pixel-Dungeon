@@ -12,9 +12,10 @@ const FLOOR_SET_TIER_PROBS := [[20, 55, 20, 4, 1], [0, 25, 50, 20, 5], [0, 0, 40
 static func is_weapon(d: Dictionary) -> bool:
 	return String(d.get("type", "")) == "weapon"
 
-## SPD MeleeWeapon.min(lvl) = tier + lvl.
+## Min damage: tier + lvl * max(1, tier - 2). T1–T3 gain +1 min/lvl; T4 +2; T5 +3 (DECISIONS #220).
 static func min_dmg(d: Dictionary, lvl: int) -> int:
-	return int(d.get("tier", 1)) + maxi(0, lvl)
+	var t := int(d.get("tier", 1))
+	return t + maxi(0, lvl) * maxi(1, t - 2)
 
 ## SPD max(lvl): each weapon's own base and per-level scaling (`max`); default 5*(tier+1) + lvl*(tier+1).
 static func max_dmg(d: Dictionary, lvl: int) -> int:

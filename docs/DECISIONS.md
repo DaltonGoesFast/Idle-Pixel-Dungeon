@@ -784,3 +784,13 @@ When both suites have finished, the script prints `run_tests` PASS or FAIL, `ui_
 Godot is resolved the same way `tools/build.sh` does, then with the path this repo already documents: `%GODOT%` if set, else `%GODOT_BIN%`, else `godot` on PATH, else `C:\Users\dalto\Documents\My Games\idlrPD\Godot_v4.7.2-stable_win64_console.exe` when that file exists, else `C:\Users\dalto\Documents\My Games\idlrPD\Godot_v4.7.2-stable_win64.exe` (the editor build in `.vscode/settings.json`; there is no console exe in that folder). The editor exe is a normal headless fallback: `tools/playtest.ps1` starts it with stdout and stderr redirected, so the suites still print as they run. A console exe beside a chosen editor binary is used when it is present. Batch cannot tee a program and keep its exit code, so the bat calls the ps1. The bat is the file to double-click.
 Both suites run even when the first fails. PASS/FAIL follows Godot's exit code (these scenes quit 0 or 1). `tools/playtest.bat` and `tools/playtest.ps1` are marked `eol=crlf` so a checkout keeps the carriage returns cmd needs.
 Where it lives: `tools/playtest.bat`, `tools/playtest.ps1`.
+
+## 220. Weapon tier separation, surprise respects DR, Assassin half-pierce
+T2 weapons (especially Spear and Sickle) matched or beat T4/T5 at equal upgrades because min scaled `+1/lvl` for every tier and several T2 `max` values used T3 scaling. Under-strength weapons only lost a flat `-2` damage per missing Str, so a 10-Str hero could still swing a Greatsword.
+- **Min damage:** `tier + lvl * max(1, tier - 2)` — T1–T3 stay `+1` min/lvl; T4 `+2`; T5 `+3`.
+- **T2 max:** every T2 weapon uses `+2 max/lvl` with lowered base max (Shortsword `[13,2]` → 7 dmg at +0; Spear `[15,2]` → 8; Sickle `[16,2]` → 9).
+- **T4/T5 max:** proportional bump so Greatsword +0 is 20 and Longsword +3 is 25.
+- **Under-strength weapon:** `dmg / (1 + missing_str)`, weapon block 0, still `no_surprise`.
+- **Surprise:** multiply by `surprise_mult`, then subtract DR (min 1). Stealth weapons and Assassin pierce 50% DR. No surprise knockback — Shove/Slam/Blast Wave/Terror own displacement. Assassin keeps `2.5x` and half-pierce on any melee weapon.
+- **Combat.hero** copies `sub` and `level` (needed for Assassin pierce and later Warden). Worn Dart damage is `3 + floor/2`.
+Where it lives: `Weapons.min_dmg`, `data/items.json`, `GameState.hero_stats`, `Combat.hit_mob` / `_trigger`, `CombatBot._hits_to_kill`, `Delve.new_combat`.

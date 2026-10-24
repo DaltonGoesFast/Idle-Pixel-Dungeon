@@ -6,8 +6,8 @@
 ##  - Every attack hits for fixed damage. Physical damage - flat DR. Barrier absorbs before HP.
 ##    Chip rule: a hit fully blocked by DR still removes 1 Barrier.
 ##  - Surprise: hit while the foe cannot see you (after a door closes or circling tall grass) =
-##    x surprise_mult (1.5), ignores DR, knockback. Matches SPD surprisedBy. Dagger, Dirk and Assassin's Blade
-##    roll toward max on a surprise (hero.sur_bonus); Flail and a too-heavy weapon can't surprise (DECISIONS #207).
+##    x surprise_mult (1.5 / 2.5 Assassin), then subtract DR (stealth weapons & Assassin pierce 50%). No knockback
+##    (DECISIONS #220). Dagger-family sur_bonus still applies; Flail / under-Str can't surprise (#207).
 ##  - Weapons (DECISIONS #207): reach (Spear/Glaive 2, Whip 3, SPD canReach), accuracy (acc < 1: a fixed share of
 ##    swings at alert foes miss; acc > 1: that share of swings lands on a dodging snake), block as DR.
 ##  - Telegraphs: red danger tiles resolve at a known time; step off them.
@@ -53,6 +53,7 @@ var hp_lost := 0                # HP (not Barrier) the hero lost this fight, poi
 var surprises := 0              # surprise hits landed by the hero (milestones, DECISIONS #195)
 var kill_ids := {}              # mob id -> kills this fight (milestones)
 var potions_drunk := 0          # healing potions drunk this fight, kept through a mid-fight save (Teetotaller)
+var floor := 1                  # delve floor for trap damage scaling (DECISIONS #220)
 var auto_used := false          # set by the combat screen once Auto Battle acts (the "By Hand" feat)
 
 ## room_rows: Array[String] of equal length (8/10/12); hs: GameState.hero_stats(); mob_ids fill slots 1..8 (B = boss).
@@ -70,7 +71,8 @@ func setup(room_rows: Array, hs: Dictionary, hp: int, mob_ids: Array, darkness :
 		"abilities": hs.get("abilities", []), "bolt": hs.get("bolt", {}), "charges": 0, "recharge_t": 0.0, "hero": true,
 		"cloak": hs.get("cloak", {}), "cloak_charges": int(hs.get("cloak", {}).get("charges", 0)), "cloak_cap": int(hs.get("cloak", {}).get("cap", 0)), "hidden_until": -1.0,
 		"slams": 1 if "slam" in hs.get("abilities", []) else 0, "search_radius": int(hs.get("search_radius", 1)),
-		"poison": 0, "keen_eyes": hs.get("keen_eyes", false), "perk": hs.get("perk", ""), "combo": 0,
+		"poison": 0, "keen_eyes": hs.get("keen_eyes", false), "perk": hs.get("perk", ""), "sub": String(hs.get("sub", "")),
+		"level": int(hs.get("level", 1)), "combo": 0,
 		"move_cost": float(hs.get("move_cost", 1.0)), "elem_resist": float(hs.get("elem_resist", 1.0)),
 		"thorns": int(float(hs.get("thorns", 0.0))), "grass_root": float(hs.get("grass_root", 0.0))}
 	if not hero.bolt.is_empty(): hero.charges = hero.bolt.charges
@@ -118,7 +120,7 @@ func to_dict() -> Dictionary:
 	var tr := []
 	for k in traps: tr.append({"pos": [k.x, k.y], "id": traps[k].id, "hidden": traps[k].hidden})
 	return {"terrain": terrain, "w": w, "h": h, "units": us, "danger": dz, "traps": tr, "trap_pool": trap_pool, "kills": kills, "traps_found": traps_found, "trap_ids_seen": trap_ids_seen, "time": time, "log": Array(log_lines), "loot": loot,
-		"fallen_loot": fallen_loot, "xp": xp, "over": over, "won": won, "boss_killed": boss_killed, "uid": _uid,
+		"fallen_loot": fallen_loot, "xp": xp, "over": over, "won": won, "boss_killed": boss_killed, "uid": _uid, "floor": floor,
 		"surprises": surprises, "kill_ids": kill_ids, "auto_used": auto_used, "hp_lost": hp_lost, "potions_drunk": potions_drunk, "dmg_in": dmg_in, "absorbed_total": absorbed_total, "dmg_out": dmg_out, "hero_turns": hero_turns, "remains": remains.keys().map(func(k): return [k.x, k.y]), "trampled": trampled.keys().map(func(k): return [k.x, k.y])}
 
 func from_dict(d: Dictionary) -> void:
@@ -135,12 +137,14 @@ func from_dict(d: Dictionary) -> void:
 	for u in d.units:
 		var x: Dictionary = u.duplicate(true)
 		x.pos = Vector2i(int(u.pos[0]), int(u.pos[1]))
-		for k in ["uid", "hp", "ht", "dmg", "dr", "barrier", "barrier_max", "charges", "cloak_charges", "cloak_cap", "cooldown", "acts", "exp", "loot", "pump_count", "poison", "search_radius", "stolen", "hits", "slams", "bombs", "blinks", "steal_gold", "abil", "abil_n", "combo"]:
+		for k in ["uid", "hp", "ht", "dmg", "dr", "barrier", "barrier_max", "charges", "cloak_charges", "cloak_cap", "cooldown", "acts", "exp", "loot", "pump_count", "poison", "search_radius", "stolen", "hits", "slams", "bombs", "blinks", "steal_gold", "abil", "abil_n", "combo", "level"]:
 			if x.has(k): x[k] = int(x[k])
+		if x.has("sub"): x.sub = String(x.sub)
 		if x.has("aim"): x.aim = Vector2i(int(x.aim[0]), int(x.aim[1])) if x.aim is Array else x.aim
 		units.append(x)
 		if x.has("hero"): hero = x
 	_fix_cloak()
+	floor = int(d.get("floor", 1))
 	danger = []
 	for e in d.danger:
 		var y: Dictionary = e.duplicate(); y.pos = Vector2i(int(e.pos[0]), int(e.pos[1])); y.dmg = int(e.dmg); y.uid = int(e.uid); danger.append(y)
@@ -403,7 +407,13 @@ func hit_hero(raw: int, src: String, pierce := false) -> void:
 ## sure: the blow can't be slipped (an unaware snake, or an accurate weapon's catch, DECISIONS #207).
 func hit_mob(m: Dictionary, raw: int, surprise := false, magic := false, ranged := false, sure := false) -> void:
 	var dmg: int
-	if surprise: dmg = int(raw * float(hero.surprise_mult))
+	if surprise:
+		dmg = int(raw * float(hero.surprise_mult))
+		if not magic:
+			var eff_dr := int(m.dr)
+			if (not ranged and int(hero.get("sur_bonus", 0)) > 0) or String(hero.get("sub", "")) == "assassin":
+				eff_dr /= 2
+			dmg = maxi(1, dmg - eff_dr)
 	elif magic: dmg = raw
 	else: dmg = maxi(0, raw - int(m.dr))
 	# Snakes (SPD evasion): melee only connects on a surprise; magic never misses (SPD);
@@ -437,8 +447,6 @@ func hit_mob(m: Dictionary, raw: int, surprise := false, magic := false, ranged 
 	_ev({"t": "hit", "uid": m.uid, "amount": dmg, "kind": "surprise" if surprise else ("magic" if magic else "hp"), "pos": m.pos})
 	if m.hp <= 0:
 		_kill(m, false)
-	elif surprise and not m.get("boss", false):
-		knockback(m, m.pos - hero.pos)
 	elif m.get("ability", "") == "tengu":
 		_tengu_hurt(m)
 
@@ -533,15 +541,18 @@ func _place(u: Dictionary, dest: Vector2i) -> void:
 
 func _trigger(p: Vector2i, u: Dictionary) -> void:
 	if u == hero and hero.get("levitate", false): return   # Potion of Levitation (DECISIONS #161)
-	var tr: Dictionary = DB.traps[traps[p].id]
-	if not (traps[p].id in trap_ids_seen): trap_ids_seen.append(traps[p].id)
+	var tid: String = String(traps[p].id)
+	var tr: Dictionary = DB.traps[tid]
+	if not (tid in trap_ids_seen): trap_ids_seen.append(tid)
 	traps.erase(p)
 	_log("%s triggers a %s!" % [u.name, tr.name])
 	_ev({"t": "trap", "pos": p}); _ev({"t": "sfx", "name": "trap"})
 	var is_hero := u == hero
 	if tr.has("dmg"):
-		if is_hero: hit_hero(int(tr.dmg), tr.name)
-		else: _trap_hit(u, int(tr.dmg))
+		# Worn Dart scales with floor; gripping / poison keep their flat hit (DECISIONS #220)
+		var tdmg := int(tr.dmg) + (int(floor) / 2 if tid == "worn_dart" else 0)
+		if is_hero: hit_hero(tdmg, tr.name)
+		else: _trap_hit(u, tdmg)
 	if u.hp <= 0: return
 	if tr.has("root"):
 		u.next = float(u.next) + float(tr.root); _log("%s is held fast." % u.name)
@@ -925,6 +936,8 @@ func apply_stats(hs: Dictionary) -> void:
 	hero.dmg = int(hs.dmg); hero.dr = int(hs.dr); hero.delay = float(hs.delay)
 	hero.barrier_max = int(hs.barrier_max); hero.barrier = mini(int(hero.barrier), int(hero.barrier_max))
 	hero.surprise_mult = float(hs.get("surprise_mult", 1.5)); hero.search_radius = int(hs.get("search_radius", 1))
+	hero.sub = String(hs.get("sub", "")); hero.level = int(hs.get("level", 1))
+	hero.perk = String(hs.get("perk", hero.get("perk", "")))
 	_weapon_stats(hs)
 	hero.acc_miss = 0.0; hero.acc_catch = 0.0   # the miss / catch rhythm belongs to the weapon in hand (#207)
 	var nb: Dictionary = hs.get("bolt", {})

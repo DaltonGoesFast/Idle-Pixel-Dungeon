@@ -206,6 +206,7 @@ static func new_combat(gs, ev: Dictionary) -> Combat:
 	for m in ev.mobs: gs.discover("mob:" + m)
 	var c := Combat.new()
 	c.setup(ev.room, gs.hero_stats(run.hero), int(run.hp), ev.mobs, darkness(run), biome(run).get("traps", []))
+	c.floor = int(run.get("floor", 1))
 	run.fighting_goo = "goo" in ev.mobs
 	if run.fighting_goo: _weaken_goo(gs, c)
 	if int(run.get("shield_next", 0)) > 0:   # Potion of Shielding (SPD-like cap: Barrier <= max HP)

@@ -170,8 +170,8 @@ func test_rules(gs) -> void:
 	var g = s.enemies()[0]; g.pos = Vector2i(5, 1); g.seen_hero = false
 	s.hero.pos = Vector2i(4, 1)
 	s.hero_tap(g.pos)
-	check(g.hp == int(g.ht) - int(hs.dmg * 1.5), "surprise ignores DR, x1.5")
-	check(g.pos == Vector2i(6, 1), "surprise knockback")
+	check(g.hp == int(g.ht) - maxi(1, int(hs.dmg * 1.5) - int(g.dr)), "surprise is x1.5 then DR (DECISIONS #220)")
+	check(g.pos == Vector2i(5, 1), "surprise does not knock back")
 	# telegraph resolves and can be dodged
 	var d := Combat.new(); d.setup(DB.rooms[0], hs, hs.ht, ["gnoll"])
 	var gn = d.enemies()[0]; gn.pos = d.hero.pos + Vector2i(3, 0); gn.next = 0.5
@@ -623,7 +623,7 @@ func test_camp(gs) -> void:
 	var ss = gs.gear.filter(func(g): return g.id == "shortsword")[0]
 	check(gs.can_equip("warrior", ss.uid) == "", "can equip shortsword")
 	gs.equip("warrior", ss.uid)
-	check(gs.hero_stats("warrior").dmg == 8 - 4, "str 10 < 12 req: -2 dmg per point")
+	check(gs.hero_stats("warrior").dmg == maxi(1, int(7 / 3)), "str 10 < 12 req: damage / (1 + missing Str)")
 	check(gs.can_craft("blacksmith", "forge_sword") != "", "sword needs blacksmith lv2")
 	check(gs.upgrade_item(ss.uid), "upgrade +1 (cap = blacksmith level 1)")
 	check(not gs.upgrade_item(ss.uid), "can't exceed blacksmith cap")
@@ -1404,26 +1404,28 @@ func test_weapons(gs) -> void:
 	var mace := DB.item("mace")
 	check(Weapons.min_dmg(mace, 0) == 3 and Weapons.max_dmg(mace, 0) == 16 and Weapons.dmg(mace, 0) == 9 and float(mace.delay) == 1.0, "Mace: 3-16 (9 a hit) at normal speed, not slow")
 	check(Weapons.dmg(mace, 2) == 14 and Weapons.str_req(mace, 0) == 14 and Weapons.str_req(mace, 1) == 13 and Weapons.str_req(mace, 2) == 13 and Weapons.str_req(mace, 3) == 12, "Mace +2 hits for 14 (5-24); STRReq 14/13/13/12 at +0..+3")
-	check(Weapons.acc(mace) == 1.28 and Weapons.str_req(DB.item("greataxe"), 0) == 20 and Weapons.max_dmg(DB.item("greataxe"), 0) == 45, "Mace is accurate; Greataxe needs 20 Str and hits up to 45")
+	check(Weapons.acc(mace) == 1.28 and Weapons.str_req(DB.item("greataxe"), 0) == 20 and Weapons.max_dmg(DB.item("greataxe"), 0) == 53, "Mace is accurate; Greataxe needs 20 Str and hits up to 53")
+	check(Weapons.min_dmg(DB.item("longsword"), 1) == 6 and Weapons.min_dmg(DB.item("greatsword"), 1) == 8 and Weapons.min_dmg(DB.item("sword"), 1) == 4, "min scales by tier: T3 +1, T4 +2, T5 +3 per level (DECISIONS #220)")
 	check(Weapons.reach(DB.item("spear")) == 2 and Weapons.reach(DB.item("glaive")) == 2 and Weapons.reach(DB.item("whip")) == 3 and Weapons.reach(DB.item("quarterstaff")) == 1 and Weapons.reach(DB.item("war_scythe")) == 1, "SPD reach: Spear and Glaive 2, Whip 3, everything else 1")
 	check(float(DB.item("spear").delay) == 1.5 and float(DB.item("glaive").delay) == 1.5 and float(DB.item("sai").delay) == 0.5 and float(DB.item("gauntlet").delay) == 0.5 and float(DB.item("studded_gloves").delay) == 0.5 and float(DB.item("scimitar").delay) == 0.8, "SPD speed: Spear/Glaive 1.5, Gloves/Sai/Gauntlet 0.5, Scimitar 0.8")
-	check(Weapons.max_dmg(DB.item("spear"), 1) == 24 and Weapons.max_dmg(DB.item("whip"), 2) == 21 and Weapons.max_dmg(DB.item("runic_blade"), 1) == 26 and Weapons.max_dmg(DB.item("gauntlet"), 1) == 18 and Weapons.max_dmg(DB.item("round_shield"), 1) == 14, "per-weapon upgrade scaling (Spear +4, Whip +3, Runic +6, Gauntlet +3, Round Shield +2)")
+	check(Weapons.max_dmg(DB.item("spear"), 1) == 17 and Weapons.max_dmg(DB.item("whip"), 2) == 21 and Weapons.max_dmg(DB.item("runic_blade"), 1) == 28 and Weapons.max_dmg(DB.item("gauntlet"), 1) == 22 and Weapons.max_dmg(DB.item("round_shield"), 1) == 14, "per-weapon upgrade scaling (Spear +2, Whip +3, Runic +6, Gauntlet +3, Round Shield +2)")
+	check(Weapons.dmg(DB.item("shortsword"), 0) == 7 and Weapons.dmg(DB.item("spear"), 3) == 13 and Weapons.dmg(DB.item("greatsword"), 0) == 20 and Weapons.dmg(DB.item("longsword"), 3) == 25, "T2/T4/T5 separation: Shortsword 7, Spear +3 = 13, Greatsword 20, Longsword +3 = 25")
 	check(Weapons.block_dr(DB.item("rapier"), 0) == 1 and Weapons.block_dr(DB.item("quarterstaff"), 0) == 1 and Weapons.block_dr(DB.item("katana"), 0) == 2 and Weapons.block_dr(DB.item("round_shield"), 2) == 3 and Weapons.block_dr(DB.item("greatshield"), 1) == 4, "blocking as DR: Rapier 1, Quarterstaff 1, Katana 2, +2 Round Shield 3, +1 Greatshield 4")
-	check(Weapons.surprise_bonus(DB.item("dagger"), 0) == 3 and Weapons.surprise_bonus(DB.item("dirk"), 0) == 3 and Weapons.surprise_bonus(DB.item("assassins_blade"), 0) == 4 and Weapons.surprise_bonus(DB.item("sword"), 0) == 0, "surprise rolls toward max: Dagger 75%, Dirk 67%, Assassin's Blade 50%")
+	check(Weapons.surprise_bonus(DB.item("dagger"), 0) == 3 and Weapons.surprise_bonus(DB.item("dirk"), 0) == 2 and Weapons.surprise_bonus(DB.item("assassins_blade"), 0) == 4 and Weapons.surprise_bonus(DB.item("sword"), 0) == 0, "surprise rolls toward max: Dagger 75%, Dirk 67%, Assassin's Blade 50%")
 	# hero stats
 	var ms := _wstats(gs, "warrior", "mace", 2, 14)
 	check(int(ms.dmg) == 14 and float(ms.delay) == 1.0 and int(ms.reach) == 1, "a +2 Mace Warrior hits for 14 at 1 tick a swing")
 	var rs0 := int(_wstats(gs, "warrior", "worn_shortsword").dr); var rs := _wstats(gs, "warrior", "round_shield", 0)
 	check(int(rs.dr) == rs0 + 2, "a Round Shield adds its block to DR")
 	var heavy := _wstats(gs, "warrior", "greataxe", 0, 18)
-	check(heavy.no_surprise and int(heavy.dmg) == maxi(1, 25 - 4), "a too-heavy Greataxe loses 2 dmg per missing Str and can't surprise")
+	check(heavy.no_surprise and int(heavy.dmg) == maxi(1, int(29 / 3)), "a too-heavy Greataxe divides damage by (1 + missing Str) and can't surprise")
 	# reach in combat
 	var room := ["########", "#H.1...#", "#......#", "#......#", "#......#", "#......#", "#......#", "########"]
 	var c := _wfight(_wstats(gs, "warrior", "spear"), room, ["rat"])
 	var rat = c.enemies()[0]
 	check(c.can_melee(rat) and Combat.cheb(rat.pos, c.hero.pos) == 2, "a Spear reaches a foe 2 tiles away")
 	var t0 := float(c.hero.next)
-	check(c.hero_tap(rat.pos) and 999 - int(rat.hp) == Weapons.dmg(DB.item("spear"), 0) and is_equal_approx(float(c.hero.next) - t0, 1.5), "tapping it swings the Spear (11 dmg, 1.5 ticks), no move or shot")
+	check(c.hero_tap(rat.pos) and 999 - int(rat.hp) == Weapons.dmg(DB.item("spear"), 0) and is_equal_approx(float(c.hero.next) - t0, 1.5), "tapping it swings the Spear (8 dmg, 1.5 ticks), no move or shot")
 	var cb := _wfight(_wstats(gs, "warrior", "spear"), ["########", "#H#1...#", "#.#....#", "#......#", "#......#", "#......#", "#......#", "########"], ["rat"])
 	check(not cb.can_melee(cb.enemies()[0]), "a wall in the way blocks the Spear's reach")
 	var cu := _wfight(_wstats(gs, "warrior", "spear"), ["####", "#H21", "####"], ["rat", "rat"])
@@ -1456,13 +1458,13 @@ func test_weapons(gs) -> void:
 	check(hp0 - int(fr.hp) == Weapons.dmg(DB.item("flail"), 0) and evs[0].kind == "hp", "an unaware foe can't dodge the Flail, but it gets no Surprise bonus")
 	cf.hero.acc_miss = 0.9; cf.apply_stats(_wstats(gs, "warrior", "sickle"))
 	check(float(cf.hero.acc_miss) == 0.0 and float(cf.hero.acc_catch) == 0.0, "a mid-fight swap starts the new weapon's miss rhythm afresh")
-	# the bot's chasm check for a reach Surprise looks 1 tile behind the foe (knockback), not 2
+	# surprise picks the foe it kills faster after DR (no knockback into chasms)
 	var ck := _wfight(_wstats(gs, "warrior", "spear"), ["#######", "#H.1._#", "#2....#", "#######"], ["rat", "rat"])
 	var ka = ck.enemies().filter(func(e): return e.pos.x == 3)[0]; var kb = ck.enemies().filter(func(e): return e.pos.x == 1)[0]
 	for e in [ka, kb]: e.seen_hero = false; e.hp = 60; e.ht = 60
 	kb.dr = 3
 	var ks: Dictionary = CombatBot._surprise_strike(ck, ck.enemies())
-	check(ks.get("pos", Vector2i(-1, -1)) == kb.pos, "reach Surprise: a chasm 2 tiles behind a Spear target is no knockback kill (%s)" % [ks])
+	check(ks.get("pos", Vector2i(-1, -1)) == ka.pos, "surprise prefers the softer foe after DR subtracts (%s)" % [ks])
 	# accurate weapons catch a dodging snake
 	var csn := _wfight(_wstats(gs, "warrior", "mace"), ["#####", "#H1.#", "#####"], ["snake"])
 	var sn = csn.enemies()[0]; var landed := []
@@ -1474,10 +1476,16 @@ func test_weapons(gs) -> void:
 	for i in 6:
 		sn2.seen_hero = true; sn2.pos = Vector2i(2, 1); sn2.next = 999.0; var b2 := int(sn2.hp); css.hero_tap(sn2.pos); any = any or b2 != int(sn2.hp)
 	check(not any, "a plain Sword never lands on an alert snake (unchanged)")
-	# dagger family surprise
+	# dagger family surprise (x1.5 then DR; rat DR 0)
 	var cd := _wfight(_wstats(gs, "rogue", "dagger"), ["#####", "#H1.#", "#####"], ["rat"])
 	var dr_ = cd.enemies()[0]; dr_.seen_hero = false; cd.hero_tap(dr_.pos)
 	check(999 - int(dr_.hp) == int((4 + 3) * 1.5), "a Dagger surprise rolls toward max: (4 + 3) x 1.5 = 10")
+	# Assassin pierce 50% DR on surprise with any weapon
+	var ca := _wfight(_wstats(gs, "rogue", "sword"), ["#####", "#H1.#", "#####"], ["rat"])
+	ca.hero.sub = "assassin"; ca.hero.surprise_mult = 2.5
+	var ar = ca.enemies()[0]; ar.seen_hero = false; ar.dr = 6; ar.hp = 999; ar.ht = 999
+	ca.hero_tap(ar.pos)
+	check(999 - int(ar.hp) == maxi(1, int(11 * 2.5) - 3), "Assassin surprise pierces 50%% DR on any weapon")
 	# item window text
 	var ml := "\n".join(Weapons.info_lines("mace", 0, true, 10))
 	check(ml.contains("tier-3 melee weapon deals 3-16 damage") and ml.contains("requires 14 strength") and ml.contains("rather accurate") and not ml.contains("slow") and ml.contains("inadequate strength"), "Mace window: SPD tier/damage/strength line, accurate, not slow")
@@ -4121,15 +4129,19 @@ func test_barrier_spd(gs) -> void:
 			var lv: int = levels[i]
 			if gs.armor_dr(ad, lv) != rows[i][0] or gs.armor_barrier(ad, lv) != rows[i][1]: scale_ok = false
 	check(scale_ok, "armor tier scaling matches DECISIONS #218 table at +0, +3, +6")
-	# Under-strength armor: divides armor DR by (1 + missing Str) and zeroes armor Barrier, keeping weapon block
+	# Under-strength armor: divides armor DR by (1 + missing Str) and zeroes armor Barrier; weapon block stays if Str meets the weapon
 	gs.heroes.warrior.str = 10; gs.heroes.warrior.level = 10
-	gs.heroes.warrior.weapon = gs.add_gear("round_shield", true, 0)   # +2 block DR
+	gs.heroes.warrior.weapon = gs.add_gear("rapier", true, 0)         # Str 10, +1 block DR
 	gs.heroes.warrior.armor = gs.add_gear("plate_armor", true, 0)     # 18 Str -> missing 8: 7 / 9 = 0 armor DR, 0 armor Barrier
 	var under_plate: Dictionary = gs.hero_stats("warrior")
-	check(int(under_plate.dr) == 2 and int(under_plate.barrier_max) == 7, "10-Str hero in Plate +0 gets 0 armor DR/Barrier (keeps shield +2 DR and 5+2 class/seal Barrier)")
-	gs.heroes.warrior.str = 16   # missing 2 Str for Plate: 7 / 3 = 2 armor DR, 0 armor Barrier
+	check(int(under_plate.dr) == 1 and int(under_plate.barrier_max) == 7, "10-Str hero in Plate +0 gets 0 armor DR/Barrier (keeps Rapier +1 DR and 5+2 class/seal Barrier)")
+	gs.heroes.warrior.str = 16   # missing 2 Str for Plate: 7 / 3 = 2 armor DR, 0 armor Barrier; Rapier still ok
 	var near_plate: Dictionary = gs.hero_stats("warrior")
-	check(int(near_plate.dr) == 2 + 2 and int(near_plate.barrier_max) == 7, "16-Str hero in Plate +0 gets 7/(1+2)=2 armor DR and 0 armor Barrier")
+	check(int(near_plate.dr) == 2 + 1 and int(near_plate.barrier_max) == 7, "16-Str hero in Plate +0 gets 7/(1+2)=2 armor DR and 0 armor Barrier")
+	# Under-strength weapon zeroes its block
+	gs.heroes.warrior.weapon = gs.add_gear("round_shield", true, 0)   # Str 14, +2 block
+	gs.heroes.warrior.str = 10
+	check(int(gs.hero_stats("warrior").dr) == 0, "under-Str Round Shield contributes 0 block DR")
 	gs.heroes.warrior.weapon = gs.add_gear("worn_shortsword", true, 0)
 	var cs_ar = load("res://scripts/ui/camp_screen.gd").new()
 	var p_uid: int = gs.add_gear("plate_armor", true, 2)

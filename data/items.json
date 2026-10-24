@@ -1,5 +1,5 @@
 {
- "_note": "Weapons (DECISIONS #207): SPD v4 MeleeWeapon numbers. min = tier + lvl, max = max[0] + lvl * max[1]; a hit deals the average floor((min+max)/2) (no RNG). str = SPD STRReq at +0 (8 + 2*tier, Greataxe 8 + 2*(tier+1)), lowered at +1, +3, +6, +10 like SPD. delay = SPD DLY (attack only), reach = SPD RCH, acc = SPD ACC, block = SPD defenseFactor [base, per lvl] (blocks 0-N, adds ceil(N/2) DR), surprise_pct = SPD dagger-family surprise roll. Armor DR = floor(DRMax/2) where DRMax = 2*tier; armor str req = 8+2*tier.",
+ "_note": "Weapons (DECISIONS #207, #220): min = tier + lvl * max(1, tier-2), max = max[0] + lvl * max[1]; a hit deals floor((min+max)/2) (no RNG). T2 max/lvl is +2; T4/T5 base max is raised. Under-strength weapon damage is divided by (1 + missing Str) and block is zeroed. str = SPD STRReq at +0 (8 + 2*tier, Greataxe 8 + 2*(tier+1)), lowered at +1, +3, +6, +10 like SPD. delay = SPD DLY, reach = SPD RCH, acc = SPD ACC, block = SPD defenseFactor [base, per lvl] (ceil(N/2) DR), surprise_pct = SPD dagger-family surprise roll. Armor uses dr_per_lvl / barrier_per_lvl (#218).",
  "worn_shortsword": {
   "name": "Worn Shortsword",
   "type": "weapon",
@@ -98,10 +98,10 @@
   "type": "weapon",
   "tier": 2,
   "max": [
-   15,
-   3
+   13,
+   2
   ],
-  "dmg": 8,
+  "dmg": 7,
   "delay": 1.0,
   "str": 12,
   "icon": "SHORTSWORD",
@@ -112,10 +112,10 @@
   "type": "weapon",
   "tier": 2,
   "max": [
-   12,
-   3
+   11,
+   2
   ],
-  "dmg": 7,
+  "dmg": 6,
   "delay": 1.0,
   "str": 12,
   "acc": 1.32,
@@ -127,10 +127,10 @@
   "type": "weapon",
   "tier": 2,
   "max": [
-   20,
-   4
+   15,
+   2
   ],
-  "dmg": 11,
+  "dmg": 8,
   "delay": 1.5,
   "str": 12,
   "reach": 2,
@@ -142,10 +142,10 @@
   "type": "weapon",
   "tier": 2,
   "max": [
-   12,
-   3
+   11,
+   2
   ],
-  "dmg": 7,
+  "dmg": 6,
   "delay": 1.0,
   "str": 12,
   "block": [
@@ -160,10 +160,10 @@
   "type": "weapon",
   "tier": 2,
   "max": [
-   12,
-   3
+   10,
+   2
   ],
-  "dmg": 7,
+  "dmg": 6,
   "delay": 1.0,
   "str": 12,
   "surprise_pct": 0.67,
@@ -175,10 +175,10 @@
   "type": "weapon",
   "tier": 2,
   "max": [
-   20,
-   3
+   16,
+   2
   ],
-  "dmg": 11,
+  "dmg": 9,
   "delay": 1.0,
   "str": 12,
   "acc": 0.68,
@@ -280,10 +280,10 @@
   "type": "weapon",
   "tier": 4,
   "max": [
-   25,
+   26,
    5
   ],
-  "dmg": 14,
+  "dmg": 15,
   "delay": 1.0,
   "str": 16,
   "icon": "LONGSWORD",
@@ -294,10 +294,10 @@
   "type": "weapon",
   "tier": 4,
   "max": [
-   20,
+   22,
    5
   ],
-  "dmg": 12,
+  "dmg": 13,
   "delay": 1.0,
   "str": 16,
   "acc": 1.24,
@@ -309,10 +309,10 @@
   "type": "weapon",
   "tier": 4,
   "max": [
-   35,
+   36,
    8
   ],
-  "dmg": 19,
+  "dmg": 20,
   "delay": 1.0,
   "str": 16,
   "acc": 0.8,
@@ -325,10 +325,10 @@
   "type": "weapon",
   "tier": 4,
   "max": [
-   20,
+   22,
    6
   ],
-  "dmg": 12,
+  "dmg": 13,
   "delay": 1.0,
   "str": 16,
   "icon": "RUNIC_BLADE",
@@ -340,10 +340,10 @@
   "type": "weapon",
   "tier": 4,
   "max": [
-   20,
+   22,
    5
   ],
-  "dmg": 12,
+  "dmg": 13,
   "delay": 1.0,
   "str": 16,
   "surprise_pct": 0.5,
@@ -355,10 +355,10 @@
   "type": "weapon",
   "tier": 4,
   "max": [
-   20,
+   22,
    4
   ],
-  "dmg": 12,
+  "dmg": 13,
   "delay": 1.0,
   "str": 16,
   "icon": "CROSSBOW",
@@ -370,10 +370,10 @@
   "type": "weapon",
   "tier": 4,
   "max": [
-   20,
+   22,
    5
   ],
-  "dmg": 12,
+  "dmg": 13,
   "delay": 1.0,
   "str": 16,
   "block": [
@@ -388,10 +388,10 @@
   "type": "weapon",
   "tier": 5,
   "max": [
-   30,
+   35,
    6
   ],
-  "dmg": 17,
+  "dmg": 20,
   "delay": 1.0,
   "str": 18,
   "icon": "GREATSWORD",
@@ -402,10 +402,10 @@
   "type": "weapon",
   "tier": 5,
   "max": [
-   24,
+   28,
    6
   ],
-  "dmg": 14,
+  "dmg": 16,
   "delay": 1.0,
   "str": 18,
   "acc": 1.2,
@@ -417,10 +417,10 @@
   "type": "weapon",
   "tier": 5,
   "max": [
-   40,
+   47,
    8
   ],
-  "dmg": 22,
+  "dmg": 26,
   "delay": 1.5,
   "str": 18,
   "reach": 2,
@@ -432,10 +432,10 @@
   "type": "weapon",
   "tier": 5,
   "max": [
-   45,
+   53,
    6
   ],
-  "dmg": 25,
+  "dmg": 29,
   "delay": 1.0,
   "str": 20,
   "icon": "GREATAXE",
@@ -446,10 +446,10 @@
   "type": "weapon",
   "tier": 5,
   "max": [
-   18,
+   21,
    4
   ],
-  "dmg": 11,
+  "dmg": 13,
   "delay": 1.0,
   "str": 18,
   "block": [
@@ -464,10 +464,10 @@
   "type": "weapon",
   "tier": 5,
   "max": [
-   15,
+   19,
    3
   ],
-  "dmg": 10,
+  "dmg": 12,
   "delay": 0.5,
   "str": 18,
   "icon": "GAUNTLETS",
@@ -478,10 +478,10 @@
   "type": "weapon",
   "tier": 5,
   "max": [
-   40,
+   47,
    6
   ],
-  "dmg": 22,
+  "dmg": 26,
   "delay": 1.0,
   "str": 18,
   "acc": 0.8,
