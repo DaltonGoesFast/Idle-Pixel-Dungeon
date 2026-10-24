@@ -25,6 +25,8 @@ var hero_sprite: Texture2D
 var hero_fw := 12
 var hero_fh := 15
 var d := {}   # name, level, hp, ht, shield, shield_max, buffs [int], depth, danger, minis [{kind, frac, text}]
+## Cap drawn width (0 = fill parent). Desktop sets this so bars don't span ultrawide screens.
+var max_w := 0.0
 
 func _init() -> void:
 	tex = load("res://assets/ui/status_pane.png")
@@ -39,9 +41,17 @@ func set_hero(sprite: String, fw: int, fh: int, row := 0) -> void:
 func _k() -> float:
 	return float(maxi(2, UIKit.px_scale))
 
+func set_max_w(w: float) -> void:
+	max_w = maxf(0.0, w)
+	_apply_min_size()
+	queue_redraw()
+
+func _apply_min_size() -> void:
+	custom_minimum_size = Vector2(max_w if max_w > 0.0 else 0.0, PANE_H * _k())
+
 func set_data(data: Dictionary) -> void:
 	d = data
-	custom_minimum_size = Vector2(0, PANE_H * _k())
+	_apply_min_size()
 	queue_redraw()
 
 const PANE_H := 39     # SPD bg height: everything fits inside the nine-patch

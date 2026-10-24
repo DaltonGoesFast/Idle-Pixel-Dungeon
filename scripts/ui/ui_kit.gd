@@ -19,6 +19,10 @@ static func font_px(sz: float) -> int:
 static func btn_height() -> float:
 	return float(int(font_size * 1.2) * 2)   # even whole pixels: icons centre exactly (DECISIONS #89)
 
+## Desktop status / delve bar width: short enough on ultrawide, still fills a phone-width window.
+static func desk_bar_w(area_w: float) -> float:
+	return floorf(minf(area_w, maxf(font_size * 28.0, 720.0)))
+
 static func button(text: String, cb: Callable, enabled := true, tooltip := "") -> Button:
 	var b := Button.new()
 	b.text = text

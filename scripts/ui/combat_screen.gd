@@ -112,11 +112,19 @@ func apply_layout(portrait: bool, s: Vector2, desk_ui := false) -> void:
 		_pin_full_rect(desk)
 		grid.size_flags_vertical = SIZE_EXPAND_FILL
 		grid.size_flags_horizontal = SIZE_EXPAND_FILL
+		_fit_desk_pane()
 	elif split:
 		_pin_full_rect(split)
 		split.vertical = portrait
 		grid.size_flags_vertical = SIZE_SHRINK_BEGIN if portrait else SIZE_FILL
+		if pane: pane.set_max_w(0.0); pane.size_flags_horizontal = SIZE_EXPAND_FILL
 	_refresh()
+
+## Desktop: keep the status strip phone-wide instead of spanning the whole monitor.
+func _fit_desk_pane() -> void:
+	if pane == null: return
+	pane.set_max_w(UIKit.desk_bar_w(_area.x) if _area.x > 0.0 else UIKit.desk_bar_w(size.x))
+	pane.size_flags_horizontal = SIZE_SHRINK_BEGIN
 
 ## Full-rect anchors after the node is in the tree (don't assign size — anchors own it).
 func _pin_full_rect(n: Control) -> void:
@@ -149,9 +157,9 @@ func _assemble_chrome() -> void:
 		desk.add_theme_constant_override("separation", int(UIKit.font_size * 0.3))
 		add_child(desk)
 		_pin_full_rect(desk)
-		# Top chrome (SPD status strip)
+		# Top chrome (SPD status strip) — capped width on Desktop (see _fit_desk_pane)
 		pane.size_flags_vertical = SIZE_SHRINK_BEGIN
-		pane.size_flags_horizontal = SIZE_EXPAND_FILL
+		_fit_desk_pane()
 		_reparent(pane, desk)
 		status.size_flags_vertical = SIZE_SHRINK_BEGIN
 		status.autowrap_mode = TextServer.AUTOWRAP_OFF
@@ -197,6 +205,8 @@ func _assemble_chrome() -> void:
 		side.size_flags_horizontal = SIZE_EXPAND_FILL; side.size_flags_vertical = SIZE_EXPAND_FILL
 		_reparent(header_label, side)
 		if guide_label: _reparent(guide_label, side)
+		pane.set_max_w(0.0)
+		pane.size_flags_horizontal = SIZE_EXPAND_FILL
 		_reparent(pane, side)
 		status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		_reparent(status, side)

@@ -10,6 +10,7 @@ var title: Label
 var bar: ProgressBar
 var stats: VBoxContainer
 var pane: StatusPane
+var bar_row: HBoxContainer
 var card_host: VBoxContainer   # body of the window over the corridor (encounters, bag, talents, menu)
 var log_host: VBoxContainer    # the log on the bare screen
 var controls: HBoxContainer
@@ -22,12 +23,13 @@ var running := true
 var fast := false
 var pending: Dictionary = {}   # current event card (pauses the bar)
 var portrait := true
+var desktop_ui := false
 var scene: DelveScene
 
 func _ready() -> void:
 	box = UIKit.vbox(self); box.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
 	pane = StatusPane.new(); box.add_child(pane)
-	var bar_row := UIKit.hbox(box)
+	bar_row = UIKit.hbox(box)
 	title = UIKit.label("", 1.0, Color("ffd27a")); title.autowrap_mode = TextServer.AUTOWRAP_OFF
 	title.size_flags_vertical = SIZE_SHRINK_CENTER; bar_row.add_child(title)
 	bar = ProgressBar.new(); bar.custom_minimum_size.y = UIKit.font_size * 1.6; bar.show_percentage = true
@@ -89,10 +91,12 @@ func _place_window() -> void:
 	if win_dim.position != dr.position or win_dim.size != dr.size:
 		win_dim.position = dr.position; win_dim.size = dr.size
 
-func apply_layout(p: bool, s: Vector2, _desktop := false) -> void:
+func apply_layout(p: bool, s: Vector2, desk_ui := false) -> void:
 	portrait = p
+	desktop_ui = desk_ui
 	bar.custom_minimum_size.y = UIKit.font_size * 1.6
 	win_panel.add_theme_stylebox_override("panel", UIKit.chrome("window", Color.WHITE, UIKit.font_size * 0.6))
+	_fit_desk_bars(s.x)
 	# corridor height: a multiple of 5 tile rows, as tall as the rows under it allow (tiles and sprites scale with it)
 	var fs := float(UIKit.font_size)
 	var reserved := 40.0 * float(maxi(2, UIKit.px_scale)) + fs * 1.6 + fs * 3.6 + fs * 5.5 + UIKit.btn_height() * 1.2 + fs * 3.0
@@ -101,6 +105,20 @@ func apply_layout(p: bool, s: Vector2, _desktop := false) -> void:
 	pips.custom_minimum_size = Vector2(fs * 4.6, fs * 1.6)
 	_refresh_controls(); _show_card()
 	if _summary_on: _build_summary()
+
+## Desktop: status pane + floor ProgressBar stay phone-wide; Mobile keeps full-bleed.
+func _fit_desk_bars(area_w: float) -> void:
+	if desktop_ui:
+		var cap := UIKit.desk_bar_w(area_w)
+		pane.set_max_w(cap)
+		pane.size_flags_horizontal = SIZE_SHRINK_BEGIN
+		bar_row.custom_minimum_size.x = cap
+		bar_row.size_flags_horizontal = SIZE_SHRINK_BEGIN
+	else:
+		pane.set_max_w(0.0)
+		pane.size_flags_horizontal = SIZE_EXPAND_FILL
+		bar_row.custom_minimum_size.x = 0.0
+		bar_row.size_flags_horizontal = SIZE_EXPAND_FILL
 
 func on_shown() -> void:
 	if pending.is_empty() and GameState.run.has("pending_card"): pending = GameState.run.pending_card
