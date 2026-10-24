@@ -105,61 +105,95 @@ func apply_layout(portrait: bool, s: Vector2, desk_ui := false) -> void:
 	if changed or (desktop_ui and desk == null) or (not desktop_ui and split == null):
 		_assemble_chrome()
 	if desktop_ui:
-		if desk: desk.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
+		_pin_full_rect(desk)
 		grid.size_flags_vertical = SIZE_EXPAND_FILL
 		grid.size_flags_horizontal = SIZE_EXPAND_FILL
 	elif split:
+		_pin_full_rect(split)
 		split.vertical = portrait
 		grid.size_flags_vertical = SIZE_SHRINK_BEGIN if portrait else SIZE_FILL
 	_refresh()
 
+## Full-rect anchors after the node is in the tree (don't assign size — anchors own it).
+func _pin_full_rect(n: Control) -> void:
+	if n == null: return
+	n.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
+
+## Move a kept widget onto a new parent (Mobile↔Desktop reassembly).
+func _reparent(n: Node, parent: Node) -> void:
+	if n == null or parent == null: return
+	var old := n.get_parent()
+	if old == parent: return
+	if old: old.remove_child(n)
+	parent.add_child(n)
+
 ## Build Mobile split or Desktop column without freeing GridView / StatusPane mid-fight.
 func _assemble_chrome() -> void:
+	# Pull kept widgets off the old chrome before freeing it (otherwise add_child fails and only
+	# a new empty toolbar shows — which is what the broken Desktop fight looked like).
+	var keep := [grid, pane, status, guide_label, header_label, log_scroll, bag_layer, passage_layer]
+	for n in keep:
+		if n and is_instance_valid(n) and n.get_parent():
+			n.get_parent().remove_child(n)
 	for c in get_children():
 		remove_child(c)
-	split = null; desk = null; side = null; toolbar_scroll = null
-	if result_layer and is_instance_valid(result_layer):
-		result_layer.queue_free()
+		c.queue_free()
+	split = null; desk = null; side = null; toolbar_scroll = null; buttons = null
 	result_layer = null
 	if desktop_ui:
 		desk = VBoxContainer.new(); desk.name = "DeskChrome"
-		desk.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
 		desk.add_theme_constant_override("separation", int(UIKit.font_size * 0.25))
 		add_child(desk)
-		desk.add_child(pane)
-		desk.add_child(status)
-		if guide_label: desk.add_child(guide_label)
+		_pin_full_rect(desk)
+		# Top chrome (SPD status strip)
+		pane.size_flags_vertical = SIZE_SHRINK_BEGIN
+		pane.size_flags_horizontal = SIZE_EXPAND_FILL
+		_reparent(pane, desk)
+		status.size_flags_vertical = SIZE_SHRINK_BEGIN
+		status.autowrap_mode = TextServer.AUTOWRAP_OFF
+		status.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		_reparent(status, desk)
+		if guide_label:
+			guide_label.size_flags_vertical = SIZE_SHRINK_BEGIN
+			_reparent(guide_label, desk)
+		# Arena fills the middle
 		grid.size_flags_vertical = SIZE_EXPAND_FILL
 		grid.size_flags_horizontal = SIZE_EXPAND_FILL
-		grid.custom_minimum_size = Vector2.ZERO
-		desk.add_child(grid)
+		grid.size_flags_stretch_ratio = 1.0
+		_reparent(grid, desk)
+		# Compact log + bottom toolbar (never expand — they were eating the arena)
 		log_scroll.size_flags_vertical = SIZE_SHRINK_BEGIN
+		log_scroll.size_flags_horizontal = SIZE_EXPAND_FILL
 		log_scroll.custom_minimum_size.y = UIKit.font_size * 2.8
-		desk.add_child(log_scroll)
+		_reparent(log_scroll, desk)
 		toolbar_scroll = ScrollContainer.new()
+		toolbar_scroll.size_flags_vertical = SIZE_SHRINK_BEGIN
+		toolbar_scroll.size_flags_horizontal = SIZE_EXPAND_FILL
 		toolbar_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-		toolbar_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
-		toolbar_scroll.custom_minimum_size.y = UIKit.btn_height() + UIKit.font_size * 0.4
+		toolbar_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_NEVER
+		toolbar_scroll.custom_minimum_size.y = UIKit.btn_height() + 4.0
 		desk.add_child(toolbar_scroll)
 		buttons = HBoxContainer.new()
 		buttons.add_theme_constant_override("separation", int(UIKit.font_size * 0.2))
+		buttons.size_flags_vertical = SIZE_SHRINK_CENTER
 		toolbar_scroll.add_child(buttons)
 	else:
 		split = BoxContainer.new(); split.name = "MobileSplit"
-		split.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
 		split.add_theme_constant_override("separation", 12)
 		add_child(split)
-		split.add_child(grid)
+		_pin_full_rect(split)
+		_reparent(grid, split)
 		side = UIKit.vbox(split)
 		side.size_flags_horizontal = SIZE_EXPAND_FILL; side.size_flags_vertical = SIZE_EXPAND_FILL
-		side.add_child(header_label)
-		if guide_label: side.add_child(guide_label)
-		side.add_child(pane)
-		side.add_child(status)
+		_reparent(header_label, side)
+		if guide_label: _reparent(guide_label, side)
+		_reparent(pane, side)
+		status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_reparent(status, side)
 		buttons = HFlowContainer.new(); side.add_child(buttons)
 		log_scroll.size_flags_vertical = SIZE_EXPAND_FILL
 		log_scroll.custom_minimum_size.y = UIKit.font_size * 4
-		side.add_child(log_scroll)
+		_reparent(log_scroll, side)
 
 ## The side column never gets less than SIDE_MIN_FS font sizes, nor less than what its widest row needs.
 const SIDE_MIN_FS := 13.0
@@ -172,10 +206,24 @@ static func wide_grid_side(area: Vector2, side_min: float, sep: float) -> float:
 	var need := maxf(side_min, UIKit.font_size * SIDE_MIN_FS)
 	return floorf(maxf(0.0, minf(area.y, minf(area.x * 0.6, area.x - need - sep))))
 
+## Reserved height above/below the desktop arena (status + log + toolbar + seps).
+func _desktop_chrome_h() -> float:
+	var fs := float(UIKit.font_size)
+	var top := StatusPane.PANE_H * float(maxi(2, UIKit.px_scale)) + fs * 1.4
+	if guide_label and guide_label.get_parent() == desk:
+		top += fs * 2.2
+	var bot := fs * 2.8 + UIKit.btn_height() + 4.0
+	return top + bot + fs * 1.0
+
 func _fit_split() -> void:
 	if grid == null or _area == Vector2.ZERO: return
 	if desktop_ui:
-		grid.custom_minimum_size = Vector2.ZERO
+		_pin_full_rect(desk)
+		# Explicit arena size so the grid never collapses to 0 when VBox expand fails.
+		var side := floorf(maxf(64.0, minf(_area.x, _area.y - _desktop_chrome_h())))
+		grid.custom_minimum_size = Vector2(side, side)
+		grid.size_flags_horizontal = SIZE_SHRINK_CENTER
+		grid.size_flags_vertical = SIZE_EXPAND_FILL
 		return
 	if _portrait:
 		grid.custom_minimum_size = Vector2(_area.x, _area.x)
@@ -248,16 +296,24 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 
 const BTN_ICONS := {"Wait": "wait", "Search": "search", "Search again": "search", "Bag": "backpack", "Hint": "info",
-	"Auto": "busy", "Auto: ON": "busy", "Shove": "arrow", "Shove: ON": "arrow", "Scroll of Passage": "scroll"}
-const BTN_PREFIX_ICONS := {"Slam": "warning", "Potion": "plus", "Cloak": "buffs", "Bolt": "target", "Scroll of Passage": "scroll"}
+	"Auto": "busy", "Auto: ON": "busy", "Shove": "arrow", "Shove: ON": "arrow", "Scroll of Passage": "scroll", "Passage": "scroll"}
+const BTN_PREFIX_ICONS := {"Slam": "warning", "Potion": "plus", "Cloak": "buffs", "Bolt": "target", "Scroll of Passage": "scroll", "Passage": "scroll"}
+## Desktop toolbar: short labels, no wrap, fixed slot height (vanilla SPD bottom bar).
+const DESK_LABELS := {"Scroll of Passage": "Passage", "Search again": "Search"}
 func _btn(text: String, cb: Callable, enabled := true, skill := false) -> void:
-	var b := UIKit.button(text, cb, enabled)
-	b.custom_minimum_size.x = UIKit.font_size * (5.0 if desktop_ui else 6.5)
+	var label := String(DESK_LABELS.get(text, text)) if desktop_ui else text
+	var b := UIKit.button(label, cb, enabled)
 	if desktop_ui:
+		b.autowrap_mode = TextServer.AUTOWRAP_OFF
+		b.clip_text = true
+		b.custom_minimum_size = Vector2(UIKit.font_size * 5.5, UIKit.btn_height())
 		b.size_flags_horizontal = SIZE_SHRINK_BEGIN
-	var ic: String = BTN_ICONS.get(text, "")
+		b.size_flags_vertical = SIZE_SHRINK_CENTER
+	else:
+		b.custom_minimum_size.x = UIKit.font_size * 6.5
+	var ic: String = BTN_ICONS.get(text, BTN_ICONS.get(label, ""))
 	for pre in BTN_PREFIX_ICONS:
-		if text.begins_with(pre): ic = BTN_PREFIX_ICONS[pre]
+		if text.begins_with(pre) or label.begins_with(pre): ic = BTN_PREFIX_ICONS[pre]
 	UIKit.as_toolbar(b, ic)   # SPD toolbar slots for in-fight actions
 	buttons.add_child(b)
 	if skill:
@@ -297,7 +353,14 @@ func _refresh() -> void:
 		line += "\nSurprise ready (%.1fx dmg, can't miss%s)" % [float(h.surprise_mult), pierce]
 	if combat.enemies().any(func(e): return e.get("evade_unless_surprise", false)):
 		line += "\nSnake: melee needs a Surprise; magic always hits, bows after the first shot"
-	status.text = line
+	# Desktop: one status line under the pane (multi-line tips stay in the log / Hint).
+	if desktop_ui:
+		var one := line.get_slice("\n", 0)
+		status.text = one
+		status.tooltip_text = line
+	else:
+		status.text = line
+		status.tooltip_text = ""
 	status.visible = not finished
 	_guide_update()
 	if main and not finished:
