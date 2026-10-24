@@ -1,7 +1,12 @@
 # Plan 09: Class Heirlooms, Subclasses, Talents & Trinkets vs. Endgame Scaling
 
 ## Status
-Ready for implementation — all design decisions locked in via `/grill-me`.
+Ready for implementation. Ring of Force no longer uses the `× (1 + (str - 10) / 2)` multiplier. That version matched a Tier 5 weapon and then passed it. The replacement is below.
+
+## Revision (player review)
+On a Tier 1 weapon, Ring of Force should feel like the forged sword your Strength can equip, and a little better. "A little better" is **10% above that sword, at least +2 damage**. Strength 18 with a +0 ring on a Worn Shortsword is about **22** damage, next to Greatsword +0 at **20**. It is not +25 on top of the Tier 1 weapon.
+
+The Mage's Staff stays excluded (Plan 12). Fast Tier 1 weapons get the same DPS, not the same per-hit bonus.
 
 ## Problem Statement
 Plans 01–04 steepen the numbers curve in Dwarf City (`4–6 DR`, `9–18 Dmg`, `40–50 HP`) and Demon Halls (`5–7 DR`, `12–20 Dmg`, `52–75 HP`), while raising T4/T5 weapon damage (`25–33+`) and Enchanter's Desk upgrade costs (`48 arcane_resin, 24 dark_gold, 1,400 gold` for `+0 -> +3`).
@@ -66,18 +71,36 @@ Several class heirlooms, subclasses, and trinkets still use flat early-game numb
   - **50% DR Pierce on Surprise / Grass Bow Shots:** When `hero.get("sub", "") == "warden"`, Spirit Bow shots fired as a Surprise attack **or** while the Warden is standing on tall/trampled grass (`tile(hero.pos) == T.GRASS or trampled.has(hero.pos)`) pierce **50% of enemy DR** (`eff_dr = int(m.dr) / 2`), matching Stealth weapons in Plan 03 while keeping `Sniper`'s `100%` DR ignore (`bolt_pierce`) on all shots distinct.
   - **Scaled `grass_heal` (`combat.gd:982`):** Ending a turn on tall or trampled grass heals **`1 + int(hero.get("level", 1)) / 8` HP** (`1 HP` at Lv 1–7, `2 HP` at Lv 8–15, `3 HP` at Lv 16+).
 
-### 3. Scale `Ring of Force` with Hero Strength (`scripts/autoload/game_state.gd`, `data/items.json`, `scripts/core/codex.gd`)
-- When wielding a Tier 1 weapon (`int(wd.get("tier", 1)) <= 1`), `Ring of Force` scales its `(2 + lvl)` base bonus by `maxi(1, 1 + (int(h.str) - 10) / 2)`:
-  ```gdscript
-  if int(wd.get("tier", 1)) <= 1 and rd.has("force_bonus"):
-      var fb := int(rd.get("force_bonus", 0)) + trinket_bonus(r, "force_bonus")
-      dmg += fb * maxi(1, 1 + (int(h.str) - 10) / 2)
-  ```
-  - At `10 Str` (Sewers), `+0` gives `+2 dmg` (unchanged).
-  - At `14 Str` (Caves), `+1` (`fb = 3`) gives `3 * 3 = +9 dmg`.
-  - At `16 Str` (City), `+2` (`fb = 4`) gives `4 * 4 = +16 dmg`.
-  - At `18 Str` (Halls), `+3` (`fb = 5`) gives `5 * 5 = +25 dmg` (bringing a T1 weapon + `Ring of Force +3` to `35 dmg`, competitive with a T5 Greatsword `+3` at `33 dmg`).
-- Update `ring_force.desc` in `data/items.json` and `Codex.item_line()` to note that the Tier-1 damage bonus multiplies with Strength above 10.
+### 3. Scale `Ring of Force` to the sword your Strength can hold (`scripts/autoload/game_state.gd`, `data/items.json`, `scripts/core/codex.gd`)
+Reference swords are the Plan 02 forged line, scored with `Weapons.dmg` after that plan's `max` changes: Worn Shortsword, Shortsword, Sword, Longsword, Greatsword. (Sword +3 is 19 from `floor((min + max) / 2)`. Plan 02's summary line says 18; use the formula.)
+
+```gdscript
+# Highest tier this Strength can equip. 18 and 20 both use the Greatsword, not the Greataxe.
+var tier := clampi((int(h.str) - 8) / 2, 1, 5)
+var eff_lvl := mini(6, wl + ring_lvl)
+var ref := forged_sword_dmg(tier, eff_lvl)   # Plan 02 numbers for that tier and level
+var target := ref + maxi(2, int(round(float(ref) * 0.10)))
+var base_dps := float(Weapons.dmg(wd, wl)) / float(wd.get("delay", 1.0))
+var add_dps := maxf(0.0, float(target) - base_dps)
+dmg += int(round(add_dps * float(wd.get("delay", 1.0))))
+```
+
+- Only when the **weapon's** tier is `<= 1`, the ring has `force_bonus`, and the weapon is not an heirloom. The `tier` in the snippet is Strength tier, not weapon tier. The Mage's Staff never gets this.
+- `ring_lvl` is the equipped ring's level. `wl` is the Tier 1 weapon's level. They add together, capped at `+6`, and that sum picks the reference sword's upgrade. A +3 ring on a +0 weapon and a +0 ring on a +3 weapon land on the same sword.
+- The bonus is computed in DPS and multiplied back by `delay`, so Studded Gloves (0.5) do not get the Worn Shortsword's per-hit bonus on every half-tick.
+- `force_bonus` / `per_level` on the item stay as flavor for the codex, or get replaced by this rule. The formula above is the damage. Do not also multiply by `(2 + ring level) * str`.
+
+| Str | Weapon + | Ring + | Reference | Target | Worn Shortsword total |
+| :---: | :---: | :---: | :--- | :---: | :---: |
+| 10 | 0 | 0 | Worn 5 | 7 | 7 |
+| 12 | 0 | 0 | Shortsword 7 | 9 | 9 |
+| 14 | 0 | 0 | Sword 11 | 13 | 13 |
+| 16 | 0 | 0 | Longsword 15 | 17 | 17 |
+| 18 | 0 | 0 | Greatsword 20 | 22 | 22 |
+| 18 | 0 | 3 | Greatsword +3 (33) | 36 | 36 |
+| 18 | 3 | 3 | Greatsword +6 (47) | 52 | 52 |
+
+Update `ring_force.desc` and `Codex.item_line()` to say the ring makes a Tier 1 weapon hit a little harder than the sword your Strength could equip.
 
 ### 4. Scale Gladiator `Combo`, `Freerunner`, and `Cape of Thorns` (`scripts/core/combat.gd`, `data/heroes.json`, `data/items.json`)
 - **Gladiator `Combo` (`combat.gd:783`, `data/heroes.json:27-31`):**
@@ -103,7 +126,7 @@ Several class heirlooms, subclasses, and trinkets still use flat early-game numb
 2. **`scripts/autoload/game_state.gd`:**
    - In `hero_stats(c)`:
      - Add `+2 * wnl` to `dmg` when `c == "mage"` and `wd.get("id", "") == "mages_staff"` (or `def.start_weapon == "mages_staff"` when wearing `mages_staff`), plus `+wnl` when `h.get("subclass", "") == "battlemage"`.
-     - Multiply `Ring of Force` `fb` by `maxi(1, 1 + (int(h.str) - 10) / 2)`.
+     - Multiply Ring of Force using the Strength-tier sword target in section 3 (DPS × delay, heirlooms excluded). Do not multiply `(2 + lvl)` by `(str - 10) / 2`.
      - Update `Spirit Bow` `s.bolt.dmg` to `3 + lv / 2` and store `s.level = lv` on `s` so `Combat` can read `hero.level` for `Warden`'s `grass_heal`.
 3. **`scripts/core/combat.gd`:**
    - In `_melee_dmg(sur)`: update `"combo"` to `var stacks := mini(int(hero.combo), 3); d += maxi(stacks, int(d * 0.10 * stacks))`.
@@ -111,4 +134,4 @@ Several class heirlooms, subclasses, and trinkets still use flat early-game numb
    - In `hit_mob()` / `hero_bolt()`: apply `eff_dr = int(m.dr) / 2` on Spirit Bow shots when `String(hero.get("sub", "")) == "warden"` and (`surprise` or `tile(hero.pos) == T.GRASS` or `trampled.has(hero.pos)`).
    - In `_end_hero_turn(cost)`: update `grass_heal` to heal `mini(int(hero.ht) - int(hero.hp), 1 + int(hero.get("level", 1)) / 8)`.
 4. **`tests/run_tests.gd`:**
-   - Add unit tests for `mages_staff` + `wand_lvl` scaling, `Battlemage` 3-hit recharge, `Spirit Bow` & `Warden` grass/surprise 50% pierce, `Ring of Force` Strength scaling, Gladiator `%` combo, and `Cape of Thorns` `2 + 1/lvl`.
+   - Add unit tests for `mages_staff` + `wand_lvl` scaling, `Battlemage` 3-hit recharge, `Spirit Bow` & `Warden` grass/surprise 50% pierce, Ring of Force totals in the section 3 table (Worn Shortsword at 10 / 14 / 18 Str), Gladiator `%` combo, and `Cape of Thorns` `2 + 1/lvl`.

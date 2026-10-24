@@ -1,7 +1,14 @@
 # Plan 04: Tier-Scaled Forging, Upgrade & Repair Costs (Fixing Material Sinks)
 
 ## Status
-Ready for implementation — design decisions finalized via review.
+Ready for implementation. Artifact *levels* are no longer a Desk purchase; see the revision. Rings, wands, repairs, and gear costs are unchanged.
+
+## Revision (player review)
+Artifacts gain levels from use (Plan 10), up to the Enchanter cap. Do **not** charge `trinket_step_cost` to level an artifact. The Desk still:
+- sets the cap (`+0 / +1 / +3` at Lv1 / Lv2 / Lv3)
+- repairs artifacts at `trinket_repair_cost`
+
+Rings and wands still pay `trinket_step_cost` in resin, dark gold, and gold. Buying an artifact level and also earning it from delves would double-dip. Use is the only level path.
 
 ## Problem Statement
 Players accumulate massive stockpiles of `iron_ore`, `dark_gold`, `arcane_resin`, `seeds`, and `dew` very early because all camp sinks are tiny, flat, one-time costs gated behind Scrolls of Upgrade (`SoU`):
@@ -82,7 +89,7 @@ Keep the existing 9 Blacksmith recipes (1 standard sword + 1 armor per tier; oth
   - **T5:** `iron_ore = (2 + lvl) * tier`, `dark_gold = 4 + lvl`, `arcane_resin = 2 + int(lvl / 2)`
 - **Free "Patch Up" Restriction (`can_patch_up()`, `patch_up()`):**
   - Only **T1 and T2** weapons/armor (`int(DB.item(g.id).get("tier", 1)) <= 2`) qualify for the Blacksmith's free `patch_up()`.
-  - T3+ items (`tier >= 3`) never get repaired for free—dying while broke with cracked endgame gear sends you back to Sewers/Prison tier gear (or starter gear) until you farm the materials to repair your T3–T5 pieces.
+  - T3+ items (`tier >= 3`) never get repaired for free. Death also locks biome access (Plan 07), so a cracked Tier 5 piece sends the hero back through Sewers in Cloth and a starter weapon until the repair is paid.
 
 ### 4. Expensive Trinket (Ring, Wand & Artifact) Upgrades & Repairs (`scripts/autoload/game_state.gd`, `scripts/ui/camp_screen.gd`)
 - **Enchanter Cap (`enchant_cap()`):**
@@ -90,10 +97,9 @@ Keep the existing 9 Blacksmith recipes (1 standard sword + 1 armor per tier; oth
     - `Lv1`: `+0`
     - `Lv2`: `+1`
     - `Lv3`: `+3` (`[0, 1, 3][clampi(facility_level("enchanter") - 1, 0, 2)]`)
-- **Artifacts Level at Enchanter's Desk:**
-  - Allow **Artifacts** (alongside Rings and Wands) to be upgraded directly in the Enchanter's Desk **Attune** tab using `trinket_step_cost(next_lvl)`. (Combat XP via `charge_artifact` can still supplement or remain capped by `enchant_cap()`).
+- **Artifacts do not buy levels.** They level by use, up to `enchant_cap()` (Plan 10). The Attune tab repairs them and shows use progress. It does not sell artifact levels.
 - **Trinket Upgrade Cost (`trinket_step_cost(next_lvl)`):**
-  - Upgrading Rings, Wands, and Artifacts is always expensive and **always costs `arcane_resin`, `dark_gold`, and `gold`**:
+  - Upgrading Rings and Wands is always expensive and **always costs `arcane_resin`, `dark_gold`, and `gold`**. Artifacts do not pay this to level:
     - `arcane_resin = 8 * next_lvl` (`8 / 16 / 24`, total `48` resin for `+3`)
     - `dark_gold = 4 * next_lvl` (`4 / 8 / 12`, total `24` dark gold for `+3`)
     - `gold = 100 * next_lvl * next_lvl` (`100 / 400 / 900`, total `1,400` gold for `+3`)

@@ -1,7 +1,22 @@
 # Plan 05: Taming Material Faucets (Patrol Multipliers & Floor Drops)
 
 ## Status
-Ready for implementation — design decisions finalized via review.
+Ready for implementation. Hourly yields below replace the earlier cut. They are set so four geared Halls patrols pay for one Tier 5 weapon.
+
+## Revision (player review)
+
+One Tier 5 weapon means **forged and upgraded +0 → +3** at Plan 04's costs:
+
+| | Iron ore | Dark gold | Arcane resin | Gold |
+| :--- | ---: | ---: | ---: | ---: |
+| Forge | 70 | 30 | 15 | 700 |
+| +0 → +3 | 120 | 36 | 18 | 1,050 |
+| **One weapon** | **190** | **66** | **33** | **1,750** |
+| **Quarter (one 8h patrol)** | **47.5** | **16.5** | **8.25** | **437.5 net** |
+
+Four heroes out at once, each on an 8-hour Halls patrol, fund **one** such weapon. One hero funds a quarter. This is the geared rate: efficiency `1.0` and the `1.50` multiplier cap both in effect. Gold does not get the gear multiplier, and the 1-hour fee (Plan 11) comes out of the gold. Ungeared heroes earn less. Curio drops and melted rings are extra and are not part of this budget.
+
+These base rates only hit the quarter **with** the `1.50` cap. Shipping the rates without the cap overshoots.
 
 ## Problem Statement
 Material income currently snowballs out of control because **Offline Patrols** multiply four separate bonuses together across up to 3 simultaneous idle heroes, while **Active Delves** also award high free event payouts and leak `dark_gold` in the Sewers:
@@ -64,15 +79,23 @@ Keep hourly patrol rates linear across the full patrol duration (no penalty for 
       ```
 
 ### 2. Rebalance Base `patrol_yield_per_hour` & Curio Intervals (`data/biomes.json`)
-Lower base hourly patrol yields by ~35–40% and slow curio (ring) drops from `2h` to `4h` in Sewers/Prison/Caves and `3h` in City/Halls. Prison retains a `0.5/hr` `dark_gold` trickle (supporting Plan 04's Blacksmith Lv1$\rightarrow$Lv2 and Enchanter Lv2 `+1` trinket costs), while Caves+ is the main `dark_gold` source:
+Slow curio drops from `2h` to `4h` in Sewers/Prison/Caves and `3h` in City/Halls. Ore stays on the earlier cut (Halls ore already lands on the quarter-weapon target once the `1.50` cap is applied: `4 * 8 * 1.5 = 48`). Gold, dark gold, and resin are set so a geared Halls patrol lands on the quarter-weapon row above.
+
+Halls check, efficiency `1.0`, materials at `1.50×`, gold at `1.0×`, fee = 1 hour of gold:
+- Ore `4 * 8 * 1.5 = 48` (target 47.5)
+- Dark gold `1.4 * 8 * 1.5 = 16.8` (target 16.5)
+- Resin `0.7 * 8 * 1.5 = 8.4` (target 8.25)
+- Gold `63 * 8 - 63 = 441` net (target 437.5)
+
+Prison keeps a `0.5/hr` dark gold trickle so a geared 8h patrol returns about 6 dark gold, enough for an Enchanter `+1` (4) without funding Tier 5. Dew and seeds stay on the earlier cut. Resin rises toward Halls; it must not peak in Prison.
 
 | Biome | Current `/hr` (`Gold / Ore / D.Gold / Resin / Dew / Seeds`) | Finalized `/hr` (`Gold / Ore / D.Gold / Resin / Dew / Seeds`) | `patrol_curio_every_hours` |
 | :--- | :--- | :--- | :--- |
-| **Sewers** | `15g / 3 ore / 0 dg / 1 resin / 4 dew / 2 seeds` | **`12g / 2 ore / 0 dg / 0.5 resin / 3 dew / 2 seeds`** | **`4`** (was `3`) |
-| **Prison** | `25g / 5 ore / 1 dg / 2 resin / 3 dew` | **`18g / 3 ore / 0.5 dg / 1 resin / 2 dew`** | **`4`** (was `2`) |
-| **Caves** | `35g / 7 ore / 2 dg / 2 resin / 3 dew` | **`25g / 4 ore / 1 dg / 1.5 resin / 2 dew`** | **`4`** (was `2`) |
-| **City** | `45g / 8 ore / 3 dg / 3 resin / 3 dew` | **`35g / 5 ore / 1.5 dg / 2 resin / 2 dew`** | **`3`** (was `2`) |
-| **Halls** | `60g / 6 ore / 5 dg / 5 resin / 3 dew` | **`45g / 4 ore / 2.5 dg / 3 resin / 2 dew`** | **`3`** (was `2`) |
+| **Sewers** | `15g / 3 ore / 0 dg / 1 resin / 4 dew / 2 seeds` | **`17g / 2 ore / 0 dg / 0.25 resin / 3 dew / 2 seeds`** | **`4`** (was `3`) |
+| **Prison** | `25g / 5 ore / 1 dg / 2 resin / 3 dew` | **`25g / 3 ore / 0.5 dg / 0.35 resin / 2 dew`** | **`4`** (was `2`) |
+| **Caves** | `35g / 7 ore / 2 dg / 2 resin / 3 dew` | **`35g / 4 ore / 0.7 dg / 0.45 resin / 2 dew`** | **`4`** (was `2`) |
+| **City** | `45g / 8 ore / 3 dg / 3 resin / 3 dew` | **`49g / 5 ore / 1.0 dg / 0.55 resin / 2 dew`** | **`3`** (was `2`) |
+| **Halls** | `60g / 6 ore / 5 dg / 5 resin / 3 dew` | **`63g / 4 ore / 1.4 dg / 0.7 resin / 2 dew`** | **`3`** (was `2`) |
 
 ### 3. Delve Event & Drop Adjustments (`data/events.json`)
 - **Remove `dark_gold` from Sewers (`glint` door, `data/events.json:63-74`):**

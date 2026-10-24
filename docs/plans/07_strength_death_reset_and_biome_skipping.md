@@ -1,7 +1,18 @@
 # Plan 07: Strength Progression, Death Reset & Biome Skipping
 
 ## Status
-Ready for implementation — all design decisions locked in via `/grill-me`.
+Revised. Death does **not** bank Strength. Death resets Strength to 10 and closes biome access. Cloth and starting weapons do not crack.
+
+## Revision (player review)
+The permanent Strength floor (`10 + 2` per cleared biome) is withdrawn. It was a different death rule, not a fix for the under-strength penalty.
+
+The penalty still makes "repair a Greatsword and walk into Halls at 10 Strength" a trap. Close the door instead of raising the floor:
+- Strength resets to 10. Strength potions in a biome can be earned again (`str_found` clears).
+- `heroes[c].cleared` clears, so the delve picker returns to Sewers and this hero cannot patrol a biome until they clear it again.
+- `boss_kills` stays. Scrolls of Upgrade, Tengu's Mask, subclasses, and the other heroes are untouched.
+- Facilities, stash, and gold stay. Forged gear still cracks, except the pieces below.
+
+Cloth and class starting weapons are the kit you always have. They follow the heirloom rule and never crack, including their upgrades. Dying in Plate still cracks the Plate; the hero fights in starter stats at +0 until they equip an uncracked piece (their own Cloth or starter weapon qualifies).
 
 ## Problem Statement
 Plans 01 and 02 replace the flat `-1 DR / -2 Dmg` under-strength penalty with severe proportional penalties:
@@ -27,44 +38,44 @@ Across the rest of the game, Hero Strength (`str`) interacts with death resets, 
 
 ## Relevant Files & Symbols
 - `scripts/autoload/game_state.gd`:
-  - `base_str(c)` / `cleared_str_keys(c)` (new helpers)
-  - `hero_stats(c)` (lines 185–280)
-  - `compare_equip(uid)` & `compare_text(cmp)` (lines 442–467)
-  - `end_run(result)` (lines 1765–1788)
+  - `end_run(result)` — reset `str` to 10, clear `cleared`, skip starter cracks
+  - `hero_stats(c)`, `compare_equip(uid)`, `compare_text(cmp)`
 - `scripts/core/delve.gd`:
-  - `advance_room` / floor progress milestone check (lines 88–97) and boss kill biome clear
+  - `defeat_changes()` — "Strength reset to 10", biomes locked
 - `scripts/ui/camp_screen.gd`:
-  - `gear_lines(g)` (lines 782–803)
+  - `start_biomes(c)` (reads `cleared`; no change beyond death clearing it)
+  - `gear_lines(g)`
 - `scripts/ui/paperdoll.gd`:
-  - `_delta_text(a, b)` / slot comparison preview (lines 128–152)
+  - `_delta_text(a, b)`
 - `tests/run_tests.gd`
 
 ---
 
 ## Locked-In Design Decisions
 
-### 1. Permanent Strength Floor from Cleared Biomes (`scripts/autoload/game_state.gd`)
-- Each biome in `heroes[c].cleared` permanently locks in the `+2 Strength` from that biome's two Strength Potion milestones (`strength_potions_at` in `data/biomes.json`):
-  - `base_str(c) -> int`: `10 + 2 * heroes[c].get("cleared", []).size()`
-    - 0 cleared (Sewers start): **`10 Str`**
-    - Sewers cleared (Prison unlocked): **`12 Str`**
-    - Prison cleared (Caves unlocked): **`14 Str`**
-    - Caves cleared (City unlocked): **`16 Str`**
-    - City cleared (Halls unlocked): **`18 Str`**
-    - Halls cleared: **`20 Str`**
-  - `cleared_str_keys(c) -> Array`: returns all `"%d_%d" % [int(m[0]), int(m[1])]` keys from `DB.biomes[b].strength_potions_at` for every `b in heroes[c].get("cleared", [])`.
-- **On Death (`GameState.end_run("death")`):**
-  - Instead of resetting `h.str = 10` and `h.str_found = []`, reset:
-    ```gdscript
-    h.str = base_str(c)
-    h.str_found = cleared_str_keys(c)
-    ```
-  - Update the death log message (`game_state.gd:1784`) from `"back to Lv1 / 10 Str"` to `"back to Lv1 / %d Str" % h.str`.
-  - **Level still resets to `1`** (retrainable at the Guild Hall up to `best_level - 2` via `train(c)`), and **equipped gear still cracks** (requiring Blacksmith/Enchanter repair).
-- **On Biome Clear & Save Migration:**
-  - Whenever a hero clears a biome (or when loading an existing save in `GameState`), ensure `h.str = maxi(int(h.str), base_str(c))` and all `cleared_str_keys(c)` are present in `h.str_found` so re-running an already-cleared biome never double-awards Strength potions.
+### 1. Death resets Strength and biome access (`scripts/autoload/game_state.gd`)
+Do not add `base_str()` and do not migrate saves up to a cleared-biome floor.
 
-### 2. Under-Strength UI Preview & Tooltip Warnings (`scripts/ui/paperdoll.gd`, `scripts/autoload/game_state.gd`, `scripts/ui/camp_screen.gd`)
+On `end_run("death")`, keep the current hero reset and add the biome lock:
+```gdscript
+h.level = 1; h.xp = 0; h.str = 10; h.talents = []; h.str_found = []
+h.cleared = []
+```
+- Level still retrains at the Guild up to `best_level - 2`.
+- `boss_kills`, mask, and subclass stay. Wiping `cleared` re-locks the delve picker (`CampScreen.start_biomes`) and patrol destinations (`can_patrol` requires `biome in cleared`). It does not re-grant Scrolls of Upgrade.
+- Death log: `"back to Lv1 / 10 Str. Biomes locked until you clear them again."`
+- `Delve.defeat_changes()` keeps `"Strength reset to 10"` when strength was higher. Add `"Biomes locked"` when `cleared` was not empty. Do not print a banked Strength value.
+
+Re-clearing a biome awards its Strength potions again because `str_found` is empty. That is the way back to 12 / 14 / 16 / 18 Strength.
+
+### 2. Cloth and starting weapons never crack (`scripts/autoload/game_state.gd`)
+In the death crack loop, skip an item when `heirloom` is set (already) **or** its id is any class's `start_armor` or `start_weapon`:
+- `cloth_armor`
+- `worn_shortsword`, `dagger`, `studded_gloves`, `mages_staff`
+
+Upgrades on those items survive death. Every other equipped weapon, armor, ring, wand, and artifact still cracks. `hero_stats` already falls back to the class starter at +0 while the equipped piece is cracked; the player can equip their uncracked Cloth or starter weapon without paying a repair.
+
+### 3. Under-Strength UI Preview & Tooltip Warnings (`scripts/ui/paperdoll.gd`, `scripts/autoload/game_state.gd`, `scripts/ui/camp_screen.gd`)
 - **Keep Penalized Delta + Append `"(need Str X)"` Tag:**
   - `Paperdoll._delta_text()` and `GameState.compare_equip()` / `compare_text()` continue to show the real (penalized) stat delta when `h.str < req`, and append `"(need Str %d)" % req` whenever the previewed weapon or armor requires more Strength than the hero currently has.
 - **Armor Under-Strength Tooltip Line (`CampScreen.gear_lines(g)`):**
@@ -76,12 +87,15 @@ Across the rest of the game, Hero Strength (`str`) interacts with death resets, 
 ## Implementation Steps
 
 1. **`scripts/autoload/game_state.gd`:**
-   - Add `base_str(c: String) -> int` and `cleared_str_keys(c: String) -> Array`.
-   - In `end_run("death")`, set `h.str = base_str(c)` and `h.str_found = cleared_str_keys(c)`.
-   - In save load / migration (`_migrate()` or `load_dict()`), ensure `h.str = maxi(int(h.get("str", 10)), base_str(c))` and merge `cleared_str_keys(c)` into `h.str_found`.
+   - In `end_run("death")`, set `h.cleared = []` alongside the existing `h.str = 10` and `h.str_found = []`. Do not add a Strength floor.
+   - Skip cracking when the item id is a class `start_weapon` or `start_armor`.
    - In `compare_equip(uid)` and `compare_text(cmp)`, include `"need_str": req` when `req > int(h.str)` and append `"(need Str %d)" % int(cmp.need_str)`.
-2. **`scripts/ui/paperdoll.gd` & `scripts/ui/camp_screen.gd`:**
+2. **`scripts/core/delve.gd`:**
+   - Keep the "Strength reset to 10" defeat line. Mention locked biomes. Do not mention a banked Strength.
+3. **`scripts/ui/paperdoll.gd` & `scripts/ui/camp_screen.gd`:**
    - In `Paperdoll` item candidate rows, append `"(need Str %d)" % req` to the delta string when `req > int(h.str)`.
    - In `CampScreen.gear_lines(g)`, add the under-strength warning line for armor when `int(d.get("str", 10)) > hero_str`.
-3. **`tests/run_tests.gd`:**
-   - Add unit tests verifying that clearing a biome raises `base_str(c)` by `+2`, dying resets `h.str` to `base_str(c)` rather than `10`, and re-running a cleared biome does not award duplicate Strength potions.
+4. **`tests/run_tests.gd`:**
+   - Dying sets `str` to 10, clears `cleared`, and leaves `boss_kills` in place.
+   - A second clear of Sewers awards its Strength potions again.
+   - Cloth and a class starter weapon do not crack; a Tier 3 weapon does.

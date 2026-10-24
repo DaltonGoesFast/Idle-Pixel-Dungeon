@@ -1,7 +1,10 @@
 # Plan 11: Early-Biome `dark_gold` Gates, Patrol Fee Math & Milestones
 
 ## Status
-Ready for implementation — all design decisions locked in via `/grill-me`.
+Ready for implementation. Patrol yields themselves live in Plan 05's revised table (Halls is a quarter of one Tier 5 weapon per 8h). This plan still only changes early `dark_gold` events and the fee.
+
+## Revision (player review)
+Prison's `0.5/hr` dark gold trickle stays. Halls dark gold and resin in the older Plan 05 table were too high for the quarter-weapon budget; use the revised Plan 05 numbers, not `2.5` dark gold and `3` resin.
 
 ## Problem Statement
 Plans 04 and 05 overhaul the material and gold economy:

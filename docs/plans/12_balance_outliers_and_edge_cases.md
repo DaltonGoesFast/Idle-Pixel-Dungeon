@@ -1,13 +1,17 @@
 # Plan 12: Balance Outliers, Edge Cases & Cross-System Audit
 
 ## Status
-Approved — all design decisions locked in via `/grill-me`.
+Approved, with the Ring of Force and death-text sections revised. Do not implement a Strength floor, and do not use the `× (str - 10) / 2` Force multiplier.
+
+## Revision (player review)
+- **Ring of Force** uses Plan 09's sword-target formula (10% above the forged sword your Strength can hold, at least +2, DPS normalized by weapon delay). Heirlooms stay excluded.
+- **Death copy** stays "Strength reset to 10". Plan 07 clears `cleared` as well. There is no `base_str()`.
 
 ---
 
 ## Relevant Files & Symbols
 - `scripts/core/combat.gd` (`Combat.setup()`, `Combat.apply_stats()`, `Combat.to_dict()`, `Combat.from_dict()`, `_trigger()`)
-- `scripts/autoload/game_state.gd` (`hero_stats()`, `can_patch_up()`, `base_str()`, `upgrade_facility_cost()`)
+- `scripts/autoload/game_state.gd` (`hero_stats()`, `can_patch_up()`, `end_run()`, `upgrade_facility_cost()`)
 - `scripts/core/delve.gd` (`advance()`, `defeat_changes()`, `resolve_option()`)
 - `data/facilities.json` (`blacksmith` upgrade costs)
 - `data/items.json` (`ring_might`, `ring_force`)
@@ -35,21 +39,12 @@ Approved — all design decisions locked in via `/grill-me`.
 
 ---
 
-#### B. `Ring of Force` + `mages_staff` Double-Dipping & Fast Weapon DPS Spike (Plan 09)
+#### B. `Ring of Force` excludes the Mage's Staff and uses the Plan 09 sword target
 - **Problem:**
-  - Plan 09 scales `Ring of Force` on `tier <= 1` weapons to +25 flat damage at +3 and 18 Str.
-  - `mages_staff` is Tier 1 and heirloom; when paired with Battlemage scaling and Ring of Force, it hits for 49 dmg/swing at 1.0 delay (out-damaging Masterwork T5 Greatsword).
-  - Adding flat damage directly to fast weapons like `studded_gloves` (0.5 delay) causes 62+ DPS, out-damaging all endgame weapons.
+  - A straight Strength multiplier on `(2 + ring level)` put a Tier 1 weapon around 35–49 damage and beat Masterwork Tier 5, worse on the Mage's Staff and on 0.5-delay gloves.
 - **Locked-In Decision:**
-  1. Exclude heirlooms (`mages_staff`) from `Ring of Force`:
-     ```gdscript
-     if int(wd.get("tier", 1)) <= 1 and not wd.get("heirloom", false) and rd.has("force_bonus"):
-     ```
-  2. Scale `Ring of Force` bonus damage by weapon attack speed (`delay`), normalizing DPS across fast and slow Tier-1 weapons:
-     ```gdscript
-     var force_dmg := fb * maxi(1, 1 + (int(h.str) - 10) / 2)
-     dmg += int(round(force_dmg * float(wd.get("delay", 1.0))))
-     ```
+  1. Exclude heirlooms (`mages_staff`) from Ring of Force.
+  2. Do **not** apply `fb * (1 + (str - 10) / 2)`. Use Plan 09 section 3: target DPS is the forged sword for `clampi((str - 8) / 2, 1, 5)` at `mini(6, weapon_lvl + ring_lvl)`, plus 10% (at least +2), then multiply the DPS gap by weapon `delay`.
 
 ---
 
@@ -65,16 +60,12 @@ Approved — all design decisions locked in via `/grill-me`.
 
 ---
 
-#### D. Death Screen Hardcoded Text vs. Plan 07 Strength Floor
+#### D. Death screen text matches Plan 07 (no Strength floor)
 - **Problem:**
-  - Plan 07 resets death strength to `base_str(c)` (`10 + 2 * cleared.size()`).
-  - `Delve.defeat_changes()` (`scripts/core/delve.gd:454`) still hardcodes `if int(h.str) != 10: lost.append("Strength reset to 10")`.
+  - An earlier draft of Plan 07 reset death strength to `base_str(c)`. That draft is withdrawn. Death sets Strength to 10 and clears `cleared`.
+  - `Delve.defeat_changes()` already says `"Strength reset to 10"`. Keep that. Add a biomes-locked line when the hero had any cleared biomes.
 - **Locked-In Decision:**
-  - Match `GameState.end_run("death")`:
-    ```gdscript
-    var bstr: int = gs.base_str(run.hero)
-    if int(h.str) > bstr: lost.append("Strength reset to %d" % bstr)
-    ```
+  - Do not call `base_str`. Do not write `"Strength reset to %d" % bstr`.
 
 ---
 
@@ -151,9 +142,9 @@ Approved — all design decisions locked in via `/grill-me`.
 ## Implementation Checklist
 1. [ ] **Cross-Plan Bugfixes:**
    - Update `scripts/core/combat.gd` to assign `hero.sub` and `hero.level` in `setup()`, `apply_stats()`, and serialize in `to_dict()`/`from_dict()`.
-   - Update `scripts/autoload/game_state.gd` to exclude heirlooms from `Ring of Force` and scale bonus by `delay`.
+   - Update `scripts/autoload/game_state.gd` so Ring of Force follows Plan 09's sword target and skips heirlooms. Do not multiply by `(str - 10) / 2`.
    - Update `data/facilities.json` for Blacksmith Lv 1 $\rightarrow$ Lv 2 (35 iron ore, 150 gold) and Lv 2 $\rightarrow$ Lv 3 (70 iron ore, 16 dark gold, 400 gold).
-   - Update `scripts/core/delve.gd:defeat_changes()` to check against `base_str`.
+   - Update `scripts/core/delve.gd:defeat_changes()` to keep "Strength reset to 10" and mention locked biomes. No `base_str`.
    - Update `scripts/autoload/game_state.gd:can_patch_up()` to filter strictly to `tier <= 2`.
 2. [ ] **Ring of Might Redesign:**
    - Update `data/items.json:ring_might` with `str_bonus` and `ht_bonus`.

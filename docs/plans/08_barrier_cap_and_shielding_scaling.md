@@ -1,7 +1,17 @@
 # Plan 08: Hero Barrier Cap & Shielding Scaling
 
 ## Status
-Ready for implementation — all design decisions locked in via `/grill-me`.
+Revised. **Keep the half-HP Barrier cap.** Plan 01's larger armor Barrier is fine; this plan no longer removes the clamp that contains it.
+
+## Revision (player review)
+Barrier is already too strong. Deleting `s.barrier_max = mini(barrier_max, ht / 2)` would make it stronger, and it would let a level-1 hero in Plate walk around with more Barrier than health.
+
+What the cap actually does:
+- Max HP is `20 + 5 * (level - 1)`. The cap is half of that.
+- Level 1: 20 HP, cap **10**. A Warrior already has 7 from class and Broken Seal, so armor can add about 3 before the rest is clipped. Plate's 8–20 Barrier mostly does not show at level 1. That is why camp compare draws `+0 Barrier` after a death, and it is also why the cap matters.
+- Level 16: about 95 HP, cap **47**. Plate +3 (14) plus class Barrier fits under the cap. Late-game Plate is not restrained by this clamp. Plate's endgame strength is a later pass (Plan 01), not a reason to delete the cap.
+
+Fix the lying compare UI. Do not fix it by removing the cap.
 
 ## Problem Statement
 Plan 01 increases Armor `barrier` and `barrier_per_lvl` so higher-tier armor provides a meaningful per-fight buffer against late-game damage:
@@ -43,47 +53,29 @@ Two existing Barrier rules in `scripts/autoload/game_state.gd` and `scripts/core
 
 ## Locked-In Design Decisions
 
-### 1. Remove the `ht` Cap on `s.barrier_max` in `GameState.hero_stats(c)` (`scripts/autoload/game_state.gd`)
-- Remove line 279 (`s.barrier_max = mini(int(s.barrier_max), int(s.ht) / 2)`) from `GameState.hero_stats(c)`.
-- Since Plan 01 already zeroes out armor Barrier (`abar = 0`) whenever `armor_str_short > 0` and Plan 07 gates base Strength by cleared biomes, `s.barrier_max` is simply the full sum of class + heirloom + armor + ring + talent + subclass Barrier.
-- Camp tooltips, `Paperdoll`, `compare_equip()`, and Lv 1 post-death heroes wearing repaired endgame armor never clip or show false `+0 Barrier` deltas.
+### 1. Keep the `ht / 2` cap (`scripts/autoload/game_state.gd`)
+- Leave `s.barrier_max = mini(int(s.barrier_max), int(s.ht) / 2)` in place (DECISIONS #147).
+- Camp compare and Paperdoll must not pretend clipped Barrier is a `+0` upgrade. Show the armor's own Barrier from `armor_barrier(ad, al)`, and when the hero's cap eats the increase, append `"capped at half max HP (%d)" % (ht / 2)`.
+- The compare delta can show the unclamped armor change and the cap note together. It must not remove the clamp from `hero_stats()`.
 
-### 2. Scale `Potion of Shielding` Like `Potion of Healing` (`max(10, 30% of Max HP)`) Uncapped (`scripts/autoload/game_state.gd`, `scripts/core/delve.gd`, `data/items.json`)
+### 2. Scale `Potion of Shielding` Like `Potion of Healing`, still inside the cap
 - In `data/items.json` (`_materials.potion_shielding`):
   - Add `"shield": 10, "shield_pct": 0.3` and update `"desc"` to:
-    `"Your next fight starts with +max(10, 30% of max HP) Barrier."`
-- In `GameState`:
-  - Add helper `potion_shield(c: String) -> int`:
-    ```gdscript
-    func potion_shield(c: String) -> int:
-        var p: Dictionary = DB.materials.potion_shielding
-        var hs := hero_stats(c)
-        return maxi(int(p.get("shield", 10)), int(float(hs.ht) * float(p.get("shield_pct", 0.3))))
-    ```
-  - In `delve_use_pack("potion_shielding")`:
-    ```gdscript
-    var sh := potion_shield(c)
-    run.shield_next = int(run.get("shield_next", 0)) + sh
-    say("A shimmering shield: +%d Barrier in your next fight." % sh)
-    ```
-- In `Delve.new_combat(gs, ev)` (`scripts/core/delve.gd:211-213`):
-  - Stack `run.shield_next` in full on top of `c.hero.barrier` without clamping to `c.hero.ht`:
-    ```gdscript
-    if int(run.get("shield_next", 0)) > 0:
-        c.hero.barrier = int(c.hero.barrier) + int(run.shield_next); run.shield_next = 0
-        c._log("Your shield shimmers: +Barrier.")
-    ```
+    `"Your next fight starts with +max(10, 30% of max HP) Barrier, up to half your max HP."`
+- `GameState.potion_shield(c)` returns `maxi(10, int(ht * 0.30))`.
+- In `Delve.new_combat`, add `shield_next` and then clamp to the same ceiling as gear: `c.hero.barrier = mini(int(c.hero.ht) / 2, int(c.hero.barrier) + int(run.shield_next))`. Extra potion Barrier past the cap is wasted. Potions do not stack through the ceiling.
 
 ---
 
 ## Implementation Steps
 
-1. **`scripts/autoload/game_state.gd`:**
-   - Remove `s.barrier_max = mini(int(s.barrier_max), int(s.ht) / 2)` from `hero_stats(c)`.
-   - Add `potion_shield(c: String) -> int` and update `delve_use_pack("potion_shielding")` to use it.
+1. **`scripts/autoload/game_state.gd` and camp compare UI:**
+   - Keep the `ht / 2` clamp in `hero_stats(c)`.
+   - Add `potion_shield(c)` and use it from `delve_use_pack("potion_shielding")`.
+   - Paperdoll / `compare_equip` show armor Barrier before the cap, with a cap note when the hero total will not rise.
 2. **`scripts/core/delve.gd`:**
-   - In `new_combat(gs, ev)`, change `c.hero.barrier = mini(int(c.hero.ht), int(c.hero.barrier) + int(run.shield_next))` to `c.hero.barrier = int(c.hero.barrier) + int(run.shield_next)`.
+   - In `new_combat`, apply `shield_next` and clamp `c.hero.barrier` to `int(c.hero.ht) / 2`.
 3. **`data/items.json`:**
-   - Update `_materials.potion_shielding` with `"shield": 10, "shield_pct": 0.3` and updated description.
+   - Update `_materials.potion_shielding` with `"shield": 10, "shield_pct": 0.3` and the capped description.
 4. **`tests/run_tests.gd`:**
-   - Update any test asserting the old `ht / 2` barrier clamp and add unit tests for uncapped gear `barrier_max` and `potion_shield(c)` scaling.
+   - Assert the `ht / 2` clamp still holds for geared heroes and for Shielding potions. Assert compare text still reports armor Barrier when the hero is level 1.

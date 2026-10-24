@@ -1,7 +1,13 @@
 # Plan 01: Armor Tier Scaling (Separating T2 Leather from T4/T5 Armor)
 
 ## Status
-Ready for implementation — all design decisions locked in.
+Ready for implementation, with the review notes below. Plate's power and the Barrier cap are intentionally not solved here.
+
+## Revision (player review)
+- **Leather's tradeoff is the goal.** Less damage reduction, more Barrier. Cloth and Leather stay on `+0.5 DR / +1 Barrier` per level. Do not "fix" Leather by giving it Plate's reduction.
+- **Plate is allowed to be strong.** The City and Halls damage bumps stay. A later pass will deal with Plate being too much. Do not nerf Plate's DR or Barrier in this plan.
+- **The half-HP Barrier cap stays** (Plan 08). Armor can still grant Barrier; the cap is what keeps that buffer from becoming a second health bar. At level 1 the cap is 10, so most of Plate's Barrier does not show until max HP grows. That is accepted.
+- **City playtest bar:** Dwarf City should be dangerous in Leather and a Tier 2 weapon. Scale armor and a Tier 4 weapon are the intended kit. Surviving City in Masterwork Leather is a failure of this plan.
 
 ## Problem Statement
 Currently, Tier 2 (Leather) armor remains viable all the way through Dwarf City and Demon Halls because armor base stats and upgrade scaling are completely flat across all tiers:

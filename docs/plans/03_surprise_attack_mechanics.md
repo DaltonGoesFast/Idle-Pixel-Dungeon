@@ -1,7 +1,14 @@
 # Plan 03: Surprise Attack Mechanics (Stop T2 From Bypassing Endgame Armor)
 
 ## Status
-Approved — design decisions locked in via `/grill-me`.
+Approved. Assassin stays on this formula (review note below). Do not leave Assassin on the old "ignore all armor, knock back" rule, and do not take away the subclass's 2.5× or 50% pierce.
+
+## Revision (player review)
+Assassin is brought onto the new surprise pipeline with everyone else: multiply damage, then subtract armor, no knockback, no full armor ignore. The subclass **keeps** both of its extras on any melee weapon, not only Dagger, Dirk, and Assassin's Blade:
+- `2.5×` instead of `1.5×` (the existing `surprise_add: 1.0`)
+- `50%` of enemy DR ignored (`eff_dr = int(m.dr) / 2`)
+
+A Glaive or Greatsword on an Assassin will hit very hard. That is accepted. If a playtest one-shots City, tune weapon numbers later. Do not solve it by stripping the pierce or the multiplier. Stealth weapons keep the same `50%` pierce when they are not on an Assassin. Sniper's bow still ignores all DR via `bolt_pierce`.
 
 ## Problem Statement
 In `scripts/core/combat.gd`, **Surprise Attacks** (triggered by stepping through doors, stepping around 2x2 room pillars, emerging from tall grass, or using Rogue's Cloak of Shadows) currently grant three massive effects simultaneously on *every* weapon:
