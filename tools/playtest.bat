@@ -6,11 +6,11 @@ rem   godot --headless --path . res://tests/run_tests.tscn
 rem   godot --headless --path . res://tests/ui_smoke.tscn
 rem Godot: GODOT, else GODOT_BIN, else godot on PATH (tools\build.sh), else
 rem   C:\Users\dalto\Documents\My Games\idlrPD\Godot_v4.7.2-stable_win64_console.exe
-rem   (the editor exe in that folder is the last fallback).
-rem The console build next to a chosen editor exe is preferred so headless
-rem stdout is captured. Exit code is the first suite Godot failed with.
-rem A double-click waits for a key at the end. PLAYTEST_NO_PAUSE=1 skips that.
-rem exit /b keeps an already-open cmd window open.
+rem   if that file exists, else the editor build (no console exe required):
+rem   C:\Users\dalto\Documents\My Games\idlrPD\Godot_v4.7.2-stable_win64.exe
+rem After each run it prints PASS/FAIL and waits. Press a key to run again,
+rem or close the window to stop. Each run gets its own timestamped log.
+rem exit /b keeps an already-open cmd window open when setup fails.
 
 cd /d "%~dp0\.."
 if errorlevel 1 goto :cd_failed
@@ -20,36 +20,46 @@ if not exist "%~dp0playtest.ps1" goto :no_ps1
 call :find_godot
 if errorlevel 1 goto :failed
 
+set "RUN=0"
+
+:run_loop
+set /a RUN+=1 >nul
+cls
 call :make_log
 if errorlevel 1 goto :failed
 
+echo Run #%RUN%
+echo Godot: %GODOT_EXE%
+echo From:  %GODOT_FROM%
+echo Log:   %LOG%
 echo.
 echo Running run_tests, then ui_smoke.
 echo.
 
-set "FAIL=0"
-
 call :run_suite run_tests "res://tests/run_tests.tscn" 1
 set "RC_TESTS=%SUITE_RC%"
-if not "%RC_TESTS%"=="0" if "%FAIL%"=="0" set "FAIL=%RC_TESTS%"
 
 call :run_suite ui_smoke "res://tests/ui_smoke.tscn" 0
 set "RC_SMOKE=%SUITE_RC%"
-if not "%RC_SMOKE%"=="0" if "%FAIL%"=="0" set "FAIL=%RC_SMOKE%"
 
-set "RESULT=PLAYTEST: FAIL"
-if "%FAIL%"=="0" set "RESULT=PLAYTEST: PASS"
+set "TESTS_WORD=FAIL"
+if "%RC_TESTS%"=="0" set "TESTS_WORD=PASS"
+set "SMOKE_WORD=FAIL"
+if "%RC_SMOKE%"=="0" set "SMOKE_WORD=PASS"
+
 echo.
-echo run_tests exit %RC_TESTS%
-echo ui_smoke exit %RC_SMOKE%
-echo %RESULT%
+echo Run #%RUN%
+echo run_tests %TESTS_WORD%
+echo ui_smoke %SMOKE_WORD%
 echo Log: %LOG%
->>"%LOG%" echo run_tests exit %RC_TESTS%
->>"%LOG%" echo ui_smoke exit %RC_SMOKE%
->>"%LOG%" echo %RESULT%
+>>"%LOG%" echo Run #%RUN%
+>>"%LOG%" echo run_tests %TESTS_WORD%
+>>"%LOG%" echo ui_smoke %SMOKE_WORD%
 >>"%LOG%" echo Log: %LOG%
-call :pause_if_double_clicked
-exit /b %FAIL%
+echo.
+echo Press any key to run again, or close this window to stop.
+pause >nul
+goto :run_loop
 
 :cd_failed
 echo Could not change to the repo root from:
@@ -82,7 +92,7 @@ if "%~3"=="1" goto :run_with_header
 powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%~dp0playtest.ps1" -Godot "%GODOT_EXE%" -Root "%CD%" -Log "%LOG%" -Name "%~1" -Scene "%~2"
 goto :run_suite_done
 :run_with_header
-powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%~dp0playtest.ps1" -Godot "%GODOT_EXE%" -Root "%CD%" -Log "%LOG%" -Name "%~1" -Scene "%~2" -Header
+powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%~dp0playtest.ps1" -Godot "%GODOT_EXE%" -Root "%CD%" -Log "%LOG%" -Name "%~1" -Scene "%~2" -Header -Run %RUN%
 :run_suite_done
 set "SUITE_RC=%ERRORLEVEL%"
 exit /b 0
@@ -101,8 +111,7 @@ if not defined STAMP goto :no_stamp
 set "LOGDIR=%CD%\builds\playtest"
 if not exist "%LOGDIR%" mkdir "%LOGDIR%"
 if not exist "%LOGDIR%" goto :no_logdir
-set "LOG=%LOGDIR%\playtest-%STAMP%.log"
-echo Log: %LOG%
+set "LOG=%LOGDIR%\playtest-%STAMP%-run%RUN%.log"
 exit /b 0
 
 :no_powershell_log
@@ -161,37 +170,29 @@ goto :resolve_ready
 :resolve_ready
 call :strip_quotes
 call :prefer_console
-echo Godot: %GODOT_EXE%
-echo From:  %GODOT_FROM%
-for %%I in ("%GODOT_EXE%") do set "GODOT_NAME=%%~nxI"
-if /I "%GODOT_NAME%"=="Godot_v4.7.2-stable_win64.exe" goto :warn_editor
-exit /b 0
-
-:warn_editor
-echo WARNING: This is the windowed editor binary. Headless output is often empty.
-echo          Install Godot_v4.7.2-stable_win64_console.exe in the same folder,
-echo          or set GODOT to that console exe.
 exit /b 0
 
 :godot_bad_explicit
 echo Godot was not found at the %GODOT_FROM% path:
 echo   %GODOT_EXE%
 echo.
-echo Set GODOT or GODOT_BIN to the full path of Godot_v4.7.2-stable_win64_console.exe.
-echo Documented install:
-echo   %DOC_CONSOLE%
+echo Set GODOT or GODOT_BIN to the full path of the Godot 4.7.2 exe.
+echo This PC's editor build, used when the console exe is not installed:
 echo   %DOC_EDITOR%
+echo Optional console build:
+echo   %DOC_CONSOLE%
 exit /b 1
 
 :godot_missing
 echo Godot 4.7.2 was not found.
 echo.
-echo Set GODOT or GODOT_BIN to the full path of Godot_v4.7.2-stable_win64_console.exe,
+echo Set GODOT or GODOT_BIN to the full path of the Godot 4.7.2 exe,
 echo or put godot on PATH, the same default tools\build.sh uses.
 echo.
-echo This PC's documented install is:
-echo   %DOC_CONSOLE%
+echo This PC's editor build, used when the console exe is not installed:
 echo   %DOC_EDITOR%
+echo Optional console build:
+echo   %DOC_CONSOLE%
 echo The editor path is also in .vscode\settings.json.
 exit /b 1
 

@@ -17,7 +17,7 @@ godot --headless --path . res://tests/run_tests.tscn   # rules/balance/economy/s
 godot --headless --path . res://tests/ui_smoke.tscn    # drives the whole UI loop
 tools/build.sh                                   # tests + Android/Linux/Windows exports + APK verification
 ```
-On Windows, double-click `tools\playtest.bat` (or run it from cmd). It runs both headless suites above and writes a log under `builds/playtest/` (DECISIONS #219).
+On Windows, double-click `tools\playtest.bat` (or run it from cmd). It runs both headless suites above, prints pass or fail, then waits so you can run them again. Each numbered run gets its own log under `builds/playtest/` (DECISIONS #219).
 
 Open the folder in the Godot 4.7 editor (standard build, not .NET) or in Cursor - all game code is GDScript in `scripts/`.
 

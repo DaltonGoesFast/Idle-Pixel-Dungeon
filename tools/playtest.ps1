@@ -9,7 +9,8 @@ param(
     [Parameter(Mandatory = $true)][string]$Log,
     [Parameter(Mandatory = $true)][string]$Name,
     [Parameter(Mandatory = $true)][string]$Scene,
-    [switch]$Header
+    [switch]$Header,
+    [int]$Run = 0
 )
 
 $ErrorActionPreference = "Stop"
@@ -142,6 +143,9 @@ $script:Writer.AutoFlush = $true
 
 try {
     if ($Header) {
+        if ($Run -gt 0) {
+            Write-Both ("Run #" + $Run)
+        }
         Write-Both "SPD Tactics playtest"
         Write-Both ("started: " + (Get-Date -Format "yyyy-MM-dd HH:mm:ss"))
         Write-Both ("root: " + $Root)
