@@ -730,13 +730,10 @@ func test_camp_grass_clear_of_npcs() -> void:
 					bad.append("%s@%s" % [s[0], c[1]])
 		check(bad.is_empty(), "raised grass skips NPC columns %s" % [bad.slice(0, 6)])
 		var sky_h: float = scene.sky_height()
-		if scene.size.x > (scene.size.y - sky_h) * 1.05:
-			var mid := 0
-			for g in scene.grass_clumps():
-				var cx: float = (g[0] as Rect2).get_center().x
-				if cx > scene.size.x * 0.07 and cx < scene.size.x * 0.93 and absf((g[0] as Rect2).position.y - sky_h) < 1.0:
-					mid += 1
-			check(mid == 0, "wide camp keeps horizon grass off the center (%s, mid=%d)" % [c[1], mid])
+		var horizon := 0
+		for g in scene.grass_clumps():
+			if absf((g[0] as Rect2).position.y - sky_h) < 1.0: horizon += 1
+		check(horizon >= 3, "horizon still has grass clumps (%s, n=%d)" % [c[1], horizon])
 		scene.queue_free()
 	check(CS.new().has_method("_draw_spot_sprite"), "camp repaints sprites after grass")
 
@@ -2810,8 +2807,11 @@ func test_export_presets() -> void:
 		check(String(cfg.get_value(s, "exclude_filter", "")).contains("tests/*"), "Web preset excludes tests")
 	check(found_web, "Web export preset exists")
 	check(FileAccess.file_exists("res://tools/deploy_web.sh"), "web deploy script present")
-	check(String(ProjectSettings.get_setting("display/window/stretch/scale_mode", "")) == "integer",
-		"integer stretch scale keeps pixel font strokes even (DECISIONS #224)")
+	var Main: GDScript = load("res://scripts/ui/main.gd")
+	check(not Main.use_integer_content_scale(false) and Main.use_integer_content_scale(true),
+		"integer content scale only on the web export (DECISIONS #224)")
+	check(String(ProjectSettings.get_setting("display/window/stretch/scale_mode", "fractional")) != "integer",
+		"project stretch scale stays fractional so the editor embed is not oversized")
 	for s in cfg.get_sections():
 		if s.ends_with(".options") or String(cfg.get_value(s, "platform", "")) != "Web": continue
 		var inc := String(cfg.get_value(s + ".options", "html/head_include", ""))

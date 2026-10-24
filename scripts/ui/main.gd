@@ -22,7 +22,13 @@ const TIP_LAYER := 100
 var tip_layer: CanvasLayer
 var _id_timer := 0.0
 
+## DECISIONS #224: only the browser build needs integer content scale (CSS/DPR wobble). Editor and native exports keep fractional.
+static func use_integer_content_scale(is_web: bool = OS.has_feature("web")) -> bool:
+	return is_web
+
 func _ready() -> void:
+	var root := get_tree().root
+	root.content_scale_stretch = Window.CONTENT_SCALE_STRETCH_INTEGER if use_integer_content_scale() else Window.CONTENT_SCALE_STRETCH_FRACTIONAL
 	set_anchors_and_offsets_preset(PRESET_FULL_RECT)
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	var bg := ColorRect.new(); bg.color = Color("1b1712"); bg.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
