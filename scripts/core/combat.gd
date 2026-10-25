@@ -21,6 +21,10 @@ enum T { FLOOR, WALL, GRASS, DOOR, CHASM, WATER }
 const SIZE := 8   # default / legacy; each fight uses w x h from its room
 const DIRS := [Vector2i(1,0),Vector2i(-1,0),Vector2i(0,1),Vector2i(0,-1),Vector2i(1,1),Vector2i(1,-1),Vector2i(-1,1),Vector2i(-1,-1)]
 const BOLT_RANGE := 6
+## SPD ShadowCaster.MAX_DISTANCE — circular FOV rounding table is built up to this.
+const FOV_MAX := 20
+## Precomputed SPD `ShadowCaster.rounding[dist][row]` (lazy). Empty until `_ensure_fov_rounding`.
+static var _fov_rounding: Array = []
 
 var w := SIZE
 var h := SIZE
@@ -257,12 +261,89 @@ func is_danger(p: Vector2i) -> bool:
 static func cheb(a: Vector2i, b: Vector2i) -> int:
 	return maxi(absi(a.x - b.x), absi(a.y - b.y))
 
-## Clear line for vision: no walls, tall grass, or closed doors between a and b.
+## SPD FOV (ShadowCaster): true when `b` is in the circular shadowcast from `a`.
+## Walls, tall grass and closed doors block; units do not. Projectiles still use `line_clear` (Ballistica).
 func sees(a: Vector2i, b: Vector2i) -> bool:
-	var pts := _line(a, b)
-	for i in range(1, pts.size() - 1):
-		if blocks_sight(pts[i]): return false
-	return true
+	if a == b: return true
+	if not in_bounds(a) or not in_bounds(b): return false
+	return _cast_fov(a).has(b)
+
+## Build SPD-style FOV from `origin` (set of visible Vector2i). viewDistance covers the arena.
+func _cast_fov(origin: Vector2i) -> Dictionary:
+	_ensure_fov_rounding()
+	var dist := mini(FOV_MAX, maxi(w, h))
+	var fov := {}
+	var blocking := {}
+	for y in h:
+		for x in w:
+			var p := Vector2i(x, y)
+			if blocks_sight(p): blocking[p] = true
+	fov[origin] = true
+	_scan_octant(dist, fov, blocking, 1, origin, 0.0, 1.0, 1, -1, false)
+	_scan_octant(dist, fov, blocking, 1, origin, 0.0, 1.0, -1, 1, true)
+	_scan_octant(dist, fov, blocking, 1, origin, 0.0, 1.0, 1, 1, true)
+	_scan_octant(dist, fov, blocking, 1, origin, 0.0, 1.0, 1, 1, false)
+	_scan_octant(dist, fov, blocking, 1, origin, 0.0, 1.0, -1, 1, false)
+	_scan_octant(dist, fov, blocking, 1, origin, 0.0, 1.0, 1, -1, true)
+	_scan_octant(dist, fov, blocking, 1, origin, 0.0, 1.0, -1, -1, true)
+	_scan_octant(dist, fov, blocking, 1, origin, 0.0, 1.0, -1, -1, false)
+	return fov
+
+static func _ensure_fov_rounding() -> void:
+	if not _fov_rounding.is_empty(): return
+	_fov_rounding.resize(FOV_MAX + 1)
+	for i in range(1, FOV_MAX + 1):
+		var row: Array = []
+		row.resize(i + 1)
+		row[0] = 0
+		for j in range(1, i + 1):
+			row[j] = mini(j, int(round(float(i) * cos(asin(float(j) / (float(i) + 0.5))))))
+		_fov_rounding[i] = row
+
+## One 45° octant of SPD ShadowCaster.scanOctant (mX/mY/mXY mirror the octant).
+func _scan_octant(distance: int, fov: Dictionary, blocking: Dictionary, row: int, origin: Vector2i,
+		l_slope: float, r_slope: float, m_x: int, m_y: int, m_xy: bool) -> void:
+	var rounding_at: Array = _fov_rounding[distance]
+	if distance == 2:
+		rounding_at = rounding_at.duplicate()
+		rounding_at[2] = 2
+	var in_blocking := false
+	var r := row
+	while r <= distance:
+		if r_slope < l_slope: return
+		var start: int = 0 if l_slope == 0.0 else int(floor((float(r) - 0.5) * l_slope + 0.499))
+		var end: int
+		if r_slope == 1.0:
+			end = int(rounding_at[r])
+		else:
+			end = mini(int(rounding_at[r]), int(ceil((float(r) + 0.5) * r_slope - 0.499)))
+		var col := start
+		while col <= end:
+			if col == end and in_blocking and int(ceil((float(r) - 0.5) * r_slope - 0.499)) != end:
+				break
+			var cx: int
+			var cy: int
+			if m_xy:
+				cx = origin.x + m_y * r
+				cy = origin.y + m_x * col
+			else:
+				cx = origin.x + m_x * col
+				cy = origin.y + m_y * r
+			var cell := Vector2i(cx, cy)
+			if in_bounds(cell):
+				fov[cell] = true
+				if blocking.has(cell):
+					if not in_blocking:
+						in_blocking = true
+						if col != start:
+							_scan_octant(distance, fov, blocking, r + 1, origin, l_slope,
+									(float(col) - 0.5) / (float(r) + 0.5), m_x, m_y, m_xy)
+				elif in_blocking:
+					in_blocking = false
+					l_slope = (float(col) - 0.5) / (float(r) - 0.5)
+			col += 1
+		if in_blocking: return
+		r += 1
 
 ## Clear straight-ish line with no walls/units between a and b (bolt/path blockers that include bodies).
 func line_clear(a: Vector2i, b: Vector2i) -> bool:
@@ -1264,8 +1345,17 @@ func _mob_act(m: Dictionary) -> void:
 	# of closing to melee, and reload there (DECISIONS #155)
 	if m.get("holds_range", false) and in_view and _in_shot_range(m) and (m.get("zap_beam", false) or mob_can_shoot(m)):
 		return
+	# SPD Wandering.continueWandering: walk toward a destination; when stuck/arrived, pick another.
+	# Destinations are deterministic (no combat RNG) so tests stay reproducible (DECISIONS #176).
 	if not in_view and m.get("state", "hunting") == "wandering":
-		return   # lost the hero: searches where it gave up (SPD wanders to a random cell; we have no RNG)
+		if not m.has("aim") or m.aim == m.pos:
+			m.aim = _wander_dest(m)
+		var wstep = mob_step(m, m.aim)
+		if wstep != null:
+			_place(m, wstep)
+		else:
+			m.aim = _wander_dest(m)
+		return
 	var target: Vector2i = hero.pos if in_view else m.aim
 	var step = mob_step(m, target)
 	if step != null:
@@ -1274,6 +1364,26 @@ func _mob_act(m: Dictionary) -> void:
 		# SPD handleUnreachableTarget: reached the target cell (or can't get closer) without seeing the hero
 		m.state = "wandering"
 		_log("%s has lost track of you." % m.name); _ev({"t": "lost", "uid": m.uid})
+		m.aim = _wander_dest(m)
+
+## SPD Level.randomDestination — a passable, trap-free cell other than the mob's, chosen deterministically.
+func _wander_dest(m: Dictionary) -> Vector2i:
+	var cells: Array = []
+	for y in h:
+		for x in w:
+			var p := Vector2i(x, y)
+			if p != m.pos and passable(p) and not traps.has(p) and unit_at(p) == null:
+				cells.append(p)
+	if cells.is_empty():
+		for y2 in h:
+			for x2 in w:
+				var p2 := Vector2i(x2, y2)
+				if p2 != m.pos and passable(p2) and not traps.has(p2):
+					cells.append(p2)
+	if cells.is_empty(): return m.pos
+	var hsh := int(m.uid) * 374761393 + int(m.get("acts", 0)) * 668265263 + int(floor(time * 2.0))
+	hsh = (hsh ^ (hsh >> 16)) & 0x7fffffff
+	return cells[hsh % cells.size()]
 
 ## SPD Mob.getCloser: the next step towards target (the cell itself; an occupied target is approached to adjacent).
 ## Full path routes around other characters; if they force a route more than twice as long as the path ignoring

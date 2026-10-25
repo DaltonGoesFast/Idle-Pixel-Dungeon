@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Enemy vision uses SPD shadowcasting instead of Bresenham, so corner peeks match vanilla FOV and no longer strip awareness / grant Surprise by mistake. After losing you, mobs wander to deterministic search cells instead of freezing in place (DECISIONS #176, +tests).
 
 ## 0.49.3
 - Desktop interface mode: PC combat can use a full-bleed grid, a roomier bottom toolbar, and a combat log on the left. Settings switches Mobile and Desktop and remaps the combat keys. The toolbar Menu opens the same Settings panel as Camp and Delve. Status and delve bars stay phone-width on ultrawide screens, and SPD bar fills keep their rounded corners when they stretch wide.

@@ -38,6 +38,7 @@ func _ready() -> void:
 	test_doors_grass(gs)
 	test_sprite_draw(gs)
 	test_spd_ai_doors(gs)
+	test_spd_fov_corners(gs)
 	test_lose_enemies(gs)
 	test_rooms_surprise(gs)
 	test_paperdoll(gs)
@@ -4991,8 +4992,14 @@ func test_spd_ai_doors(gs) -> void:
 	check(c.door_closed(door), "the door shuts behind it once nobody stands in it")
 	c._mob_act(rat)
 	check(rat.state == "wandering" and rat.pos == Vector2i(4, 4), "on the target without seeing the hero it gives up (SPD showLost -> wandering)")
-	c._mob_act(rat)
-	check(rat.pos == Vector2i(4, 4), "a wandering mob does not home in on an unseen hero (no omniscience)")
+	check(rat.aim != Vector2i(4, 4), "wandering picks a search cell (SPD randomDestination)")
+	var left_give_up := false
+	for _i in 8:
+		c._mob_act(rat)
+		if rat.pos != Vector2i(4, 4): left_give_up = true; break
+	check(left_give_up, "wandering leaves the give-up cell to search (SPD continueWandering)")
+	check(rat.pos != Vector2i(7, 7), "a wandering mob does not home in on an unseen hero (no omniscience)")
+	rat.pos = Vector2i(4, 4); rat.state = "wandering"; rat.aim = Vector2i(1, 1); rat.seen_hero = false
 	c.hero.pos = Vector2i(4, 6); c.terrain[6][6] = Combat.T.FLOOR
 	c._mob_act(rat)
 	check(rat.state == "hunting" and rat.aim == Vector2i(4, 6), "seeing the hero again resumes the hunt")
@@ -5022,6 +5029,31 @@ func test_spd_ai_doors(gs) -> void:
 	check(c4.door_closed(door), "a second death then a pass-through shuts it again")
 	var c3 := Combat.new(); c3.setup(DB.rooms[0], warrior(gs), 20, ["rat"])
 	check(c3.remains.is_empty(), "a new fight starts with every door shut")
+
+## DECISIONS #176: SPD ShadowCaster FOV (not Bresenham) for sees(); closed door / tall grass still block.
+func test_spd_fov_corners(gs) -> void:
+	print("[spd fov corners]")
+	var c := Combat.new(); c.setup(DB.rooms[0], warrior(gs), 20, ["rat"])
+	for y in Combat.SIZE:
+		for x in Combat.SIZE: c.terrain[y][x] = Combat.T.FLOOR
+	# Single corner wall: SPD shadowcasting keeps open peeks; the umbra behind the wall stays dark.
+	# Bresenham from (2,2) to (4,3) steps through (3,3) and blocks; FOV still sees around the corner.
+	c.terrain[3][3] = Combat.T.WALL
+	check(c.sees(Vector2i(2, 3), Vector2i(3, 2)), "diagonal around a single corner wall stays visible (SPD FOV)")
+	check(c.sees(Vector2i(2, 2), Vector2i(4, 3)), "peek past a single corner wall stays visible (SPD FOV vs Bresenham)")
+	check(not c.sees(Vector2i(2, 2), Vector2i(4, 4)), "cells directly behind the corner wall are not visible")
+	check(not c.sees(Vector2i(2, 3), Vector2i(4, 3)), "cardinal line through the wall is blocked")
+	# Continuous FOV across mob turns: no Surprise while the rat keeps seeing the hero
+	var rat: Dictionary = c.enemies()[0]
+	rat.pos = Vector2i(2, 3); c.hero.pos = Vector2i(3, 2); rat.state = "hunting"
+	c._mob_act(rat)
+	check(rat.seen_hero and not c.surprise_against(rat), "while continuously in SPD FOV the rat stays aware (no Surprise)")
+	# Closed door and tall grass still block
+	c.terrain[3][3] = Combat.T.FLOOR
+	c.terrain[3][4] = Combat.T.DOOR
+	check(c.door_closed(Vector2i(4, 3)) and not c.sees(Vector2i(4, 1), Vector2i(4, 5)), "closed door still blocks SPD FOV")
+	c.terrain[3][4] = Combat.T.GRASS
+	check(not c.sees(Vector2i(4, 1), Vector2i(4, 5)), "tall grass still blocks SPD FOV")
 
 ## DECISIONS #177: SPD "lose them around a pillar / grass": break sight, the mob walks to your last-seen cell and
 ## arrives unaware, your swing is a Surprise, and the attack reveals you. Driven through hero_tap + the real clock.
