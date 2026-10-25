@@ -16,8 +16,6 @@ var desk: VBoxContainer
 var desk_mid: HBoxContainer
 var grid
 var side: VBoxContainer
-## Wide Mobile only: soaks leftover width so the side column stays phone-sized on ultrawide PC (DECISIONS #236).
-var wide_spacer: Control
 var header_label: Label
 var status: Label
 ## Desktop only: hosts the one-line status under the pane. Mobile folds tips into the log.
@@ -123,7 +121,6 @@ func apply_layout(portrait: bool, s: Vector2, desk_ui := false) -> void:
 		split.vertical = portrait
 		grid.size_flags_vertical = SIZE_SHRINK_BEGIN if portrait else SIZE_FILL
 		if pane: pane.set_max_w(0.0); pane.size_flags_horizontal = SIZE_EXPAND_FILL
-		_fit_mobile_wide_flags(portrait)
 	_refresh()
 
 ## Desktop: keep the status strip phone-wide instead of spanning the whole monitor.
@@ -156,8 +153,7 @@ func _assemble_chrome() -> void:
 	for c in get_children():
 		remove_child(c)
 		c.queue_free()
-	split = null; desk = null; desk_mid = null; side = null; wide_spacer = null
-	toolbar_scroll = null; buttons = null
+	split = null; desk = null; desk_mid = null; side = null; toolbar_scroll = null; buttons = null
 	status_host = null
 	result_layer = null
 	if desktop_ui:
@@ -233,58 +229,31 @@ func _assemble_chrome() -> void:
 		buttons.size_flags_horizontal = SIZE_EXPAND_FILL
 		buttons.size_flags_vertical = SIZE_SHRINK_BEGIN
 		side.clip_contents = true
-		wide_spacer = Control.new(); wide_spacer.name = "WideSpacer"
-		wide_spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		wide_spacer.visible = false
-		split.add_child(wide_spacer)
 
 ## The side column never gets less than SIDE_MIN_FS font sizes, nor less than what its widest row needs.
 const SIDE_MIN_FS := 13.0
-## Ultrawide Mobile: side column stays near phone width so the D-pad does not eat the monitor (DECISIONS #236).
-const SIDE_MAX_FS := 20.0
-## Wide layout: the grid is a square that leaves room for a capped side column (status, buttons, Victory card).
-## Older code used min(height, 60% width) and let the side expand into the rest, so on a PC fullscreen the D-pad
-## scaled off the full window width. Re-run after every _refresh: the Victory card only exists once the fight is over.
-static func wide_side_cap(area: Vector2) -> float:
-	return floorf(minf(area.x * 0.45, UIKit.font_size * SIDE_MAX_FS))
-
-static func wide_side_width(area: Vector2, side_min: float, sep: float) -> float:
-	var need := maxf(side_min, UIKit.font_size * SIDE_MIN_FS)
-	return floorf(minf(wide_side_cap(area), maxf(need, UIKit.font_size * SIDE_MIN_FS)))
+## Ultrawide Mobile: D-pad basis cap so controls stay finger-sized while the side column still fills leftover width (DECISIONS #236).
+const PAD_BASIS_MAX_FS := 20.0
+## Wide layout: the grid is a square of at most 60% of the width, and gives up width so the side column (status,
+## buttons, the Victory card) fits. The side expands into leftover space (fills the monitor); only the D-pad is
+## capped (#236). Re-run after every _refresh: the Victory card only exists once the fight is over.
+static func wide_pad_basis(area: Vector2) -> float:
+	return floorf(minf(area.x * 0.45, UIKit.font_size * PAD_BASIS_MAX_FS))
 
 static func wide_grid_side(area: Vector2, side_min: float, sep: float) -> float:
-	var side_w := wide_side_width(area, side_min, sep)
-	return floorf(maxf(0.0, minf(area.y, area.x - side_w - sep)))
-
-## Portrait: side fills width. Wide: side is capped, spacer takes leftover ultrawide slack.
-func _fit_mobile_wide_flags(portrait: bool) -> void:
-	if side == null: return
-	if portrait:
-		side.size_flags_horizontal = SIZE_EXPAND_FILL
-		side.custom_minimum_size.x = 0.0
-		if wide_spacer:
-			wide_spacer.visible = false
-			wide_spacer.size_flags_horizontal = SIZE_SHRINK_BEGIN
-			wide_spacer.custom_minimum_size = Vector2.ZERO
-	else:
-		side.size_flags_horizontal = SIZE_SHRINK_BEGIN
-		if wide_spacer:
-			wide_spacer.visible = true
-			wide_spacer.size_flags_horizontal = SIZE_EXPAND_FILL
-			wide_spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var need := maxf(side_min, UIKit.font_size * SIDE_MIN_FS)
+	return floorf(maxf(0.0, minf(area.y, minf(area.x * 0.6, area.x - need - sep))))
 
 func _desk_toolbar_h() -> float:
 	return UIKit.btn_height() * 1.25 + 8.0
 
-## D-pad cell size: fills the side column (wide) or about half the combat width (portrait), never the whole ultrawide.
+## D-pad cell size: portrait uses half the combat width; wide uses a phone-sized basis, not the full ultrawide side.
 func _mobile_pad_cell() -> float:
 	var basis: float
 	if _portrait:
 		basis = _area.x * 0.48 if _area.x > 0.0 else UIKit.font_size * 10.0
-	elif side != null and side.size.x > 1.0:
-		basis = side.size.x
 	elif _area != Vector2.ZERO:
-		basis = wide_side_cap(_area)
+		basis = wide_pad_basis(_area)
 	else:
 		basis = UIKit.font_size * 10.0
 	var half := basis * 0.95
@@ -348,14 +317,8 @@ func _fit_split() -> void:
 		if log_scroll:
 			log_scroll.custom_minimum_size.y = UIKit.font_size * 3
 		return
-	var sep := float(split.get_theme_constant("separation")) if split else 12.0
-	var smin := side_min_width()
-	var side_w := wide_side_width(_area, smin, sep)
-	var g := wide_grid_side(_area, smin, sep)
+	var g := wide_grid_side(_area, side_min_width(), float(split.get_theme_constant("separation")))
 	grid.custom_minimum_size = Vector2(g, g)
-	if side:
-		side.custom_minimum_size.x = side_w
-	_fit_mobile_wide_flags(false)
 
 ## The widest row the side column needs, leaving out the combat log: its fit_content RichTextLabel reports the width
 ## it was last laid out at, so after a wide layout a smaller window would keep that width as the column's floor and
