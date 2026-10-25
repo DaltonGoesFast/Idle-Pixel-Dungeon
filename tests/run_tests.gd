@@ -103,6 +103,7 @@ func _ready() -> void:
 	test_encounter_restart(gs)
 	await test_encounter_summary(gs)
 	await test_info_fit_out_of_tree(gs)
+	await test_info_popup_height(gs)
 	await test_menu_toast(gs)
 	test_log_and_sounds(gs)
 	test_ring_contexts(gs)
@@ -3042,6 +3043,75 @@ func test_info_fit_out_of_tree(gs) -> void:
 	await get_tree().process_frame
 	check(not cs.is_inside_tree() and is_instance_valid(cs), "out of the tree, the deferred fit is skipped without touching the viewport")
 	cs.free()
+
+## DECISIONS #240: an autowrap title with no width caches one glyph per line. set_size clamps up to that
+## minimum and never shrinks, so "Forge Worn Shortsword" ran to the bottom of the Fold while "Forge Shortsword" fit.
+func test_info_popup_height(gs) -> void:
+	print("[info popup height]")
+	gs.new_game()
+	gs.facilities.blacksmith.level = 3
+	gs.facilities.blacksmith.cap = 3
+	gs.mats.gold = 0
+	gs.mats.iron_ore = 0
+	var old_root := get_tree().root.size
+	var fs0 := UIKit.font_size
+	get_tree().root.size = Vector2i(968, 2376)
+	var holder := Control.new()
+	holder.theme = UIKit.make_theme(40)
+	holder.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	holder.size = Vector2(968, 2376)
+	add_child(holder)
+	var cs = load("res://scripts/ui/camp_screen.gd").new()
+	holder.add_child(cs)
+	cs.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	cs.size = holder.size
+	await get_tree().process_frame
+	var vs: Vector2 = get_viewport().get_visible_rect().size
+	cs.open_page("Forge")
+	await get_tree().process_frame
+	var page: Control = cs.win_layer.find_children("*", "PanelContainer", true, false)[0]
+	check(page.size.y > vs.y * 0.85, "facility pages stay full height (%.0f)" % page.size.y)
+	var heights := {}
+	for rid in ["forge_worn_shortsword", "forge_shortsword"]:
+		var r: Dictionary = gs.recipe("blacksmith", rid)
+		cs._recipe_info("blacksmith", r, String(r.out), cs._recipe_lines(r), gs.can_craft("blacksmith", r.id))
+		var pc: Control = cs.info_layer.find_children("*", "PanelContainer", true, false)[0]
+		var sc: ScrollContainer = cs.info_layer.find_children("*", "ScrollContainer", true, false)[0]
+		var body: Control = sc.get_child(0)
+		var pmin: float = pc.get_combined_minimum_size().y
+		var bmin: float = body.get_combined_minimum_size().y
+		check(pmin < vs.y * 0.42 and bmin < vs.y * 0.42, "%s minimum is content-sized before layout (panel %.0f body %.0f)" % [r.name, pmin, bmin])
+		pc.size.y = 400.0
+		check(pc.size.y < vs.y * 0.42, "%s does not clamp up to a collapsed-title minimum (%.0f)" % [r.name, pc.size.y])
+		for _i in 3: await get_tree().process_frame
+		check(pc.size.y < vs.y * 0.5 and pc.size.y <= vs.y * 0.8 + 1.0, "%s window fits under half the cover (%.0f)" % [r.name, pc.size.y])
+		var need: Label = null
+		for l in pc.find_children("*", "Label", true, false):
+			if String(l.text).begins_with("need "): need = l
+		check(need != null, "%s shows the need line" % r.name)
+		if need:
+			var slack: float = pc.get_global_rect().end.y - need.get_global_rect().end.y
+			check(slack >= -2.0 and slack <= UIKit.font_size * 3.0, "%s window ends just under the need line (slack %.0f, h %.0f)" % [r.name, slack, pc.size.y])
+		heights[rid] = pc.size.y
+		cs._close_info()
+	check(absf(float(heights["forge_worn_shortsword"]) - float(heights["forge_shortsword"])) <= UIKit.font_size * 2.0,
+		"Worn Shortsword and Shortsword windows are the same height (%.0f vs %.0f)" % [heights["forge_worn_shortsword"], heights["forge_shortsword"]])
+	var lines: Array = []
+	for i in 40:
+		lines.append("Line %d of a long note that should scroll inside the popup rather than grow past the screen." % i)
+	cs.info("gold", "A very long note", lines, [])
+	for _i in 3: await get_tree().process_frame
+	var lpc: Control = cs.info_layer.find_children("*", "PanelContainer", true, false)[0]
+	var lsc: ScrollContainer = cs.info_layer.find_children("*", "ScrollContainer", true, false)[0]
+	var bar := lsc.get_v_scroll_bar()
+	check(lpc.size.y <= vs.y * 0.8 + 1.0, "a long info popup stays inside the screen (%.0f)" % lpc.size.y)
+	check(bar.max_value > bar.page + 1.0, "a long info popup scrolls instead of growing")
+	cs._close_info()
+	cs.close_page()
+	holder.queue_free()
+	get_tree().root.size = old_root
+	UIKit.make_theme(fs0)
+	await get_tree().process_frame
 
 ## A reward toast emitted before the floor menu opens must sit in the card, above the buttons.
 func test_menu_toast(gs) -> void:
