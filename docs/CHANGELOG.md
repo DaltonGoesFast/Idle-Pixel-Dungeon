@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Update checks re-run when the app resumes (and periodically from Camp), so Android no longer needs a force-close to notice a new release. Camp Settings shows a red badge when an update is ready, and the header Update button appears as soon as the check finishes (DECISIONS #242, +tests).
 - A new game starts with free Worn Shortsword and Cloth Armor as party camp gear (visible on the paperdoll). Empty camp slots on load get the same defaults. They never crack; forging a better sword or armor replaces them (DECISIONS #234).
 
 ## 0.50.2

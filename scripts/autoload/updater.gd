@@ -1,5 +1,6 @@
 ## Updater: check GitHub releases and download the platform asset (Android APK / Windows zip).
 ## Not part of the save. Android hands the APK to the system installer; Windows opens the zip.
+## Auto-checks on launch and when the app resumes (DECISIONS #242); Camp shows a Settings badge.
 extends Node
 
 signal changed
@@ -10,6 +11,8 @@ const USER_AGENT := "SPD-Tactics-Updater"
 const UPDATE_DIR := "user://updates"
 const CHECK_TIMEOUT := 20.0      # the releases/latest JSON is small; don't sit on "Checking…" for minutes
 const DOWNLOAD_TIMEOUT := 600.0  # the APK / zip is tens of MB
+const RECHECK_COOLDOWN := 300.0  # automatic rechecks at most every 5 min (GitHub: 60/hour/IP)
+const ERROR_RECHECK_COOLDOWN := 60.0  # retry sooner after a failed check (no network / HTTP error)
 
 enum State { IDLE, CHECKING, READY, DOWNLOADING, DONE, ERROR }
 
@@ -25,6 +28,7 @@ var local_path := ""
 var _http: HTTPRequest
 var _mode := ""   # "check" | "download"
 var _poll_left := 0.0
+var _last_check_unix := 0.0
 
 func _ready() -> void:
 	_http = HTTPRequest.new()
@@ -33,6 +37,13 @@ func _ready() -> void:
 	_http.use_threads = true
 	add_child(_http)
 	_http.request_completed.connect(_on_http)
+	# First check without waiting for Camp or Settings to open (Android often stays warm in memory).
+	maybe_check()
+
+func _notification(what: int) -> void:
+	# Sideloaded Android keeps the process alive; closing from Recents was the only reliable recheck.
+	if what == NOTIFICATION_APPLICATION_RESUMED or what == NOTIFICATION_APPLICATION_FOCUS_IN:
+		maybe_check()
 
 func supports_platform() -> bool:
 	return asset_suffix() != ""
@@ -93,12 +104,38 @@ static func pick_asset(assets, version: String, suffix: String) -> Dictionary:
 func has_update() -> bool:
 	return state == State.READY or state == State.DOWNLOADING or (state == State.DONE and remote_version != "")
 
+## True when an automatic check should run (cooldown elapsed, not mid-download / mid-check).
+## Skips while READY/DONE — the Camp badge and Update button already show the known update.
+func should_auto_check() -> bool:
+	if not supports_platform():
+		return false
+	if state == State.CHECKING or state == State.DOWNLOADING:
+		return false
+	if state == State.READY or state == State.DONE:
+		return false
+	if _last_check_unix <= 0.0:
+		return true
+	var cool := ERROR_RECHECK_COOLDOWN if state == State.ERROR else RECHECK_COOLDOWN
+	return Time.get_unix_time_from_system() - _last_check_unix >= cool
+
+## Quiet recheck used on launch, resume, and Camp rebuild. `force` bypasses the cooldown
+## (Settings "Check for update" / Try again still call `check_now` / `start_update` directly).
+func maybe_check(force := false) -> void:
+	if force:
+		if state == State.CHECKING or state == State.DOWNLOADING:
+			return
+		check_now()
+		return
+	if should_auto_check():
+		check_now()
+
 func check_now() -> void:
 	if not supports_platform():
 		_set_state(State.IDLE, "")
 		return
 	if state == State.CHECKING or state == State.DOWNLOADING:
 		return
+	_last_check_unix = Time.get_unix_time_from_system()
 	_mode = "check"
 	_set_state(State.CHECKING, "Checking…")
 	_http.timeout = CHECK_TIMEOUT

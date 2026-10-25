@@ -17,7 +17,7 @@ Tips:
 
 `tests/run_tests.gd [subclass]` covers Tengu's Mask, permanent choice, save/load and each perk hook; `[cavesrun]` prints Caves clears per class and subclass (best Rogue subclass must reach 4/10).
 
-`[updater]` covers version compare, asset pick, and bad GitHub replies (null/odd `assets` or `tag_name`, non-JSON, HTTP 403, no network): each must end in ERROR, never stay on CHECKING. No network access in tests.
+`[updater]` covers version compare, asset pick, bad GitHub replies (null/odd `assets` or `tag_name`, non-JSON, HTTP 403, no network — each must end in ERROR, never stay on CHECKING), and auto-recheck cooldown / resume rules (DECISIONS #242: skip while READY, short retry after ERROR). No network access in tests.
 `[export presets]` checks Android/iOS/project.godot versions stay in lockstep, Android uses Gradle, and iOS does not duplicate `ITSAppUsesNonExemptEncryption` in `additional_plist_content`.
 
 Screenshots: `SHOTS=caves,dm300` (comma list of step names) renders only those steps; long full runs on software GL can drop textures in later shots (DECISIONS #60).

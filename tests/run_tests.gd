@@ -3221,6 +3221,24 @@ func test_updater() -> void:
 	check(Updater.pick_asset(null, "0.29.0", ".apk").is_empty() and Updater.pick_asset("x", "0.29.0", ".apk").is_empty(), "non-array assets pick nothing")
 	check(Updater.pick_asset([5, {"name": null}, {"name": "spd-tactics-v0.29.0.apk", "browser_download_url": null}], "0.29.0", ".apk").is_empty(), "assets with null name/url are skipped")
 	check(Updater.CHECK_TIMEOUT <= 30.0 and Updater.DOWNLOAD_TIMEOUT >= 300.0, "short timeout for the check, long one for the download")
+	# DECISIONS #242: auto-recheck cooldown, resume path, and skip while an update is already known
+	var saved_last: float = Updater._last_check_unix
+	Updater._last_check_unix = 0.0
+	Updater.state = Updater.State.IDLE
+	check(Updater.should_auto_check() == Updater.supports_platform(), "fresh idle wants an auto-check on supported platforms")
+	Updater._last_check_unix = Time.get_unix_time_from_system()
+	check(not Updater.should_auto_check(), "cooldown blocks an immediate second auto-check")
+	Updater.state = Updater.State.ERROR
+	Updater._last_check_unix = Time.get_unix_time_from_system() - Updater.ERROR_RECHECK_COOLDOWN - 1.0
+	check(Updater.should_auto_check() == Updater.supports_platform(), "failed checks re-try after the short error cooldown")
+	Updater.state = Updater.State.READY
+	Updater.remote_version = "9.9.9"
+	check(Updater.has_update() and not Updater.should_auto_check(), "READY keeps the badge and does not re-hit the API")
+	Updater.state = Updater.State.IDLE
+	Updater.remote_version = ""
+	Updater._last_check_unix = Time.get_unix_time_from_system() - Updater.RECHECK_COOLDOWN - 1.0
+	check(Updater.should_auto_check() == Updater.supports_platform(), "idle after the long cooldown wants another check")
+	Updater._last_check_unix = saved_last
 	Updater.state = saved_state; Updater.status_text = saved_text
 
 ## DECISIONS #136: iOS export preset must not inject a second ITSAppUsesNonExemptEncryption into Info.plist,

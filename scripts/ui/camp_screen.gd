@@ -23,6 +23,7 @@ var win_layer: Control       # page window
 var info_layer: Control      # item info popup (on top of the window)
 var _update_btn: Button      # Camp header Update control (Android / Windows)
 var journal_btn: Button      # Camp header Journal button: carries the unclaimed-milestone count (DECISIONS #195)
+var settings_btn: Button     # Camp header Settings: red badge when an update is ready (DECISIONS #242)
 const PAGE_ORDER := ["Delve", "Heroes", "Stash", "Forge", "Alchemy", "Enchanter", "Guild", "Journal", "Settings"]
 const TAB_ORDER := PAGE_ORDER   # kept for older tests/tools
 const PAGE_ICONS := {"Delve": "enter", "Heroes": "rankings", "Stash": "backpack_lrg", "Forge": "challenge", "Alchemy": "alchemy",
@@ -35,21 +36,15 @@ func _ready() -> void:
 	_build_shell()
 	GameState.changed.connect(rebuild)
 	Updater.changed.connect(_on_updater)
-	if Updater.supports_platform() and Updater.state == Updater.State.IDLE:
-		Updater.check_now()
+	Updater.maybe_check()
 	rebuild()
 
 func _on_updater() -> void:
 	if not is_inside_tree() or root_box == null:
 		return
-	# Full rebuild when the header Update button appears/disappears; otherwise just retitle it.
-	var want := Updater.supports_platform() and Updater.has_update()
-	if want == (_update_btn != null and is_instance_valid(_update_btn)):
-		if _update_btn != null and is_instance_valid(_update_btn):
-			_update_btn.text = _camp_update_label()
-			_update_btn.disabled = Updater.state == Updater.State.DOWNLOADING or Updater.state == Updater.State.CHECKING
-		return
-	rebuild()
+	# Add/remove the header Update button in place — do not rebuild the shell (that closed open pages).
+	_sync_update_btn()
+	_settings_dot()
 
 func _camp_update_label() -> String:
 	if Updater.state == Updater.State.DOWNLOADING:
@@ -57,6 +52,34 @@ func _camp_update_label() -> String:
 	if Updater.remote_version != "":
 		return "Update v%s" % Updater.remote_version
 	return "Update"
+
+## Keep the CampTopBar Update control in sync with Updater without rebuilding the hub.
+func _sync_update_btn() -> void:
+	var top := find_child("CampTopBar", true, false) as HBoxContainer
+	if top == null:
+		return
+	var want := Updater.supports_platform() and Updater.has_update()
+	var have := _update_btn != null and is_instance_valid(_update_btn)
+	if want and have:
+		_update_btn.text = _camp_update_label()
+		_update_btn.disabled = Updater.state == Updater.State.DOWNLOADING or Updater.state == Updater.State.CHECKING
+		return
+	if have and not want:
+		top.remove_child(_update_btn)
+		_update_btn.queue_free()
+		_update_btn = null
+		return
+	if want and not have:
+		_update_btn = UIKit.button(_camp_update_label(), func(): Updater.start_update())
+		_update_btn.disabled = Updater.state == Updater.State.DOWNLOADING or Updater.state == Updater.State.CHECKING
+		_update_btn.size_flags_horizontal = SIZE_SHRINK_END
+		_update_btn.size_flags_vertical = SIZE_SHRINK_CENTER
+		_update_btn.custom_minimum_size.x = UIKit.font_size * 6
+		_update_btn.name = "UpdateButton"
+		var j := top.get_node_or_null("JournalButton")
+		var at := j.get_index() if j != null else top.get_child_count()
+		top.add_child(_update_btn)
+		top.move_child(_update_btn, at)
 
 func apply_layout(p: bool, _size: Vector2, _desktop := false) -> void:
 	if p == portrait and root_box != null: rebuild(); return
@@ -78,6 +101,7 @@ func _build_shell() -> void:
 		_update_btn.disabled = Updater.state == Updater.State.DOWNLOADING or Updater.state == Updater.State.CHECKING
 		_update_btn.size_flags_horizontal = SIZE_SHRINK_END; _update_btn.size_flags_vertical = SIZE_SHRINK_CENTER
 		_update_btn.custom_minimum_size.x = UIKit.font_size * 6
+		_update_btn.name = "UpdateButton"
 		top.add_child(_update_btn)
 	for p in ["Journal", "Settings"]:
 		var b := UIKit.as_toolbar(UIKit.button("", func(): open_page(p)), PAGE_ICONS[p])
@@ -85,6 +109,7 @@ func _build_shell() -> void:
 		b.size_flags_horizontal = SIZE_SHRINK_END; b.size_flags_vertical = SIZE_SHRINK_CENTER; b.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		b.name = p + "Button"
 		if p == "Journal": journal_btn = b
+		elif p == "Settings": settings_btn = b
 		top.add_child(b)
 	# resource strip in an SPD toast frame: one row that scrolls sideways, so it never pushes the scene down
 	var rp := PanelContainer.new(); rp.name = "ResourceStrip"
@@ -117,7 +142,10 @@ func _build_shell() -> void:
 
 func rebuild() -> void:
 	if not is_inside_tree() or summary == null: return
+	# Recheck when returning to Camp after a long session (cooldown inside Updater).
+	Updater.maybe_check()
 	_journal_dot()
+	_settings_dot()
 	UIKit.clear(summary)
 	for k in ["gold", "iron_ore", "dark_gold", "seeds", "arcane_resin", "dew", "scroll_upgrade", "torch", "ration", "potion_healing"]:
 		if GameState.mat(k) > 0 or k in ["gold", "iron_ore", "seeds"]:
@@ -141,6 +169,19 @@ func _journal_dot() -> void:
 	var n := GameState.claimable_milestones().size()
 	_count_dot(journal_btn, n)
 	journal_btn.tooltip_text = "Journal" if n == 0 else "Journal (%d milestone%s to claim)" % [n, "" if n == 1 else "s"]
+
+## Settings badge when a sideloaded update is ready (same ClaimDot chrome as Journal milestones).
+func _settings_dot() -> void:
+	if settings_btn == null or not is_instance_valid(settings_btn): return
+	for c in settings_btn.get_children():
+		if c.name == "ClaimDot": settings_btn.remove_child(c); c.queue_free()
+	var ready := Updater.supports_platform() and Updater.has_update()
+	if ready:
+		_count_dot(settings_btn, 1)
+		var ver := Updater.remote_version
+		settings_btn.tooltip_text = "Settings — update to v%s" % ver if ver != "" else "Settings — update available"
+	else:
+		settings_btn.tooltip_text = "Settings"
 
 # ------------------------------------------------------------ hub controls
 func _build_side() -> void:

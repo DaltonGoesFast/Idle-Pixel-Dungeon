@@ -268,8 +268,10 @@ class UpdateBlock extends VBoxContainer:
 			add_child(UIKit.label("Downloads the APK and opens Android's Install screen. Same signing key as previous sideloads keeps your save.", 0.75, Color("9a8f7c")))
 		Updater.changed.connect(_refresh)
 		_refresh()
-		if Updater.state == Updater.State.IDLE and Updater.status_text == "":
-			Updater.check_now()
+		# Force a check when the player opens Update (bypasses the 5 min auto cooldown).
+		if Updater.state != Updater.State.CHECKING and Updater.state != Updater.State.DOWNLOADING \
+				and Updater.state != Updater.State.READY and Updater.state != Updater.State.DONE:
+			Updater.maybe_check(true)
 
 	func _exit_tree() -> void:
 		if Updater.changed.is_connected(_refresh):
