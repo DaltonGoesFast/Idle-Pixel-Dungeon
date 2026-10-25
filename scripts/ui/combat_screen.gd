@@ -377,7 +377,7 @@ func _unhandled_input(event: InputEvent) -> void:
 const BTN_ICONS := {"Wait": "wait", "Search": "search", "Search again": "search", "Bag": "backpack",
 	"Auto": "busy", "Auto: ON": "busy", "Shove": "arrow", "Shove: ON": "arrow", "Scroll of Passage": "scroll",
 	"Passage": "scroll", "Menu": "prefs", "Attack": "challenge"}
-const BTN_PREFIX_ICONS := {"Slam": "warning", "Potion": "plus", "Cloak": "buffs", "Bolt": "target", "Scroll of Passage": "scroll", "Passage": "scroll"}
+const BTN_PREFIX_ICONS := {"Slam": "warning", "Cloak": "buffs", "Bolt": "target", "Scroll of Passage": "scroll", "Passage": "scroll"}
 ## Desktop toolbar: short labels, no wrap, roomy slots (vanilla SPD bottom bar).
 const DESK_LABELS := {"Scroll of Passage": "Passage", "Search again": "Search"}
 ## Cached SPD arrow icons rotated for the mobile D-pad (key = "x,y@px_scale").
@@ -466,16 +466,9 @@ func _fill_tri(img: Image, a: Vector2, b: Vector2, c: Vector2, col: Color) -> vo
 			if aa >= 0.0 and bb >= 0.0 and aa + bb <= 1.0:
 				img.set_pixel(x, y, col)
 
-## Equipped weapon sprite for the Attack button (falls back to challenge icon).
-func _attack_weapon_tex() -> Texture2D:
-	if GameState.run.is_empty():
-		return null
-	var uid := int(GameState.heroes[GameState.run.hero].get("weapon", 0))
-	var g: Dictionary = GameState.gear_by_uid(uid)
-	if g.is_empty():
-		return null
-	var id := String(g.get("id", ""))
-	if id == "" or not DB.items.has(id):
+## items.png sprite for an item/material id, nearest-scaled for toolbar buttons.
+func _item_icon_tex(id: String) -> Texture2D:
+	if id == "" or (not DB.items.has(id) and not DB.materials.has(id)):
 		return null
 	var at := AtlasTexture.new()
 	at.atlas = load("res://assets/sprites/items.png")
@@ -491,6 +484,16 @@ func _attack_weapon_tex() -> Texture2D:
 		pad.blit_rect(img, Rect2i(Vector2i.ZERO, img.get_size()), Vector2i.ZERO)
 		img = pad
 	return ImageTexture.create_from_image(img)
+
+## Equipped weapon sprite for the Attack button (falls back to challenge icon).
+func _attack_weapon_tex() -> Texture2D:
+	if GameState.run.is_empty():
+		return null
+	var uid := int(GameState.heroes[GameState.run.hero].get("weapon", 0))
+	var g: Dictionary = GameState.gear_by_uid(uid)
+	if g.is_empty():
+		return null
+	return _item_icon_tex(String(g.get("id", "")))
 
 ## Melee Attack target: last_target if still in reach, else nearest foe in reach.
 func _attack_target() -> Dictionary:
@@ -558,14 +561,14 @@ func _build_mobile_pad(parent: Node) -> void:
 			b.custom_minimum_size = Vector2.ONE * cell
 			b.expand_icon = true
 
-## Mobile right half: Attack, class skills (Shove / Slam / Cloak / Bolt), Potion.
+## Mobile right half: Attack, class skills (Shove / Slam / Cloak / Bolt), Heal.
 func _build_mobile_skills(parent: Node) -> void:
 	var col := UIKit.vbox(parent, int(UIKit.font_size * 0.2))
 	col.size_flags_horizontal = SIZE_EXPAND_FILL
 	col.size_flags_vertical = SIZE_EXPAND_FILL
 	col.size_flags_stretch_ratio = 1.0
 	var h := combat.hero
-	var n := 2  # Attack + Potion
+	var n := 2  # Attack + Heal
 	if "shove" in h.abilities: n += 1
 	if "slam" in h.abilities: n += 1
 	if not h.cloak.is_empty(): n += 1
@@ -616,10 +619,14 @@ func _build_mobile_skills(parent: Node) -> void:
 		if bolt_on:
 			bolt.modulate = Color(1.15, 1.15, 0.85)
 	var pot_n := potions - potions_used
-	var pot := _btn("Pot %d" % pot_n, _drink, pot_n > 0 and h.hp < h.ht, false, col)
+	var pot := _btn("Heal %d" % pot_n, _drink, pot_n > 0 and h.hp < h.ht, false, col)
 	pot.custom_minimum_size.y = row_h
 	pot.size_flags_vertical = SIZE_EXPAND_FILL
-	pot.tooltip_text = "Potion (%d)" % pot_n
+	pot.tooltip_text = "Potion of Healing (%d)" % pot_n
+	var ptex := _item_icon_tex("potion_healing")
+	if ptex != null:
+		pot.icon = ptex
+		pot.expand_icon = false
 
 ## Shared class-skill strip for the desktop toolbar (Shove / Slam / Cloak / Bolt).
 func _add_skill_buttons(parent: Node) -> void:
@@ -708,7 +715,12 @@ func _refresh() -> void:
 		_btn("Wait", func(): _act(func(): combat.hero_wait()))
 		_add_skill_buttons(buttons)
 		_btn("Search" if not h.get("searched", false) else "Search again", func(): _act(func(): combat.hero_search()))
-		_btn("Potion (%d)" % (potions - potions_used), _drink, potions - potions_used > 0 and h.hp < h.ht)
+		var desk_pot := _btn("Heal (%d)" % (potions - potions_used), _drink, potions - potions_used > 0 and h.hp < h.ht)
+		desk_pot.tooltip_text = "Potion of Healing (%d)" % (potions - potions_used)
+		var desk_ptex := _item_icon_tex("potion_healing")
+		if desk_ptex != null:
+			desk_pot.icon = desk_ptex
+			desk_pot.expand_icon = false
 		if Delve.scroll_passage_count(GameState) > 0:
 			_btn("Scroll of Passage", _ask_passage)
 		_btn("Bag", func(): bag_open = not bag_open; menu_open = false; set_meta("bag_scroll", 0); _refresh())
