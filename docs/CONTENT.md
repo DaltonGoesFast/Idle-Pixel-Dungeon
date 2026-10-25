@@ -164,9 +164,9 @@ Worn ring, artifact and the Mage's staff wand, at +0; the step is per item level
 | Id | Biomes | Door A | Door B |
 |---|---|---|---|
 | ozone | caves, prison, sewers, city, halls | Door A: Smells of ozone (combat) | Door B: Locked (chest) |
-| scratch | caves, prison, sewers, city, halls | Door A: Frantic scratching (combat) | Door B: Damp, quiet (special) |
+| scratch | caves, sewers, city, halls | Door A: Frantic scratching (combat) | Door B: Damp, quiet (special) |
 | glint | caves, prison, sewers, city, halls | Door A: A metallic glint (combat) | Door B: Barred (1 Iron Key) (chest) |
-| cells | caves, prison, city, halls | Door A: Rattling bones (combat) | Door B: A guard's footlocker (1 Iron Key) (chest) |
+| cells | caves, prison, city, halls | Door A: Rattling bones (combat: skeleton, skeleton, thief) | Door B: A guard's footlocker (1 Iron Key) (chest) |
 | workshop | caves, prison, city, halls | Door A: Humming machinery (combat) | Door B: A quiet storeroom (special) |
 | den | caves, city, halls | Door A: Leathery wings flapping (combat) | Door B: A gnoll camp's strongbox (1 Iron Key) (chest) |
 

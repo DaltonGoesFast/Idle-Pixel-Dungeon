@@ -166,8 +166,7 @@
    {
     "min_floor": 6,
     "mobs": [
-     "thief",
-     "rat"
+     "thief"
     ]
    },
    {

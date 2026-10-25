@@ -195,7 +195,7 @@ Traps: worn_dart, gripping, teleport, poison_dart. Strength potions at [[7, 50],
 | From floor | Mobs |
 |---|---|
 | 6 | skeleton |
-| 6 | thief, rat |
+| 6 | thief |
 | 6 | dm100 |
 | 7 | skeleton, thief |
 | 7 | guard |
