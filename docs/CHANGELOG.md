@@ -1,7 +1,14 @@
 # Changelog
 
 ## Unreleased
+
+## 0.50.0
 - Enemy vision uses SPD shadowcasting instead of Bresenham, so corner peeks match vanilla FOV and no longer strip awareness / grant Surprise by mistake. After losing you, mobs wander to deterministic search cells instead of freezing in place (DECISIONS #176, +tests).
+- Mobile combat is built around an 8-way D-pad with Wait in the center, Attack showing the equipped weapon, and a chrome row for Search, Shove, Slam, and Cloak. The portrait grid shrinks so those controls stay on screen, tips fold into the log, and Wait and Bolt stay put when a status tip wraps. The potion button says Heal and uses the Potion of Healing sprite.
+- Settings folds into expandable categories, like the vendor Upgrade tabs.
+- The web build shrinks to fit when the browser window is smaller than the phone design size.
+- Rats stay in the Sewers. Prison bones fights use skeletons and a thief. A thief who gets away unhit for a few turns escapes with your gold, and a steal is 5% of the gold in your pack.
+- A new game starts with empty supplies and 134 gold, enough to buy a full first-delve pack at the Guild (3 rations, 3 torches, 2 healing potions). There is no starting arcane resin; the leftover Scroll of Passage gold stays spare until resin drops. Early runs still get a free Scroll of Passage.
 
 ## 0.49.3
 - Desktop interface mode: PC combat can use a full-bleed grid, a roomier bottom toolbar, and a combat log on the left. Settings switches Mobile and Desktop and remaps the combat keys. The toolbar Menu opens the same Settings panel as Camp and Delve. Status and delve bars stay phone-width on ultrawide screens, and SPD bar fills keep their rounded corners when they stretch wide.
