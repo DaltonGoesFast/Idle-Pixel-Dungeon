@@ -1,7 +1,7 @@
 # Changelog
 
 ## Unreleased
-- Forge weapon and armor are shared party gear: craft Scale once and every hero wears it. Found weapons stay unique per-hero overrides; Mage Staff and Huntress gloves still fill melee for those classes. Camp gear never cracks on death; found weapon overrides still do. Old saves keep the best forge copies as the camp set (DECISIONS #234, +tests).
+- Forge weapon and armor are shared party gear: craft Scale once and every hero who meets the Str requirement wears it. Under-Str heroes keep Cloth / starter melee instead of fighting crippled. Found weapons stay unique per-hero overrides; Mage Staff and Huntress gloves still fill melee for those classes. Camp gear never cracks on death; found weapon overrides still do. Old saves keep the best forge copies as the camp set (DECISIONS #234, +tests).
 
 ## 0.50.0
 - Enemy vision uses SPD shadowcasting instead of Bresenham, so corner peeks match vanilla FOV and no longer strip awareness / grant Surprise by mistake. After losing you, mobs wander to deterministic search cells instead of freezing in place (DECISIONS #176, +tests).

@@ -188,7 +188,24 @@ func camp_gear_name(slot: String) -> String:
 	var g := gear_by_uid(CAMP_WEAPON_UID if slot == "weapon" else CAMP_ARMOR_UID)
 	return gear_name(g) if not g.is_empty() else "-"
 
-## Weapon the hero fights with: found override, else Mage/Huntress heirloom, else camp forge sword, else starter.
+## Effective Strength including Ring of Might (gates camp gear and Force).
+func effective_str(c: String) -> int:
+	var h: Dictionary = heroes[c]
+	var ring_str := 0
+	var r := gear_by_uid(int(h.get("ring", 0)))
+	if not r.is_empty() and r.known and not r.cracked:
+		var rd0 := DB.item(r.id)
+		ring_str = int(rd0.get("str_bonus", 0)) + trinket_bonus(r, "str_bonus")
+	return int(h.str) + ring_str
+
+## True when this hero can wear the item at full effect (camp gear skips under-Str heroes).
+func meets_str_req(c: String, item_id: String, lvl: int = 0) -> bool:
+	var d := DB.item(item_id)
+	var req := Weapons.str_req(d, lvl)
+	return req <= 0 or req <= effective_str(c)
+
+## Weapon the hero fights with: found override, else Mage/Huntress heirloom, else camp forge sword
+## (only if they meet Str), else starter. Found weapons may still be under-Str with #220 penalties.
 func resolved_weapon(c: String) -> Dictionary:
 	var h: Dictionary = heroes[c]
 	var def: Dictionary = DB.heroes[c]
@@ -198,14 +215,18 @@ func resolved_weapon(c: String) -> Dictionary:
 		if not is_forge_weapon(String(w.id)):
 			return {"id": String(w.id), "lvl": int(w.get("lvl", 0)), "source": "personal", "uid": int(w.uid)}
 	if not camp_weapon.is_empty() and c != "mage" and c != "huntress":
-		return {"id": String(camp_weapon.id), "lvl": int(camp_weapon.get("lvl", 0)), "source": "camp", "uid": CAMP_WEAPON_UID}
-	# Mage / Huntress with empty override: heirloom melee. Warrior / Rogue with no camp: starter stats.
+		var cid := String(camp_weapon.id); var cl := int(camp_weapon.get("lvl", 0))
+		if meets_str_req(c, cid, cl):
+			return {"id": cid, "lvl": cl, "source": "camp", "uid": CAMP_WEAPON_UID}
+	# Mage / Huntress with empty override: heirloom melee. Warrior / Rogue with no usable camp: starter.
 	return {"id": String(def.start_weapon), "lvl": 0, "source": "starter", "uid": 0}
 
-## Armor every hero wears: camp forge armor, else Cloth starter.
+## Armor: camp forge piece when the hero meets Str, else Cloth starter.
 func resolved_armor(c: String) -> Dictionary:
 	if not camp_armor.is_empty():
-		return {"id": String(camp_armor.id), "lvl": int(camp_armor.get("lvl", 0)), "source": "camp", "uid": CAMP_ARMOR_UID}
+		var cid := String(camp_armor.id); var cl := int(camp_armor.get("lvl", 0))
+		if meets_str_req(c, cid, cl):
+			return {"id": cid, "lvl": cl, "source": "camp", "uid": CAMP_ARMOR_UID}
 	var def: Dictionary = DB.heroes[c]
 	return {"id": String(def.get("start_armor", "cloth_armor")), "lvl": 0, "source": "starter", "uid": 0}
 
@@ -289,12 +310,12 @@ func hero_stats(c: String) -> Dictionary:
 	var wd := DB.item(String(rw.id))
 	var ad := DB.item(String(ra.id))
 	var wl := int(rw.get("lvl", 0)); var al := int(ra.get("lvl", 0))
-	# Ring of Might: Strength + max HP; effective Str gates gear and Force (DECISIONS #223)
+	# Ring of Might: Strength + max HP; effective Str gates camp gear and Force (DECISIONS #223 / #234)
 	var ring_str := 0
 	if not r.is_empty() and r.known and not r.cracked:
 		var rd0 := DB.item(r.id)
 		ring_str = int(rd0.get("str_bonus", 0)) + trinket_bonus(r, "str_bonus")
-	var eff_str := int(h.str) + ring_str
+	var eff_str := int(h.str) + ring_str   # same as effective_str(c); inlined to reuse ring lookup
 	var dmg := Weapons.dmg(wd, wl)          # SPD min/max at this level, averaged (DECISIONS #207)
 	if wd.has("dmg_per_levels"): dmg += int(h.level) / int(wd.dmg_per_levels)
 	var wnl := 0 if h.get("wand_cracked", false) else int(h.get("wand_lvl", 0))

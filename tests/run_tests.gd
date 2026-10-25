@@ -1765,7 +1765,9 @@ func test_forge_bulk(gs) -> void:
 func test_camp_shared_gear(gs) -> void:
 	print("[camp shared gear]")
 	gs.new_game()
-	for c in gs.heroes: gs.heroes[c].unlocked = true
+	for c in gs.heroes:
+		gs.heroes[c].unlocked = true
+		gs.heroes[c].str = 16   # Scale / Longsword need 16
 	gs.facilities.blacksmith.level = 4; gs.facilities.blacksmith.cap = 4
 	gs.add_mat("iron_ore", 200); gs.add_mat("dark_gold", 40); gs.add_mat("gold", 2000)
 	check(gs.craft("blacksmith", "forge_scale"), "forge Scale for the party")
@@ -1779,6 +1781,11 @@ func test_camp_shared_gear(gs) -> void:
 	check(String(gs.resolved_weapon("warrior").id) == "longsword" and String(gs.resolved_weapon("rogue").source) == "camp", "Warrior/Rogue use camp Longsword")
 	check(String(gs.resolved_weapon("mage").id) == "mages_staff", "Mage keeps Staff when camp sword exists")
 	check(String(gs.resolved_weapon("huntress").id) == "studded_gloves", "Huntress keeps gloves when camp sword exists")
+	# Under-Str heroes keep starters; camp piece stays for those who qualify
+	gs.heroes.warrior.str = 10
+	check(String(gs.resolved_armor("warrior").source) == "starter" and String(gs.resolved_weapon("warrior").source) == "starter", "10-Str Warrior does not wear Scale / Longsword")
+	check(String(gs.resolved_armor("mage").id) == "scale_armor", "16-Str Mage still wears party Scale")
+	gs.heroes.warrior.str = 16
 	var armor_uid: int = gs.add_gear("mail_armor", true)
 	check(gs.can_equip("warrior", armor_uid) == "armor is shared at Camp" and not gs.equip("warrior", armor_uid), "cannot equip armor from stash")
 	var mace: int = gs.add_gear("mace", true)
@@ -4345,20 +4352,22 @@ func test_barrier_spd(gs) -> void:
 			var lv: int = levels[i]
 			if gs.armor_dr(ad, lv) != rows[i][0] or gs.armor_barrier(ad, lv) != rows[i][1]: scale_ok = false
 	check(scale_ok, "armor tier scaling matches DECISIONS #218 table at +0, +3, +6")
-	# Under-strength armor: divides armor DR by (1 + missing Str) and zeroes armor Barrier; weapon block stays if Str meets the weapon
+	# Camp armor under-Str: falls back to Cloth starter (DECISIONS #234); found under-Str weapons still take #220 penalties
 	gs.heroes.warrior.str = 10; gs.heroes.warrior.level = 10
 	gs.heroes.warrior.weapon = gs.add_gear("rapier", true, 0)         # Str 10, +1 block DR
-	_camp(gs, "", "plate_armor", 0, 0)     # 18 Str -> missing 8: 7 / 9 = 0 armor DR, 0 armor Barrier
+	_camp(gs, "", "plate_armor", 0, 0)     # 18 Str — Warrior keeps Cloth until Str 18
 	var under_plate: Dictionary = gs.hero_stats("warrior")
-	check(int(under_plate.dr) == 1 and int(under_plate.barrier_max) == 7, "10-Str hero in Plate +0 gets 0 armor DR/Barrier (keeps Rapier +1 DR and 5+2 class/seal Barrier)")
-	gs.heroes.warrior.str = 16   # missing 2 Str for Plate: 7 / 3 = 2 armor DR, 0 armor Barrier; Rapier still ok
+	check(String(gs.resolved_armor("warrior").source) == "starter" and int(under_plate.dr) == 1 + 1 and int(under_plate.barrier_max) == 7, "10-Str hero skips party Plate (Cloth DR 1 + Rapier block 1, class/seal Barrier)")
+	gs.heroes.warrior.str = 16   # still short of Plate 18 — Cloth; Rapier ok
 	var near_plate: Dictionary = gs.hero_stats("warrior")
-	check(int(near_plate.dr) == 2 + 1 and int(near_plate.barrier_max) == 7, "16-Str hero in Plate +0 gets 7/(1+2)=2 armor DR and 0 armor Barrier")
-	# Under-strength weapon zeroes its block
+	check(String(gs.resolved_armor("warrior").source) == "starter" and int(near_plate.dr) == 1 + 1, "16-Str hero still skips Plate (needs 18)")
+	gs.heroes.warrior.str = 18
+	check(String(gs.resolved_armor("warrior").id) == "plate_armor" and int(gs.hero_stats("warrior").dr) >= 7, "18-Str hero wears party Plate")
+	# Under-strength found weapon zeroes its block
 	gs.heroes.warrior.weapon = gs.add_gear("round_shield", true, 0)   # Str 14, +2 block
 	gs.heroes.warrior.str = 10
-	check(int(gs.hero_stats("warrior").dr) == 0, "under-Str Round Shield contributes 0 block DR")
-	gs.heroes.warrior.weapon = 0
+	check(int(gs.hero_stats("warrior").dr) == 1, "under-Str Round Shield contributes 0 block DR (Cloth DR 1 remains)")
+	gs.heroes.warrior.weapon = 0; gs.heroes.warrior.str = 18
 	_camp(gs, "worn_shortsword", "plate_armor", 0, 0)
 	var cs_ar = load("res://scripts/ui/camp_screen.gd").new()
 	var p_g: Dictionary = gs.gear_by_uid(gs.CAMP_ARMOR_UID)
