@@ -76,7 +76,7 @@ static func backpack(parent: Control, refresh: Callable, in_combat := false, on_
 	v.add_child(UIKit.label("Backpack  %d/%d slots" % [GameState.backpack_used(), GameState.BACKPACK_SLOTS], 1.1, Color("ffd27a")))
 	if in_combat:
 		v.add_child(UIKit.label("Swapping gear in a fight costs your turn.", 0.8, Color("c9a96e")))
-		# Other supplies and found scrolls stay out of a fight. Passage is the escape (DECISIONS #238).
+		# Other supplies and found scrolls stay out of a fight. Passage is the escape (DECISIONS #239).
 		var npass := Delve.scroll_passage_count(GameState)
 		if npass > 0 and on_read_passage.is_valid():
 			var pr := UIKit.hbox(v)

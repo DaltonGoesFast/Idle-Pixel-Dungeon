@@ -2626,7 +2626,7 @@ func test_passage_confirm(gs) -> void:
 	check(gs.run.is_empty() and gs.last_result == "extract" and gs.mat("iron_ore") == ore_before + 3, "combat Read extracts and banks the pack")
 	cs.queue_free()
 
-## DECISIONS #238: the combat Bag can read a Scroll of Passage. Confirm spends nothing; Read extracts
+## DECISIONS #239: the combat Bag can read a Scroll of Passage. Confirm spends nothing; Read extracts
 ## and banks the pack. Other supplies stay hidden. Auto Battle never reads it. The delve Bag still cannot.
 func test_passage_bag(gs) -> void:
 	print("[passage bag]")
@@ -4722,8 +4722,8 @@ func test_victory_card(gs) -> void:
 	print("[victory card]")
 	var win := get_window(); var old := win.size
 	gs.new_game(); gs.settings.tutorial = false
-	# The card this test measures is the mobile side-column card (DECISIONS #217). Auto picks Desktop
-	# off phones (#232), which builds a different result panel, so pin Mobile for these window sizes.
+	# The card these checks measure is the mobile side-column card (DECISIONS #217). Auto is Desktop
+	# off phones (DECISIONS #232), which draws the same results in a floating panel with no VictoryResults node.
 	gs.settings.interface = "mobile"
 	var main = load("res://scenes/main.tscn").instantiate(); add_child(main)
 	# the report's Chrome viewport first, then the Fold cover/inner, PC, and odd browser windows around the
