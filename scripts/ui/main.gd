@@ -93,6 +93,17 @@ func _input(e: InputEvent) -> void:
 	if LiveLayout.ui_input(self, e):
 		get_viewport().set_input_as_handled()
 
+## Desktop: 0 opens the Live Editor (DECISIONS #233).
+func _unhandled_input(e: InputEvent) -> void:
+	if not (e is InputEventKey and e.pressed and not e.echo):
+		return
+	if e.keycode != KEY_0 and e.physical_keycode != KEY_0:
+		return
+	if not LiveLayout.desktop_allowed():
+		return
+	preload("res://scripts/ui/live_editor.gd").open()
+	get_viewport().set_input_as_handled()
+
 func _relayout() -> void:
 	_apply_content_scale()
 	var vs := get_viewport_rect().size
