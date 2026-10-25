@@ -101,7 +101,7 @@ func _build_shell() -> void:
 	frame.add_theme_stylebox_override("panel", UIKit.chrome("window", Color.WHITE, UIKit.font_size * 0.25))
 	frame.size_flags_vertical = SIZE_EXPAND_FILL; frame.size_flags_horizontal = SIZE_EXPAND_FILL
 	# Portrait: give the dock a larger stretch share so cobble does not swallow the column. Avoid
-	# custom_maximum_size here — at fixed embed sizes it can run before the first real layout and
+	# custom_maximum_size here - at fixed embed sizes it can run before the first real layout and
 	# collapse the clearing until a resize. Wide: scene keeps the larger share.
 	frame.size_flags_stretch_ratio = 0.9 if portrait else 1.35
 	root_box.add_child(frame)
@@ -225,7 +225,7 @@ func _biome_chip(biome: String, with_name := true) -> Control:
 	var d: Dictionary = DB.biomes[biome]
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", int(UIKit.font_size * 0.25))
-	row.tooltip_text = "%s — floors %d-%d" % [d.name, d.floors[0], d.floors[1]]
+	row.tooltip_text = "%s - floors %d-%d" % [d.name, d.floors[0], d.floors[1]]
 	var ic := UIKit.level_pixel(biome)
 	ic.size_flags_vertical = SIZE_SHRINK_CENTER
 	row.add_child(ic)
@@ -890,6 +890,8 @@ func gear_actions(g: Dictionary, with_unequip := true) -> Array:
 	var acts := []
 	var t: String = DB.item(g.id).type
 	var uid := int(g.uid)
+	if g.get("camp", false) or t == "armor" or GameState.is_forge_weapon(String(g.id)) or GameState.is_forge_armor(String(g.id)):
+		return acts   # party gear is changed at the Forge (DECISIONS #234)
 	var who := GameState.equipped_by(uid)
 	if with_unequip and who != "" and not DB.item(g.id).get("heirloom", false):
 		var ws := GameState.slot_of(who, uid)
@@ -991,10 +993,24 @@ func _page_stash() -> void:
 		if potions.is_empty() and scrolls.is_empty(): v.add_child(UIKit.label("No potions or scrolls. Find them in a delve or brew them at Alchemy.", 0.8, Color("9a9488")))
 		else: _add_mat_grid(v, potions + scrolls)
 		return
-	if GameState.gear.is_empty(): v.add_child(UIKit.label("No gear yet. Craft some at the Forge.", 0.8, Color("9a9488")))
+	var has_camp := not GameState.camp_weapon.is_empty() or not GameState.camp_armor.is_empty()
+	if GameState.gear.is_empty() and not has_camp:
+		v.add_child(UIKit.label("No gear yet. Craft party weapon and armor at the Forge.", 0.8, Color("9a9488")))
 	v.add_child(UIKit.label("Tap for info, hold to compare with %s's gear." % DB.heroes[chosen_hero].name, 0.75, Color("9a9488")))
+	if has_camp:
+		v.add_child(UIKit.label("Party gear", 0.95, Color("ffd27a")))
+		var cg := slot_grid(v, GEAR_CELL)
+		for camp_uid in [GameState.CAMP_WEAPON_UID, GameState.CAMP_ARMOR_UID]:
+			var gcamp := GameState.gear_by_uid(camp_uid)
+			if gcamp.is_empty(): continue
+			var bdg_c := UIKit.gear_badge(gcamp)
+			if bdg_c == "": bdg_c = "NONE"
+			cg.add_child(item_slot(gear_icon(gcamp), "Party", "+%d" % gcamp.lvl if gcamp.lvl > 0 else "",
+				func(): info(gear_icon(gcamp), GameState.gear_name(gcamp), gear_lines(gcamp) + ["Shared by the whole party."], [], bdg_c),
+				Color.WHITE, "c9a96e", gcamp))
 	for cat in GEAR_CATS:
-		var list := GameState.gear.filter(func(g): return DB.item(g.id).type == cat[0])
+		if cat[0] == "armor": continue   # armor is party-only (DECISIONS #234)
+		var list := GameState.gear.filter(func(g): return DB.item(g.id).type == cat[0] and not GameState.is_forge_weapon(String(g.id)))
 		var imbued: Button = _imbued_wand_slot() if cat[0] == "wand" else null
 		if list.is_empty() and imbued == null: continue
 		list.sort_custom(_stash_gear_less)
@@ -1016,7 +1032,7 @@ func _preview(id: String, lvl: int) -> String:
 	match id:
 		"blacksmith":
 			match lvl:
-				2: return "Craft T1–T2, upgrade cap +1"
+				2: return "Craft T1-T2, upgrade cap +1"
 				3: return "Craft T3, upgrade cap +2"
 				4: return "Craft T4, upgrade cap +3"
 				5: return "Craft T5"
@@ -1197,6 +1213,8 @@ func _recipe_lines(r: Dictionary) -> Array:
 	if recipe_unknown(r) == "" and recipe_qty(r) != "": lines.append("Gives %d %s." % [int(r.out_n), DB.mat_name(out) + ("s" if not DB.mat_name(out).ends_with("s") else "")])
 	var blurb := recipe_blurb(r)
 	if blurb != "": lines.append(blurb)
+	if r.has("out") and (GameState.is_forge_weapon(String(out)) or GameState.is_forge_armor(String(out))):
+		lines.append("Outfits the whole party (one shared piece).")
 	var od: Dictionary = DB.item(out) if r.has("out") else DB.materials.get(out, {})
 	if r.has("out") and od.has("dmg"): lines.append(Codex.item_line(r.out))
 	if r.has("out") and od.has("dr"): lines.append("DR %d  Barrier %d  Str %d" % [od.dr, od.get("barrier", 0), od.get("str", 10)])
@@ -1452,6 +1470,7 @@ func _forge_upgrade_section(v: VBoxContainer) -> void:
 	v.add_child(UIKit.header("Upgrade & repair (cap +%d)" % fcap))
 	if fcap <= 0:
 		v.add_child(UIKit.label("Lv1 is repair only. Upgrade the Blacksmith to raise the gear upgrade cap (+1 at Lv2, +3 max at Lv4).", 0.85, Color("9a9488")))
+	v.add_child(UIKit.label("Camp weapon and armor outfit every hero. Found weapons upgrade here too.", 0.8, Color("9a9488")))
 	var rw := UIKit.hbox(v)
 	var nc := GameState.cracked_gear().size()
 	var rl := UIKit.label("Cracked: %d" % nc, 0.85, Color("ff8a7a") if nc else Color("9a9488")); rl.size_flags_vertical = SIZE_SHRINK_CENTER; rl.autowrap_mode = TextServer.AUTOWRAP_OFF; rw.add_child(rl)
@@ -1460,21 +1479,34 @@ func _forge_upgrade_section(v: VBoxContainer) -> void:
 	v.add_child(ra)
 	if GameState.can_patch_up() == "":
 		var pu := UIKit.button("Patch up (free) - can't afford any repair", func(): GameState.patch_up()); pu.name = "PatchUp"; v.add_child(pu)
+	v.add_child(UIKit.header("Party gear"))
+	var camp_grid := slot_grid(v, GEAR_CELL)
+	for camp_uid in [GameState.CAMP_WEAPON_UID, GameState.CAMP_ARMOR_UID]:
+		var cg := GameState.gear_by_uid(camp_uid)
+		if cg.is_empty(): continue
+		var why_c: String = GameState.can_upgrade_item(camp_uid)
+		var slot_c := item_slot(gear_icon(cg), "Party", "+%d" % cg.lvl if cg.lvl > 0 else "", func(): _open_gear_forge(camp_uid),
+			Color.WHITE, "6bff6b" if why_c == "" else "", cg)
+		camp_grid.add_child(slot_c)
+	if camp_grid.get_child_count() == 0:
+		v.add_child(UIKit.label("No party weapon or armor yet. Craft some under Craft.", 0.8, Color("9a9488")))
 	var g2 := slot_grid(v, GEAR_CELL)
+	var found_hdr := false
 	for g in GameState.gear:
 		var t: String = DB.item(g.id).type
 		var cracked: bool = g.get("cracked", false)
-		# weapons/armor upgrade here; cracked artifacts come here to be repaired.
-		# Rings have their own section (DECISIONS #98, #107).
-		if not (t in ["weapon", "armor"]): continue   # cracked artifacts repair at the Desk only (DECISIONS #223)
-		var cost: Dictionary = GameState.repair_cost(g.uid) if cracked else GameState.item_upgrade_cost(g.uid)
+		# Found weapons only (forge line lives in party gear). Rings have their own section.
+		if t != "weapon" or GameState.is_forge_weapon(String(g.id)): continue
+		if not found_hdr:
+			v.add_child(UIKit.header("Found weapons"))
+			found_hdr = true
 		var why: String = GameState.can_repair(g.uid) if cracked else GameState.can_upgrade_item(g.uid)
 		var uid: int = int(g.uid)
-		# Green still means "you can afford this". Who wears it is the name plate, not the border.
 		var slot := item_slot(gear_icon(g), "", "+%d" % g.lvl if g.lvl > 0 and g.known else "", func(): _open_gear_forge(uid),
 			Color(1, 0.55, 0.5) if cracked else Color.WHITE, "6bff6b" if why == "" else "", g)
 		g2.add_child(_mark_worn(slot, uid))
-	if g2.get_child_count() == 0: v.add_child(UIKit.label("No weapons or armor yet. Craft some first.", 0.8, Color("9a9488")))
+	if g2.get_child_count() == 0 and camp_grid.get_child_count() == 0:
+		pass   # empty message already above when no party gear
 
 ## Rings, wands and artifacts level and repair here (DECISIONS #158).
 func _attune_section(v: VBoxContainer) -> void:

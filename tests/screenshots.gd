@@ -111,7 +111,8 @@ func _ready() -> void:
 		plan.append([sz, "forge", func():
 			GameState.add_mat("iron_ore", 40); GameState.add_mat("dark_gold", 5); GameState.add_mat("gold", 100)
 			GameState.facilities.blacksmith.level = 3
-			var a: int = GameState.add_gear("shortsword", true, 0); var b: int = GameState.add_gear("cloth_armor", true, 1)
+			GameState.camp_weapon = {"id": "shortsword", "lvl": 0}; GameState.camp_armor = {}
+			var a: int = GameState.add_gear("mace", true, 0); var b: int = GameState.add_gear("ring_might", true, 1)
 			GameState.gear_by_uid(a).cracked = true; GameState.gear_by_uid(b).cracked = true
 			var rg: int = GameState.add_gear("ring_wealth", true); GameState.gear_by_uid(rg).cracked = true
 			main.show_camp(); main.screen.section["Forge"] = "upgrade"; main.screen.open_page("Forge")])
@@ -151,7 +152,8 @@ func _ready() -> void:
 			for c in ["warrior", "mage"]:
 				GameState.heroes[c].unlocked = true
 				for b in ["sewers", "prison"]: if not (b in GameState.heroes[c].cleared): GameState.heroes[c].cleared.append(b)
-			GameState.gear_by_uid(GameState.heroes.warrior.weapon).lvl = 3; GameState.gear_by_uid(GameState.heroes.warrior.armor).lvl = 2
+			GameState.camp_weapon = {"id": "shortsword", "lvl": 3}; GameState.camp_armor = {"id": "leather_armor", "lvl": 2}
+			GameState.heroes.warrior.weapon = 0; GameState.heroes.warrior.armor = 0
 			var wr: int = GameState.add_gear("ring_wealth", true, 2); GameState.equip("warrior", wr)
 			var th: int = GameState.add_gear("thieves_armband", true, 1); GameState.equip("warrior", th)
 			if GameState.heroes.mage.patrol.is_empty():
@@ -205,7 +207,8 @@ func _ready() -> void:
 			main.delve.pending = {"kind": "door", "door": DB.doors[0]}; main.delve._show_card()])
 		plan.append([sz, "delve_walk", func():
 			_fresh_warrior_run(); main.show_delve()
-			GameState.heroes.warrior.armor = GameState.add_gear("scale_armor")   # armor tier row must show
+			GameState.camp_armor = {"id": "scale_armor", "lvl": 0}   # armor tier row must show
+			GameState.heroes.warrior.armor = 0
 			main.delve.pending = {}; main.delve.running = true; main.delve._show_card()
 			main.delve.scene.scroll = main.delve.scene.target - 0.6; main.delve.scene.pops.append({"idx": DB.icon_index("gold"), "age": 0.2, "n": 3}); main.delve.scene.glow = 0.8])
 		plan.append([sz, "delve_enemy", func():

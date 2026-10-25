@@ -144,7 +144,8 @@ func _drive() -> void:
 					_check(GameState.run.biome == "city" and int(GameState.run.floor) == 16, "continue enters City floor 16")
 					var hh: Dictionary = GameState.heroes[GameState.run.hero]
 					hh.level = 14; hh.str = 16
-					hh.weapon = GameState.add_gear("longsword", true, 2); hh.armor = GameState.add_gear("scale_armor", true, 2)
+					hh.weapon = 0; hh.armor = 0
+					GameState.camp_weapon = {"id": "longsword", "lvl": 2}; GameState.camp_armor = {"id": "scale_armor", "lvl": 2}
 					GameState.run.hp = GameState.hero_stats(GameState.run.hero).ht
 					GameState.run.supplies.potion_healing = 4
 					GameState.run.floor = 19; Delve.descend(GameState); s._show_card()
@@ -156,7 +157,8 @@ func _drive() -> void:
 					_check(GameState.run.biome == "halls" and int(GameState.run.floor) == 21, "continue enters Halls floor 21")
 					var hh2: Dictionary = GameState.heroes[GameState.run.hero]
 					hh2.level = 18; hh2.str = 18
-					hh2.weapon = GameState.add_gear("greatsword", true, 2); hh2.armor = GameState.add_gear("plate_armor", true, 2)
+					hh2.weapon = 0; hh2.armor = 0
+					GameState.camp_weapon = {"id": "greatsword", "lvl": 2}; GameState.camp_armor = {"id": "plate_armor", "lvl": 2}
 					GameState.run.hp = GameState.hero_stats(GameState.run.hero).ht
 					GameState.run.supplies.potion_healing = 5
 					GameState.run.floor = 24; Delve.descend(GameState); s._show_card()
@@ -191,7 +193,8 @@ func _drive() -> void:
 		if ci < classes.size():
 			if ci == classes.size() - 1:
 				var h: Dictionary = GameState.heroes[classes[ci]]
-				h.level = 11; h.str = 14; h.weapon = GameState.add_gear("mace", true, 2); h.armor = GameState.add_gear("mail_armor", true, 2)
+				h.level = 11; h.str = 14; h.weapon = GameState.add_gear("mace", true, 2); h.armor = 0
+				GameState.camp_armor = {"id": "mail_armor", "lvl": 2}
 				GameState.add_mat("potion_healing", 3); s.loadout.potion_healing = 3; GameState.facilities.alchemy.level = 3
 			s.chosen_hero = classes[ci]; s._start(); main.delve.fast = true
 			return

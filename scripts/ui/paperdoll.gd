@@ -64,10 +64,20 @@ static func hero_tex(c: String) -> Texture2D:
 	at.region = Rect2(0, tier * 15, 12, 15); return at
 
 ## The item in a slot: gear dict (weapon/armor/ring/artifact), or a pseudo-item for staff/class.
+## Weapon/armor use resolved camp gear when the hero has no personal override (DECISIONS #234).
 static func slot_item(c: String, s: String) -> Dictionary:
 	var h: Dictionary = GameState.heroes[c]
 	match s:
-		"weapon", "armor", "ring", "artifact": return GameState.gear_by_uid(int(h.get(s, 0)))
+		"weapon":
+			var rw := GameState.resolved_weapon(c)
+			if String(rw.get("source", "")) == "starter": return {}
+			if String(rw.get("source", "")) == "camp": return GameState.gear_by_uid(GameState.CAMP_WEAPON_UID)
+			return GameState.gear_by_uid(int(rw.get("uid", 0)))
+		"armor":
+			var ra := GameState.resolved_armor(c)
+			if String(ra.get("source", "")) == "starter": return {}
+			return GameState.gear_by_uid(GameState.CAMP_ARMOR_UID)
+		"ring", "artifact": return GameState.gear_by_uid(int(h.get(s, 0)))
 		"staff":
 			if c == "mage" and String(h.get("wand", "")) != "": return {"pseudo": true, "icon": h.wand, "name": DB.item(h.wand).name, "desc": "Imbued into the Mage's Staff: its bolt."}
 		"class": return {"pseudo": true, "icon": CLASS_ITEM[c][0], "name": CLASS_ITEM[c][1], "desc": CLASS_ITEM[c][2]}
@@ -177,12 +187,17 @@ static func _detail(c: String, s: String, mode: String, refresh: Callable, on_eq
 		if it.get("cracked", false): v.add_child(UIKit.label("Cracked - repair at the Forge.", 0.8, Color("ff6a5a")))
 		if mode == "delve" and not d.get("heirloom", false):
 			v.add_child(UIKit.button("Unequip", func(): GameState.delve_unequip(s); refresh.call(), not GameState.backpack_full(), "backpack full"))
-	# Camp: take it off into the stash, unless it's an heirloom or the hero is out (DECISIONS #189)
-	if mode == "camp" and not it.is_empty() and s != "class" and not (not it.has("pseudo") and DB.item(it.id).get("heirloom", false)):
+	# Camp: take it off into the stash, unless it's an heirloom, party armor, or the hero is out (DECISIONS #189 / #234)
+	if mode == "camp" and not it.is_empty() and s != "class" and not it.get("camp", false) and not (not it.has("pseudo") and DB.item(it.id).get("heirloom", false)):
 		var why_off := GameState.can_unequip(c, s)
 		var ub := UIKit.action("Unequip", func(): GameState.unequip(c, s); refresh.call(), why_off); ub.name = "UnequipAction"
 		v.add_child(ub)
 	if s == "class": return card
+	if s == "armor":
+		v.add_child(UIKit.label("Party armor - forge at the Blacksmith to change it for everyone.", 0.8, Color("c9a96e")))
+		return card
+	if it.get("camp", false) and s == "weapon":
+		v.add_child(UIKit.label("Party weapon - forge at the Blacksmith to change it. Equip a found weapon to override.", 0.8, Color("c9a96e")))
 	# swap candidates, filtered to this slot
 	var want := "wand" if s == "staff" else s
 	if s == "staff" and c != "mage": v.add_child(UIKit.label("Only the Mage imbues wands.", 0.8, Color("9a9488"))); return card
@@ -194,6 +209,7 @@ static func _detail(c: String, s: String, mode: String, refresh: Callable, on_eq
 		for g in GameState.gear:
 			var who := GameState.equipped_by(g.uid)
 			if DB.item(g.id).type != want or who == c: continue
+			if want == "weapon" and GameState.is_forge_weapon(String(g.id)): continue
 			var why := GameState.can_equip(c, g.uid)
 			if why.begins_with("heirloom"): continue
 			var dt: Array = _delta_text(base, _stats_with(c, s, g.uid), g, int(GameState.heroes[c].str)) if why == "" else [why, 0]

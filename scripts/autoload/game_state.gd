@@ -15,13 +15,19 @@ const SUPPLY_KEYS := ["ration","torch","potion_healing","scroll_passage","elixir
 var mats: Dictionary = {}          # stash materials & consumables
 var gear: Array = []               # [{uid,id,lvl,cracked,known}]
 var next_uid := 1
+## Shared forge weapon/armor for the whole party (DECISIONS #234). Empty = use class starters.
+## {id, lvl}; never cracked. Found weapons stay per-hero overrides; Mage/Huntress keep heirloom melee.
+var camp_weapon: Dictionary = {}
+var camp_armor: Dictionary = {}
+const CAMP_WEAPON_UID := -1
+const CAMP_ARMOR_UID := -2
 var heroes: Dictionary = {}        # class -> hero dict
 var facilities: Dictionary = {}    # id -> {level, cap}
 var id_queue: Array = []           # [{uid, ready_at}]
 var boss_kills: Dictionary = {}    # class -> [biome ids]  (first kill per class drops a Scroll of Upgrade)
 ## text_scale multiplies the UI font size; haptics = vibrate on hits/traps (Android); dev_tools shows the Developer section.
 ## patrol_notify (default off) asks Android to ping when a patrol is ready; PC and web ignore it (DECISIONS #229).
-## interface: auto|mobile|desktop — Auto picks Desktop off phones (DECISIONS #232). keybinds: combat InputMap overrides.
+## interface: auto|mobile|desktop - Auto picks Desktop off phones (DECISIONS #232). keybinds: combat InputMap overrides.
 var settings := {"sfx": 0.8, "music": 0.5, "haptics": true, "text_scale": 1.0, "dev_tools": false, "tutorial": true,
 	"delve_speed": 1.0, "lighting": true, "full_auto": false, "patrol_notify": false,
 	"interface": "auto", "keybinds": {}}
@@ -130,7 +136,7 @@ func grant_owed_sou() -> int:
 	return n
 
 ## Gold for a full first-delve buy at Lv1 facilities: 3 rations (30) + 3 torches (24) +
-## 2 healing potions (60) + 1 Scroll of Passage at the Enchanter (20). No starting resin —
+## 2 healing potions (60) + 1 Scroll of Passage at the Enchanter (20). No starting resin -
 ## early runs use the free Passage until Goo falls; the Passage gold is spare until resin drops.
 const STARTING_GOLD := 134
 
@@ -138,6 +144,7 @@ func new_game() -> void:
 	# Empty supply stash on purpose: buy rations, torches and potions at the Guild before the first delve.
 	mats = {"gold": STARTING_GOLD, "ration": 0, "torch": 0, "potion_healing": 0, "iron_key": 1, "seeds": 2}
 	gear = []; next_uid = 1; id_queue = []; boss_kills = {}; run = {}; time_offset = 0.0
+	camp_weapon = {}; camp_armor = {}
 	stats = STATS_DEFAULT.duplicate(); milestones_claimed = []; milestones_reached = []; seen = {}; tutorial_done = []; owed_sou = 0
 	_roll_appearances()
 	facilities = {}
@@ -145,8 +152,13 @@ func new_game() -> void:
 	heroes = {}
 	for c in DB.heroes:
 		var h: Dictionary = DB.heroes[c]
+		# Shared camp gear (DECISIONS #234): Warrior/Rogue start with empty slots (camp / Cloth starters).
+		# Mage and Huntress keep heirloom melee instances; armor is always the camp piece.
+		var wuid := 0
+		if c == "mage" or c == "huntress":
+			wuid = add_gear(h.start_weapon)
 		heroes[c] = {"class": c, "unlocked": h.unlocked_by_default, "level": 1, "xp": 0, "str": 10, "str_found": [],
-			"weapon": add_gear(h.start_weapon), "armor": add_gear(h.start_armor), "ring": 0, "artifact": 0,
+			"weapon": wuid, "armor": 0, "ring": 0, "artifact": 0,
 			"wand": "wand_magic_missile" if c == "mage" else "", "cleared": [], "patrol": {}, "mask": false, "subclass": "", "talents": []}
 	if not _suspend_patrol_sync:
 		sync_patrol_widget()
@@ -159,9 +171,43 @@ func add_gear(id: String, known := true, lvl := 0) -> int:
 	return g.uid
 
 func gear_by_uid(uid: int) -> Dictionary:
+	if uid == CAMP_WEAPON_UID:
+		if camp_weapon.is_empty(): return {}
+		return {"uid": CAMP_WEAPON_UID, "id": String(camp_weapon.id), "lvl": int(camp_weapon.get("lvl", 0)),
+			"cracked": false, "known": true, "camp": true}
+	if uid == CAMP_ARMOR_UID:
+		if camp_armor.is_empty(): return {}
+		return {"uid": CAMP_ARMOR_UID, "id": String(camp_armor.id), "lvl": int(camp_armor.get("lvl", 0)),
+			"cracked": false, "known": true, "camp": true}
 	for g in gear:
 		if g.uid == uid: return g
 	return {}
+
+## Display name for a camp piece (or "-").
+func camp_gear_name(slot: String) -> String:
+	var g := gear_by_uid(CAMP_WEAPON_UID if slot == "weapon" else CAMP_ARMOR_UID)
+	return gear_name(g) if not g.is_empty() else "-"
+
+## Weapon the hero fights with: found override, else Mage/Huntress heirloom, else camp forge sword, else starter.
+func resolved_weapon(c: String) -> Dictionary:
+	var h: Dictionary = heroes[c]
+	var def: Dictionary = DB.heroes[c]
+	var w := gear_by_uid(int(h.get("weapon", 0)))
+	if not w.is_empty() and not w.get("cracked", false) and not w.get("camp", false):
+		# Personal override (found weapon) or class heirloom instance
+		if not is_forge_weapon(String(w.id)):
+			return {"id": String(w.id), "lvl": int(w.get("lvl", 0)), "source": "personal", "uid": int(w.uid)}
+	if not camp_weapon.is_empty() and c != "mage" and c != "huntress":
+		return {"id": String(camp_weapon.id), "lvl": int(camp_weapon.get("lvl", 0)), "source": "camp", "uid": CAMP_WEAPON_UID}
+	# Mage / Huntress with empty override: heirloom melee. Warrior / Rogue with no camp: starter stats.
+	return {"id": String(def.start_weapon), "lvl": 0, "source": "starter", "uid": 0}
+
+## Armor every hero wears: camp forge armor, else Cloth starter.
+func resolved_armor(c: String) -> Dictionary:
+	if not camp_armor.is_empty():
+		return {"id": String(camp_armor.id), "lvl": int(camp_armor.get("lvl", 0)), "source": "camp", "uid": CAMP_ARMOR_UID}
+	var def: Dictionary = DB.heroes[c]
+	return {"id": String(def.get("start_armor", "cloth_armor")), "lvl": 0, "source": "starter", "uid": 0}
 
 func gear_name(g: Dictionary) -> String:
 	if g.is_empty(): return "-"
@@ -217,8 +263,16 @@ static func armor_dr(ad: Dictionary, al: int) -> int:
 static func armor_barrier(ad: Dictionary, al: int) -> int:
 	return int(ad.get("barrier", 0)) + int(floor(float(ad.get("barrier_per_lvl", 0.0)) * maxi(0, al)))
 
-## Forged sword damage for Ring of Force: Worn / Shortsword / Sword / Longsword / Greatsword (DECISIONS #223).
+## Forged sword / armor lines: shared camp pieces (DECISIONS #234). Ring of Force uses sword tiers (#223).
 const FORCE_SWORDS := ["worn_shortsword", "shortsword", "sword", "longsword", "greatsword"]
+const FORCE_ARMOR := ["leather_armor", "mail_armor", "scale_armor", "plate_armor"]
+
+static func is_forge_weapon(id: String) -> bool:
+	return id in FORCE_SWORDS
+
+static func is_forge_armor(id: String) -> bool:
+	return id in FORCE_ARMOR
+
 static func forged_sword_dmg(tier: int, lvl: int) -> int:
 	var id: String = FORCE_SWORDS[clampi(tier, 1, 5) - 1]
 	return Weapons.dmg(DB.item(id), lvl)
@@ -226,13 +280,15 @@ static func forged_sword_dmg(tier: int, lvl: int) -> int:
 func hero_stats(c: String) -> Dictionary:
 	var h: Dictionary = heroes[c]
 	var def: Dictionary = DB.heroes[c]
-	var w := gear_by_uid(h.weapon); var a := gear_by_uid(h.armor); var r := gear_by_uid(h.ring)
+	var rw := resolved_weapon(c); var ra := resolved_armor(c)
+	var r := gear_by_uid(h.ring)
 	var art := gear_by_uid(int(h.get("artifact", 0)))
-	# cracked/missing weapon or armor: the class's starter gear (SPD starting items: free, never cracks) (DECISIONS #104)
-	var w_ok: bool = not w.is_empty() and not w.cracked; var a_ok: bool = not a.is_empty() and not a.cracked
-	var wd := DB.item(w.id) if w_ok else DB.item(def.start_weapon)
-	var ad := DB.item(a.id) if a_ok else DB.item(def.get("start_armor", "cloth_armor"))
-	var wl := int(w.get("lvl", 0)) if w_ok else 0; var al := int(a.get("lvl", 0)) if a_ok else 0
+	# cracked/missing personal weapon, or empty camp: class starters (DECISIONS #104 / #234)
+	var w_ok: bool = String(rw.get("source", "")) != "starter"
+	var a_ok: bool = String(ra.get("source", "")) != "starter"
+	var wd := DB.item(String(rw.id))
+	var ad := DB.item(String(ra.id))
+	var wl := int(rw.get("lvl", 0)); var al := int(ra.get("lvl", 0))
 	# Ring of Might: Strength + max HP; effective Str gates gear and Force (DECISIONS #223)
 	var ring_str := 0
 	if not r.is_empty() and r.known and not r.cracked:
@@ -242,7 +298,7 @@ func hero_stats(c: String) -> Dictionary:
 	var dmg := Weapons.dmg(wd, wl)          # SPD min/max at this level, averaged (DECISIONS #207)
 	if wd.has("dmg_per_levels"): dmg += int(h.level) / int(wd.dmg_per_levels)
 	var wnl := 0 if h.get("wand_cracked", false) else int(h.get("wand_lvl", 0))
-	var wid := String(w.id) if w_ok else String(def.start_weapon)
+	var wid := String(rw.id)
 	if wid == "mages_staff":
 		dmg += 2 * wnl   # staff melee scales with imbued wand level
 		if String(h.get("subclass", "")) == "battlemage": dmg += wnl
@@ -453,6 +509,8 @@ func can_delve_equip(uid: int) -> String:
 		if c != "mage": return "only the Mage can imbue wands"
 		if not g.known: return "unidentified"
 		return ""
+	if d.type == "armor" or is_forge_armor(String(g.id)): return "armor is shared at Camp"
+	if is_forge_weapon(String(g.id)): return "forge weapons outfit the party at Camp"
 	if _slot_for(d.type) == "": return "can't be equipped"
 	if g.cracked: return "cracked"
 	if not g.known and d.type == "ring": return "unidentified"
@@ -475,7 +533,8 @@ func delve_equip(uid: int) -> bool:
 	else:
 		var slot := _slot_for(d.type)
 		var old := gear_by_uid(int(h[slot]))
-		if not old.is_empty():
+		# Don't put camp synthetic pieces in the pack; heirloom/found only
+		if not old.is_empty() and not old.get("camp", false):
 			gear.erase(old); old.owned = true; run.pack_gear.append(old)
 		g.erase("owned"); gear.append(g); h[slot] = int(g.uid)
 		say("Equipped %s." % gear_name(g))
@@ -486,12 +545,13 @@ func _take_uid() -> int:
 	next_uid += 1
 	return next_uid - 1
 
-## Unequip a slot into the backpack (needs a free slot; heirlooms stay put).
+## Unequip a slot into the backpack (needs a free slot; heirlooms stay put). Armor is party-wide (#234).
 func delve_unequip(slot: String) -> bool:
 	if run.is_empty() or backpack_full(): return false
+	if slot == "armor": return false
 	var h: Dictionary = heroes[run.hero]
 	var g := gear_by_uid(int(h[slot]))
-	if g.is_empty() or DB.item(g.id).get("heirloom", false): return false
+	if g.is_empty() or g.get("camp", false) or DB.item(g.id).get("heirloom", false): return false
 	gear.erase(g); g.owned = true; run.pack_gear.append(g); h[slot] = 0
 	run.hp = mini(int(run.hp), int(hero_stats(run.hero).ht))
 	say("Unequipped %s." % gear_name(g)); touch(); return true
@@ -524,8 +584,8 @@ func compare_equip(uid: int) -> Dictionary:
 	if req > 0 and req > int(a.get("str", h.str)): out.need_str = req
 	# Armor Barrier can rise on the piece while the hero's ht/2 cap hides it (DECISIONS #221)
 	if d.type == "armor" and g.get("known", true):
-		var cur := gear_by_uid(int(h.armor))
-		var cur_bar := 0 if cur.is_empty() or cur.get("cracked", false) else armor_barrier(DB.item(cur.id), int(cur.get("lvl", 0)))
+		var ra := resolved_armor(c)
+		var cur_bar := 0 if String(ra.get("source", "")) == "starter" else armor_barrier(DB.item(String(ra.id)), int(ra.get("lvl", 0)))
 		var new_bar := armor_barrier(d, int(g.get("lvl", 0)))
 		out.armor_barrier = [cur_bar, new_bar]
 		out.barrier_cap = int(a.ht) / 2
@@ -720,12 +780,15 @@ func power_rating(c: String) -> int:
 func can_equip(c: String, uid: int) -> String:
 	var g := gear_by_uid(uid)
 	if g.is_empty(): return "missing"
-	if _slot_for(DB.item(g.id).type) == "": return "can't be equipped"
+	if g.get("camp", false): return "party gear - forge to change it"
+	var d := DB.item(g.id)
+	if d.type == "armor" or is_forge_armor(String(g.id)): return "armor is shared at Camp"
+	if is_forge_weapon(String(g.id)): return "forge weapons outfit the party at Camp"
+	if _slot_for(d.type) == "": return "can't be equipped"
 	var lock := gear_lock(c)
 	if lock != "": return lock
 	if g.cracked: return "cracked - repair at the Blacksmith"
-	if not g.known and DB.item(g.id).type == "ring": return "unidentified - use the Enchanter's Desk"
-	var d := DB.item(g.id)
+	if not g.known and d.type == "ring": return "unidentified - use the Enchanter's Desk"
 	if d.get("heirloom", false) and DB.heroes[c].heirloom != g.id: return "heirloom of another class"
 	# worn by someone else: it moves over (a swap), unless that hero's gear is locked (DECISIONS #189)
 	var other := equipped_by(uid)
@@ -736,6 +799,7 @@ func can_equip(c: String, uid: int) -> String:
 
 ## Equip from the Camp stash. An item another hero wears moves over; when this hero had something in that slot
 ## and the other hero can wear it, the two trade (a swap), otherwise their slot is left empty (DECISIONS #189).
+## Armor and forge swords are party-wide (DECISIONS #234) - only found weapons, rings, artifacts equip per hero.
 func equip(c: String, uid: int) -> bool:
 	if can_equip(c, uid) != "": return false
 	var g := gear_by_uid(uid)
@@ -793,6 +857,8 @@ func can_unequip(c: String, slot: String) -> String:
 	var h: Dictionary = heroes[c]
 	if slot == "staff":
 		if String(h.get("wand", "")) == "": return "no wand imbued"
+	elif slot == "armor":
+		return "armor is shared at Camp"
 	else:
 		if not (slot in GEAR_SLOTS): return "not a gear slot"
 		var g := gear_by_uid(int(h.get(slot, 0)))
@@ -801,7 +867,7 @@ func can_unequip(c: String, slot: String) -> String:
 	return gear_lock(c)
 
 ## Take a piece off at Camp: it goes back to the stash (still owned, just not worn). The Mage's wand leaves the
-## staff as a stash wand with its level and crack kept.
+## staff as a stash wand with its level and crack kept. Unequipping a found weapon returns to camp / heirloom.
 func unequip(c: String, slot: String) -> bool:
 	if can_unequip(c, slot) != "": return false
 	var h: Dictionary = heroes[c]
@@ -899,7 +965,7 @@ func facility_level(id: String) -> int:
 	return int(facilities[id].level)
 
 func facility_upgrade_cost(id: String) -> Dictionary:
-	# Blacksmith: hardcoded steps; dark gold from Lv2→Lv3 onward
+	# Blacksmith: hardcoded steps; dark gold from Lv2?Lv3 onward
 	if id == "blacksmith":
 		match facility_level(id):
 			1: return {"iron_ore": 35, "gold": 150}
@@ -979,10 +1045,31 @@ func recipe(fac: String, rid: String) -> Dictionary:
 		if r.id == rid: return r
 	return {}
 
+## Why a forge recipe can't outfit the party ("" = ok): already have that tier or better.
+func can_forge_camp(out_id: String) -> String:
+	if is_forge_weapon(out_id):
+		if camp_weapon.is_empty(): return ""
+		var have := int(DB.item(String(camp_weapon.id)).get("tier", 1))
+		var want := int(DB.item(out_id).get("tier", 1))
+		if want < have: return "party already has better"
+		if want == have: return "party already has %s" % DB.display_name(out_id)
+		return ""
+	if is_forge_armor(out_id):
+		if camp_armor.is_empty(): return ""
+		var have_a := int(DB.item(String(camp_armor.id)).get("tier", 1))
+		var want_a := int(DB.item(out_id).get("tier", 1))
+		if want_a < have_a: return "party already has better"
+		if want_a == have_a: return "party already has %s" % DB.display_name(out_id)
+		return ""
+	return ""
+
 func can_craft(fac: String, rid: String) -> String:
 	var r := recipe(fac, rid)
 	if r.is_empty(): return "unknown recipe"
 	if facility_level(fac) < int(r.min_level): return "needs %s Lv%d" % [DB.facilities[fac].name, r.min_level]
+	if r.has("out"):
+		var camp_block := can_forge_camp(String(r.out))
+		if camp_block != "": return camp_block
 	if not can_afford(r.cost): return "need " + cost_text(r.cost)
 	return ""
 
@@ -994,7 +1081,16 @@ func craft(fac: String, rid: String) -> bool:
 	for k in r.cost:
 		if DB.materials.get(k, {}).get("unknown", false) and not is_mat_known(k): identify_mat(k)
 	var n := int(r.get("out_n", 1))
-	if r.has("out"): add_gear(r.out); add_stat("items_forged", 1); say("Forged " + DB.display_name(r.out) + ".")
+	if r.has("out"):
+		var oid: String = String(r.out)
+		if is_forge_weapon(oid):
+			camp_weapon = {"id": oid, "lvl": 0}; seen["item:" + oid] = true
+			add_stat("items_forged", 1); say("Party forged " + DB.display_name(oid) + ".")
+		elif is_forge_armor(oid):
+			camp_armor = {"id": oid, "lvl": 0}; seen["item:" + oid] = true
+			add_stat("items_forged", 1); say("Party forged " + DB.display_name(oid) + ".")
+		else:
+			add_gear(oid); add_stat("items_forged", 1); say("Forged " + DB.display_name(oid) + ".")
 	else: add_mat(r.out_mat, n); say("Made %s%s." % [DB.mat_name(r.out_mat), " x%d" % n if n > 1 else ""])
 	if fac == "alchemy": stats.potions_brewed += 1
 	check_unlocks()
@@ -1021,6 +1117,7 @@ func forge_cap() -> int:
 
 func item_upgrade_cost(uid: int) -> Dictionary:
 	var g := gear_by_uid(uid)
+	if g.is_empty(): return {}
 	if is_trinket(g): return trinket_step_cost(int(g.lvl) + 1)
 	return upgrade_step_cost(int(g.lvl) + 1, int(DB.item(g.id).get("tier", 1)))
 
@@ -1042,7 +1139,14 @@ func can_upgrade_item(uid: int) -> String:
 
 func upgrade_item(uid: int) -> bool:
 	if can_upgrade_item(uid) != "": return false
-	pay(item_upgrade_cost(uid), "item_upgrade"); gear_by_uid(uid).lvl += 1; add_stat("items_upgraded", 1)
+	pay(item_upgrade_cost(uid), "item_upgrade")
+	if uid == CAMP_WEAPON_UID:
+		camp_weapon.lvl = int(camp_weapon.get("lvl", 0)) + 1
+	elif uid == CAMP_ARMOR_UID:
+		camp_armor.lvl = int(camp_armor.get("lvl", 0)) + 1
+	else:
+		gear_by_uid(uid).lvl += 1
+	add_stat("items_upgraded", 1)
 	say("Upgraded " + gear_name(gear_by_uid(uid)) + "."); touch(); return true
 
 func repair_cost(uid: int) -> Dictionary:
@@ -1167,9 +1271,12 @@ static func cost_add(a: Dictionary, b: Dictionary) -> Dictionary:
 	return out
 
 ## How many times recipe `rid` can be made right now (0 when locked/unaffordable), capped at BULK_CAP.
+## Forge weapon/armor recipes outfit the party once (DECISIONS #234) - max 1.
 func craft_max(fac: String, rid: String) -> int:
 	var r := recipe(fac, rid)
 	if r.is_empty() or facility_level(fac) < int(r.min_level): return 0
+	if r.has("out") and (is_forge_weapon(String(r.out)) or is_forge_armor(String(r.out))):
+		return 1 if can_craft(fac, rid) == "" else 0
 	var n := BULK_CAP
 	for k in r.cost:
 		if int(r.cost[k]) > 0: n = mini(n, mat(k) / int(r.cost[k]))
@@ -1184,7 +1291,8 @@ func craft_n(fac: String, rid: String, n: int) -> bool:
 ## Total cost for `n` successive upgrades of one item (costs rise per level).
 func upgrade_cost_n(uid: int, n: int) -> Dictionary:
 	var g := gear_by_uid(uid); var total := {}; var tier := int(DB.item(g.id).get("tier", 1))
-	for i in n: total = cost_add(total, trinket_step_cost(int(g.lvl) + i + 1) if is_trinket(g) else upgrade_step_cost(int(g.lvl) + i + 1, tier))
+	var base_lvl := int(g.lvl)
+	for i in n: total = cost_add(total, trinket_step_cost(base_lvl + i + 1) if is_trinket(g) else upgrade_step_cost(base_lvl + i + 1, tier))
 	return total
 
 ## Most levels the item can gain now: limited by the Blacksmith cap and by what is affordable.
@@ -1642,12 +1750,16 @@ const PATROL_MULT_CAP := 1.50        # gear + perk bonuses add, then cap
 const PATROL_GOLD_GEAR_SHARE := 0.0  # gold gets none of the gear share (only Wealth / Armband raise it)
 const PATROL_FEE_CUT_MAX := 50.0
 
-## Sum of upgrade levels the hero actually uses: weapon, armor, ring, artifact and the staff's wand. Cracked
-## pieces don't count (they do nothing in a fight either).
+## Sum of upgrade levels the hero actually uses: resolved weapon/armor (camp or override), ring, artifact,
+## and the staff's wand. Cracked pieces don't count (DECISIONS #234).
 func patrol_gear_level(c: String) -> int:
 	var h: Dictionary = heroes[c]
 	var n := 0
-	for s in ["weapon", "armor", "ring", "artifact"]:
+	var rw := resolved_weapon(c)
+	if String(rw.get("source", "")) != "starter": n += int(rw.get("lvl", 0))
+	var ra := resolved_armor(c)
+	if String(ra.get("source", "")) != "starter": n += int(ra.get("lvl", 0))
+	for s in ["ring", "artifact"]:
 		var g := gear_by_uid(int(h.get(s, 0)))
 		if not g.is_empty() and not g.get("cracked", false): n += int(g.get("lvl", 0))
 	if String(h.get("wand", "")) != "" and not h.get("wand_cracked", false): n += int(h.get("wand_lvl", 0))
@@ -1913,7 +2025,10 @@ func end_run(result: String) -> void:
 			if banked >= BIG_HAUL_GOLD: add_stat("feat_big_haul", 1)
 			for k in run.pack: add_mat(k, int(run.pack[k]))
 			for g in run.pack_gear:
-				g.erase("owned"); gear.append(g)
+				g.erase("owned")
+				if _absorb_into_camp(g): continue
+				if DB.item(String(g.id)).type == "armor": continue
+				gear.append(g)
 			stats.extractions += 1
 			say("Extracted! The pack is banked at Camp.")
 		"death":
@@ -1922,16 +2037,23 @@ func end_run(result: String) -> void:
 				stats.goo_losses = int(stats.get("goo_losses", 0)) + 1
 				if mat("potion_healing") < 2:
 					add_mat("potion_healing", 2 - mat("potion_healing")); log_line("The Camp healer sends you back to Goo with 2 Potions of Healing.", "positive")
-			for slot in ["weapon", "armor", "ring", "artifact"]:
+			# Camp weapon/armor never crack. Found weapon overrides and rings/artifacts crack; starters/heirlooms don't (#221, #234)
+			for slot in ["weapon", "ring", "artifact"]:
 				var g := gear_by_uid(int(h.get(slot, 0)))
-				# heirlooms and class starters (Cloth, Worn Shortsword, Dagger, Gloves, Staff) never crack (DECISIONS #221)
-				if not g.is_empty() and not _never_cracks(String(g.id)): g.cracked = true
+				if g.is_empty() or g.get("camp", false): continue
+				if not _never_cracks(String(g.id)): g.cracked = true
 			if String(h.get("wand", "")) != "" and int(h.get("wand_lvl", 0)) > 0: h.wand_cracked = true   # DECISIONS #158
 			for g in run.pack_gear:
 				if g.get("owned", false):
 					g.erase("owned")
-					if not _never_cracks(String(g.id)) and (DB.item(g.id).type != "wand" or int(g.get("lvl", 0)) > 0): g.cracked = true
-					gear.append(g)
+					# Fold forge armor/weapons into camp instead of cracking stash copies
+					if is_forge_weapon(String(g.id)) or is_forge_armor(String(g.id)):
+						_absorb_into_camp(g)
+					elif not _never_cracks(String(g.id)) and (DB.item(g.id).type != "wand" or int(g.get("lvl", 0)) > 0):
+						g.cracked = true
+						gear.append(g)
+					else:
+						gear.append(g)
 			h.best_level = maxi(int(h.get("best_level", 1)), int(h.level))
 			h.level = 1; h.xp = 0; h.str = 10; h.talents = []; h.str_found = []; h.cleared = []
 			_owe_pack_sou()
@@ -2042,6 +2164,8 @@ func stat_value(stat: String) -> int:
 		"max_gear_lvl":
 			var mx := 0
 			for g in gear: if g.get("known", true): mx = maxi(mx, int(g.lvl))
+			if not camp_weapon.is_empty(): mx = maxi(mx, int(camp_weapon.get("lvl", 0)))
+			if not camp_armor.is_empty(): mx = maxi(mx, int(camp_armor.get("lvl", 0)))
 			return maxi(mx, int(heroes.get("mage", {}).get("wand_lvl", 0)))
 		"patrol_gear_best":
 			var pg := 0
@@ -2129,7 +2253,7 @@ func to_dict() -> Dictionary:
 	return {"mats": mats, "gear": gear, "next_uid": next_uid, "heroes": heroes, "facilities": facilities,
 		"id_queue": id_queue, "boss_kills": boss_kills, "settings": settings, "run": run, "stats": stats,
 		"milestones_claimed": milestones_claimed, "milestones_reached": milestones_reached, "seen": seen, "tutorial_done": tutorial_done, "looks": looks, "ided": ided, "owed_sou": owed_sou,
-		"time_offset": time_offset}
+		"time_offset": time_offset, "camp_weapon": camp_weapon, "camp_armor": camp_armor}
 
 func from_dict(d: Dictionary) -> void:
 	_suspend_patrol_sync = true
@@ -2140,6 +2264,8 @@ func from_dict(d: Dictionary) -> void:
 		for k in DB.materials:
 			if DB.materials[k].get("unknown", false): _ensure_look(k)
 	mats = d.get("mats", mats); gear = d.get("gear", gear); next_uid = int(d.get("next_uid", next_uid))
+	camp_weapon = d.get("camp_weapon", {}).duplicate(true) if d.get("camp_weapon", {}) is Dictionary else {}
+	camp_armor = d.get("camp_armor", {}).duplicate(true) if d.get("camp_armor", {}) is Dictionary else {}
 	for c in d.get("heroes", {}):
 		if heroes.has(c): heroes[c].merge(d.heroes[c], true)
 	for f in d.get("facilities", {}):
@@ -2199,6 +2325,7 @@ func _fix_types() -> void:
 		var p: Dictionary = h.get("patrol", {})
 		if not p.is_empty() and float(p.get("start", 0)) > now(): p.start = now()
 	_fix_ownership()
+	_migrate_camp_gear()
 	for f in facilities:
 		facilities[f].level = int(facilities[f].level); facilities[f].cap = int(facilities[f].cap)
 		if DB.facilities.has(f): facilities[f].cap = facility_cap(f)
@@ -2234,9 +2361,77 @@ func _fix_types() -> void:
 
 
 ## SPD Hero.tier() / HeroSprite row: 0 = nothing worn, otherwise the armor's tier
-## (cloth = 1 … plate = 5, class armor = 6). Row 0 is the naked sheet.
+## (cloth = 1 ... plate = 5, class armor = 6). Row 0 is the naked sheet. Uses camp armor (#234).
 func armor_tier(c: String) -> int:
 	if not heroes.has(c): return 0
-	var a := gear_by_uid(int(heroes[c].get("armor", -1)))
-	if a.is_empty(): return 0
-	return clampi(int(DB.item(a.id).get("tier", 1)), 0, 6)
+	var ra := resolved_armor(c)
+	if String(ra.get("source", "")) == "starter":
+		# Cloth starter still shows the cloth row (tier 1), not naked
+		return clampi(int(DB.item(String(ra.id)).get("tier", 1)), 0, 6)
+	return clampi(int(DB.item(String(ra.id)).get("tier", 1)), 0, 6)
+
+## Prefer g over the current camp piece when it is a better forge tier or same tier with higher level.
+func _camp_better(cur: Dictionary, g: Dictionary) -> bool:
+	if cur.is_empty(): return true
+	var ct := int(DB.item(String(cur.id)).get("tier", 1)); var gt := int(DB.item(String(g.id)).get("tier", 1))
+	if gt != ct: return gt > ct
+	return int(g.get("lvl", 0)) > int(cur.get("lvl", 0))
+
+## Fold one forge gear dict into camp_weapon / camp_armor (no stash entry). Returns true when absorbed.
+func _absorb_into_camp(g: Dictionary) -> bool:
+	var id := String(g.get("id", ""))
+	if is_forge_weapon(id):
+		if _camp_better(camp_weapon, g):
+			camp_weapon = {"id": id, "lvl": int(g.get("lvl", 0))}
+		seen["item:" + id] = true
+		return true
+	if is_forge_armor(id):
+		if _camp_better(camp_armor, g):
+			camp_armor = {"id": id, "lvl": int(g.get("lvl", 0))}
+		seen["item:" + id] = true
+		return true
+	return false
+
+## Old saves (DECISIONS #234): collapse forge weapon/armor copies into one camp piece each; clear hero armor
+## slots; strip forge swords from hero weapon slots (keep found weapons and Mage/Huntress heirlooms).
+func _migrate_camp_gear() -> void:
+	if not camp_weapon is Dictionary: camp_weapon = {}
+	if not camp_armor is Dictionary: camp_armor = {}
+	if not camp_weapon.is_empty():
+		camp_weapon = {"id": String(camp_weapon.get("id", "")), "lvl": int(camp_weapon.get("lvl", 0))}
+		if not is_forge_weapon(String(camp_weapon.id)): camp_weapon = {}
+	if not camp_armor.is_empty():
+		camp_armor = {"id": String(camp_armor.get("id", "")), "lvl": int(camp_armor.get("lvl", 0))}
+		if not is_forge_armor(String(camp_armor.id)): camp_armor = {}
+	# Absorb forge pieces from stash and from an active pack
+	var keep: Array = []
+	for g in gear:
+		if _absorb_into_camp(g): continue
+		if DB.item(String(g.id)).type == "armor": continue   # leftover armor instances: melt (no refund)
+		keep.append(g)
+	gear = keep
+	if not run.is_empty():
+		var pack_keep: Array = []
+		for g in run.get("pack_gear", []):
+			if _absorb_into_camp(g): continue
+			if DB.item(String(g.id)).type == "armor": continue
+			pack_keep.append(g)
+		run.pack_gear = pack_keep
+		var over_keep: Array = []
+		for g in run.get("overflow", []):
+			if _absorb_into_camp(g): continue
+			if DB.item(String(g.id)).type == "armor": continue
+			over_keep.append(g)
+		run.overflow = over_keep
+	for c in heroes:
+		var h: Dictionary = heroes[c]
+		h.armor = 0
+		var w := gear_by_uid(int(h.get("weapon", 0)))
+		if w.is_empty():
+			h.weapon = 0
+		elif is_forge_weapon(String(w.id)):
+			h.weapon = 0
+		elif c != "mage" and c != "huntress" and String(w.id) == String(DB.heroes[c].get("start_weapon", "")):
+			# Warrior worn shortsword / Rogue dagger instances: use camp instead
+			gear.erase(w); h.weapon = 0
+		# Mage/Huntress keep staff/gloves; found weapons stay

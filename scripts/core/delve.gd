@@ -266,7 +266,7 @@ static func special_fight_event(run: Dictionary, o: Dictionary) -> Dictionary:
 		mobs = sets[r.randi() % sets.size()].mobs
 	return {"kind": "combat", "room": o.room, "mobs": fill_mobs(mobs, o.room)}
 
-## Biome gold drip per gold tick (every 8% of a floor; Sewers 1 … Halls 5).
+## Biome gold drip per gold tick (every 8% of a floor; Sewers 1 ... Halls 5).
 static func biome_gold_per_tick(biome: String) -> int:
 	match biome:
 		"prison": return 2
@@ -483,9 +483,10 @@ static func defeat_changes(gs, before: Dictionary, res: Dictionary) -> Dictionar
 			lost.append("%s cracks" % gs.gear_name(g))
 		else: lost.append(gs.gear_name(g))
 	var h: Dictionary = gs.heroes[run.hero]
-	for slot in ["weapon", "armor", "ring", "artifact"]:
+	# Camp armor/weapon never crack; only personal found weapons + rings/artifacts (DECISIONS #234)
+	for slot in ["weapon", "ring", "artifact"]:
 		var g: Dictionary = gs.gear_by_uid(int(h.get(slot, 0)))
-		if g.is_empty() or gs._never_cracks(String(g.id)): continue
+		if g.is_empty() or g.get("camp", false) or gs._never_cracks(String(g.id)): continue
 		lost.append("%s cracks" % gs.gear_name(g))
 	if int(h.level) > 1: lost.append("Level reset to 1")
 	if int(h.str) != 10: lost.append("Strength reset to 10")
@@ -506,6 +507,16 @@ static func random_weapon(gs) -> String:
 	return Weapons.random_for_floor(int(gs.run.floor), int(r.randi() % 1000000))
 
 static func _stow(gs, g: Dictionary) -> void:
+	# Forge weapon/armor outfit the party at Camp (DECISIONS #234) - absorb instead of packing.
+	var id := String(g.id)
+	if gs.is_forge_weapon(id) or gs.is_forge_armor(id):
+		gs._absorb_into_camp(g)
+		var uid: int = gs.CAMP_ARMOR_UID if gs.is_forge_armor(id) else gs.CAMP_WEAPON_UID
+		gs.say("Camp gear updated: %s." % gs.gear_name(gs.gear_by_uid(uid)))
+		gs.touch()
+		return
+	if DB.item(id).type == "armor":
+		return   # no found armor; drop silently
 	if gs.backpack_full():
 		if not gs.run.has("overflow"): gs.run.overflow = []
 		gs.run.overflow.append(g); gs.say("Backpack full! Drop something or leave %s." % gs.gear_name(g))

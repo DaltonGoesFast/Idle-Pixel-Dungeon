@@ -108,6 +108,7 @@ func _ready() -> void:
 	test_staff_empty_warning(gs)
 	test_owner_plate_fit(gs)
 	test_forge_bulk(gs)
+	test_camp_shared_gear(gs)
 	test_break_rings(gs)
 	test_all_icons(gs)
 	test_iron_ore_icon()
@@ -346,11 +347,22 @@ func test_traps(gs) -> void:
 	c5.hero_tap(Vector2i(1, 2))
 	check(c5.visible_trap(Vector2i(2, 2)), "Rogue's keen eyes spot adjacent hidden traps while moving")
 
+## Outfit the party with forge weapon/armor (DECISIONS #234). Cloth = empty camp armor.
+func _camp(gs, weapon_id: String, armor_id: String, wl := 0, al := 0) -> void:
+	if weapon_id != "": gs.camp_weapon = {"id": weapon_id, "lvl": wl}; gs.seen["item:" + weapon_id] = true
+	if armor_id == "" or armor_id == "cloth_armor": gs.camp_armor = {}
+	else: gs.camp_armor = {"id": armor_id, "lvl": al}; gs.seen["item:" + armor_id] = true
+	for c in gs.heroes:
+		var wid := String(gs.gear_by_uid(int(gs.heroes[c].get("weapon", 0))).get("id", ""))
+		if gs.is_forge_weapon(wid): gs.heroes[c].weapon = 0
+		gs.heroes[c].armor = 0
+
 func test_prison(gs) -> void:
 	print("[prison] Lv5 Warrior, Str 12, Shortsword+1 / Leather+1 (GDD: Prison = 12-13 Str, tier 2-3) vs every Prison fight")
 	gs.new_game()
 	var w: Dictionary = gs.heroes.warrior
-	w.level = 5; w.str = 12; w.weapon = gs.add_gear("shortsword", true, 1); w.armor = gs.add_gear("leather_armor", true, 1)
+	w.level = 5; w.str = 12; w.weapon = 0; w.armor = 0
+	_camp(gs, "shortsword", "leather_armor", 1, 1)
 	var hs := warrior(gs)
 	var b: Dictionary = DB.biomes.prison
 	var wins := 0; var total := 0; var worst := 999
@@ -413,7 +425,8 @@ func test_caves(gs) -> void:
 	print("[caves] Lv10 Warrior, Str 14, Mace+1 / Mail+1 (GDD Caves: 14-15 Str, tier 3) vs every Caves fight")
 	gs.new_game()
 	var w: Dictionary = gs.heroes.warrior
-	w.level = 10; w.str = 14; w.weapon = gs.add_gear("mace", true, 1); w.armor = gs.add_gear("mail_armor", true, 1)
+	w.level = 10; w.str = 14; w.weapon = gs.add_gear("mace", true, 1); w.armor = 0
+	_camp(gs, "", "mail_armor", 0, 1)
 	var hs := warrior(gs)
 	var b: Dictionary = DB.biomes.caves
 	var wins := 0; var total := 0; var worst := 999
@@ -448,7 +461,8 @@ func test_city(gs) -> void:
 	print("[city] Lv14 Warrior, Str 16, Longsword+1 / Scale+1 (GDD City: 16-17 Str, tier 4) vs every City fight")
 	gs.new_game()
 	var w: Dictionary = gs.heroes.warrior
-	w.level = 14; w.str = 16; w.weapon = gs.add_gear("longsword", true, 1); w.armor = gs.add_gear("scale_armor", true, 1)
+	w.level = 14; w.str = 16; w.weapon = 0; w.armor = 0
+	_camp(gs, "longsword", "scale_armor", 1, 1)
 	var hs := warrior(gs)
 	var b: Dictionary = DB.biomes.city
 	var wins := 0; var total := 0; var worst := 999
@@ -498,7 +512,8 @@ func test_city(gs) -> void:
 			gs.add_mat("potion_healing", 3); gs.add_mat("ration", 8); gs.add_mat("torch", 9); gs.facilities.alchemy.level = 4
 			var hh: Dictionary = gs.heroes[cls]
 			hh.level = 12; hh.str = 16; hh.mask = true; hh.subclass = DB.heroes[cls].subclasses.keys()[0]
-			hh.armor = gs.add_gear("scale_armor", true, 1); hh.weapon = gs.add_gear("longsword", true, 1)
+			hh.armor = 0; hh.weapon = 0
+			_camp(gs, "longsword", "scale_armor", 1, 1)
 			gs.facilities.guild.level = 5   # late-game pack cap 10
 			var rr := RunSim.play(gs, cls, {"ration": 8, "torch": 9, "potion_healing": 5}, 5000 + seed, true, "city")
 			if rr.result == "extract" and rr.biome == "city": cw += 1
@@ -514,10 +529,12 @@ func test_city(gs) -> void:
 ## The kit a player can forge after a couple of Sewers clears (see docs/BALANCE.md "Prison readiness").
 func _kit_tier2(gs, cls: String) -> void:
 	var h: Dictionary = gs.heroes[cls]
-	h.armor = gs.add_gear("leather_armor", true, 1)
+	h.armor = 0
+	_camp(gs, "shortsword", "leather_armor", 1, 1)
 	match cls:
-		"warrior", "huntress": h.weapon = gs.add_gear("shortsword", true, 1)
-		"rogue": h.weapon = gs.add_gear("dagger", true, 2)
+		"warrior": h.weapon = 0
+		"huntress": pass   # keeps gloves; camp sword unused (DECISIONS #234)
+		"rogue": h.weapon = gs.add_gear("dagger", true, 2)   # found/start override
 
 func test_meta(gs, ss) -> void:
 	print("[meta]")
@@ -587,8 +604,9 @@ func test_cavesrun(gs) -> void:
 			gs.add_mat("potion_healing", 3); gs.add_mat("ration", 8); gs.add_mat("torch", 9); gs.facilities.alchemy.level = 4
 			var h: Dictionary = gs.heroes[cls]
 			h.level = 8; h.str = 14; h.subclass = cs[1]; h.mask = cs[1] != ""
-			h.armor = gs.add_gear("mail_armor", true, 1)
-			# tier-3 weapon for every melee class; the Rogue's Dagger+3 only kept up while the cloak refilled every fight (DECISIONS #206)
+			h.armor = 0
+			_camp(gs, "", "mail_armor", 0, 1)
+			# found mace override for melee classes (DECISIONS #206 / #234)
 			if cls in ["warrior", "huntress", "rogue"]: h.weapon = gs.add_gear("mace", true, 1)
 			gs.facilities.guild.level = 5   # late-game pack cap 10
 			var r := RunSim.play(gs, cls, {"ration": 8, "torch": 9, "potion_healing": 5}, 3000 + seed, true, "caves")
@@ -633,12 +651,14 @@ func test_delve(gs) -> void:
 	check(not Delve.pay(gs, {"iron_key": 1}), "can't pay without key")
 	Delve.reward(gs, {"item_unknown": "ring", "seeds": 2})
 	check(gs.run.pack_gear.size() == 1 and int(gs.run.pack.seeds) == 2, "reward to pack")
-	# death rules (forged gear cracks; starters never do — DECISIONS #221)
-	var wuid: int = gs.add_gear("shortsword", true, 0)
+	# death rules: found weapons crack; camp forge gear never does (DECISIONS #221 / #234)
+	_camp(gs, "shortsword", "leather_armor", 0, 0)
+	var wuid: int = gs.add_gear("mace", true, 0)
 	gs.heroes.warrior.weapon = wuid
 	gs.heroes.warrior.level = 3
 	gs.end_run("death")
-	check(gs.gear_by_uid(wuid).cracked and gs.heroes.warrior.level == 1 and gs.heroes.warrior.str == 10, "death cracks gear & resets hero")
+	check(gs.gear_by_uid(wuid).cracked and gs.heroes.warrior.level == 1 and gs.heroes.warrior.str == 10, "death cracks found weapon & resets hero")
+	check(String(gs.camp_weapon.get("id", "")) == "shortsword" and not gs.camp_weapon.get("cracked", false), "camp weapon never cracks")
 	check(gs.mat("seeds") == 2, "death loses pack (stash seeds unchanged)")
 	check(gs.repair(wuid) == false, "repair needs ore")
 	gs.add_mat("iron_ore", 10); check(gs.repair(wuid), "repair with ore")
@@ -660,13 +680,12 @@ func test_camp(gs) -> void:
 	gs.add_mat("scroll_upgrade", 1)
 	check(gs.apply_sou("blacksmith") and gs.upgrade_facility("blacksmith"), "SoU breaks cap")
 	check(gs.craft("blacksmith", "forge_shortsword"), "forge shortsword")
-	var ss = gs.gear.filter(func(g): return g.id == "shortsword")[0]
-	check(gs.can_equip("warrior", ss.uid) == "", "can equip shortsword")
-	gs.equip("warrior", ss.uid)
+	check(String(gs.camp_weapon.get("id", "")) == "shortsword" and gs.gear.filter(func(g): return g.id == "shortsword").is_empty(), "forge outfits camp, no stash copy")
+	check(gs.can_equip("warrior", gs.CAMP_WEAPON_UID) != "", "camp weapon is not per-hero equippable")
 	check(gs.hero_stats("warrior").dmg == maxi(1, int(7 / 3)), "str 10 < 12 req: damage / (1 + missing Str)")
 	check(gs.can_craft("blacksmith", "forge_sword") != "", "sword needs blacksmith lv3")
-	check(gs.upgrade_item(ss.uid), "upgrade +1 (cap +1 at blacksmith lv2)")
-	check(not gs.upgrade_item(ss.uid), "can't exceed blacksmith cap")
+	check(gs.upgrade_item(gs.CAMP_WEAPON_UID), "upgrade +1 (cap +1 at blacksmith lv2)")
+	check(not gs.upgrade_item(gs.CAMP_WEAPON_UID), "can't exceed blacksmith cap")
 	check(gs.craft("alchemy", "brew_healing") and gs.mat("potion_healing") == 2, "brew potion")
 	check(gs.craft("enchanter", "scribe_passage"), "scribe passage")
 	# identify queue
@@ -825,36 +844,40 @@ func test_talents(gs) -> void:
 func test_backpack(gs) -> void:
 	print("[backpack]")
 	gs.new_game()
+	_camp(gs, "shortsword", "leather_armor", 0, 0)
 	gs.start_run("warrior", {"potion_healing": 1}, "sewers", 9)
-	var old_w: int = gs.heroes.warrior.weapon
 	Delve.reward(gs, {"item": "mace"})
 	check(gs.backpack_used() == 1, "found gear goes in the backpack")
 	var g: Dictionary = gs.run.pack_gear[0]
 	var cmp: Dictionary = gs.compare_equip(int(g.uid))
 	check(cmp.dmg[1] != cmp.dmg[0] or cmp.dr[1] == cmp.dr[0], "compare shows a damage change")
 	check(gs.delve_equip(int(g.uid)), "equip mid-delve")
-	check(gs.heroes.warrior.weapon == int(g.uid) and gs.run.pack_gear[0].uid == old_w and gs.run.pack_gear[0].owned, "old weapon goes to the backpack, owned")
-	check(not gs.delve_drop(old_w), "owned items can't be dropped")
-	check(gs.delve_unequip("armor") and gs.backpack_used() == 2, "unequip armor into the pack")
-	for i in gs.BACKPACK_SLOTS - 2: Delve.reward(gs, {"item": "dagger"})
+	check(gs.heroes.warrior.weapon == int(g.uid) and gs.backpack_used() == 0, "found mace equips; camp sword stays shared (no pack swap)")
+	var mail: Dictionary = {"uid": gs.next_uid, "id": "mail_armor", "lvl": 0, "cracked": false, "known": true}
+	gs.next_uid += 1; gs.run.pack_gear.append(mail)
+	check(gs.can_delve_equip(int(mail.uid)) == "armor is shared at Camp" and not gs.delve_equip(int(mail.uid)), "armor cannot be equipped from pack")
+	gs.run.pack_gear.erase(mail)
+	check(not gs.delve_unequip("armor"), "party armor cannot unequip mid-delve")
+	for i in gs.BACKPACK_SLOTS: Delve.reward(gs, {"item": "dagger"})
 	check(gs.backpack_full(), "backpack fills up")
-	Delve.reward(gs, {"item": "mail_armor"})
+	Delve.reward(gs, {"item": "whip"})
 	check(gs.run.overflow.size() == 1 and gs.backpack_used() == gs.BACKPACK_SLOTS, "full pack: loot waits in overflow")
 	var drop: int = int(gs.run.pack_gear.back().uid)
 	check(gs.resolve_overflow(drop) and gs.pack_item(drop).is_empty() and gs.run.overflow.is_empty(), "drop one to take the new item")
 	gs.run.hp = 5
 	check(gs.delve_use("potion_healing") and gs.run.hp > 5, "drink a potion outside combat")
-	# combat swap costs a turn and updates stats
+	# combat swap: unequip found mace back to camp sword
 	var c := Combat.new()
 	c.setup(["########","#......#","#.H..1.#","#......#","#......#","#......#","#......#","########"], gs.hero_stats("warrior"), 20, ["rat"])
 	var t0: float = c.hero.next
-	var ar: Dictionary = gs.run.pack_gear.filter(func(x): return x.id == "cloth_armor")[0]
-	gs.delve_equip(int(ar.uid))
+	check(gs.delve_unequip("weapon"), "unequip found weapon into the pack")
 	c.apply_stats(gs.hero_stats("warrior")); c.hero_wait()
-	check(c.hero.next == t0 + 1.0 and c.hero.dr == gs.hero_stats("warrior").dr, "in-combat swap: new stats, 1 tick")
+	check(c.hero.next == t0 + 1.0 and String(gs.resolved_weapon("warrior").source) == "camp", "in-combat unequip: back to camp sword, 1 tick")
+	# re-equip mace then die: found weapon cracks, camp does not
+	gs.delve_equip(int(g.uid))
 	gs.end_run("death")
-	check(not gs.gear_by_uid(old_w).get("cracked", false), "class starter weapons in the pack never crack on death (DECISIONS #221)")
-	check(gs.gear_by_uid(int(gs.heroes.warrior.weapon)).get("cracked", false), "forged weapons crack on death")
+	check(gs.gear_by_uid(int(g.uid)).get("cracked", false), "found weapons crack on death")
+	check(String(gs.camp_weapon.get("id", "")) == "shortsword", "camp weapon survives death")
 	var saved := {}
 
 func test_render(gs) -> void:
@@ -878,7 +901,8 @@ func test_halls(gs) -> void:
 	print("[halls] Lv18 Warrior, Str 18, Greatsword+2 / Plate+2 (tier 5) vs every Halls fight")
 	gs.new_game()
 	var w: Dictionary = gs.heroes.warrior
-	w.level = 18; w.str = 18; w.weapon = gs.add_gear("greatsword", true, 2); w.armor = gs.add_gear("plate_armor", true, 2)
+	w.level = 18; w.str = 18; w.weapon = 0; w.armor = 0
+	_camp(gs, "greatsword", "plate_armor", 2, 2)
 	var hs := warrior(gs)
 	var b: Dictionary = DB.biomes.halls
 	check(DB.biomes.city.next == "halls" and b.boss == "yog", "Demon Halls follow the City, Yog-Dzewa is the boss")
@@ -929,7 +953,8 @@ func test_halls(gs) -> void:
 		gs.add_mat("potion_healing", 8); gs.add_mat("ration", 16); gs.add_mat("torch", 16)
 		var hh: Dictionary = gs.heroes.warrior
 		hh.level = 16; hh.str = 18; hh.mask = true; hh.subclass = DB.heroes.warrior.subclasses.keys()[0]
-		hh.armor = gs.add_gear("plate_armor", true, 1); hh.weapon = gs.add_gear("greatsword", true, 1)
+		hh.armor = 0; hh.weapon = 0
+		_camp(gs, "greatsword", "plate_armor", 1, 1)
 		var rr := RunSim.play(gs, "warrior", {"ration": 16, "torch": 16, "potion_healing": 8}, 7000 + seed, true, "halls")
 		if rr.result == "extract" and rr.biome == "halls": hw += 1
 		else: ends.append("f%d L%d" % [rr.floor, rr.level])
@@ -1333,14 +1358,14 @@ func test_icon_centering(_gs) -> void:
 		if int(t.get_width()) % 2 != 0 or int(t.get_height()) % 2 != 0: bad.append(n)
 	check(bad.is_empty(), "toolbar/UI icons padded to even sizes %s" % [bad])
 
-## Equipping each armor tier moves the hero sprite to that SPD HeroSprite row everywhere it is drawn.
+## Each armor tier moves the hero sprite to that SPD HeroSprite row (camp armor, DECISIONS #234).
 func test_armor_tiers(gs) -> void:
 	print("[armor tiers]")
-	var old: int = gs.heroes.warrior.armor
 	var regions := []; var imgs := []
 	for id in ["cloth_armor", "leather_armor", "mail_armor", "scale_armor", "plate_armor"]:
-		var uid: int = gs.add_gear(id)
-		gs.heroes.warrior.armor = uid
+		if id == "cloth_armor": gs.camp_armor = {}
+		else: gs.camp_armor = {"id": id, "lvl": 0}
+		gs.heroes.warrior.armor = 0
 		var hs: Dictionary = gs.hero_stats("warrior")
 		var at: AtlasTexture = Paperdoll.hero_tex("warrior")
 		check(int(hs.row) == int(DB.item(id).tier) and at.region.position.y == hs.row * 15, "%s -> sprite row %d" % [id, hs.row])
@@ -1350,7 +1375,7 @@ func test_armor_tiers(gs) -> void:
 	check(distinct.size() == 5 and regions == [15.0, 30.0, 45.0, 60.0, 75.0], "5 tiers give 5 different sprite frames (cloth is row 1, not naked)")
 	var whs: Dictionary = gs.hero_stats("warrior"); var c := Combat.new(); c.setup(DB.rooms[1], whs, int(whs.ht), ["gnoll"])
 	check(int(c.hero.get("row", -1)) == 5, "combat hero carries the armor row")
-	gs.heroes.warrior.armor = old
+	gs.camp_armor = {}
 
 ## The Delve title "<Biome> - Floor f / last" always has f inside the biome's floor range, through every biome
 ## transition, and a corrupted save is clamped on load.
@@ -1736,6 +1761,52 @@ func test_forge_bulk(gs) -> void:
 	check(gs.cracked_gear().is_empty(), "no cracked gear left")
 	check(gs.can_repair_all() == "nothing to repair", "Repair all is disabled when nothing is cracked")
 
+## Shared camp weapon/armor (DECISIONS #234).
+func test_camp_shared_gear(gs) -> void:
+	print("[camp shared gear]")
+	gs.new_game()
+	for c in gs.heroes: gs.heroes[c].unlocked = true
+	gs.facilities.blacksmith.level = 4; gs.facilities.blacksmith.cap = 4
+	gs.add_mat("iron_ore", 200); gs.add_mat("dark_gold", 40); gs.add_mat("gold", 2000)
+	check(gs.craft("blacksmith", "forge_scale"), "forge Scale for the party")
+	check(String(gs.camp_armor.id) == "scale_armor" and int(gs.camp_armor.lvl) == 0, "camp armor is Scale +0")
+	for c in ["warrior", "mage", "rogue", "huntress"]:
+		check(String(gs.resolved_armor(c).id) == "scale_armor", "%s wears party Scale" % c)
+	check(gs.upgrade_item(gs.CAMP_ARMOR_UID) and int(gs.camp_armor.lvl) == 1, "upgrade camp armor +1")
+	for c in ["warrior", "mage", "rogue", "huntress"]:
+		check(int(gs.resolved_armor(c).lvl) == 1, "%s sees Scale +1" % c)
+	check(gs.craft("blacksmith", "forge_longsword"), "forge Longsword for the party")
+	check(String(gs.resolved_weapon("warrior").id) == "longsword" and String(gs.resolved_weapon("rogue").source) == "camp", "Warrior/Rogue use camp Longsword")
+	check(String(gs.resolved_weapon("mage").id) == "mages_staff", "Mage keeps Staff when camp sword exists")
+	check(String(gs.resolved_weapon("huntress").id) == "studded_gloves", "Huntress keeps gloves when camp sword exists")
+	var armor_uid: int = gs.add_gear("mail_armor", true)
+	check(gs.can_equip("warrior", armor_uid) == "armor is shared at Camp" and not gs.equip("warrior", armor_uid), "cannot equip armor from stash")
+	var mace: int = gs.add_gear("mace", true)
+	check(gs.equip("warrior", mace) and String(gs.resolved_weapon("warrior").id) == "mace", "found mace overrides camp for Warrior")
+	gs.start_run("warrior", {}, "sewers", 11)
+	gs.end_run("death")
+	check(gs.gear_by_uid(mace).cracked and String(gs.camp_weapon.get("id", "")) == "longsword" and int(gs.camp_armor.lvl) == 1, "death cracks found mace, not camp gear")
+	check(gs.can_craft("blacksmith", "forge_scale") != "", "cannot re-forge same armor tier")
+	# Old save migration
+	gs.new_game()
+	var d: Dictionary = JSON.parse_string(JSON.stringify(gs.to_dict()))
+	d.erase("camp_weapon"); d.erase("camp_armor")
+	d.gear = [
+		{"uid": 10, "id": "scale_armor", "lvl": 2, "cracked": false, "known": true},
+		{"uid": 11, "id": "leather_armor", "lvl": 1, "cracked": false, "known": true},
+		{"uid": 12, "id": "shortsword", "lvl": 1, "cracked": false, "known": true},
+		{"uid": 13, "id": "mace", "lvl": 0, "cracked": false, "known": true},
+	]
+	d.next_uid = 20
+	d.heroes.warrior.armor = 10; d.heroes.mage.armor = 11
+	d.heroes.warrior.weapon = 12; d.heroes.rogue.weapon = 13
+	gs.from_dict(d)
+	check(String(gs.camp_armor.get("id", "")) == "scale_armor" and int(gs.camp_armor.lvl) == 2, "migration keeps best armor")
+	check(String(gs.camp_weapon.get("id", "")) == "shortsword" and int(gs.camp_weapon.lvl) == 1, "migration keeps best forge sword")
+	check(int(gs.heroes.warrior.armor) == 0 and int(gs.heroes.mage.armor) == 0, "migration clears armor slots")
+	check(int(gs.heroes.warrior.weapon) == 0 and int(gs.heroes.rogue.weapon) == 13, "migration clears forge sword, keeps found mace")
+	check(gs.gear.filter(func(g): return g.id == "scale_armor" or g.id == "leather_armor" or g.id == "shortsword").is_empty(), "migration removes forge copies from stash")
+
 ## Spare rings melt into a little gold and resin. Extras keeps every worn ring and one spare of each.
 func test_break_rings(gs) -> void:
 	print("[break rings]")
@@ -1895,6 +1966,7 @@ func test_item_badges(gs) -> void:
 	check(sw_ok.get_node("StrReq").text == ":11" and not sw_ok.get_node("StrReq").has_theme_color_override("font_color"), "stash weapon slot clears red once hero meets the Str requirement")
 	var rg_slot: Button = cs.item_slot("ring_might", "", "", func(): pass, Color.WHITE, "", gs.gear_by_uid(r_uid))
 	check(rg_slot.get_node_or_null("StrReq") == null, "ring slot does not add a Str label over its badge")
+	_camp(gs, "worn_shortsword", "cloth_armor", 0, 0)
 	var pd_w: Button = Paperdoll._slot("warrior", "weapon", "camp", func(): pass)
 	var pd_c: Button = Paperdoll._slot("warrior", "class", "camp", func(): pass)
 	check(pd_w.get_node_or_null("StrReq") != null and pd_w.get_node("StrReq").text == ":10" and pd_c.get_node_or_null("StrReq") == null, "paperdoll weapon slot shows :10 and class item slot does not")
@@ -1911,15 +1983,15 @@ func test_equipped_owner_marks(gs) -> void:
 	gs.new_game()
 	var fs0 := UIKit.font_size
 	UIKit.make_theme(20)
-	var spare: int = gs.add_gear("shortsword", true)
-	var armor: int = int(gs.heroes.warrior.armor)
-	gs.gear_by_uid(armor).cracked = true
+	_camp(gs, "shortsword", "leather_armor", 0, 0)
+	var spare: int = gs.add_gear("mace", true)
+	var worn_mace: int = gs.add_gear("whip", true)
+	gs.equip("warrior", worn_mace)
 	var rw: int = gs.add_gear("ring_might", true)
 	var rm: int = gs.add_gear("ring_might", true)
 	check(gs.equip("warrior", rw) and gs.equip("mage", rm), "warrior and mage can both wear Ring of Might")
 	gs.mats.iron_ore = 40; gs.mats.gold = 500
 	var cs = load("res://scripts/ui/camp_screen.gd").new(); add_child(cs)
-	# a plate as wide as the word keeps the full name; a narrower slot shortens (DECISIONS #174)
 	var budget := 80.0
 	check(cs._owner_text("huntress", budget) == "Huntress", "an 80 px plate fits Huntress")
 	check(cs._owner_text("warrior", budget) == "Warrior" and cs._owner_text("rogue", budget) == "Rogue" and cs._owner_text("mage", budget) == "Mage", "the other three names fit too")
@@ -1936,36 +2008,31 @@ func test_equipped_owner_marks(gs) -> void:
 	var worn := 0
 	for g in gs.gear:
 		if gs.equipped_by(int(g.uid)) != "": worn += 1
-	if String(gs.heroes.mage.get("wand", "")) != "": worn += 1   # the staff's imbued wand is listed too (DECISIONS #189)
+	if String(gs.heroes.mage.get("wand", "")) != "": worn += 1
 	check(bars.size() == worn, "stash marks every worn piece and no spare (%d bars, %d worn)" % [bars.size(), worn])
 	var spare_slot: Button = _slot_uid(cs.win_layer, spare)
-	check(spare_slot != null and spare_slot.get_node_or_null("OwnerBar") == null, "an unworn sword has no owner plate")
-	var wpn: Button = _slot_uid(cs.win_layer, int(gs.heroes.warrior.weapon))
+	check(spare_slot != null and spare_slot.get_node_or_null("OwnerBar") == null, "an unworn found weapon has no owner plate")
+	var wpn: Button = _slot_uid(cs.win_layer, worn_mace)
 	var wname := ""
 	if wpn: wname = String(wpn.get_node("OwnerBar/OwnerName").text)
-	check(wpn != null and wname.begins_with("War") and String(wpn.tooltip_text) == "Equipped by Warrior", "warrior's weapon is labeled (%s)" % wname)
+	check(wpn != null and wname.begins_with("War") and String(wpn.tooltip_text) == "Equipped by Warrior", "warrior's found weapon is labeled (%s)" % wname)
 	var frame: StyleBoxFlat = wpn.get_theme_stylebox("normal") if wpn else null
 	check(frame != null and frame.border_color.is_equal_approx(cs.HERO_MARK["warrior"]), "stash border uses the warrior color")
 	var cols_used := {}
 	for bar in bars:
 		var plate := bar.get_theme_stylebox("panel") as StyleBoxFlat
 		if plate: cols_used[plate.bg_color.to_html()] = true
-	check(cols_used.size() == 4, "the four heroes use four different colors (%d)" % cols_used.size())
-	var arm: Button = _slot_uid(cs.win_layer, armor)
-	var arm_frame: StyleBoxFlat = arm.get_theme_stylebox("normal") if arm else null
-	check(arm != null and arm.get_node_or_null("OwnerBar") != null and arm_frame != null and arm_frame.border_color.is_equal_approx(Color("ff5040")), "cracked armor stays red and still names who wears it")
+	check(cols_used.size() >= 2, "worn gear uses hero colors (%d)" % cols_used.size())
 	gs.facilities.blacksmith.level = 2
 	cs.section["Forge"] = "upgrade"
 	cs.open_page("Forge")
 	var forge_spare: Button = _slot_uid(cs.win_layer, spare)
-	var forge_wpn: Button = _slot_uid(cs.win_layer, int(gs.heroes.warrior.weapon))
-	var forge_arm: Button = _slot_uid(cs.win_layer, armor)
+	var forge_wpn: Button = _slot_uid(cs.win_layer, worn_mace)
 	var spare_frame: StyleBoxFlat = forge_spare.get_theme_stylebox("normal") if forge_spare else null
 	var wpn_frame: StyleBoxFlat = forge_wpn.get_theme_stylebox("normal") if forge_wpn else null
-	var arm_f: StyleBoxFlat = forge_arm.get_theme_stylebox("normal") if forge_arm else null
-	check(forge_spare != null and forge_spare.get_node_or_null("OwnerBar") == null and spare_frame != null and spare_frame.border_color.is_equal_approx(Color("6bff6b")), "forge: an unworn sword you can afford stays green, with no name")
-	check(forge_wpn != null and forge_wpn.get_node_or_null("OwnerBar/OwnerName") != null and String(forge_wpn.get_node("OwnerBar/OwnerName").text).begins_with("War") and wpn_frame != null and wpn_frame.border_color.is_equal_approx(Color("6bff6b")), "forge: a worn sword keeps the green border and gains a name")
-	check(forge_arm != null and forge_arm.get_node_or_null("OwnerBar") != null and arm_f != null and arm_f.border_color.is_equal_approx(Color("ff5040")), "forge: cracked worn armor stays red and names the warrior")
+	check(forge_spare != null and forge_spare.get_node_or_null("OwnerBar") == null and spare_frame != null and spare_frame.border_color.is_equal_approx(Color("6bff6b")), "forge: an unworn found weapon you can afford stays green, with no name")
+	check(forge_wpn != null and forge_wpn.get_node_or_null("OwnerBar/OwnerName") != null and String(forge_wpn.get_node("OwnerBar/OwnerName").text).begins_with("War") and wpn_frame != null and wpn_frame.border_color.is_equal_approx(Color("6bff6b")), "forge: a worn found weapon keeps the green border and gains a name")
+	check(not gs.camp_armor.is_empty(), "party armor is on the camp")
 	cs.section["Forge"] = "rings"
 	cs.open_page("Forge")
 	var shared: Button = null
@@ -1993,9 +2060,9 @@ func test_gear_ownership(gs) -> void:
 	check(gs.can_unequip("warrior", "ring") == "empty slot" and not gs.unequip("warrior", "ring"), "an empty slot can't be unequipped")
 	var art: int = gs.add_gear("chalice_of_blood" if DB.items.has("chalice_of_blood") else _first_of_type("artifact"), true)
 	check(gs.equip("rogue", art) and gs.unequip("rogue", "artifact") and int(r.artifact) == 0, "artifact unequips")
-	var arm: int = int(w.armor)
-	check(gs.unequip("warrior", "armor") and int(w.armor) == 0 and bool(gs.hero_stats("warrior").starter_armor), "armor unequips; the starter armor stands in")
-	check(gs.equip("warrior", arm), "and goes back on")
+	_camp(gs, "shortsword", "leather_armor", 0, 0)
+	check(gs.can_unequip("warrior", "armor") == "armor is shared at Camp" and not gs.unequip("warrior", "armor"), "party armor can't unequip")
+	check(not bool(gs.hero_stats("warrior").starter_armor) and String(gs.resolved_armor("warrior").id) == "leather_armor", "heroes use camp leather")
 	check(gs.can_unequip("mage", "weapon").begins_with("heirloom") and not gs.unequip("mage", "weapon"), "the Mage's Staff (heirloom) stays put")
 	var wand0 := String(m.wand); var n0: int = gs.gear.size()
 	check(gs.unequip("mage", "staff") and String(m.wand) == "" and gs.gear.size() == n0 + 1 and gs.gear[-1].id == wand0, "the staff's wand comes out into the stash")
@@ -2021,9 +2088,9 @@ func test_gear_ownership(gs) -> void:
 	check(holders == 1, "a swapped ring is never worn twice")
 	var cr: int = gs.add_gear("ring_might", true); gs.equip("rogue", cr); gs.gear_by_uid(cr).cracked = true
 	check(gs.equip_swap_back("rogue", ring) == 0 and gs.equip("rogue", ring) and int(w.ring) == 0, "a cracked ring isn't handed back: the wearer's slot goes empty")
-	var sword: int = gs.add_gear("shortsword", true); gs.equip("warrior", sword)
+	var sword: int = gs.add_gear("mace", true); gs.equip("warrior", sword)
 	check(gs.equip_swap_back("mage", sword) == 0, "the Mage's Staff (heirloom) is never handed to the Warrior")
-	check(gs.equip("mage", sword) and int(w.weapon) == 0 and int(m.weapon) == sword, "the Mage takes the sword; the Warrior falls back to the starter weapon")
+	check(gs.equip("mage", sword) and int(w.weapon) == 0 and int(m.weapon) == sword, "the Mage takes the found mace; the Warrior falls back to camp/starter")
 	# --- patrol lock
 	gs.equip("warrior", ring); gs.equip("warrior", sword)
 	gs.heroes.warrior.cleared = ["sewers"]
@@ -3008,13 +3075,14 @@ func test_total_wipe(gs) -> void:
 	print("[total wipe]")
 	gs.new_game()
 	for cc in gs.heroes: gs.heroes[cc].unlocked = true
-	for cc in gs.heroes:
-		gs.heroes[cc].weapon = gs.add_gear(DB.heroes[cc].start_weapon, true, 2); gs.heroes[cc].armor = gs.add_gear("leather_armor", true, 1)
-	for g in gs.gear: g.cracked = true
+	_camp(gs, "shortsword", "leather_armor", 2, 1)
+	var found_crack: int = gs.add_gear("mace", true, 0); gs.gear_by_uid(found_crack).cracked = true
 	for k in gs.mats.keys(): gs.mats[k] = 0
 	gs.from_dict(JSON.parse_string(JSON.stringify(gs.to_dict())))   # the reported save shape, loaded
+	# Camp gear never cracks; with no found override Warrior uses camp. Empty camp after wipe of mats still works.
+	gs.camp_weapon = {}; gs.camp_armor = {}
 	var hs: Dictionary = gs.hero_stats("warrior")
-	check(hs.starter_weapon and hs.starter_armor and int(hs.dmg) > 0 and int(hs.dr) >= 1, "cracked gear falls back to starter weapon + cloth armor (dmg %d, DR %d)" % [hs.dmg, hs.dr])
+	check(hs.starter_weapon and hs.starter_armor and int(hs.dmg) > 0 and int(hs.dr) >= 1, "empty camp falls back to starter weapon + cloth armor (dmg %d, DR %d)" % [hs.dmg, hs.dr])
 	check(gs.can_patch_up() == "", "the Forge offers a free Patch up when no repair is affordable")
 	var nc0: int = gs.cracked_gear().size()
 	check(gs.patch_up() and gs.cracked_gear().size() == nc0 - 1, "Patch up repairs one item for free")
@@ -4100,13 +4168,13 @@ func test_patrol_perks(gs) -> void:
 	check(gs.gear.slice(n0).all(func(g): return not g.known and int(g.lvl) == 0), "without it curios come unknown +0")
 	var cur_ids: Array = gs.gear.slice(n0).map(func(g): return String(g.id))
 	check(cur_ids.size() >= 2 and absi(cur_ids.count("ring_might") - cur_ids.count("ring_tenacity")) <= 1, "default curios alternate Might / Tenacity, not all one ring (%s)" % [cur_ids])
-	# gear level: weapon + armor + ring + artifact + staff wand; cracked pieces don't count
+	# gear level: camp weapon + armor + ring + artifact + staff wand (DECISIONS #234)
 	_pat_camp(gs)
-	gs.gear_by_uid(gs.heroes.warrior.weapon).lvl = 3; gs.gear_by_uid(gs.heroes.warrior.armor).lvl = 2
+	_camp(gs, "shortsword", "leather_armor", 3, 2)
 	_pat_wear(gs, "warrior", "ring_might", 2); _pat_wear(gs, "warrior", "cape_thorns", 1)
-	check(gs.patrol_gear_level("warrior") == 8, "gear level sums weapon, armor, ring, artifact (%d)" % gs.patrol_gear_level("warrior"))
-	gs.gear_by_uid(gs.heroes.warrior.armor).cracked = true
-	check(gs.patrol_gear_level("warrior") == 6, "cracked armor stops counting")
+	check(gs.patrol_gear_level("warrior") == 8, "gear level sums camp weapon, armor, ring, artifact (%d)" % gs.patrol_gear_level("warrior"))
+	gs.camp_armor = {}   # no armor levels
+	check(gs.patrol_gear_level("warrior") == 6, "empty camp armor drops armor levels from the sum")
 	_pat_camp(gs, "mage"); gs.heroes.mage.wand_lvl = 3
 	check(gs.patrol_gear_level("mage") == 3, "the staff's wand level counts")
 	gs.heroes.mage.wand_cracked = true
@@ -4120,7 +4188,7 @@ func test_patrol_perks(gs) -> void:
 	var bc: Dictionary = _pat_full(gs, "warrior", "caves")
 	var bc_eff: float = gs.heroes.warrior.patrol.eff
 	_pat_camp(gs, "warrior", "caves"); gs.facilities.guild.level = 3
-	gs.gear_by_uid(gs.heroes.warrior.weapon).lvl = 4; gs.gear_by_uid(gs.heroes.warrior.armor).lvl = 4
+	_camp(gs, "shortsword", "leather_armor", 4, 4)
 	_pat_wear(gs, "warrior", "ring_might", 3); _pat_wear(gs, "warrior", "cape_thorns", 3)
 	var gc: Dictionary = _pat_full(gs, "warrior", "caves")
 	var gc_eff: float = gs.heroes.warrior.patrol.eff
@@ -4171,13 +4239,13 @@ func test_gold_sinks(gs) -> void:
 	var uid: int = gs.add_gear("shortsword", true, 1)
 	check(gs.item_upgrade_cost(uid) == {"iron_ore": 16, "gold": 120}, "+1->+2 Shortsword (T2) costs 16 ore and 120 gold")
 	check(gs.upgrade_step_cost(1, 5) == {"iron_ore": 20, "dark_gold": 6, "arcane_resin": 3, "gold": 75}, "T5 +0->+1 matches Plan 04")
-	check(gs.facility_upgrade_cost("blacksmith") == {"iron_ore": 35, "gold": 150}, "Blacksmith Lv1→2 is ore + gold only")
+	check(gs.facility_upgrade_cost("blacksmith") == {"iron_ore": 35, "gold": 150}, "Blacksmith Lv1?2 is ore + gold only")
 	gs.facilities.blacksmith.level = 2
-	check(gs.facility_upgrade_cost("blacksmith") == {"iron_ore": 70, "dark_gold": 16, "gold": 400}, "Blacksmith Lv2→3 needs dark gold")
+	check(gs.facility_upgrade_cost("blacksmith") == {"iron_ore": 70, "dark_gold": 16, "gold": 400}, "Blacksmith Lv2?3 needs dark gold")
 	gs.facilities.blacksmith.level = 3
-	check(gs.facility_upgrade_cost("blacksmith") == {"iron_ore": 120, "dark_gold": 30, "gold": 800}, "Blacksmith Lv3→4 costs")
+	check(gs.facility_upgrade_cost("blacksmith") == {"iron_ore": 120, "dark_gold": 30, "gold": 800}, "Blacksmith Lv3?4 costs")
 	gs.facilities.blacksmith.level = 4
-	check(gs.facility_upgrade_cost("blacksmith") == {"iron_ore": 180, "dark_gold": 45, "gold": 1200}, "Blacksmith Lv4→5 costs")
+	check(gs.facility_upgrade_cost("blacksmith") == {"iron_ore": 180, "dark_gold": 45, "gold": 1200}, "Blacksmith Lv4?5 costs")
 	check(gs.forge_cap() == 3, "Blacksmith Lv4 forge cap is +3")
 	gs.facilities.blacksmith.level = 1
 	check(gs.forge_cap() == 0 and gs.can_craft("blacksmith", "forge_worn_shortsword").begins_with("needs Blacksmith"), "L1 is repair-only (no craft, no upgrades)")
@@ -4256,8 +4324,10 @@ func test_barrier_spd(gs) -> void:
 	gs.new_game()
 	var w: Dictionary = gs.hero_stats("warrior"); var m: Dictionary = gs.hero_stats("mage")
 	check(int(w.barrier_max) == 8 and int(m.barrier_max) == 4, "starting Barrier: warrior 8 (seal-like), others 4 (was 10 / 5) (%d / %d)" % [w.barrier_max, m.barrier_max])
-	var uid: int = gs.add_gear("cloth_armor", true, 3); gs.heroes.mage.armor = uid
-	check(int(gs.hero_stats("mage").barrier_max) == int(m.barrier_max) + 3 and int(gs.hero_stats("mage").dr) == 2, "cloth +3: +1 DR (+0.5/lvl) and +3 Barrier (+1/lvl) (DECISIONS #218)")
+	# Cloth is the starter, not camp armor - bump via temporary camp leather then test cloth table separately
+	gs.camp_armor = {}
+	check(int(gs.hero_stats("mage").barrier_max) == int(m.barrier_max) and int(gs.hero_stats("mage").dr) == 1, "mage in Cloth starter: base DR/Barrier")
+	# Simulate Cloth +3 by reading armor_dr helpers (camp never stores Cloth); table check below covers scaling
 	# Tier-based armor scaling table (+0 / +3 / +6) and under-strength penalty (DECISIONS #218)
 	var expected_armor := {
 		"cloth_armor": [[1, 1], [2, 4], [4, 7]],
@@ -4278,7 +4348,7 @@ func test_barrier_spd(gs) -> void:
 	# Under-strength armor: divides armor DR by (1 + missing Str) and zeroes armor Barrier; weapon block stays if Str meets the weapon
 	gs.heroes.warrior.str = 10; gs.heroes.warrior.level = 10
 	gs.heroes.warrior.weapon = gs.add_gear("rapier", true, 0)         # Str 10, +1 block DR
-	gs.heroes.warrior.armor = gs.add_gear("plate_armor", true, 0)     # 18 Str -> missing 8: 7 / 9 = 0 armor DR, 0 armor Barrier
+	_camp(gs, "", "plate_armor", 0, 0)     # 18 Str -> missing 8: 7 / 9 = 0 armor DR, 0 armor Barrier
 	var under_plate: Dictionary = gs.hero_stats("warrior")
 	check(int(under_plate.dr) == 1 and int(under_plate.barrier_max) == 7, "10-Str hero in Plate +0 gets 0 armor DR/Barrier (keeps Rapier +1 DR and 5+2 class/seal Barrier)")
 	gs.heroes.warrior.str = 16   # missing 2 Str for Plate: 7 / 3 = 2 armor DR, 0 armor Barrier; Rapier still ok
@@ -4288,15 +4358,17 @@ func test_barrier_spd(gs) -> void:
 	gs.heroes.warrior.weapon = gs.add_gear("round_shield", true, 0)   # Str 14, +2 block
 	gs.heroes.warrior.str = 10
 	check(int(gs.hero_stats("warrior").dr) == 0, "under-Str Round Shield contributes 0 block DR")
-	gs.heroes.warrior.weapon = gs.add_gear("worn_shortsword", true, 0)
+	gs.heroes.warrior.weapon = 0
+	_camp(gs, "worn_shortsword", "plate_armor", 0, 0)
 	var cs_ar = load("res://scripts/ui/camp_screen.gd").new()
-	var p_uid: int = gs.add_gear("plate_armor", true, 2)
-	var p_g: Dictionary = gs.gear_by_uid(p_uid)
+	var p_g: Dictionary = gs.gear_by_uid(gs.CAMP_ARMOR_UID)
+	gs.camp_armor.lvl = 2
+	p_g = gs.gear_by_uid(gs.CAMP_ARMOR_UID)
 	var p_st: Dictionary = cs_ar.gear_stats(p_g)
 	check(int(p_st.get("DR", 0)) == 10 and int(p_st.get("Barrier", 0)) == 12, "CampScreen.gear_stats includes scaled DR and Barrier for armor")
 	check(String(cs_ar.gear_lines(p_g)[0]).contains("DR 10") and String(cs_ar.gear_lines(p_g)[0]).contains("Barrier 12"), "CampScreen.gear_lines shows armor DR and Barrier")
 	cs_ar.free()
-	gs.heroes.warrior.armor = gs.add_gear("plate_armor", true, 0); gs.heroes.warrior.str = 18
+	gs.camp_armor = {"id": "plate_armor", "lvl": 0}; gs.heroes.warrior.str = 18
 	check(int(gs.hero_stats("warrior").barrier_max) <= int(gs.hero_stats("warrior").ht) / 2, "Barrier is capped at half of max HP")
 	var c := Combat.new(); var hs: Dictionary = gs.hero_stats("warrior"); c.setup(DB.boss_rooms[0], hs, hs.ht, ["rat"])
 	c.hero.barrier = 20
@@ -4312,27 +4384,25 @@ func test_barrier_spd(gs) -> void:
 	# Potion of Shielding scales with HT
 	gs.heroes.warrior.level = 20
 	check(gs.potion_shield("warrior") == maxi(10, int(gs.hero_stats("warrior").ht * 0.3)), "Shielding potion scales like Healing")
-	# Lv1 compare still reports armor Barrier when the hero cap is full (DECISIONS #221)
+	# Armor is party-wide - cannot equip plate from the pack (DECISIONS #234)
 	gs.heroes.warrior.level = 1; gs.heroes.warrior.str = 18
-	gs.heroes.warrior.armor = gs.add_gear("cloth_armor", true, 0)
-	var plate_uid: int = gs.add_gear("plate_armor", true, 0)
+	gs.camp_armor = {}
 	gs.start_run("warrior", {}, "sewers", 3)
-	gs.run.pack_gear.append(gs.gear_by_uid(plate_uid))
-	var cmp: Dictionary = gs.compare_equip(plate_uid)
-	check(cmp.get("barrier_capped", false) and String(gs.compare_text(cmp)).contains("Armor Barrier") and String(gs.compare_text(cmp)).contains("capped"), "Lv1 Plate compare shows armor Barrier under the ht/2 cap")
+	var plate: Dictionary = {"uid": gs.next_uid, "id": "plate_armor", "lvl": 0, "cracked": false, "known": true}
+	gs.next_uid += 1; gs.run.pack_gear.append(plate)
+	check(gs.can_delve_equip(int(plate.uid)) == "armor is shared at Camp" and not gs.delve_equip(int(plate.uid)), "armor cannot be equipped from pack")
+	gs.run.pack_gear.erase(plate)
+	# Absorbing a forge armor reward updates camp instead
+	Delve.reward(gs, {"item": "plate_armor"})
+	check(String(gs.camp_armor.get("id", "")) == "plate_armor" and gs.run.pack_gear.filter(func(x): return x.id == "plate_armor").is_empty(), "plate armor reward outfits the camp")
 	gs.end_run("abandon")
-	# Death clears biomes; starters never crack; Patch up is tier ≤2 only (DECISIONS #221)
+	# Death clears biomes; found weapons crack; camp never does (DECISIONS #221 / #234)
 	gs.heroes.warrior.level = 12; gs.heroes.warrior.str = 16; gs.heroes.warrior.cleared = ["sewers", "prison"]
 	gs.heroes.warrior.subclass = "gladiator"; gs.boss_kills["warrior"] = ["sewers"]
-	var cloth: int = gs.add_gear("cloth_armor", true, 2)
-	var plate: int = gs.add_gear("plate_armor", true, 1)
-	var sword: int = gs.add_gear("shortsword", true, 1)
-	var start_w: int = gs.add_gear("worn_shortsword", true, 3)
-	gs.heroes.warrior.armor = cloth; gs.heroes.warrior.weapon = start_w
+	_camp(gs, "shortsword", "plate_armor", 1, 1)
+	var found: int = gs.add_gear("mace", true, 1)
+	gs.heroes.warrior.weapon = found
 	gs.start_run("warrior", {}, "sewers", 4)
-	gs.heroes.warrior.armor = plate; gs.heroes.warrior.weapon = sword
-	gs.run.pack_gear.append(gs.gear_by_uid(cloth)); gs.run.pack_gear[-1].owned = true
-	gs.run.pack_gear.append(gs.gear_by_uid(start_w)); gs.run.pack_gear[-1].owned = true
 	var before := {"hp": int(gs.run.hp)}; var dchg: Dictionary = Delve.defeat_changes(gs, before, {"hp": 1})
 	check("Biomes locked" in dchg.lost and "Strength reset to 10" in dchg.lost, "defeat card lists biomes locked and Str 10")
 	var starter_crack := false
@@ -4342,18 +4412,18 @@ func test_barrier_spd(gs) -> void:
 	gs.end_run("death")
 	check(gs.heroes.warrior.cleared.is_empty() and int(gs.heroes.warrior.str) == 10 and int(gs.heroes.warrior.level) == 1, "death clears biomes and resets to Lv1 / 10 Str")
 	check(gs.heroes.warrior.subclass == "gladiator" and "sewers" in gs.boss_kills.get("warrior", []), "death keeps subclass and boss kills")
-	check(not gs.gear_by_uid(cloth).get("cracked", false) and not gs.gear_by_uid(start_w).get("cracked", false), "Cloth and starter weapons never crack")
-	check(gs.gear_by_uid(plate).get("cracked", false) and gs.gear_by_uid(sword).get("cracked", false), "Plate and forged weapons still crack")
+	check(String(gs.camp_armor.get("id", "")) == "plate_armor" and String(gs.camp_weapon.get("id", "")) == "shortsword", "camp gear survives death intact")
+	check(gs.gear_by_uid(found).get("cracked", false), "found mace cracks on death")
 	var cs_death = load("res://scripts/ui/camp_screen.gd").new()
 	check(gs.can_start_run("warrior") == "" and cs_death.start_biomes("warrior") == ["sewers"], "after death the delve picker is Sewers only")
 	cs_death.free()
-	# Patch up ignores tier 3+
+	# Patch up: found low-tier weapons only (camp never cracks)
 	for g in gs.gear: g.cracked = false
-	gs.gear_by_uid(plate).cracked = true; gs.mats.gold = 0; gs.mats.iron_ore = 0
-	check(gs.can_patch_up() == "no low-tier gear to patch", "Patch up ignores cracked Plate")
-	gs.gear_by_uid(sword).cracked = true
-	check(gs.can_patch_up() == "", "Patch up offers free repair for cracked Shortsword (tier 2)")
-	check(gs.patch_up() and not gs.gear_by_uid(sword).get("cracked", false) and gs.gear_by_uid(plate).get("cracked", false), "Patch up fixes the Shortsword and leaves Plate cracked")
+	gs.mats.gold = 0; gs.mats.iron_ore = 0
+	check(gs.can_patch_up() == "no low-tier gear to patch", "Patch up with nothing cracked")
+	gs.gear_by_uid(found).cracked = true
+	check(gs.can_patch_up() == "", "Patch up offers free repair for cracked Mace (tier 2)")
+	check(gs.patch_up() and not gs.gear_by_uid(found).get("cracked", false), "Patch up fixes the Mace")
 
 
 func test_bat_drain(gs) -> void:
