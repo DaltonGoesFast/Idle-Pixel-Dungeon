@@ -1,6 +1,9 @@
 # Changelog
 
 ## Unreleased
+
+## 0.50.4
+- The player-facing title is Idle PD.
 - Launcher icons: Android adaptive FG/BG/mono, Windows `.ico`, and web favicons from `assets/branding/` (DECISIONS #243, +tests).
 
 ## 0.50.3
