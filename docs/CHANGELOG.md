@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- A Scroll of Passage can be read from the Bag during a fight. Read asks first, then extracts and banks the pack the same way it does outside combat. The fight ends on Read, so no extra turn is spent, and Auto Battle never reads it (DECISIONS #238, +test).
 
 ## 0.50.1
 - Forge weapon and armor are shared party gear: craft Scale once and every hero who meets the Str requirement wears it. Under-Str heroes keep Cloth / starter melee instead of fighting crippled. Found weapons stay unique per-hero overrides; Mage Staff and Huntress gloves still fill melee for those classes. Camp gear never cracks on death; found weapon overrides still do. Old saves keep the best forge copies as the camp set (DECISIONS #234, +tests).
