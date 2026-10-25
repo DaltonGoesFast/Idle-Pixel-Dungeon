@@ -127,11 +127,11 @@
   "fw": 12,
   "fh": 13,
   "ability": "steal",
-  "steal_gold": 8,
+  "steal_pct": 0.05,
   "escape_turns": 4,
   "hp_flee": true,
   "spd": "HT 20, dmg 1-10, DR 0-3; steals an item and flees",
-  "tuned": "steals 8 gold on first hit, then flees; if not hit for 4 of its turns it escapes with that gold from your purse; kill it to keep the gold and its loot"
+  "tuned": "steals 5% of pack gold (at least 1) on first hit, then flees; if not hit for 4 of its turns it escapes with that gold; kill it to keep the gold and its loot"
  },
  "dm100": {
   "name": "DM-100",
