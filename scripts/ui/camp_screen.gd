@@ -481,8 +481,11 @@ func _apply_info_fit(pc: PanelContainer, body: VBoxContainer) -> void:
 	pc.position.y = floorf((vs.y - hh) / 2.0)
 
 func _refit_info_after_layout(pc: PanelContainer, body: VBoxContainer) -> void:
-	await get_tree().process_frame
-	await get_tree().process_frame
+	# Keep the SceneTree: get_tree() errors once Camp has left the tree (a delve starting the same frame).
+	if not is_inside_tree(): return
+	var tree := get_tree()
+	await tree.process_frame
+	await tree.process_frame
 	if not is_instance_valid(pc) or not is_instance_valid(body) or not is_inside_tree(): return
 	_bust_wrap_mins(body)
 	_apply_info_fit(pc, body)
