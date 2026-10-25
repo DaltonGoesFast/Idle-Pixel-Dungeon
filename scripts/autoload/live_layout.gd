@@ -188,6 +188,31 @@ func set_ui_offset(name: String, dx: float, dy: float) -> void:
 	ui_offsets[name] = {"dx": dx, "dy": dy}
 	layout_changed.emit()
 
+func clear_ui_offset(name: String) -> void:
+	ui_offsets.erase(name)
+	layout_changed.emit()
+
+## Restore the current selection (spot / seat / fire) to baked defaults.
+func reset_selected() -> bool:
+	match sel_kind:
+		"fire":
+			set_fire_y(_DEFAULT_FIRE_Y)
+			return true
+		"spot":
+			for d in _DEFAULT_SPOTS:
+				if d[0] == sel_id:
+					set_spot_xy(sel_id, float(d[4]), float(d[5]))
+					return true
+		"seat":
+			for d in _DEFAULT_SEATS:
+				if d[0] == sel_id:
+					set_seat_xy(sel_id, float(d[1]), float(d[2]))
+					return true
+		"ui":
+			clear_ui_offset(sel_id)
+			return true
+	return false
+
 ## Re-apply named Control offsets under `root`.
 func apply_tree(root: Node) -> void:
 	if root == null: return

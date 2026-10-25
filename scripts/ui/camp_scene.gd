@@ -399,6 +399,35 @@ func _draw() -> void:
 		if _has_news(s[0]):   # "!" badge: upgrade affordable, or Scroll unlock ready (POLISH #37)
 			var bp := Vector2(sr.end.x - kk * 2, sr.position.y - kk * 2)
 			draw_circle(bp, kk * 3.5, Color("ff5a2a")); draw_string(font, bp + Vector2(-fs * 0.18, fs * 0.33), "!", HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color.WHITE)
+	# Live Editor layout selection (DECISIONS #233): bright outline while editing.
+	if LiveLayout.editing and LiveLayout.sel_kind != "":
+		var hr := _live_sel_rect()
+		if hr.has_area():
+			draw_rect(hr.grow(kk * 2), Color(0.2, 0.9, 1.0, 0.2))
+			draw_rect(hr.grow(kk * 2), Color(0.3, 0.95, 1.0, 0.95), false, maxf(2.0, kk * 0.75))
+
+## Rect for the Live Editor's current camp selection (empty if none / not on this scene).
+func _live_sel_rect() -> Rect2:
+	match LiveLayout.sel_kind:
+		"fire":
+			var f := Vector2(size.x * 0.5, ground_y(FIRE_Y))
+			var cs := 16.0 * k()
+			return Rect2((f - Vector2(cs, cs) / 2.0).floor(), Vector2(cs, cs))
+		"spot":
+			for s in SPOTS:
+				if s[0] == LiveLayout.sel_id:
+					return spot_rect(s).merge(label_rect(s))
+		"seat":
+			var r := hero_rect(LiveLayout.sel_id)
+			if r.has_area(): return r
+			for s in HERO_SEATS:
+				if s[0] != LiveLayout.sel_id: continue
+				var kk2 := k(); var cs2 := 16.0 * kk2
+				var fire2 := Vector2(size.x * 0.5, ground_y(FIRE_Y))
+				var hz := Vector2(12, 15) * kk2 * 2.0
+				var feet := Vector2(fire2.x + float(s[1]) * cs2, ground_y(pack_y(float(s[2]), 0.35)) + kk2 * 6)
+				return Rect2((feet - Vector2(hz.x / 2.0, hz.y)).floor(), hz)
+	return Rect2()
 
 ## Props from the SPD sewers sheet: barrels (raised, transparent) beside the Guild and the Forge.
 ## [cell rect, raised kind]; the barrel's top is drawn in the cell above.
