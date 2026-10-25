@@ -244,19 +244,23 @@ static func wide_grid_side(area: Vector2, side_min: float, sep: float) -> float:
 func _desk_toolbar_h() -> float:
 	return UIKit.btn_height() * 1.25 + 8.0
 
-## D-pad cell size (square toolbar slots).
+## D-pad cell size: fills about half the combat width (3×3 with gaps).
 func _mobile_pad_cell() -> float:
-	return UIKit.btn_height()
+	var half := _area.x * 0.48 if _area.x > 0.0 else UIKit.font_size * 10.0
+	var sep := UIKit.font_size * 0.12 * 2.0
+	var cell := floorf((half - sep) / 3.0)
+	cell = floorf(cell * 0.5) * 2.0
+	return maxf(UIKit.btn_height(), cell)
+
+func _mobile_pad_h() -> float:
+	var cell := _mobile_pad_cell()
+	return cell * 3.0 + UIKit.font_size * 0.12 * 2.0
 
 ## Height of the mobile D-pad / skills row + Bag/Auto/Menu chrome.
 func _mobile_controls_min_h() -> float:
 	var fs := float(UIKit.font_size)
-	var cell := _mobile_pad_cell()
-	var pad_h := cell * 3.0 + fs * 0.4
-	# Attack + up to 3 class skills + potion.
-	var skill_h := UIKit.btn_height() * 1.15 + UIKit.btn_height() * 4.0 + fs * 1.0
 	var chrome := UIKit.btn_height() + fs * 0.35
-	return maxf(pad_h, skill_h) + chrome + fs * 0.35
+	return _mobile_pad_h() + chrome + fs * 0.35
 
 ## Portrait side column floor: header, pane, log floor, controls (so the grid can shrink to fit).
 func _mobile_side_min_h() -> float:
@@ -418,56 +422,75 @@ func _icon_btn(tip: String, icon: String, cb: Callable, enabled := true, parent:
 	(parent if parent else buttons).add_child(b)
 	return b
 
-## SPD arrow (points east). Angle is clockwise degrees in image space (y grows down).
-func _dir_icon(dir: Vector2i) -> Texture2D:
-	var key := "%d,%d@%d" % [dir.x, dir.y, UIKit.px_scale]
+## Direction chevron at a fixed pixel size (same for cardinals and diagonals).
+func _dir_icon(dir: Vector2i, px: int = -1) -> Texture2D:
+	var s := px if px > 0 else int(_mobile_pad_cell())
+	s = maxi(12, s - s % 2)
+	var key := "chev%d,%d@%d" % [dir.x, dir.y, s]
 	if _dir_tex.has(key):
 		return _dir_tex[key]
-	var deg := 0
-	match dir:
-		Vector2i(1, 0): deg = 0
-		Vector2i(1, 1): deg = 45
-		Vector2i(0, 1): deg = 90
-		Vector2i(-1, 1): deg = 135
-		Vector2i(-1, 0): deg = 180
-		Vector2i(-1, -1): deg = 225
-		Vector2i(0, -1): deg = 270
-		Vector2i(1, -1): deg = 315
-	var img: Image = UIKit.toolbar_icon("arrow").get_image().duplicate()
-	# Cardinals: crisp rotate_90. Diagonals: one-shot nearest-neighbour from east.
-	if deg % 90 == 0:
-		for _i in int(deg / 90):
-			img.rotate_90(CLOCKWISE)
-	else:
-		img = _rotate_image_cw_nn(img, float(deg) * PI / 180.0)
+	var img := Image.create(s, s, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0, 0, 0, 0))
+	var forward := Vector2(dir).normalized()
+	var c := Vector2((s - 1) * 0.5, (s - 1) * 0.5)
+	var tip := c + forward * (s * 0.40)
+	var back := c - forward * (s * 0.22)
+	var perp := Vector2(-forward.y, forward.x)
+	var left := back + perp * (s * 0.34)
+	var right := back - perp * (s * 0.34)
+	# Black outline then SPD-blue fill so it reads on the grey toolbar slot.
+	_fill_tri(img, tip, left, right, Color("000000"))
+	var inset := 1.15
+	_fill_tri(img, c + (tip - c) / inset, c + (left - c) / inset, c + (right - c) / inset, Color("6ea8ff"))
 	_dir_tex[key] = ImageTexture.create_from_image(img)
 	return _dir_tex[key]
 
-## Nearest-neighbour clockwise rotate (y-down) into a padded square so diagonal arrows stay on-pixel.
-func _rotate_image_cw_nn(src: Image, angle: float) -> Image:
-	var w := src.get_width()
-	var h := src.get_height()
-	var size := int(ceil(sqrt(float(w * w + h * h))))
-	if size % 2 == 1:
-		size += 1
-	var out := Image.create(size, size, false, src.get_format())
-	out.fill(Color(0, 0, 0, 0))
-	var cx := (w - 1) * 0.5
-	var cy := (h - 1) * 0.5
-	var ocx := (size - 1) * 0.5
-	var ocy := (size - 1) * 0.5
-	var c := cos(angle)
-	var s := sin(angle)
-	for y in size:
-		for x in size:
-			var dx := float(x) - ocx
-			var dy := float(y) - ocy
-			# Inverse of clockwise y-down: output ← R_ccw(source).
-			var sx := int(round(c * dx - s * dy + cx))
-			var sy := int(round(s * dx + c * dy + cy))
-			if sx >= 0 and sy >= 0 and sx < w and sy < h:
-				out.set_pixel(x, y, src.get_pixel(sx, sy))
-	return out
+func _fill_tri(img: Image, a: Vector2, b: Vector2, c: Vector2, col: Color) -> void:
+	var min_x := int(floor(minf(a.x, minf(b.x, c.x))))
+	var max_x := int(ceil(maxf(a.x, maxf(b.x, c.x))))
+	var min_y := int(floor(minf(a.y, minf(b.y, c.y))))
+	var max_y := int(ceil(maxf(a.y, maxf(b.y, c.y))))
+	var w := img.get_width()
+	var h := img.get_height()
+	for y in range(maxi(0, min_y), mini(h, max_y + 1)):
+		for x in range(maxi(0, min_x), mini(w, max_x + 1)):
+			var p := Vector2(x, y)
+			var v0 := c - a
+			var v1 := b - a
+			var v2 := p - a
+			var den := v0.x * v1.y - v1.x * v0.y
+			if absf(den) < 0.0001:
+				continue
+			var aa := (v2.x * v1.y - v1.x * v2.y) / den
+			var bb := (v0.x * v2.y - v2.x * v0.y) / den
+			if aa >= 0.0 and bb >= 0.0 and aa + bb <= 1.0:
+				img.set_pixel(x, y, col)
+
+## Equipped weapon sprite for the Attack button (falls back to challenge icon).
+func _attack_weapon_tex() -> Texture2D:
+	if GameState.run.is_empty():
+		return null
+	var uid := int(GameState.heroes[GameState.run.hero].get("weapon", 0))
+	var g: Dictionary = GameState.gear_by_uid(uid)
+	if g.is_empty():
+		return null
+	var id := String(g.get("id", ""))
+	if id == "" or not DB.items.has(id):
+		return null
+	var at := AtlasTexture.new()
+	at.atlas = load("res://assets/sprites/items.png")
+	at.region = UIKit.item_rect(DB.icon_index(id))
+	var img: Image = at.get_image()
+	var k := maxi(2, UIKit.px_scale)
+	img.resize(img.get_width() * k, img.get_height() * k, Image.INTERPOLATE_NEAREST)
+	var w := img.get_width() + img.get_width() % 2
+	var h := img.get_height() + img.get_height() % 2
+	if w != img.get_width() or h != img.get_height():
+		var pad := Image.create(w, h, false, img.get_format())
+		pad.fill(Color(0, 0, 0, 0))
+		pad.blit_rect(img, Rect2i(Vector2i.ZERO, img.get_size()), Vector2i.ZERO)
+		img = pad
+	return ImageTexture.create_from_image(img)
 
 ## Melee Attack target: last_target if still in reach, else nearest foe in reach.
 func _attack_target() -> Dictionary:
@@ -508,8 +531,9 @@ func _build_mobile_pad(parent: Node) -> void:
 	parent.add_child(wrap)
 	var pad := GridContainer.new()
 	pad.columns = 3
-	pad.add_theme_constant_override("h_separation", int(UIKit.font_size * 0.15))
-	pad.add_theme_constant_override("v_separation", int(UIKit.font_size * 0.15))
+	var gap := int(UIKit.font_size * 0.12)
+	pad.add_theme_constant_override("h_separation", gap)
+	pad.add_theme_constant_override("v_separation", gap)
 	wrap.add_child(pad)
 	var cell := _mobile_pad_cell()
 	var dirs: Array = [
@@ -527,22 +551,37 @@ func _build_mobile_pad(parent: Node) -> void:
 		if d == Vector2i.ZERO:
 			var wait_b := _icon_btn("Wait", "wait", func(): _act(func(): combat.hero_wait()), true, pad)
 			wait_b.custom_minimum_size = Vector2.ONE * cell
+			wait_b.expand_icon = true
 		else:
 			var dir: Vector2i = d
-			var b := _icon_btn(tips[dir], "", func(): _move_dir(dir), true, pad, _dir_icon(dir))
+			var b := _icon_btn(tips[dir], "", func(): _move_dir(dir), true, pad, _dir_icon(dir, int(cell)))
 			b.custom_minimum_size = Vector2.ONE * cell
+			b.expand_icon = true
 
 ## Mobile right half: Attack, class skills (Shove / Slam / Cloak / Bolt), Potion.
 func _build_mobile_skills(parent: Node) -> void:
-	var col := UIKit.vbox(parent, int(UIKit.font_size * 0.25))
+	var col := UIKit.vbox(parent, int(UIKit.font_size * 0.2))
 	col.size_flags_horizontal = SIZE_EXPAND_FILL
-	col.size_flags_vertical = SIZE_SHRINK_CENTER
+	col.size_flags_vertical = SIZE_EXPAND_FILL
 	col.size_flags_stretch_ratio = 1.0
+	var h := combat.hero
+	var n := 2  # Attack + Potion
+	if "shove" in h.abilities: n += 1
+	if "slam" in h.abilities: n += 1
+	if not h.cloak.is_empty(): n += 1
+	if not h.bolt.is_empty() and not h.bolt.get("infinite", false): n += 1
+	var gap := UIKit.font_size * 0.2
+	var row_h := maxf(UIKit.btn_height(), floorf((_mobile_pad_h() - gap * float(n - 1)) / float(n)))
 	var tgt := _attack_target()
 	var atk := _btn("Attack", _attack_press, not tgt.is_empty(), false, col)
-	atk.custom_minimum_size.y = UIKit.btn_height() * 1.15
+	atk.custom_minimum_size.y = row_h
+	atk.size_flags_vertical = SIZE_EXPAND_FILL
 	atk.tooltip_text = "Attack"
-	var h := combat.hero
+	# Equipped weapon art instead of the challenge trophy.
+	var wtex := _attack_weapon_tex()
+	if wtex != null:
+		atk.icon = wtex
+		atk.expand_icon = false
 	if "shove" in h.abilities:
 		var shove_on := mode == "shove"
 		var shove_cb := func():
@@ -550,27 +589,36 @@ func _build_mobile_skills(parent: Node) -> void:
 			grid.mode = mode
 			_refresh()
 		var shove := _btn("Shove", shove_cb, true, true, col)
+		shove.custom_minimum_size.y = row_h
+		shove.size_flags_vertical = SIZE_EXPAND_FILL
 		shove.tooltip_text = "Shove: ON" if shove_on else "Shove"
 		if shove_on:
 			shove.modulate = Color(1.15, 1.15, 0.85)
 	if "slam" in h.abilities:
 		var can_slam := int(h.slams) > 0 and combat.enemies().any(func(e): return Combat.cheb(e.pos, h.pos) == 1)
 		var slam := _btn("Slam %d" % h.slams, func(): _act(func(): combat.hero_slam()), can_slam, true, col)
+		slam.custom_minimum_size.y = row_h
+		slam.size_flags_vertical = SIZE_EXPAND_FILL
 		slam.tooltip_text = "Slam (%d)" % h.slams
 	if not h.cloak.is_empty():
 		var can_cloak := int(h.cloak_charges) > 0 and not combat.hidden()
 		var cloak := _btn("Cloak", func(): _act(func(): combat.hero_cloak()), can_cloak, true, col)
+		cloak.custom_minimum_size.y = row_h
+		cloak.size_flags_vertical = SIZE_EXPAND_FILL
 		cloak.tooltip_text = "Cloak (%d/%d)" % [int(h.cloak_charges), _cloak_cap(h)]
 	if not h.bolt.is_empty() and not h.bolt.get("infinite", false):
 		var bolt_on := mode == "bolt"
 		var bolt_tip := "Bolt: ON (%d)" % h.charges if bolt_on else "Bolt (%d)" % h.charges
-		# Short label so the D-pad row fits phone widths; full name stays in the tooltip.
 		var bolt := _btn("Bolt %d" % h.charges, _bolt_press, h.charges > 0, true, col)
+		bolt.custom_minimum_size.y = row_h
+		bolt.size_flags_vertical = SIZE_EXPAND_FILL
 		bolt.tooltip_text = bolt_tip
 		if bolt_on:
 			bolt.modulate = Color(1.15, 1.15, 0.85)
 	var pot_n := potions - potions_used
 	var pot := _btn("Pot %d" % pot_n, _drink, pot_n > 0 and h.hp < h.ht, false, col)
+	pot.custom_minimum_size.y = row_h
+	pot.size_flags_vertical = SIZE_EXPAND_FILL
 	pot.tooltip_text = "Potion (%d)" % pot_n
 
 ## Shared class-skill strip for the desktop toolbar (Shove / Slam / Cloak / Bolt).
