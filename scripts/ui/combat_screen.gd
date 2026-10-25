@@ -18,7 +18,7 @@ var grid
 var side: VBoxContainer
 var header_label: Label
 var status: Label
-## Mobile: fixed-height host so status tips don't shove Wait/Bolt and cause misclicks.
+## Desktop only: hosts the one-line status under the pane. Mobile folds tips into the log.
 var status_host: ScrollContainer
 var pane: StatusPane
 var buttons: Container
@@ -96,6 +96,7 @@ func _ready() -> void:
 	var bg := UIKit.chrome("toast", Color(0.75, 0.75, 0.75))
 	log_scroll.add_theme_stylebox_override("panel", bg)
 	log_label = RichTextLabel.new(); log_label.fit_content = true; log_label.scroll_active = false
+	log_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	log_label.size_flags_horizontal = SIZE_EXPAND_FILL; log_scroll.add_child(log_label)
 	_assemble_chrome()
 	_refresh()
@@ -211,19 +212,10 @@ func _assemble_chrome() -> void:
 		pane.set_max_w(0.0)
 		pane.size_flags_horizontal = SIZE_EXPAND_FILL
 		_reparent(pane, side)
-		# Fixed slot: staff / bolt / poison tips must not move the action grid under the finger.
-		status_host = ScrollContainer.new()
-		status_host.name = "StatusHost"
-		status_host.size_flags_horizontal = SIZE_EXPAND_FILL
-		status_host.size_flags_vertical = SIZE_SHRINK_BEGIN
-		status_host.custom_minimum_size.y = _status_slot_h()
-		status_host.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-		status_host.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
-		side.add_child(status_host)
-		status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		status.size_flags_horizontal = SIZE_EXPAND_FILL
-		_reparent(status, status_host)
-		# Log fills leftover under status; controls stay fully on-screen at the bottom.
+		# Mobile: no separate status strip (its Label min-width was clipping the pane/controls).
+		# Tips live at the top of the combat log instead.
+		status_host = null
+		status.visible = false
 		log_scroll.size_flags_vertical = SIZE_EXPAND_FILL
 		log_scroll.size_flags_horizontal = SIZE_EXPAND_FILL
 		log_scroll.size_flags_stretch_ratio = 1.0
@@ -249,10 +241,6 @@ static func wide_grid_side(area: Vector2, side_min: float, sep: float) -> float:
 func _desk_toolbar_h() -> float:
 	return UIKit.btn_height() * 1.25 + 8.0
 
-## Mobile status strip: room for DR + staff line + one tip (wraps) without shifting Wait/Bolt.
-func _status_slot_h() -> float:
-	return float(UIKit.font_size) * 1.3 * 4.0
-
 ## D-pad cell size (square toolbar slots).
 func _mobile_pad_cell() -> float:
 	return UIKit.btn_height()
@@ -266,15 +254,14 @@ func _mobile_controls_min_h() -> float:
 	var chrome := UIKit.btn_height() + fs * 0.35
 	return maxf(pad_h, skill_h) + chrome + fs * 0.35
 
-## Portrait side column floor: header, pane, status, log floor, controls (so the grid can shrink to fit).
+## Portrait side column floor: header, pane, log floor, controls (so the grid can shrink to fit).
 func _mobile_side_min_h() -> float:
 	var fs := float(UIKit.font_size)
 	var h := fs * 1.6
 	if guide_label and is_instance_valid(guide_label) and guide_label.visible:
 		h += fs * 2.5
 	h += StatusPane.PANE_H * float(maxi(2, UIKit.px_scale))
-	h += _status_slot_h()
-	h += fs * 3.0
+	h += fs * 4.0
 	h += _mobile_controls_min_h()
 	h += fs * 1.0
 	return h
@@ -597,34 +584,17 @@ func _refresh() -> void:
 	pane.set_data({"name": h.name, "level": lvl, "hp": h.hp, "ht": h.ht, "shield": h.barrier, "shield_hits": combat.barrier_hits(), "buffs": bl,
 		"depth": ("F%d" % int(run.get("floor", 1))) if not run.is_empty() else "",
 		"danger": combat.enemies().filter(func(e): return e.hp > 0).size(), "minis": minis})
-	var line := "DR %d  Dmg %d%s   t=%.1f" % [h.dr, h.dmg, ("  Reach %d" % int(h.reach)) if int(h.get("reach", 1)) > 1 else "", combat.time]
-	if not h.bolt.is_empty():
-		if h.bolt.get("infinite", false): line += "\nTap any tile in range to shoot %s (%d dmg; it passes tall grass)" % [h.bolt.name, h.bolt.dmg]
-		else:
-			line += "\nStaff charges %d/%d (%s, %d dmg, ignores DR)" % [h.charges, h.bolt.charges, h.bolt.name, h.bolt.dmg]
-			if mode == "bolt": line += "\nBolt again: nearest foe, or last attacker"
-	if combat.hidden(): line += "\nHIDDEN in shadows - enemies can't find you"
-	if int(h.get("poison", 0)) > 0: line += "\nPOISONED: -1 HP per turn for %d turns" % int(h.poison)
-	if combat.surprise_now():
-		var pierce := ""
-		if int(h.get("sur_bonus", 0)) > 0 or String(h.get("sub", "")) == "assassin": pierce = ", 50% DR pierce"
-		elif String(h.get("sub", "")) == "warden" and combat.has_ranged() and not h.bolt.get("magic", true): pierce = ", 50% DR pierce"
-		elif h.bolt.get("pierce", false): pierce = ", ignores DR"
-		line += "\nSurprise ready (%.1fx dmg, can't miss%s)" % [float(h.surprise_mult), pierce]
-	if combat.enemies().any(func(e): return e.get("evade_unless_surprise", false)):
-		line += "\nSnake: melee needs a Surprise; magic always hits, bows after the first shot"
-	# Desktop: one status line under the pane (multi-line tips stay in the log / status tooltip).
+	# Desktop: one status line under the pane. Mobile: tips ride in the combat log (see _refresh_log).
 	if desktop_ui:
-		var one := line.get_slice("\n", 0)
-		status.text = one
+		var tips := _combat_tip_lines()
+		var line := "\n".join(tips)
+		status.text = tips[0] if not tips.is_empty() else ""
 		status.tooltip_text = line
+		status.visible = not finished
+		if status_host and is_instance_valid(status_host):
+			status_host.visible = not finished
 	else:
-		status.text = line
-		status.tooltip_text = ""
-	var show_status := not finished
-	status.visible = show_status
-	if status_host and is_instance_valid(status_host):
-		status_host.visible = show_status
+		status.visible = false
 	_guide_update()
 	if main and not finished:
 		# Don't pop the Surprise modal over the guided first fight (steps 1-3): an unseen foe in tall grass makes
@@ -766,9 +736,46 @@ func _guide_update() -> void:
 			guide_label.text = "Step 3/3 - Finish it! Blue bar = Barrier (soaks hits first, refills each fight; each segment = one hit it stops). Red tiles = an attack is coming: step off."
 	grid.queue_redraw()
 
+## Situational combat tips (staff, Surprise, snake, …). Mobile shows these in the log; desktop uses the status line.
+func _combat_tip_lines() -> PackedStringArray:
+	var h := combat.hero
+	var tips: PackedStringArray = []
+	tips.append("DR %d  Dmg %d%s   t=%.1f" % [h.dr, h.dmg, ("  Reach %d" % int(h.reach)) if int(h.get("reach", 1)) > 1 else "", combat.time])
+	if not h.bolt.is_empty():
+		if h.bolt.get("infinite", false):
+			tips.append("Tap any tile in range to shoot %s (%d dmg; it passes tall grass)" % [h.bolt.name, h.bolt.dmg])
+		else:
+			tips.append("Staff charges %d/%d (%s, %d dmg, ignores DR)" % [h.charges, h.bolt.charges, h.bolt.name, h.bolt.dmg])
+			if mode == "bolt":
+				tips.append("Bolt again: nearest foe, or last attacker")
+	if combat.hidden():
+		tips.append("HIDDEN in shadows - enemies can't find you")
+	if int(h.get("poison", 0)) > 0:
+		tips.append("POISONED: -1 HP per turn for %d turns" % int(h.poison))
+	if combat.surprise_now():
+		var pierce := ""
+		if int(h.get("sur_bonus", 0)) > 0 or String(h.get("sub", "")) == "assassin": pierce = ", 50% DR pierce"
+		elif String(h.get("sub", "")) == "warden" and combat.has_ranged() and not h.bolt.get("magic", true): pierce = ", 50% DR pierce"
+		elif h.bolt.get("pierce", false): pierce = ", ignores DR"
+		tips.append("Surprise ready (%.1fx dmg, can't miss%s)" % [float(h.surprise_mult), pierce])
+	if combat.enemies().any(func(e): return e.get("evade_unless_surprise", false)):
+		tips.append("Snake: melee needs a Surprise; magic always hits, bows after the first shot")
+	return tips
+
 func _refresh_log() -> void:
 	log_label.clear()
-	for l in combat.log_lines: log_label.append_text(l + "\n")
+	# Keep the label width to the log panel so long tips wrap instead of stretching the column.
+	if log_scroll and log_scroll.size.x > 0:
+		log_label.custom_minimum_size.x = maxf(0.0, log_scroll.size.x - 4.0)
+	if not desktop_ui and not finished:
+		log_label.push_color(Color("c9a96e"))
+		for tip in _combat_tip_lines():
+			log_label.add_text(tip + "\n")
+		log_label.pop()
+		if not combat.log_lines.is_empty():
+			log_label.add_text("\n")
+	for l in combat.log_lines:
+		log_label.add_text(l + "\n")
 	await get_tree().process_frame
 	if is_instance_valid(log_scroll): log_scroll.scroll_vertical = int(log_scroll.get_v_scroll_bar().max_value)
 
