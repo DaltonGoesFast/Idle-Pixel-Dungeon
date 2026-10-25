@@ -219,13 +219,14 @@ func _assemble_chrome() -> void:
 		log_scroll.size_flags_vertical = SIZE_EXPAND_FILL
 		log_scroll.size_flags_horizontal = SIZE_EXPAND_FILL
 		log_scroll.size_flags_stretch_ratio = 1.0
-		log_scroll.custom_minimum_size.y = UIKit.font_size * 3
+		log_scroll.custom_minimum_size = Vector2(0, UIKit.font_size * 3)
+		log_scroll.clip_contents = true
 		_reparent(log_scroll, side)
 		# Mid-fight actions+chrome, or Victory/Defeat content after clear.
 		buttons = UIKit.vbox(side, int(UIKit.font_size * 0.35))
 		buttons.size_flags_horizontal = SIZE_EXPAND_FILL
 		buttons.size_flags_vertical = SIZE_SHRINK_BEGIN
-		buttons.clip_contents = false
+		side.clip_contents = true
 
 ## The side column never gets less than SIDE_MIN_FS font sizes, nor less than what its widest row needs.
 const SIDE_MIN_FS := 13.0
@@ -764,9 +765,10 @@ func _combat_tip_lines() -> PackedStringArray:
 
 func _refresh_log() -> void:
 	log_label.clear()
-	# Keep the label width to the log panel so long tips wrap instead of stretching the column.
-	if log_scroll and log_scroll.size.x > 0:
-		log_label.custom_minimum_size.x = maxf(0.0, log_scroll.size.x - 4.0)
+	# Never set custom_minimum_size.x from log_scroll.size — that feedback-looped and walked the
+	# whole combat UI rightward on each click. H-scroll is disabled, so the label is sized to the panel
+	# and autowrap handles long tip lines.
+	log_label.custom_minimum_size.x = 0
 	if not desktop_ui and not finished:
 		log_label.push_color(Color("c9a96e"))
 		for tip in _combat_tip_lines():
