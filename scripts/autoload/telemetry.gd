@@ -12,7 +12,7 @@ extends Node
 
 const CONFIG_PATH := "res://data/telemetry.json"
 const DEFAULT_HOST := "https://us.i.posthog.com"
-const DEFAULT_PRIVACY_URL := "https://github.com/DaltonGoesFast/spd-tactics-builds/blob/main/docs/PRIVACY.md"
+const DEFAULT_PRIVACY_URL := "https://github.com/DaltonGoesFast/Idle-Pixel-Dungeon/blob/main/docs/PRIVACY.md"
 const LIB := "spd-tactics-godot"
 
 const QUEUE_CAP := 1000          # events kept on disk while offline; the oldest are dropped past this

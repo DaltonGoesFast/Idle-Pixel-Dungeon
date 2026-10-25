@@ -4,7 +4,7 @@ A hybrid semi-idle dungeon-management RPG and deterministic tactical roguelite b
 [Shattered Pixel Dungeon](https://github.com/00-Evan/shattered-pixel-dungeon)'s art, sounds and stats.
 Design doc: `docs/GDD.txt`. Targets Android (Galaxy Z Fold 6 cover + inner screens) and desktop. An iOS export produces an Xcode project for TestFlight (`docs/BUILD_IOS.md`).
 
-**Play in the browser:** https://daltongoesfast.github.io/spd-tactics-builds/ (PC and phones; saves stay in that browser). APK and Windows builds are on the [Releases](https://github.com/DaltonGoesFast/spd-tactics-builds/releases) page.
+**Play in the browser:** https://daltongoesfast.github.io/Idle-Pixel-Dungeon/ (PC and phones; saves stay in that browser). APK and Windows builds are on the [Releases](https://github.com/DaltonGoesFast/Idle-Pixel-Dungeon/releases) page.
 
 **Loop:** Surface Camp (craft, equip, identify, patrol) -> Delve Bar (UI-driven exploration with torch/satiety drain,
 Door Choices, special-room cards) -> 8x8 deterministic combat (fixed damage, DR + Barrier, telegraphs, surprise attacks,

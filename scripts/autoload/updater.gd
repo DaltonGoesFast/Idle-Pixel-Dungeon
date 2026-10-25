@@ -5,7 +5,7 @@ extends Node
 
 signal changed
 
-const REPO := "DaltonGoesFast/spd-tactics-builds"
+const REPO := "DaltonGoesFast/Idle-Pixel-Dungeon"
 const API_URL := "https://api.github.com/repos/%s/releases/latest" % REPO
 const USER_AGENT := "SPD-Tactics-Updater"
 const UPDATE_DIR := "user://updates"

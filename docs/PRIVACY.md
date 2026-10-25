@@ -52,4 +52,4 @@ All values are game numbers, booleans or ids from the game's own data files. The
 30 events a minute and at most 50 per request.
 
 ## Questions
-Open an issue on [the repository](https://github.com/DaltonGoesFast/spd-tactics-builds/issues).
+Open an issue on [the repository](https://github.com/DaltonGoesFast/Idle-Pixel-Dungeon/issues).
