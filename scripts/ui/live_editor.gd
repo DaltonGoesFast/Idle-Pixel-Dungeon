@@ -31,9 +31,13 @@ static func open() -> void:
 		instance.grab_focus()
 		instance.move_to_foreground()
 		return
+	# Godot embeds Window nodes inside the game viewport by default — that made the
+	# editor a tiny in-game panel. Turn embedding off so this is a real OS window.
+	var root := Engine.get_main_loop().root as Window
+	root.gui_embed_subwindows = false
 	var w: Window = LiveEditorScript.new()
 	instance = w
-	Engine.get_main_loop().root.add_child(w)
+	root.add_child(w)
 
 static func close_editor() -> void:
 	if instance != null and is_instance_valid(instance):
@@ -43,13 +47,17 @@ static func close_editor() -> void:
 
 func _ready() -> void:
 	title = "SPD Live Editor"
-	size = Vector2i(520, 720)
-	min_size = Vector2i(400, 480)
 	transient = false
 	exclusive = false
 	unresizable = false
+	always_on_top = false
+	# Native window size in screen pixels (not scaled by the game's tall phone viewport).
+	size = Vector2i(960, 1000)
+	min_size = Vector2i(720, 640)
+	initial_position = WINDOW_INITIAL_POSITION_ABSOLUTE
+	_place_beside_main()
 	close_requested.connect(_on_close)
-	theme = UIKit.make_theme(18)
+	theme = UIKit.make_theme(22)
 	_load_files()
 	_build()
 	LiveLayout.selection_changed.connect(_on_selection)
@@ -57,6 +65,28 @@ func _ready() -> void:
 	visibility_changed.connect(func():
 		if not visible:
 			LiveLayout.set_editing(false))
+	# Ensure the native window is visible and focused after the first frame.
+	call_deferred("_show_native")
+
+func _place_beside_main() -> void:
+	var main_pos := DisplayServer.window_get_position(DisplayServer.MAIN_WINDOW_ID)
+	var main_size := DisplayServer.window_get_size(DisplayServer.MAIN_WINDOW_ID)
+	var screen := DisplayServer.window_get_current_screen(DisplayServer.MAIN_WINDOW_ID)
+	var usable := DisplayServer.screen_get_usable_rect(screen)
+	var pos := Vector2i(main_pos.x + main_size.x + 12, main_pos.y)
+	if pos.x + size.x > usable.end.x:
+		pos.x = maxi(usable.position.x, main_pos.x - size.x - 12)
+	if pos.y + size.y > usable.end.y:
+		pos.y = maxi(usable.position.y, usable.end.y - size.y)
+	position = pos
+
+func _show_native() -> void:
+	# popup() shows a native OS window when subwindows are not embedded.
+	var keep := position
+	popup()
+	position = keep
+	grab_focus()
+	move_to_foreground()
 
 func _on_close() -> void:
 	LiveLayout.set_editing(false)

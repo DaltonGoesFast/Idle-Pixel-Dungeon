@@ -860,7 +860,7 @@ PC fullscreen kept the Fold phone chrome (side panel + big touch buttons). Setti
 Combat gets remappable keyboard controls (`Keybinds`, `settings.keybinds`): WASD + arrows + numpad (with QEZC / numpad diagonals), Space wait, R search, I bag, H hint, T auto (not A — clashes with west), P potion, 1/2 class skills, Esc cancel. Settings lists every action with Rebind / Reset. Where it lives: `Main.resolve_desktop_ui`, `CombatScreen` desk chrome + `_unhandled_input`, `SettingsPanel` Interface + Keybinds, `scripts/ui/keybinds.gd`.
 
 ## 233. Desktop Live Editor (second window)
-Authoring while the game runs: Settings → Developer tools → **Open Live Editor** opens a second Godot `Window` (desktop only; not web/mobile). Tabs:
+Authoring while the game runs: Settings → Developer tools → **Open Live Editor** opens a second Godot `Window` (desktop only; not web/mobile). The root viewport sets `gui_embed_subwindows = false` so it is a real OS window (not a tiny panel inside the tall phone-scaled game view), sized ~960×1000 beside the main window. Tabs:
 - **Layout** — toggle Edit layout, then drag Camp NPCs / hero seats / fire, or named Camp chrome (`CampTopBar`, `ResourceStrip`, `CampFrame`, `CampSide`, `DelveGo`, `JournalButton`, `SettingsButton`). Numeric X/Y for the selection. Camp positions live in `data/camp_layout.json`; UI nudges in `data/ui_layout.json` as fractions of `min(viewport)` and re-apply after Camp `rebuild`.
 - **Text** — edit JSON-backed names/descriptions/tips/milestones (not every hardcoded UI string).
 - **Balance** — edit mob/item/facility/recipe numbers and costs.
