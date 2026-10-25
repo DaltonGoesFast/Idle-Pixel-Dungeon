@@ -434,18 +434,17 @@ func _dir_icon(dir: Vector2i) -> Texture2D:
 		Vector2i(0, -1): deg = 270
 		Vector2i(1, -1): deg = 315
 	var img: Image = UIKit.toolbar_icon("arrow").get_image().duplicate()
-	# Cardinals: crisp rotate_90. Diagonals: nearest-neighbour 45° spin.
-	var turns := int(deg / 90)
-	var rem := deg % 90
-	for _i in turns:
-		img.rotate_90(CLOCKWISE)
-	if rem != 0:
-		img = _rotate_image_nn(img, float(rem) * PI / 180.0)
+	# Cardinals: crisp rotate_90. Diagonals: one-shot nearest-neighbour from east.
+	if deg % 90 == 0:
+		for _i in int(deg / 90):
+			img.rotate_90(CLOCKWISE)
+	else:
+		img = _rotate_image_cw_nn(img, float(deg) * PI / 180.0)
 	_dir_tex[key] = ImageTexture.create_from_image(img)
 	return _dir_tex[key]
 
-## Nearest-neighbour rotate (clockwise, y-down) into a padded square so diagonal arrows stay on-pixel.
-func _rotate_image_nn(src: Image, angle: float) -> Image:
+## Nearest-neighbour clockwise rotate (y-down) into a padded square so diagonal arrows stay on-pixel.
+func _rotate_image_cw_nn(src: Image, angle: float) -> Image:
 	var w := src.get_width()
 	var h := src.get_height()
 	var size := int(ceil(sqrt(float(w * w + h * h))))
@@ -463,9 +462,9 @@ func _rotate_image_nn(src: Image, angle: float) -> Image:
 		for x in size:
 			var dx := float(x) - ocx
 			var dy := float(y) - ocy
-			# Clockwise in y-down image space (east → south at +90°).
-			var sx := int(round(c * dx + s * dy + cx))
-			var sy := int(round(s * dx - c * dy + cy))
+			# Inverse of clockwise y-down: output ← R_ccw(source).
+			var sx := int(round(c * dx - s * dy + cx))
+			var sy := int(round(s * dx + c * dy + cy))
 			if sx >= 0 and sy >= 0 and sx < w and sy < h:
 				out.set_pixel(x, y, src.get_pixel(sx, sy))
 	return out
@@ -496,29 +495,22 @@ func _attack_press() -> void:
 func _move_dir(dir: Vector2i) -> void:
 	_act(func(): combat.hero_tap(combat.hero.pos + dir, mode))
 
-## Mobile: Search (+ Passage when carried) in a left column. Class skills live on the right.
-func _build_mobile_side_icons(parent: Node) -> void:
-	var col := UIKit.vbox(parent, int(UIKit.font_size * 0.2))
-	col.size_flags_horizontal = SIZE_SHRINK_BEGIN
-	col.size_flags_vertical = SIZE_SHRINK_CENTER
-	var search_tip := "Search again" if combat.hero.get("searched", false) else "Search"
-	_icon_btn(search_tip, "search", func(): _act(func(): combat.hero_search()), true, col)
-	if Delve.scroll_passage_count(GameState) > 0:
-		_icon_btn("Scroll of Passage", "scroll", _ask_passage, true, col)
-
 func _register_skill(cb: Callable, enabled: bool) -> void:
 	_skill_cbs.append(cb)
 	_skill_enabled.append(enabled)
 
-## Mobile center: 8-way D-pad with Wait in the middle.
+## Mobile left half: 8-way D-pad with Wait in the middle.
 func _build_mobile_pad(parent: Node) -> void:
+	var wrap := CenterContainer.new()
+	wrap.size_flags_horizontal = SIZE_EXPAND_FILL
+	wrap.size_flags_vertical = SIZE_SHRINK_CENTER
+	wrap.size_flags_stretch_ratio = 1.0
+	parent.add_child(wrap)
 	var pad := GridContainer.new()
 	pad.columns = 3
-	pad.size_flags_horizontal = SIZE_SHRINK_CENTER
-	pad.size_flags_vertical = SIZE_SHRINK_CENTER
 	pad.add_theme_constant_override("h_separation", int(UIKit.font_size * 0.15))
 	pad.add_theme_constant_override("v_separation", int(UIKit.font_size * 0.15))
-	parent.add_child(pad)
+	wrap.add_child(pad)
 	var cell := _mobile_pad_cell()
 	var dirs: Array = [
 		Vector2i(-1, -1), Vector2i(0, -1), Vector2i(1, -1),
@@ -540,7 +532,7 @@ func _build_mobile_pad(parent: Node) -> void:
 			var b := _icon_btn(tips[dir], "", func(): _move_dir(dir), true, pad, _dir_icon(dir))
 			b.custom_minimum_size = Vector2.ONE * cell
 
-## Mobile right: Attack, class skills (Shove / Slam / Cloak / Bolt), Potion.
+## Mobile right half: Attack, class skills (Shove / Slam / Cloak / Bolt), Potion.
 func _build_mobile_skills(parent: Node) -> void:
 	var col := UIKit.vbox(parent, int(UIKit.font_size * 0.25))
 	col.size_flags_horizontal = SIZE_EXPAND_FILL
@@ -598,17 +590,23 @@ func _add_skill_buttons(parent: Node) -> void:
 		_btn("Bolt: ON (%d)" % h.charges if mode == "bolt" else "Bolt (%d)" % h.charges, _bolt_press, h.charges > 0, true, parent)
 
 func _build_mobile_controls() -> void:
+	# Middle row: half movement, half actions (no side icon column).
 	var actions := UIKit.hbox(buttons)
 	actions.size_flags_horizontal = SIZE_EXPAND_FILL
 	actions.size_flags_vertical = SIZE_SHRINK_BEGIN
-	actions.add_theme_constant_override("separation", int(UIKit.font_size * 0.25))
-	_build_mobile_side_icons(actions)
+	actions.add_theme_constant_override("separation", int(UIKit.font_size * 0.35))
 	_build_mobile_pad(actions)
 	_build_mobile_skills(actions)
-	# Icon-only chrome: text+icon Bag/Auto/Menu mins overflowed narrow portrait widths.
+	# Bottom chrome: Search, optional Passage, Bag, Auto, Menu.
 	var chrome := UIKit.hbox(buttons)
 	chrome.size_flags_horizontal = SIZE_EXPAND_FILL
 	chrome.add_theme_constant_override("separation", int(UIKit.font_size * 0.25))
+	var search_tip := "Search again" if combat.hero.get("searched", false) else "Search"
+	var search_b := _icon_btn(search_tip, "search", func(): _act(func(): combat.hero_search()), true, chrome)
+	search_b.size_flags_horizontal = SIZE_EXPAND_FILL
+	if Delve.scroll_passage_count(GameState) > 0:
+		var pass_b := _icon_btn("Scroll of Passage", "scroll", _ask_passage, true, chrome)
+		pass_b.size_flags_horizontal = SIZE_EXPAND_FILL
 	var bag := _icon_btn("Bag", "backpack", func(): bag_open = not bag_open; menu_open = false; set_meta("bag_scroll", 0); _refresh(), true, chrome)
 	bag.size_flags_horizontal = SIZE_EXPAND_FILL
 	var auto_b := _icon_btn("Auto battle: ON" if auto else "Auto battle", "busy", func(): auto = not auto; _refresh(), true, chrome)
