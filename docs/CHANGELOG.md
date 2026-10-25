@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Launcher icons: Android adaptive FG/BG/mono, Windows `.ico`, and web favicons from `assets/branding/` (DECISIONS #243, +tests).
 
 ## 0.50.3
 - Update checks re-run when the app resumes (and periodically from Camp), so Android no longer needs a force-close to notice a new release. Camp Settings shows a red badge when an update is ready, and the header Update button appears as soon as the check finishes (DECISIONS #242, +tests).

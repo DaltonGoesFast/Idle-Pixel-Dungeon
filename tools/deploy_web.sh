@@ -10,6 +10,8 @@ OUT="builds/web"
 rm -rf "$OUT"; mkdir -p "$OUT"
 "$GODOT" --headless --path . --export-release Web "$OUT/index.html"
 test -s "$OUT/index.wasm" && test -s "$OUT/index.pck"
+# Hand-tuned tab icons (html/head_include links these; DECISIONS #243).
+cp -f assets/branding/favicon_16.png assets/branding/favicon_32.png "$OUT/"
 touch "$OUT/.nojekyll"
 [ "${1:-}" = "--no-push" ] && { echo "Exported to $OUT"; exit 0; }
 REMOTE="$(git remote get-url origin)"

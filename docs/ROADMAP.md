@@ -37,7 +37,8 @@
 - [x] Settings: volume, haptics, text size (v0.6.0).
 - [ ] Settings: delve speed, left-handed layout, reduce motion.
 - [x] Developer tools hidden behind a Settings toggle (v0.6.0).
-- [ ] Proper launcher icons (adaptive + monochrome) and a splash.
+- [x] Proper launcher icons (adaptive + monochrome) (DECISIONS #243).
+- [ ] Splash screen.
 - [ ] Release signing + Play Store AAB (needs gradle build + NDK).
 
 ## Known gaps / stubs

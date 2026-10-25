@@ -3257,6 +3257,15 @@ func test_export_presets() -> void:
 			found_android = true
 			check(String(cfg.get_value(opt, "version/name", "")) == pver, "Android version/name matches project.godot (%s)" % pver)
 			check(bool(cfg.get_value(opt, "gradle_build/use_gradle_build", false)), "Android uses Gradle build (required by addons/apk_install)")
+			# DECISIONS #243: launcher icons from assets/branding
+			for key in ["launcher_icons/main_192x192", "launcher_icons/adaptive_foreground_432x432", "launcher_icons/adaptive_background_432x432", "launcher_icons/adaptive_monochrome_432x432"]:
+				var ipath := String(cfg.get_value(opt, key, ""))
+				check(ipath != "" and FileAccess.file_exists(ipath), "Android %s points at an existing file (%s)" % [key, ipath])
+		elif plat == "Windows Desktop":
+			check(bool(cfg.get_value(opt, "application/modify_resources", false)), "Windows modify_resources embeds the exe icon")
+			var wicon := String(cfg.get_value(opt, "application/icon", ""))
+			check(wicon != "" and FileAccess.file_exists(wicon), "Windows application/icon exists (%s)" % wicon)
+			check(int(cfg.get_value(opt, "application/icon_interpolation", -1)) == 0, "Windows icon uses nearest-neighbor")
 		elif plat == "iOS":
 			found_ios = true
 			check(String(cfg.get_value(opt, "application/short_version", "")) == pver, "iOS short_version matches project.godot (%s)" % pver)
@@ -3290,6 +3299,16 @@ func test_export_presets() -> void:
 		var inc := String(cfg.get_value(s + ".options", "html/head_include", ""))
 		check(inc.contains("image-rendering:pixelated") and inc.contains("#canvas"),
 			"Web head_include nearest-neighbours the canvas when the browser CSS-scales it")
+		check(inc.contains("favicon_16.png") and inc.contains("favicon_32.png"),
+			"Web head_include links hand-tuned favicons (DECISIONS #243)")
+	check(FileAccess.file_exists("res://icon.png"), "project icon.png exists")
+	check(FileAccess.file_exists("res://assets/branding/idle_pd.ico"), "Windows native icon exists")
+	check(String(ProjectSettings.get_setting("application/config/windows_native_icon", "")).ends_with("idle_pd.ico"),
+		"project windows_native_icon points at branding ico")
+	var deploy := FileAccess.open("res://tools/deploy_web.sh", FileAccess.READ)
+	var dsh := deploy.get_as_text() if deploy else ""
+	check(dsh.contains("favicon_16.png") and dsh.contains("favicon_32.png"),
+		"deploy_web.sh copies favicons next to index.html")
 
 ## DECISIONS #140: Godot's Gradle export checks res://android/.build_version before running Gradle;
 ## tools/build.sh must write it alongside android/build when unpacking android_source.zip.
