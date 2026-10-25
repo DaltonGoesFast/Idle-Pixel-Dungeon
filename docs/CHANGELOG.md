@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Expedition supplies show the pack's carry cap even when the stash is short, and a Buy button on a short row purchases one at the Guild or Enchanter price (DECISIONS #238, +tests).
 
 ## 0.50.1
 - Forge weapon and armor are shared party gear: craft Scale once and every hero who meets the Str requirement wears it. Under-Str heroes keep Cloth / starter melee instead of fighting crippled. Found weapons stay unique per-hero overrides; Mage Staff and Huntress gloves still fill melee for those classes. Camp gear never cracks on death; found weapon overrides still do. Old saves keep the best forge copies as the camp set (DECISIONS #234, +tests).

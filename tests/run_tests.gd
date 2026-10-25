@@ -74,6 +74,7 @@ func _ready() -> void:
 	test_weapon_text_nits(gs)
 	test_max_all_supplies(gs)
 	test_guild_pack_cap(gs)
+	await test_supply_carry_and_buy(gs)
 	test_enchanter_tabs(gs)
 	test_identify_queue_all(gs)
 	test_blind_shots(gs)
@@ -3468,6 +3469,115 @@ func test_guild_pack_cap(gs) -> void:
 	check(int(gs.run.supplies.ration) == 3 and int(gs.run.supplies.torch) == 3 and gs.mat("ration") == 17, "start_run packs no more than the cap; the rest stays in the stash")
 	gs.end_run("abandon")
 
+## DECISIONS #238: the Supplies "max" label is the carry cap, not min(owned, cap). A short row can buy one
+## at the existing Guild / Enchanter recipe (gold through craft/pay). Starter Elixir has no gold price.
+func test_supply_carry_and_buy(gs) -> void:
+	print("[supply carry and buy]")
+	gs.new_game()
+	UIKit.make_theme(40)   # Fold cover: min(968, 2376) / 24
+	var cs = load("res://scripts/ui/camp_screen.gd").new(); add_child(cs)
+	cs.size = Vector2(968, 2376)
+	cs.open_page("Delve")
+	check(cs.supply_buy("ration").get("id", "") == "buy_ration" and cs.supply_buy("torch").get("id", "") == "buy_torch" and cs.supply_buy("potion_healing").get("id", "") == "buy_healing", "rations, torches and healing buy the Guild single, not a brew or the crate")
+	check(cs.supply_buy("scroll_passage").get("fac", "") == "enchanter" and cs.supply_buy("scroll_passage").get("id", "") == "scribe_passage", "Passage buys the Enchanter scribe recipe")
+	check(cs.supply_buy("elixir_starter").is_empty(), "Starter Elixir has no gold purchase")
+	var prices := {"ration": ["guild", "buy_ration", 10], "torch": ["guild", "buy_torch", 8], "potion_healing": ["guild", "buy_healing", 30]}
+	for k in prices:
+		var spec: Array = prices[k]
+		var rec: Dictionary = gs.recipe(spec[0], spec[1])
+		check(int(rec.cost.gold) == int(spec[2]) and rec.cost.size() == 1, "%s price is %d gold on %s" % [k, spec[2], spec[1]])
+		var cap_l: Label = cs.win_layer.find_child("SupplyCap_" + k, true, false)
+		var carry: int = gs.supply_cap(k)
+		check(cap_l != null and cap_l.text == "max %d  have 0" % carry, "%s shows the carry cap while owned is 0 (%s)" % [k, cap_l.text if cap_l else "missing"])
+		var buy: Button = _btn_named(cs, "SupplyBuy_" + k)
+		check(buy != null and not buy.disabled and buy.text == "Buy %dg" % int(spec[2]), "%s Buy shows the Guild gold price (%s)" % [k, buy.text if buy else "missing"])
+		var plus: Button = _btn_named(cs, "SupplyPlus_" + k)
+		check(plus != null and plus.disabled, "%s + stays off until one is owned" % k)
+	var passage: Label = cs.win_layer.find_child("SupplyCap_scroll_passage", true, false)
+	check(passage != null and passage.text == "max 1  have 0", "Passage shows cap 1 when none are owned (%s)" % [passage.text if passage else "missing"])
+	var pbuy: Button = _btn_named(cs, "SupplyBuy_scroll_passage")
+	var pprice = cs.win_layer.find_child("SupplyPrice_scroll_passage", true, false)
+	check(pbuy != null and pbuy.disabled and pbuy.text == "Buy" and pbuy.tooltip_text.contains("Arcane Resin") and pbuy.tooltip_text.contains("20"), "Passage Buy is shown and off until the scribe cost is paid (%s)" % [pbuy.tooltip_text if pbuy else "missing"])
+	check(pprice != null and _node_text(pprice).contains("2") and _node_text(pprice).contains("20"), "Passage row shows the scribe cost chips, 2 resin and 20 gold (%s)" % [_node_text(pprice) if pprice else "missing"])
+	var scribe: Dictionary = gs.recipe("enchanter", "scribe_passage")
+	check(int(scribe.cost.gold) == 20 and int(scribe.cost.arcane_resin) == 2, "scribe_passage stays 20 gold and 2 arcane resin")
+	# nothing owned: no elixir row, and + cannot pack past the stash
+	check(cs.win_layer.find_child("SupplyRow_elixir_starter", true, false) == null, "an empty Starter Elixir stays off the list")
+	var gold0: int = gs.mat("gold")
+	_btn_named(cs, "SupplyBuy_torch").pressed.emit()
+	check(gs.mat("torch") == 1 and gs.mat("gold") == gold0 - 8 and cs.loadout.torch == 0, "buying a torch spends 8 gold through the Guild and does not pack it yet")
+	var tcap: Label = cs.win_layer.find_child("SupplyCap_torch", true, false)
+	check(tcap != null and tcap.text == "max %d  have 1" % gs.supply_cap("torch"), "the torch row updates to have 1 (%s)" % [tcap.text if tcap else "missing"])
+	var tplus: Button = _btn_named(cs, "SupplyPlus_torch")
+	check(tplus != null and not tplus.disabled, "torch + turns on once one is owned")
+	if tplus: tplus.pressed.emit()
+	check(cs.loadout.torch == 1, "torch + packs only what is owned")
+	tplus = _btn_named(cs, "SupplyPlus_torch")
+	check(tplus != null and tplus.disabled and cs.loadout.torch == 1, "torch + stops at the stash, under the carry cap")
+	# Guild Lv2 still sells one ration at the single price, not the crate
+	gs.facilities.guild.level = 2
+	cs.close_page(); cs.open_page("Delve")
+	var rg0: int = gs.mat("gold"); var rn0: int = gs.mat("ration")
+	var rbuy: Button = _btn_named(cs, "SupplyBuy_ration")
+	check(rbuy != null and rbuy.text == "Buy %dg" % int(gs.recipe("guild", "buy_ration").cost.gold), "Lv2 Buy is still the single ration, not the crate")
+	if rbuy: rbuy.pressed.emit()
+	check(gs.mat("ration") == rn0 + 1 and gs.mat("gold") == rg0 - int(gs.recipe("guild", "buy_ration").cost.gold), "one Buy adds one ration at buy_ration's price")
+	# owning the cap hides Buy and the have-count
+	gs.facilities.guild.level = 1
+	gs.mats.ration = gs.supply_cap("ration")
+	gs.mats.torch = gs.supply_cap("torch")
+	gs.mats.potion_healing = gs.supply_cap("potion_healing")
+	cs.close_page(); cs.open_page("Delve")
+	for k2 in ["ration", "torch", "potion_healing"]:
+		var lab: Label = cs.win_layer.find_child("SupplyCap_" + k2, true, false)
+		check(lab != null and lab.text == "max %d" % gs.supply_cap(k2) and _btn_named(cs, "SupplyBuy_" + k2) == null, "%s at the cap shows max only and no Buy (%s)" % [k2, lab.text if lab else "missing"])
+	# Passage pays resin and gold together; elixir never grows a Buy button
+	gs.add_mat("arcane_resin", 2)
+	gs.add_mat("elixir_starter", 1)
+	var g1: int = gs.mat("gold"); var resin0: int = gs.mat("arcane_resin")
+	cs.close_page(); cs.open_page("Delve")
+	pbuy = _btn_named(cs, "SupplyBuy_scroll_passage")
+	check(pbuy != null and not pbuy.disabled, "Passage Buy enables once the scribe cost is in the stash")
+	if pbuy: pbuy.pressed.emit()
+	check(gs.mat("scroll_passage") == 1 and gs.mat("gold") == g1 - 20 and gs.mat("arcane_resin") == resin0 - 2, "scribing a Passage spends 20 gold and 2 resin")
+	check(_btn_named(cs, "SupplyBuy_scroll_passage") == null, "Passage Buy leaves once the pack cap of 1 is owned")
+	var elab: Label = cs.win_layer.find_child("SupplyCap_elixir_starter", true, false)
+	check(elab != null and elab.text.begins_with("max %d" % gs.supply_cap("elixir_starter")) and elab.text.contains("have 1") and _btn_named(cs, "SupplyBuy_elixir_starter") == null, "Starter Elixir shows have/cap and no Buy (%s)" % [elab.text if elab else "missing"])
+	# Reopen short of every supply so each Buy is on screen at Fold cover width.
+	gs.mats.ration = 0; gs.mats.torch = 0; gs.mats.potion_healing = 0; gs.mats.scroll_passage = 0; gs.mats.elixir_starter = 0
+	cs.close_page(); cs.open_page("Delve")
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var scroll: ScrollContainer = cs.win_layer.get_meta("sc")
+	var view := scroll.get_global_rect()
+	var clipped := []
+	for k3 in ["ration", "torch", "potion_healing", "scroll_passage"]:
+		var nodes: Array = [
+			cs.win_layer.find_child("SupplyCap_" + k3, true, false),
+			cs.win_layer.find_child("SupplyBuy_" + k3, true, false),
+			cs.win_layer.find_child("SupplyPlus_" + k3, true, false)]
+		var pricen: Control = cs.win_layer.find_child("SupplyPrice_" + k3, true, false)
+		if k3 == "scroll_passage":
+			if pricen == null: clipped.append("passage price missing")
+			else: nodes.append(pricen)
+		for n2 in nodes:
+			if n2 == null:
+				clipped.append(k3 + " missing control")
+				continue
+			var r2: Rect2 = (n2 as Control).get_global_rect()
+			if r2.position.x < view.position.x - 1.0 or r2.end.x > view.end.x + 1.0:
+				clipped.append("%s %s outside %s" % [(n2 as Control).name, r2, view])
+			if n2 is Button and r2.size.y > UIKit.btn_height() * 1.8:
+				clipped.append("%s tall %s" % [(n2 as Control).name, r2.size])
+			if n2 == pricen and r2.size.y > UIKit.font_size * 3.0:
+				clipped.append("passage price stacked %s" % [r2.size])
+		var rowb: Control = cs.win_layer.find_child("SupplyBuyRow_" + k3, true, false)
+		if rowb != null and rowb.get_combined_minimum_size().x > view.size.x + 1.0:
+			clipped.append("%s min width %s > %s" % [k3, rowb.get_combined_minimum_size(), view.size])
+	check(clipped.is_empty(), "supply cap and Buy fit the Fold cover width %s" % [clipped])
+	check(cs.win_layer.find_child("SupplyBuy_elixir_starter", true, false) == null, "empty elixir still has no Buy after the cover-width rebuild")
+	cs.close_page(); cs.queue_free()
+
 ## DECISIONS #173: Scribe, Identify and Attune are separate tabs. The choice sticks, and only the open tab is built.
 func test_enchanter_tabs(gs) -> void:
 	print("[enchanter tabs]")
@@ -4624,6 +4734,9 @@ func test_victory_card(gs) -> void:
 	print("[victory card]")
 	var win := get_window(); var old := win.size
 	gs.new_game(); gs.settings.tutorial = false
+	# The card these checks measure is the mobile side-column card (DECISIONS #217). Auto is Desktop
+	# off phones (DECISIONS #232), which draws the same results in a floating panel with no VictoryResults node.
+	gs.settings.interface = "mobile"
 	var main = load("res://scenes/main.tscn").instantiate(); add_child(main)
 	# the report's Chrome viewport first, then the Fold cover/inner, PC, and odd browser windows around the
 	# portrait/wide switch (aspect 0.85) and very wide ones
@@ -4716,6 +4829,7 @@ func test_victory_card(gs) -> void:
 	check(cs3.side_min_width() < cs3.side.get_combined_minimum_size().x + 0.5, "the side column's floor leaves out the log")
 	check(cs3.grid.size.x >= 1024 * 0.25, "after shrinking from a wide window the arena keeps its size (%s)" % cs3.grid.size)
 	gs.end_run("abandon")
+	gs.settings.interface = "auto"
 	main.queue_free()
 	win.size = old
 	await get_tree().process_frame
