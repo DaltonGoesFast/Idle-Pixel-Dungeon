@@ -223,16 +223,17 @@ func _assemble_chrome() -> void:
 		status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		status.size_flags_horizontal = SIZE_EXPAND_FILL
 		_reparent(status, status_host)
-		# Log fills the band under status; controls stay thumb-reachable at the bottom.
+		# Log fills leftover under status; controls stay fully on-screen at the bottom.
 		log_scroll.size_flags_vertical = SIZE_EXPAND_FILL
 		log_scroll.size_flags_horizontal = SIZE_EXPAND_FILL
 		log_scroll.size_flags_stretch_ratio = 1.0
-		log_scroll.custom_minimum_size.y = UIKit.font_size * 5
+		log_scroll.custom_minimum_size.y = UIKit.font_size * 3
 		_reparent(log_scroll, side)
 		# Mid-fight actions+chrome, or Victory/Defeat content after clear.
 		buttons = UIKit.vbox(side, int(UIKit.font_size * 0.35))
 		buttons.size_flags_horizontal = SIZE_EXPAND_FILL
 		buttons.size_flags_vertical = SIZE_SHRINK_BEGIN
+		buttons.clip_contents = false
 
 ## The side column never gets less than SIDE_MIN_FS font sizes, nor less than what its widest row needs.
 const SIDE_MIN_FS := 13.0
@@ -251,6 +252,32 @@ func _desk_toolbar_h() -> float:
 ## Mobile status strip: room for DR + staff line + one tip (wraps) without shifting Wait/Bolt.
 func _status_slot_h() -> float:
 	return float(UIKit.font_size) * 1.3 * 4.0
+
+## D-pad cell size (square toolbar slots).
+func _mobile_pad_cell() -> float:
+	return UIKit.btn_height()
+
+## Height of the mobile D-pad / skills row + Bag/Auto/Menu chrome.
+func _mobile_controls_min_h() -> float:
+	var fs := float(UIKit.font_size)
+	var cell := _mobile_pad_cell()
+	var pad_h := cell * 3.0 + fs * 0.4
+	var skill_h := UIKit.btn_height() * 1.15 + UIKit.btn_height() * 2.0 + fs * 0.5
+	var chrome := UIKit.btn_height() + fs * 0.35
+	return maxf(pad_h, skill_h) + chrome + fs * 0.35
+
+## Portrait side column floor: header, pane, status, log floor, controls (so the grid can shrink to fit).
+func _mobile_side_min_h() -> float:
+	var fs := float(UIKit.font_size)
+	var h := fs * 1.6
+	if guide_label and is_instance_valid(guide_label) and guide_label.visible:
+		h += fs * 2.5
+	h += StatusPane.PANE_H * float(maxi(2, UIKit.px_scale))
+	h += _status_slot_h()
+	h += fs * 3.0
+	h += _mobile_controls_min_h()
+	h += fs * 1.0
+	return h
 
 ## Reserved height above/below the desktop mid row (status + toolbar + seps).
 func _desktop_chrome_h() -> float:
@@ -276,7 +303,12 @@ func _fit_split() -> void:
 			toolbar_scroll.custom_minimum_size.y = _desk_toolbar_h()
 		return
 	if _portrait:
-		grid.custom_minimum_size = Vector2(_area.x, _area.x)
+		# Full-width square used to eat the Fold cover; shrink so D-pad + Bag/Auto/Menu stay on screen.
+		var sep := float(split.get_theme_constant("separation")) if split else 12.0
+		var grid_side := floorf(minf(_area.x, maxf(96.0, _area.y - _mobile_side_min_h() - sep)))
+		grid.custom_minimum_size = Vector2(grid_side, grid_side)
+		if log_scroll:
+			log_scroll.custom_minimum_size.y = UIKit.font_size * 3
 		return
 	var g := wide_grid_side(_area, side_min_width(), float(split.get_theme_constant("separation")))
 	grid.custom_minimum_size = Vector2(g, g)
@@ -477,7 +509,7 @@ func _build_mobile_pad(parent: Node) -> void:
 	pad.add_theme_constant_override("h_separation", int(UIKit.font_size * 0.2))
 	pad.add_theme_constant_override("v_separation", int(UIKit.font_size * 0.2))
 	parent.add_child(pad)
-	var cell := UIKit.btn_height() * 1.15
+	var cell := _mobile_pad_cell()
 	var dirs: Array = [
 		null, Vector2i(0, -1), null,
 		Vector2i(-1, 0), Vector2i.ZERO, Vector2i(1, 0),
@@ -507,11 +539,15 @@ func _build_mobile_skills(parent: Node) -> void:
 	col.size_flags_vertical = SIZE_SHRINK_CENTER
 	var tgt := _attack_target()
 	var atk := _btn("Attack", _attack_press, not tgt.is_empty(), false, col)
-	atk.custom_minimum_size = Vector2(UIKit.font_size * 7.0, UIKit.btn_height() * 1.25)
+	# Flexible mins so the pad + skills row fits narrow Fold-cover widths.
+	atk.custom_minimum_size = Vector2(UIKit.font_size * 4.5, UIKit.btn_height() * 1.15)
+	atk.size_flags_horizontal = SIZE_EXPAND_FILL
 	var h := combat.hero
 	if not h.bolt.is_empty() and not h.bolt.get("infinite", false):
-		_btn("Bolt: ON (%d)" % h.charges if mode == "bolt" else "Bolt (%d)" % h.charges, _bolt_press, h.charges > 0, true, col)
-	_btn("Potion (%d)" % (potions - potions_used), _drink, potions - potions_used > 0 and h.hp < h.ht, false, col)
+		var bolt := _btn("Bolt: ON (%d)" % h.charges if mode == "bolt" else "Bolt (%d)" % h.charges, _bolt_press, h.charges > 0, true, col)
+		bolt.custom_minimum_size.x = UIKit.font_size * 4.5
+	var pot := _btn("Potion (%d)" % (potions - potions_used), _drink, potions - potions_used > 0 and h.hp < h.ht, false, col)
+	pot.custom_minimum_size.x = UIKit.font_size * 4.5
 
 ## Shared class-skill strip for the desktop toolbar (Shove / Slam / Cloak / Bolt).
 func _add_skill_buttons(parent: Node) -> void:
