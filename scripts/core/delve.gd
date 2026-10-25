@@ -296,6 +296,8 @@ static func _room_open(ch: String) -> bool:
 ## grow this way; an 8x8 keeps the rolled encounter as is (a lone crab stays one crab, DECISIONS #137).
 static func fill_mobs(mobs: Array, room: Array) -> Array:
 	if not is_large_room(room): return mobs
+	# Lone packs stay single on every map size (DECISIONS #137 / #237); multi-mob packs still fill large rooms.
+	if mobs.size() <= 1: return mobs
 	var need := room_slot_count(room)
 	if need <= mobs.size() or mobs.is_empty(): return mobs
 	var out: Array = mobs.duplicate()
@@ -354,6 +356,10 @@ static func combat_event(run: Dictionary, r: RandomNumberGenerator, mobs := []) 
 	if "snake" in mobs:
 		var with_door: Array = rooms.filter(func(rm): return room_has_door(rm))
 		if not with_door.is_empty(): rooms = with_door
+	# Lone packs stay single: prefer 8x8s so fill_mobs does not triple a crab on a 10x10 (DECISIONS #137 / #237).
+	if mobs.size() == 1:
+		var small: Array = rooms.filter(func(rm): return not is_large_room(rm))
+		if not small.is_empty(): rooms = small
 	var room: Array
 	if String(run.get("feeling", "")) == "traps":
 		room = _pick_trap_room(rooms, r)

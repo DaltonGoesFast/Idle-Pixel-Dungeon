@@ -81,7 +81,7 @@ static func version() -> String:
 ## SPD toolbar.png, upscaled like the chrome atlas.
 static func _toolbar_atlas() -> Texture2D:
 	if _toolbar_tex == null or _toolbar_k != px_scale:
-		var img: Image = (load("res://assets/ui/toolbar.png") as Texture2D).get_image()
+		var img: Image = (load("res://assets/ui/toolbar.png") as Texture2D).get_image().duplicate()
 		img.resize(img.get_width() * px_scale, img.get_height() * px_scale, Image.INTERPOLATE_NEAREST)
 		_toolbar_tex = ImageTexture.create_from_image(img); _toolbar_k = px_scale
 	return _toolbar_tex
@@ -89,7 +89,7 @@ static func _toolbar_atlas() -> Texture2D:
 ## status_pane.png upscaled like chrome so ProgressBar 9-patch margins stay crisp pixels.
 static func _status_pane_atlas() -> Texture2D:
 	if _status_pane_tex == null or _status_pane_k != px_scale:
-		var img: Image = (load("res://assets/ui/status_pane.png") as Texture2D).get_image()
+		var img: Image = (load("res://assets/ui/status_pane.png") as Texture2D).get_image().duplicate()
 		img.resize(img.get_width() * px_scale, img.get_height() * px_scale, Image.INTERPOLATE_NEAREST)
 		_status_pane_tex = ImageTexture.create_from_image(img); _status_pane_k = px_scale
 	return _status_pane_tex
@@ -155,7 +155,7 @@ static var pixel_font: FontFile
 ## The chrome atlas upscaled by an integer factor (nearest) so 9-patch borders stay crisp pixels.
 static func _chrome_atlas() -> Texture2D:
 	if _chrome_tex == null or _chrome_k != px_scale:
-		var img: Image = (load("res://assets/ui/chrome.png") as Texture2D).get_image()
+		var img: Image = (load("res://assets/ui/chrome.png") as Texture2D).get_image().duplicate()
 		img.resize(img.get_width() * px_scale, img.get_height() * px_scale, Image.INTERPOLATE_NEAREST)
 		_chrome_tex = ImageTexture.create_from_image(img); _chrome_k = px_scale
 	return _chrome_tex

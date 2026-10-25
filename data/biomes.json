@@ -125,14 +125,6 @@
    {
     "min_floor": 4,
     "mobs": [
-     "gnoll",
-     "crab",
-     "rat"
-    ]
-   },
-   {
-    "min_floor": 4,
-    "mobs": [
      "crab",
      "crab"
     ]

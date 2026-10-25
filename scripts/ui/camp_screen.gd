@@ -993,7 +993,7 @@ func _page_stash() -> void:
 		if potions.is_empty() and scrolls.is_empty(): v.add_child(UIKit.label("No potions or scrolls. Find them in a delve or brew them at Alchemy.", 0.8, Color("9a9488")))
 		else: _add_mat_grid(v, potions + scrolls)
 		return
-	var has_camp := not GameState.camp_weapon.is_empty() or not GameState.camp_armor.is_empty()
+	var has_camp: bool = not GameState.camp_weapon.is_empty() or not GameState.camp_armor.is_empty()
 	if GameState.gear.is_empty() and not has_camp:
 		v.add_child(UIKit.label("No gear yet. Craft party weapon and armor at the Forge.", 0.8, Color("9a9488")))
 	v.add_child(UIKit.label("Tap for info, hold to compare with %s's gear." % DB.heroes[chosen_hero].name, 0.75, Color("9a9488")))

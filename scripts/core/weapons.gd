@@ -113,12 +113,16 @@ static func num(f: float, min_dec := 0) -> String:
 	while s.contains(".") and s.ends_with("0") and s.length() - s.find(".") - 1 > min_dec: s = s.left(-1)
 	return s.trim_suffix(".")
 
+## Forge sword line (DECISIONS #234): only crafted at Camp, never a "found" drop — those stay unique pack items.
+const FORGE_SWORDS := ["worn_shortsword", "shortsword", "sword", "longsword", "greatsword"]
+
 ## Ids a delve can drop at each tier (SPD Generator WEP_T1..T5; the Mage's Staff is never found).
 static func pool(tier: int) -> Array:
 	var out := []
 	for k in DB.items:
 		var d: Dictionary = DB.items[k]
-		if is_weapon(d) and int(d.get("tier", 0)) == tier and not d.get("heirloom", false): out.append(k)
+		if is_weapon(d) and int(d.get("tier", 0)) == tier and not d.get("heirloom", false) and k not in FORGE_SWORDS:
+			out.append(k)
 	out.sort()
 	return out
 

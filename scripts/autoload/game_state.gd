@@ -1840,13 +1840,21 @@ static func _patrol_mat_word(m: String) -> String:
 
 ## Active patrol perks for this hero's current gear: {"fx": merged effects, "lines": ["Ring of Wealth +2: +20% gold", ...]}.
 ## Percent / flat effects add up; for "_every" drops the shortest interval wins; flags just turn on.
+## Perk keys are sorted so lines stay stable across JSON key order (gold before curios, etc.).
 func patrol_perks(c: String) -> Dictionary:
 	var fx := {}
 	var lines := []
 	for it in _patrol_perk_items(c):
 		var spec: Dictionary = DB.item(it.id).patrol
 		var parts := []
-		for k in spec:
+		# Percents / numbers first, then flags like curio_pool — matches the player-facing copy in tests.
+		var keys: Array = spec.keys()
+		keys.sort_custom(func(a, b):
+			var ap := 0 if String(a).ends_with("_pct") or String(a).ends_with("_every") or String(a).ends_with("_per_hour") or String(a) in ["power", "max_hours", "time_pct", "all_pct", "fee_cut_pct", "curio_pct", "curio_plus_pct", "gold_pct"] else 1
+			var bp := 0 if String(b).ends_with("_pct") or String(b).ends_with("_every") or String(b).ends_with("_per_hour") or String(b) in ["power", "max_hours", "time_pct", "all_pct", "fee_cut_pct", "curio_pct", "curio_plus_pct", "gold_pct"] else 1
+			if ap != bp: return ap < bp
+			return String(a) < String(b))
+		for k in keys:
 			if k == "curio_pool" or k == "curio_known":
 				fx[k] = spec[k]; parts.append(patrol_perk_text(k, spec[k])); continue
 			var v := patrol_perk_value(spec[k], int(it.lvl))
@@ -2433,20 +2441,20 @@ func _migrate_camp_gear() -> void:
 	var keep: Array = []
 	for g in gear:
 		if _absorb_into_camp(g): continue
-		if DB.item(String(g.id)).type == "armor": continue   # leftover armor instances: melt (no refund)
+		if String(DB.item(String(g.get("id", ""))).get("type", "")) == "armor": continue   # leftover armor instances: melt (no refund)
 		keep.append(g)
 	gear = keep
 	if not run.is_empty():
 		var pack_keep: Array = []
 		for g in run.get("pack_gear", []):
 			if _absorb_into_camp(g): continue
-			if DB.item(String(g.id)).type == "armor": continue
+			if String(DB.item(String(g.get("id", ""))).get("type", "")) == "armor": continue
 			pack_keep.append(g)
 		run.pack_gear = pack_keep
 		var over_keep: Array = []
 		for g in run.get("overflow", []):
 			if _absorb_into_camp(g): continue
-			if DB.item(String(g.id)).type == "armor": continue
+			if String(DB.item(String(g.get("id", ""))).get("type", "")) == "armor": continue
 			over_keep.append(g)
 		run.overflow = over_keep
 	for c in heroes:
