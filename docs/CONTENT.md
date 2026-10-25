@@ -8,7 +8,7 @@ Everything here is data-driven (`data/*.json`). Add content by editing JSON; no 
 
 Assets used (all from Shattered Pixel Dungeon, GPL-3.0): hero sprites (warrior, mage), mobs (rat, snake, gnoll, crab, statue, goo, piranha), `tiles_sewers.png`, `items.png` icons, ~30 sound effects, music (`sewers_1`, `sewers_boss`, `theme_1`).
 
-**Floor feelings (DECISIONS #237).** Each biome plans at least one feeling on a non-boss floor, rarely two (distinct). The plan resets when entering a new biome. Announced in the delve log. **XL** biases large rooms and denser packs, ensures a special, grants a spare ration when leaving the floor. **Secret** forces Suspicious Wall, Search always finds (richer gold). **Traps** biases trap-dense maps and forces Trapped Vault. Dark / Water / Grass / Chasm and trinket overrides are out of scope for now.
+**Floor feelings (DECISIONS #237, #241).** Each biome plans at least one feeling on a non-boss floor, rarely two (distinct). The plan resets when entering a new biome. Announced in the delve log; the StatusPane depth glyph swaps to the matching SPD DEPTH_* icon (xl / secret / traps). **XL** biases large rooms and denser packs, ensures a special, grants a spare ration when leaving the floor. **Secret** forces Suspicious Wall, Search always finds (richer gold). **Traps** biases trap-dense maps and forces Trapped Vault. Dark / Water / Grass / Chasm and trinket overrides are out of scope for now.
 
 <!-- GENERATED -->
 ### Patrol perks (DECISIONS #188)

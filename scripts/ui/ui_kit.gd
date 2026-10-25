@@ -113,8 +113,40 @@ const SPD_ICONS := {"enter": Rect2(0, 0, 16, 16), "gold": Rect2(17, 0, 17, 16), 
 	"warning": Rect2(32, 32, 14, 14), "plus": Rect2(96, 32, 11, 11), "arrow": Rect2(128, 32, 11, 11),
 	"challenge": Rect2(144, 32, 15, 12), "scroll": Rect2(160, 32, 15, 14), "backpack_lrg": Rect2(0, 48, 16, 16),
 	"talent": Rect2(16, 48, 13, 13), "magnify": Rect2(32, 48, 14, 14), "buffs": Rect2(64, 48, 16, 15),
-	"catalog": Rect2(80, 48, 13, 16), "alchemy": Rect2(96, 48, 16, 16), "stairs": Rect2(0, 64, 15, 16),
+	"catalog": Rect2(80, 48, 13, 16), "alchemy": Rect2(96, 48, 16, 16),
+	# Large STAIRS_* (Icons.getLarge / feeling popup) — y=64, 15×16
+	"stairs": Rect2(0, 64, 15, 16), "stairs_chasm": Rect2(16, 64, 15, 16), "stairs_water": Rect2(32, 64, 15, 16),
+	"stairs_grass": Rect2(48, 64, 15, 16), "stairs_dark": Rect2(64, 64, 15, 16), "stairs_large": Rect2(80, 64, 15, 16),
+	"stairs_traps": Rect2(96, 64, 15, 16), "stairs_secrets": Rect2(112, 64, 15, 16),
+	# Small DEPTH_* (MenuPane depth glyph / Icons.get(Feeling)) — y=80
+	"depth": Rect2(32, 80, 6, 7), "depth_chasm": Rect2(40, 80, 7, 7), "depth_water": Rect2(48, 80, 7, 7),
+	"depth_grass": Rect2(56, 80, 7, 7), "depth_dark": Rect2(64, 80, 7, 7), "depth_large": Rect2(72, 80, 7, 7),
+	"depth_traps": Rect2(80, 80, 7, 7), "depth_secrets": Rect2(88, 80, 7, 7),
 	"skull": Rect2(0, 80, 8, 8), "busy": Rect2(8, 80, 8, 8), "sleep": Rect2(7, 88, 9, 8), "alert": Rect2(16, 80, 8, 8)}
+
+## SPD MenuPane depth icon name for a floor feeling (DECISIONS #241). Our xl/secret/traps map to LARGE/SECRETS/TRAPS.
+static func depth_icon_name(feeling: String) -> String:
+	match feeling:
+		"xl", "large": return "depth_large"
+		"traps": return "depth_traps"
+		"secret", "secrets": return "depth_secrets"
+		"chasm": return "depth_chasm"
+		"water": return "depth_water"
+		"grass": return "depth_grass"
+		"dark": return "depth_dark"
+		_: return "depth"
+
+## Large stairs icon for a feeling (Icons.getLarge); same mapping as depth_icon_name.
+static func stairs_icon_name(feeling: String) -> String:
+	match feeling:
+		"xl", "large": return "stairs_large"
+		"traps": return "stairs_traps"
+		"secret", "secrets": return "stairs_secrets"
+		"chasm": return "stairs_chasm"
+		"water": return "stairs_water"
+		"grass": return "stairs_grass"
+		"dark": return "stairs_dark"
+		_: return "stairs"
 
 ## Toolbar icon (toolbar.png) or any SPD icons.png icon by name, upscaled by px_scale with nearest filtering.
 static func toolbar_icon(name: String) -> Texture2D:

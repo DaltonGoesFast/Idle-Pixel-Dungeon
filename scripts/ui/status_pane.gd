@@ -2,7 +2,7 @@
 ## Layout in SPD game pixels (x right, y down), all multiplied by k:
 ##   bg        NinePatch(status_pane.png 0,64,41,39; left 33, right 4) stretched to the pane width
 ##   avatar    hero frame centred at (15,16) in the portrait box; level number centred at (15,33) in the badge strip
-##   buffs     row at (31,0..16): hero name, then BuffIndicator icons; depth + danger at the right end
+##   buffs     row at (31,0..16): hero name, then BuffIndicator icons; depth icon + floor # + danger at the right end
 ##   hp        bar at (30,19), 9 tall: shield (blue, one segment per hit it stops, DECISIONS #210) after hp (red) like SPD's shieldHP/hp scale.x; "HP/HT" centred
 ##   minis     torch/food row at (30,29), 9 tall like the HP bar, equal widths, same left/right edges (DECISIONS #133)
 class_name StatusPane
@@ -14,6 +14,8 @@ const BG_R := 4
 const HP := Rect2(0, 103, 128, 9)
 const SHIELD := Rect2(0, 112, 128, 9)
 const EXP := Rect2(0, 121, 128, 7)
+## SPD MenuPane depth number colour (Icons / BitmapText hardlight 0xCACFC2).
+const DEPTH_COL := Color("cacfc2")
 
 ## Minis drawn as an item icon + percent instead of a bar, keyed by the first word of their text.
 const MINI_ICONS := {"Torch": "torch", "Food": "ration"}
@@ -21,16 +23,18 @@ const MINI_ICONS := {"Torch": "torch", "Food": "ration"}
 var tex: Texture2D
 var buffs_tex: Texture2D
 var items_tex: Texture2D
+var icons_tex: Texture2D
 var hero_sprite: Texture2D
 var hero_fw := 12
 var hero_fh := 15
-var d := {}   # name, level, hp, ht, shield, shield_max, buffs [int], depth, danger, minis [{kind, frac, text}]
+var d := {}   # name, level, hp, ht, shield, shield_max, buffs [int], floor, feeling, danger, minis [{kind, frac, text}]
 ## Cap drawn width (0 = fill parent). Desktop sets this so bars don't span ultrawide screens.
 var max_w := 0.0
 
 func _init() -> void:
 	tex = load("res://assets/ui/status_pane.png")
 	buffs_tex = load("res://assets/ui/buffs.png")
+	icons_tex = load("res://assets/ui/icons.png")
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 
@@ -179,11 +183,20 @@ func _draw() -> void:
 		draw_texture_rect_region(buffs_tex, Rect2(bx, 5 * k, isz, isz), Rect2((i % 18) * 7, (i / 18) * 7, 7, 7))
 		bx += isz + k
 	var right := w - (BG_R + 2) * k
-	var depth: String = d.get("depth", "")
-	if depth != "":
-		var dw := font.get_string_size(depth, HORIZONTAL_ALIGNMENT_LEFT, -1, tfs).x
-		_text(font, Vector2(right - dw, floorf(13 * k)), depth, tfs, Color("ffffff"), k)
-		right -= dw + 3 * k
+	# Depth: SPD MenuPane DEPTH_* glyph + floor number (feeling swaps the glyph; DECISIONS #241).
+	var floor_n := int(d.get("floor", 0))
+	if floor_n <= 0:
+		var legacy: String = String(d.get("depth", ""))
+		if legacy.begins_with("F"): floor_n = int(legacy.substr(1))
+	if floor_n > 0:
+		var num := str(floor_n)
+		var nw := font.get_string_size(num, HORIZONTAL_ALIGNMENT_LEFT, -1, tfs).x
+		var src: Rect2 = UIKit.SPD_ICONS[UIKit.depth_icon_name(String(d.get("feeling", "")))]
+		var iw := src.size.x * k
+		var ih := src.size.y * k
+		_text(font, Vector2(right - nw, floorf(13 * k)), num, tfs, DEPTH_COL, k)
+		draw_texture_rect_region(icons_tex, Rect2(floorf(right - nw - k - iw), floorf((16.0 * k - ih) / 2.0), iw, ih), src)
+		right -= nw + k + iw + 3 * k
 	var danger := int(d.get("danger", 0))
 	if danger > 0:
 		var s := str(danger)

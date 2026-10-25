@@ -316,12 +316,12 @@ func _refresh() -> void:
 	elif float(run.torch) > 0: bl.append(22)                   # LIGHT
 	if float(run.satiety) <= 0: bl.append(6)                   # STARVATION
 	elif float(run.satiety) < 30: bl.append(5)                 # HUNGER
-	var pk := "%d|%d|%d|%d|%s|%d" % [int(run.hp), int(s.ht), int(run.torch), int(run.satiety), bl, int(run.get("floor", 1))]
+	var pk := "%d|%d|%d|%d|%s|%d|%s" % [int(run.hp), int(s.ht), int(run.torch), int(run.satiety), bl, int(run.get("floor", 1)), String(run.get("feeling", ""))]
 	if pk == _pane_key and _row_key == _supplies_key(run): return
 	if pk != _pane_key:
 		_pane_key = pk
 		pane.set_data({"name": s.name, "level": GameState.heroes[run.hero].level, "hp": run.hp, "ht": s.ht, "buffs": bl,
-			"depth": "F%d" % int(run.get("floor", 1)),
+			"floor": int(run.get("floor", 1)), "feeling": String(run.get("feeling", "")),
 			"minis": [{"kind": "exp", "icon": "torch", "frac": float(run.torch) / 100.0, "text": "Torch %d%%" % run.torch},
 				{"kind": "shield", "icon": "ration", "frac": float(run.satiety) / 100.0, "text": "Food %d%%" % run.satiety}]})
 	var rk := _supplies_key(run)
