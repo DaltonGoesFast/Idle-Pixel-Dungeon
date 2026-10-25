@@ -1,7 +1,13 @@
 # Changelog
 
 ## Unreleased
+
+## 0.50.1
 - Forge weapon and armor are shared party gear: craft Scale once and every hero who meets the Str requirement wears it. Under-Str heroes keep Cloth / starter melee instead of fighting crippled. Found weapons stay unique per-hero overrides; Mage Staff and Huntress gloves still fill melee for those classes. Camp gear never cracks on death; found weapon overrides still do. Old saves keep the best forge copies as the camp set (DECISIONS #234, +tests).
+- Floors can feel XL, Secret, or Traps, with a quota per biome, and rooms and encounter packs are roughly doubled.
+- Combat starts fitted to the room. Drag to pan, and pinch or the mouse wheel to zoom.
+- On a very wide Mobile layout the D-pad stays capped so PC fullscreen stays usable, and the side column fills the leftover width.
+- Desktop has a Live Editor (top-row 0, or its own window beside the game) for camp and UI layout, text, and balance, with search, undo, and a diff before save.
 
 ## 0.50.0
 - Enemy vision uses SPD shadowcasting instead of Bresenham, so corner peeks match vanilla FOV and no longer strip awareness / grant Surprise by mistake. After losing you, mobs wander to deterministic search cells instead of freezing in place (DECISIONS #176, +tests).
