@@ -546,19 +546,43 @@ func _page_delve() -> void:
 	var mall := UIKit.button("Max all", func(): max_all_supplies(); _fill_window(), not supplies_all_max())
 	mall.name = "MaxAll"; mall.autowrap_mode = TextServer.AUTOWRAP_OFF; mall.custom_minimum_size.x = UIKit.font_size * 5; mall.size_flags_horizontal = 0; mall.size_flags_vertical = SIZE_SHRINK_CENTER; UIKit.secondary(mall); sh.add_child(mall)
 	for k in SUPPLY_KEYS:
-		var have := GameState.mat(k)
-		var cap := int(caps[k])
-		if k == "elixir_starter" and have == 0: continue
-		var row := UIKit.hbox(v)
-		var r := UIKit.icon_row(k, "%s  x%d" % [DB.mat_name(k), loadout[k]], 0.9)
-		var mx := UIKit.label("max %d" % mini(have, cap), 0.75, Color("9a9488")); mx.autowrap_mode = TextServer.AUTOWRAP_OFF; mx.size_flags_vertical = SIZE_SHRINK_CENTER; r.add_child(mx)
-		r.size_flags_horizontal = SIZE_EXPAND_FILL; r.tooltip_text = "In stash: %d" % have; row.add_child(r)
-		var minus := UIKit.button("-", func(): loadout[k] -= 1; _fill_window(), loadout[k] > 0); minus.size_flags_horizontal = 0
-		var plus := UIKit.button("+", func(): loadout[k] += 1; _fill_window(), loadout[k] < mini(have, cap)); plus.size_flags_horizontal = 0
-		minus.custom_minimum_size.x = UIKit.btn_height(); plus.custom_minimum_size.x = UIKit.btn_height()
+		var key := String(k)
+		var have := GameState.mat(key)
+		var carry := GameState.supply_cap(key)
+		var packable := mini(have, carry)
+		if key == "elixir_starter" and have == 0: continue
+		var block := UIKit.vbox(v)
+		block.name = "SupplyRow_" + key
+		var row := UIKit.hbox(block)
+		var r := UIKit.icon_row(key, "%s  x%d" % [DB.mat_name(key), int(loadout[key])], 0.9)
+		# Carry cap, not min(owned, cap). "have N" (tip colour) when the stash cannot fill the pack.
+		var cap_txt := "max %d" % carry
+		var cap_col := Color("9a9488")
+		if have < carry:
+			cap_txt = "max %d  have %d" % [carry, have]
+			cap_col = Color("ffb060")
+		var mx := UIKit.label(cap_txt, 0.75, cap_col)
+		mx.name = "SupplyCap_" + key
+		mx.autowrap_mode = TextServer.AUTOWRAP_OFF
+		mx.size_flags_vertical = SIZE_SHRINK_CENTER
+		r.add_child(mx)
+		r.size_flags_horizontal = SIZE_EXPAND_FILL
+		r.tooltip_text = "In stash: %d" % have
+		row.add_child(r)
+		var minus := UIKit.button("-", _supply_delta.bind(key, -1), int(loadout[key]) > 0)
+		var plus := UIKit.button("+", _supply_delta.bind(key, 1), int(loadout[key]) < packable)
+		minus.name = "SupplyMinus_" + key
+		plus.name = "SupplyPlus_" + key
+		minus.size_flags_horizontal = 0
+		plus.size_flags_horizontal = 0
+		minus.custom_minimum_size.x = UIKit.btn_height()
+		plus.custom_minimum_size.x = UIKit.btn_height()
 		UIKit.secondary(minus); UIKit.secondary(plus)
-		for pm in [minus, plus]: pm.add_theme_font_size_override("font_size", UIKit.font_px(UIKit.font_size * 1.5))
+		for pm in [minus, plus]:
+			pm.autowrap_mode = TextServer.AUTOWRAP_OFF
+			pm.add_theme_font_size_override("font_size", UIKit.font_px(UIKit.font_size * 1.5))
 		row.add_child(minus); row.add_child(plus)
+		_supply_buy_row(block, key, have, carry)
 	var gl := GameState.facility_level("guild")
 	if gl < int(DB.facilities.guild.max):
 		var gh := UIKit.label("Rations and torches: pack cap %d at Guild Lv%d. Upgrade Guild to raise (Lv%d: %d)." % [GameState.guild_pack_cap(), gl, gl + 1, GameState.guild_pack_cap(gl + 1)], 0.7, Color("9a9488"))
@@ -574,14 +598,70 @@ func _page_delve() -> void:
 	go.custom_minimum_size.y = UIKit.btn_height() * 1.3; _foot().add_child(go)
 
 const SUPPLY_KEYS := ["ration", "torch", "potion_healing", "scroll_passage", "elixir_starter"]
-## Most of each supply the pack can take: the stash count, capped by GameState.supply_cap (belt size for potions,
-## 1 Passage, the Guild-level cap for rations and torches).
+## How many of each supply can be packed right now: the stash count, capped by GameState.supply_cap.
+## The row label shows the carry cap itself (supply_cap), even when the stash is shorter (DECISIONS #238).
 func supply_max() -> Dictionary:
 	var out := {}
 	for k in SUPPLY_KEYS:
 		var cap := GameState.supply_cap(k)
 		out[k] = mini(GameState.mat(k), cap)
 	return out
+
+func _supply_delta(key: String, d: int) -> void:
+	var packable := mini(GameState.mat(key), GameState.supply_cap(key))
+	loadout[key] = clampi(int(loadout.get(key, 0)) + d, 0, packable)
+	_fill_window()
+
+## Camp recipe that sells exactly one of this supply for gold. Guild singles win over other facilities.
+## Bulk deals (the ration crate) and gold-free crafts (Alchemy brews) are not buys. Empty if nothing sells it.
+func supply_buy(k: String) -> Dictionary:
+	var fallback := {}
+	for fac in ["guild", "enchanter", "alchemy", "blacksmith"]:
+		for r in DB.recipes.get(fac, []):
+			if typeof(r) != TYPE_DICTIONARY: continue
+			if String(r.get("out_mat", "")) != k: continue
+			if int(r.get("out_n", 1)) != 1: continue
+			var cost: Dictionary = r.get("cost", {})
+			if int(cost.get("gold", 0)) <= 0: continue
+			var hit := {"fac": String(fac), "id": String(r.get("id", ""))}
+			if String(fac) == "guild": return hit
+			if fallback.is_empty(): fallback = hit
+	return fallback
+
+## Spend through GameState.craft (the Guild / Enchanter pay path). False when there is no buy or it cannot be paid.
+func buy_supply(k: String) -> bool:
+	var b := supply_buy(k)
+	if b.is_empty(): return false
+	return GameState.craft(String(b.fac), String(b.id))
+
+## Buy sits under the steppers so a Fold cover row does not clip it. Hidden once owned >= carry cap.
+func _supply_buy_row(block: VBoxContainer, key: String, have: int, carry: int) -> void:
+	if have >= carry: return
+	var b := supply_buy(key)
+	if b.is_empty(): return
+	var fac := String(b.fac)
+	var rid := String(b.id)
+	var why := GameState.can_craft(fac, rid)
+	var cost: Dictionary = GameState.recipe(fac, rid).get("cost", {})
+	var gold_only := cost.size() == 1 and int(cost.get("gold", 0)) > 0
+	var caption := ("Buy %dg" % int(cost.gold)) if gold_only else "Buy"
+	var tip := why if why != "" else GameState.cost_text(cost)
+	var line := UIKit.hbox(block)
+	line.name = "SupplyBuyRow_" + key
+	var bb := UIKit.button(caption, _supply_buy_pressed.bind(key), why == "", tip)
+	bb.name = "SupplyBuy_" + key
+	bb.autowrap_mode = TextServer.AUTOWRAP_OFF
+	bb.size_flags_horizontal = 0
+	bb.size_flags_vertical = SIZE_SHRINK_CENTER
+	UIKit.secondary(bb)
+	line.add_child(bb)
+	if not gold_only:
+		var price := cost_row(cost)
+		price.name = "SupplyPrice_" + key
+		line.add_child(price)
+
+func _supply_buy_pressed(key: String) -> void:
+	if buy_supply(key): _fill_window()
 
 ## Supplies header "Max all": every row to its max (disabled once they all are).
 func max_all_supplies() -> void:
