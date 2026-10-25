@@ -83,7 +83,7 @@
   },
   "after_death": {
    "title": "Back at Camp",
-   "text": "Your hero fell: the pack was lost and their gear cracked. Repair it at the Forge (Blacksmith), then try again - the Camp keeps everything you banked."
+   "text": "Your hero fell: the pack was lost and their gear cracked. Repair weapons and armor at the Forge; rings, wands and artifacts at the Enchanter's Desk (Attune, Desk Lv2+). Then try again - the Camp keeps everything you banked."
   },
   "after_extract": {
    "title": "Loot banked",

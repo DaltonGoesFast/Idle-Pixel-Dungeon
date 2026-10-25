@@ -184,7 +184,7 @@ static func _detail(c: String, s: String, mode: String, refresh: Callable, on_eq
 		if it.get("known", true) and Weapons.is_weapon(d):   # SPD weapon window text (DECISIONS #207)
 			for wl in Weapons.info_lines(it.id, int(it.get("lvl", 0)), true, int(GameState.heroes[c].str)): v.add_child(UIKit.label(wl, 0.8))
 		elif it.get("known", true) and d.has("desc"): v.add_child(UIKit.label(d.desc, 0.8))
-		if it.get("cracked", false): v.add_child(UIKit.label("Cracked - repair at the Forge.", 0.8, Color("ff6a5a")))
+		if it.get("cracked", false): v.add_child(UIKit.label("Cracked - " + GameState.repair_where(it) + ".", 0.8, Color("ff6a5a")))
 		if mode == "delve" and not d.get("heirloom", false):
 			v.add_child(UIKit.button("Unequip", func(): GameState.delve_unequip(s); refresh.call(), not GameState.backpack_full(), "backpack full"))
 	# Camp: take it off into the stash, unless it's an heirloom, party armor, or the hero is out (DECISIONS #189 / #234)

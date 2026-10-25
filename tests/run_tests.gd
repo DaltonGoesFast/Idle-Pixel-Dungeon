@@ -2030,8 +2030,8 @@ func _ring_icons_in(root: Node, ring_idx: int) -> int:
 	return n
 
 ## Rings show their SPD gem sprite in every UI context (stash slot, Forge, paperdoll, delve backpack, compare
-## rows), including cracked and unknown ones and old-save ids; a cracked ring is repairable at the Forge and by
-## Repair all.
+## rows), including cracked and unknown ones and old-save ids; a cracked ring repairs at the Enchanter's Desk
+## (and via Forge Repair all once the Desk is Lv2).
 func test_ring_contexts(gs) -> void:
 	print("[ring contexts]")
 	gs.new_game()
@@ -5065,6 +5065,9 @@ func test_trinket_upgrades(gs) -> void:
 	check(int(gs.hero_stats("warrior").str) == str0 + 1 and int(gs.hero_stats("warrior").ht) == ht0m + 10, "Might +1 is +1 Str and +10 max HP")
 	gs.gear_by_uid(ru).cracked = true
 	check(int(gs.hero_stats("warrior").str) == str0, "a cracked ring does nothing")
+	check(gs.repair_where(gs.gear_by_uid(ru)).contains("Enchanter"), "cracked rings point to the Enchanter, not the Forge")
+	check(gs.forge_cracked_gear().is_empty() and gs.desk_cracked_trinkets().size() == 1, "Forge cracked count ignores Desk trinkets")
+	check(gs.can_equip("warrior", ru).contains("Enchanter"), "can_equip points cracked rings to the Desk")
 	gs.facilities.enchanter.level = 1
 	check(gs.can_repair(ru).begins_with("needs Enchanter"), "ring repair needs Desk Lv2")
 	check(gs.can_patch_up() != "" or true, "patch up ignores rings")
@@ -5081,6 +5084,7 @@ func test_trinket_upgrades(gs) -> void:
 	gs.add_artifact_use("warrior", 24.0)
 	check(int(gs.gear_by_uid(au).lvl) == 1, "24h of use levels the artifact (+%d)" % gs.gear_by_uid(au).lvl)
 	gs.gear_by_uid(au).cracked = true
+	check(gs.repair_where(gs.gear_by_uid(au)).contains("Enchanter"), "cracked artifacts point to the Enchanter, not the Forge")
 	gs.facilities.enchanter.level = 1
 	check(gs.can_repair(au).begins_with("needs Enchanter's Desk Lv2"), "artifact repair needs Desk Lv2")
 	gs.facilities.enchanter.level = 2

@@ -1016,7 +1016,7 @@ func gear_lines(g: Dictionary) -> Array:
 		elif bits.is_empty() and not Weapons.is_weapon(d): out.append(Codex.item_line(g.id))
 		out.append_array(Codex.artifact_lines(g, GameState.enchant_cap(), GameState.ARTIFACT_XP_PER_LVL))   # DECISIONS #164
 	else: out.append("Unidentified. The Enchanter can identify it.")
-	if g.get("cracked", false): out.append("Cracked - repair at the Forge.")
+	if g.get("cracked", false): out.append("Cracked - " + GameState.repair_where(g) + ".")
 	if who != "":
 		out.append("Equipped by " + DB.heroes[who].name)
 		var lock := GameState.gear_lock(who)
@@ -1392,7 +1392,7 @@ func _gear_forge_info(g: Dictionary, lines: Array, why: String) -> void:
 	info(gear_icon(g), GameState.gear_name(g), lines + [qty_picker(GameState.upgrade_max(uid), func(n): return GameState.upgrade_cost_n(uid, n), "Upgrade",
 		func(n): GameState.upgrade_item_n(uid, n), why)], [], bdg)
 
-## Every copy of one ring: melt one, melt the spares, or repair a cracked copy.
+## Every copy of one ring: melt one or melt the spares. Cracked copies repair at the Desk (Attune).
 func _open_ring_stack(id: String) -> void:
 	var list: Array = GameState.rings_of(id)
 	if list.is_empty(): return
@@ -1400,13 +1400,10 @@ func _open_ring_stack(id: String) -> void:
 	var cracked_n := 0
 	var equipped: PackedStringArray = []
 	var sample: Dictionary = list[0]
-	var cracked_uid := 0
 	for g in list:
 		if g.known:
 			known_n += 1; sample = g
-		if g.get("cracked", false):
-			cracked_n += 1
-			if cracked_uid == 0: cracked_uid = int(g.uid)
+		if g.get("cracked", false): cracked_n += 1
 		var who := GameState.equipped_by(int(g.uid))
 		if who != "": equipped.append(DB.heroes[who].name)
 	var all_known := known_n == list.size()
@@ -1424,14 +1421,11 @@ func _open_ring_stack(id: String) -> void:
 		lines.append("%d of %d identified." % [known_n, list.size()])
 	lines.append("Owned: %d" % list.size())
 	if not equipped.is_empty(): lines.append("Equipped: " + ", ".join(equipped))
-	if cracked_n > 0: lines.append("Cracked: %d" % cracked_n)
+	if cracked_n > 0:
+		lines.append("Cracked: %d — repair at the Enchanter's Desk (Attune)." % cracked_n)
 	lines.append("Each breaks down into %s." % GameState.cost_text(GameState.ring_break_yield()))
 	var acts: Array = []
-	if cracked_uid != 0:
-		var rc: Dictionary = GameState.repair_cost(cracked_uid)
-		var why_r: String = GameState.can_repair(cracked_uid)
-		var fix: int = cracked_uid
-		acts.append(["Repair", func(): GameState.repair(fix), why_r])
+	# Rings repair at the Desk (DECISIONS #158); the Forge Rings tab is for break-down only.
 	var one: int = GameState.breakable_ring(id)
 	if one != 0:
 		var melt: int = one
@@ -1577,7 +1571,7 @@ func _page_facility(page: String, id: String) -> void:
 	_facility_header(v, id)
 	if id == "alchemy": _alchemy_pot(v); return
 	if id == "blacksmith":
-		var nc0 := GameState.cracked_gear().size()
+		var nc0 := GameState.forge_cracked_gear().size()
 		var sec := _switcher(v, page, [["craft", "Craft"], ["upgrade", "Upgrade & repair" + (" (%d cracked)" % nc0 if nc0 else "")], ["rings", "Rings"]])
 		if sec == "craft":
 			if GameState.facility_level("blacksmith") < 2:
@@ -1610,10 +1604,14 @@ func _forge_upgrade_section(v: VBoxContainer) -> void:
 	if fcap <= 0:
 		v.add_child(UIKit.label("Lv1 is repair only. Upgrade the Blacksmith to raise the gear upgrade cap (+1 at Lv2, +3 max at Lv4).", 0.85, Color("9a9488")))
 	v.add_child(UIKit.label("Camp weapon and armor outfit every hero. Found weapons upgrade here too.", 0.8, Color("9a9488")))
+	var desk_n := GameState.desk_cracked_trinkets().size()
+	if desk_n > 0:
+		v.add_child(UIKit.label("%d cracked ring/wand/artifact — repair at the Enchanter's Desk (Attune)." % desk_n, 0.8, Color("c9a96e")))
 	var rw := UIKit.hbox(v)
-	var nc := GameState.cracked_gear().size()
+	var nc := GameState.forge_cracked_gear().size()
 	var rl := UIKit.label("Cracked: %d" % nc, 0.85, Color("ff8a7a") if nc else Color("9a9488")); rl.size_flags_vertical = SIZE_SHRINK_CENTER; rl.autowrap_mode = TextServer.AUTOWRAP_OFF; rw.add_child(rl)
-	if nc: rw.add_child(cost_row(GameState.repair_all_cost()))
+	if nc or (desk_n > 0 and GameState.facility_level("enchanter") >= 2):
+		rw.add_child(cost_row(GameState.repair_all_cost()))
 	var ra := UIKit.action("Repair all", func(): GameState.repair_all(), GameState.can_repair_all()); ra.size_flags_horizontal = SIZE_EXPAND_FILL; ra.name = "RepairAll"
 	v.add_child(ra)
 	if GameState.can_patch_up() == "":

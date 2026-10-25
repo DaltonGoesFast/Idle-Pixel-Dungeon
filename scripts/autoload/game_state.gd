@@ -808,7 +808,7 @@ func can_equip(c: String, uid: int) -> String:
 	if _slot_for(d.type) == "": return "can't be equipped"
 	var lock := gear_lock(c)
 	if lock != "": return lock
-	if g.cracked: return "cracked - repair at the Blacksmith"
+	if g.cracked: return "cracked - " + repair_where(g)
 	if not g.known and d.type == "ring": return "unidentified - use the Enchanter's Desk"
 	if d.get("heirloom", false) and DB.heroes[c].heirloom != g.id: return "heirloom of another class"
 	# worn by someone else: it moves over (a swap), unless that hero's gear is locked (DECISIONS #189)
@@ -1195,6 +1195,18 @@ func repair(uid: int) -> bool:
 	var g := gear_by_uid(uid)
 	if can_repair(uid) != "" or not pay(repair_cost(uid), "repair"): return false
 	g.cracked = false; say("Repaired " + gear_name(g) + "."); touch(); return true
+
+## Short place hint for cracked gear (stash / paperdoll / can_equip). Trinkets never repair at the Forge.
+func repair_where(g: Dictionary) -> String:
+	if is_trinket(g): return "repair at the Enchanter's Desk (Attune)"
+	return "repair at the Forge"
+
+## Cracked weapons/armor only (Forge tab count). Rings/wands/artifacts are Desk work (DECISIONS #158).
+func forge_cracked_gear() -> Array:
+	return cracked_gear().filter(func(g): return not is_trinket(g))
+
+func desk_cracked_trinkets() -> Array:
+	return cracked_gear().filter(func(g): return is_trinket(g))
 
 # ---------------------------------------------------------------- rings, wands, artifacts (DECISIONS #158)
 ## Rings, wands and artifacts ("trinkets") level and repair at the Enchanter's Desk, not the Forge.
