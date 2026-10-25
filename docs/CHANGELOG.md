@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- A new game starts with free Worn Shortsword and Cloth Armor as party camp gear (visible on the paperdoll). Empty camp slots on load get the same defaults. They never crack; forging a better sword or armor replaces them (DECISIONS #234).
 
 ## 0.50.2
 - Expedition supplies show the pack's carry cap even when the stash is short, and a Buy button on a short row purchases one at the Guild or Enchanter price (DECISIONS #238, +tests).

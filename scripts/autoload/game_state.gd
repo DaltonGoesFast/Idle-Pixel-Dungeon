@@ -15,12 +15,15 @@ const SUPPLY_KEYS := ["ration","torch","potion_healing","scroll_passage","elixir
 var mats: Dictionary = {}          # stash materials & consumables
 var gear: Array = []               # [{uid,id,lvl,cracked,known}]
 var next_uid := 1
-## Shared forge weapon/armor for the whole party (DECISIONS #234). Empty = use class starters.
+## Shared forge weapon/armor for the whole party (DECISIONS #234). New games start with free
+## Worn Shortsword + Cloth Armor; empty only after a wipe/migration edge, then refill.
 ## {id, lvl}; never cracked. Found weapons stay per-hero overrides; Mage/Huntress keep heirloom melee.
 var camp_weapon: Dictionary = {}
 var camp_armor: Dictionary = {}
 const CAMP_WEAPON_UID := -1
 const CAMP_ARMOR_UID := -2
+const DEFAULT_CAMP_WEAPON := "worn_shortsword"
+const DEFAULT_CAMP_ARMOR := "cloth_armor"
 var heroes: Dictionary = {}        # class -> hero dict
 var facilities: Dictionary = {}    # id -> {level, cap}
 var id_queue: Array = []           # [{uid, ready_at}]
@@ -144,15 +147,18 @@ func new_game() -> void:
 	# Empty supply stash on purpose: buy rations, torches and potions at the Guild before the first delve.
 	mats = {"gold": STARTING_GOLD, "ration": 0, "torch": 0, "potion_healing": 0, "iron_key": 1, "seeds": 2}
 	gear = []; next_uid = 1; id_queue = []; boss_kills = {}; run = {}; time_offset = 0.0
-	camp_weapon = {}; camp_armor = {}
+	camp_weapon = {"id": DEFAULT_CAMP_WEAPON, "lvl": 0}
+	camp_armor = {"id": DEFAULT_CAMP_ARMOR, "lvl": 0}
 	stats = STATS_DEFAULT.duplicate(); milestones_claimed = []; milestones_reached = []; seen = {}; tutorial_done = []; owed_sou = 0
+	seen["item:" + DEFAULT_CAMP_WEAPON] = true
+	seen["item:" + DEFAULT_CAMP_ARMOR] = true
 	_roll_appearances()
 	facilities = {}
 	for f in DB.facilities: facilities[f] = {"level": 1, "cap": 1}
 	heroes = {}
 	for c in DB.heroes:
 		var h: Dictionary = DB.heroes[c]
-		# Shared camp gear (DECISIONS #234): Warrior/Rogue start with empty slots (camp / Cloth starters).
+		# Shared camp gear (DECISIONS #234): party starts in free Worn Shortsword + Cloth Armor.
 		# Mage and Huntress keep heirloom melee instances; armor is always the camp piece.
 		var wuid := 0
 		if c == "mage" or c == "huntress":
@@ -284,9 +290,10 @@ static func armor_dr(ad: Dictionary, al: int) -> int:
 static func armor_barrier(ad: Dictionary, al: int) -> int:
 	return int(ad.get("barrier", 0)) + int(floor(float(ad.get("barrier_per_lvl", 0.0)) * maxi(0, al)))
 
-## Forged sword / armor lines: shared camp pieces (DECISIONS #234). Ring of Force uses sword tiers (#223).
+## Forged sword / armor lines: shared camp pieces (DECISIONS #234). Cloth is the free T1 default.
+## Ring of Force uses sword tiers (#223); Force armor reference starts at Leather.
 const FORCE_SWORDS := ["worn_shortsword", "shortsword", "sword", "longsword", "greatsword"]
-const FORCE_ARMOR := ["leather_armor", "mail_armor", "scale_armor", "plate_armor"]
+const FORCE_ARMOR := ["cloth_armor", "leather_armor", "mail_armor", "scale_armor", "plate_armor"]
 
 static func is_forge_weapon(id: String) -> bool:
 	return id in FORCE_SWORDS
@@ -2440,6 +2447,7 @@ func _absorb_into_camp(g: Dictionary) -> bool:
 
 ## Old saves (DECISIONS #234): collapse forge weapon/armor copies into one camp piece each; clear hero armor
 ## slots; strip forge swords from hero weapon slots (keep found weapons and Mage/Huntress heirlooms).
+## Empty camp after that gets the free Worn Shortsword + Cloth Armor defaults.
 func _migrate_camp_gear() -> void:
 	if not camp_weapon is Dictionary: camp_weapon = {}
 	if not camp_armor is Dictionary: camp_armor = {}
@@ -2469,6 +2477,12 @@ func _migrate_camp_gear() -> void:
 			if String(DB.item(String(g.get("id", ""))).get("type", "")) == "armor": continue
 			over_keep.append(g)
 		run.overflow = over_keep
+	if camp_weapon.is_empty():
+		camp_weapon = {"id": DEFAULT_CAMP_WEAPON, "lvl": 0}
+		seen["item:" + DEFAULT_CAMP_WEAPON] = true
+	if camp_armor.is_empty():
+		camp_armor = {"id": DEFAULT_CAMP_ARMOR, "lvl": 0}
+		seen["item:" + DEFAULT_CAMP_ARMOR] = true
 	for c in heroes:
 		var h: Dictionary = heroes[c]
 		h.armor = 0

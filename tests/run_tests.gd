@@ -356,11 +356,12 @@ func test_traps(gs) -> void:
 	c5.hero_tap(Vector2i(1, 2))
 	check(c5.visible_trap(Vector2i(2, 2)), "Rogue's keen eyes spot adjacent hidden traps while moving")
 
-## Outfit the party with forge weapon/armor (DECISIONS #234). Cloth = empty camp armor.
+## Outfit the party with forge weapon/armor (DECISIONS #234). Pass "" to clear a slot (tests starter fallback).
 func _camp(gs, weapon_id: String, armor_id: String, wl := 0, al := 0) -> void:
 	if weapon_id != "": gs.camp_weapon = {"id": weapon_id, "lvl": wl}; gs.seen["item:" + weapon_id] = true
-	if armor_id == "" or armor_id == "cloth_armor": gs.camp_armor = {}
-	else: gs.camp_armor = {"id": armor_id, "lvl": al}; gs.seen["item:" + armor_id] = true
+	else: gs.camp_weapon = {}
+	if armor_id != "": gs.camp_armor = {"id": armor_id, "lvl": al}; gs.seen["item:" + armor_id] = true
+	else: gs.camp_armor = {}
 	for c in gs.heroes:
 		var wid := String(gs.gear_by_uid(int(gs.heroes[c].get("weapon", 0))).get("id", ""))
 		if gs.is_forge_weapon(wid): gs.heroes[c].weapon = 0
@@ -1517,8 +1518,7 @@ func test_armor_tiers(gs) -> void:
 	gs.heroes.warrior.str = 18   # meet Plate Str so every camp tier is worn
 	var regions := []; var imgs := []
 	for id in ["cloth_armor", "leather_armor", "mail_armor", "scale_armor", "plate_armor"]:
-		if id == "cloth_armor": gs.camp_armor = {}
-		else: gs.camp_armor = {"id": id, "lvl": 0}
+		gs.camp_armor = {"id": id, "lvl": 0}
 		gs.heroes.warrior.armor = 0
 		var hs: Dictionary = gs.hero_stats("warrior")
 		var at: AtlasTexture = Paperdoll.hero_tex("warrior")
@@ -1529,7 +1529,7 @@ func test_armor_tiers(gs) -> void:
 	check(distinct.size() == 5 and regions == [15.0, 30.0, 45.0, 60.0, 75.0], "5 tiers give 5 different sprite frames (cloth is row 1, not naked)")
 	var whs: Dictionary = gs.hero_stats("warrior"); var c := Combat.new(); c.setup(DB.rooms[1], whs, int(whs.ht), ["gnoll"])
 	check(int(c.hero.get("row", -1)) == 5, "combat hero carries the armor row")
-	gs.camp_armor = {}; gs.heroes.warrior.str = 10
+	gs.camp_armor = {"id": "cloth_armor", "lvl": 0}; gs.heroes.warrior.str = 10
 
 ## The Delve title "<Biome> - Floor f / last" always has f inside the biome's floor range, through every biome
 ## transition, and a corrupted save is clamped on load.
@@ -1925,6 +1925,12 @@ func test_forge_bulk(gs) -> void:
 func test_camp_shared_gear(gs) -> void:
 	print("[camp shared gear]")
 	gs.new_game()
+	check(String(gs.camp_weapon.get("id", "")) == "worn_shortsword" and int(gs.camp_weapon.get("lvl", -1)) == 0, "new game starts with free Worn Shortsword")
+	check(String(gs.camp_armor.get("id", "")) == "cloth_armor" and int(gs.camp_armor.get("lvl", -1)) == 0, "new game starts with free Cloth Armor")
+	check(String(gs.resolved_weapon("warrior").source) == "camp" and String(gs.resolved_armor("warrior").source) == "camp", "Warrior wears the free camp kit")
+	check(String(gs.resolved_weapon("mage").id) == "mages_staff", "Mage keeps Staff over the free camp sword")
+	check(not Paperdoll.slot_item("warrior", "weapon").is_empty() and not Paperdoll.slot_item("warrior", "armor").is_empty(), "paperdoll shows Worn Shortsword and Cloth Armor")
+	check(gs.can_craft("blacksmith", "forge_worn_shortsword").begins_with("party already") or gs.can_craft("blacksmith", "forge_worn_shortsword").begins_with("needs Blacksmith"), "free Worn Shortsword is already the camp weapon")
 	for c in gs.heroes:
 		gs.heroes[c].unlocked = true
 		gs.heroes[c].str = 16   # Scale / Longsword need 16
@@ -4701,10 +4707,11 @@ func test_gold_sinks(gs) -> void:
 	check(gs.facility_upgrade_cost("blacksmith") == {"iron_ore": 180, "dark_gold": 45, "gold": 1200}, "Blacksmith Lv4?5 costs")
 	check(gs.forge_cap() == 3, "Blacksmith Lv4 forge cap is +3")
 	gs.facilities.blacksmith.level = 1
-	check(gs.forge_cap() == 0 and gs.can_craft("blacksmith", "forge_worn_shortsword").begins_with("needs Blacksmith"), "L1 is repair-only (no craft, no upgrades)")
+	check(gs.forge_cap() == 0 and gs.can_craft("blacksmith", "forge_shortsword").begins_with("needs Blacksmith"), "L1 is repair-only (no craft, no upgrades)")
 	gs.facilities.blacksmith.level = 2
 	gs.mats.iron_ore = 20; gs.mats.gold = 100
-	check(gs.forge_cap() == 1 and gs.can_craft("blacksmith", "forge_worn_shortsword") == "", "L2 unlocks T1/T2 craft and +1 upgrades")
+	check(gs.forge_cap() == 1 and gs.can_craft("blacksmith", "forge_shortsword") == "", "L2 unlocks T2 Shortsword craft and +1 upgrades")
+	check(gs.can_craft("blacksmith", "forge_worn_shortsword").begins_with("party already"), "free Worn Shortsword blocks re-forging T1")
 	gs.facilities.blacksmith.level = 1
 	gs.heroes.warrior.cleared.append("sewers")
 	var fee := int(gs.patrol_fee("sewers").gold)
@@ -4777,10 +4784,10 @@ func test_barrier_spd(gs) -> void:
 	gs.new_game()
 	var w: Dictionary = gs.hero_stats("warrior"); var m: Dictionary = gs.hero_stats("mage")
 	check(int(w.barrier_max) == 8 and int(m.barrier_max) == 4, "starting Barrier: warrior 8 (seal-like), others 4 (was 10 / 5) (%d / %d)" % [w.barrier_max, m.barrier_max])
-	# Cloth is the starter, not camp armor - bump via temporary camp leather then test cloth table separately
+	# Empty camp falls back to virtual Cloth starter (same DR/Barrier as free camp Cloth +0)
 	gs.camp_armor = {}
 	check(int(gs.hero_stats("mage").barrier_max) == int(m.barrier_max) and int(gs.hero_stats("mage").dr) == 1, "mage in Cloth starter: base DR/Barrier")
-	# Simulate Cloth +3 by reading armor_dr helpers (camp never stores Cloth); table check below covers scaling
+	# Cloth +3 / +6 via armor_dr helpers; table check below covers scaling
 	# Tier-based armor scaling table (+0 / +3 / +6) and under-strength penalty (DECISIONS #218)
 	var expected_armor := {
 		"cloth_armor": [[1, 1], [2, 4], [4, 7]],
