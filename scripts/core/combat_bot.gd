@@ -1,4 +1,4 @@
-## CombatBot: a "sensible tactics" player used by tests, balance sims and the in-game Hint button.
+## CombatBot: a "sensible tactics" player used by tests, balance sims, Auto Battle, and the Hint keybind.
 ## Priorities: dodge telegraphs > heal when low > chasm shove > slam a crowd >
 ## a Surprise that can land this turn (a melee swing in reach, or a Spirit Bow shot) >
 ## cloak (only when cloak_reason() says the charge is worth it) > attack the weakest foe in reach > bolt > approach. Reach weapons (Spear, Glaive, Whip) swing from 2-3 tiles.

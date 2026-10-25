@@ -1,4 +1,4 @@
-## CombatScreen: hosts GridView + controls (Wait, Shove/Bolt modes, Potion, Hint/Auto) + scrollable log.
+## CombatScreen: hosts GridView + controls (D-pad / Attack on mobile; Wait/skills/Bag/Auto) + scrollable log.
 ## Mobile: portrait = grid on top / panel below; wide = grid left / panel right (Fold).
 ## Desktop (DECISIONS #232): StatusPane on top, log | grid mid row (log ~1/3), bottom toolbar + Menu.
 extends Control
@@ -223,7 +223,10 @@ func _assemble_chrome() -> void:
 		status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		status.size_flags_horizontal = SIZE_EXPAND_FILL
 		_reparent(status, status_host)
-		buttons = HFlowContainer.new(); side.add_child(buttons)
+		# Outer column: mid-fight actions+chrome, or Victory/Defeat content after clear.
+		buttons = UIKit.vbox(side, int(UIKit.font_size * 0.35))
+		buttons.size_flags_horizontal = SIZE_EXPAND_FILL
+		buttons.size_flags_vertical = SIZE_SHRINK_BEGIN
 		log_scroll.size_flags_vertical = SIZE_EXPAND_FILL
 		log_scroll.size_flags_horizontal = SIZE_EXPAND_FILL
 		log_scroll.size_flags_stretch_ratio = 1.0
@@ -343,13 +346,16 @@ func _unhandled_input(event: InputEvent) -> void:
 			_skill_cbs[1].call()
 		return
 
-const BTN_ICONS := {"Wait": "wait", "Search": "search", "Search again": "search", "Bag": "backpack", "Hint": "info",
+const BTN_ICONS := {"Wait": "wait", "Search": "search", "Search again": "search", "Bag": "backpack",
 	"Auto": "busy", "Auto: ON": "busy", "Shove": "arrow", "Shove: ON": "arrow", "Scroll of Passage": "scroll",
-	"Passage": "scroll", "Menu": "prefs"}
+	"Passage": "scroll", "Menu": "prefs", "Attack": "challenge"}
 const BTN_PREFIX_ICONS := {"Slam": "warning", "Potion": "plus", "Cloak": "buffs", "Bolt": "target", "Scroll of Passage": "scroll", "Passage": "scroll"}
 ## Desktop toolbar: short labels, no wrap, roomy slots (vanilla SPD bottom bar).
 const DESK_LABELS := {"Scroll of Passage": "Passage", "Search again": "Search"}
-func _btn(text: String, cb: Callable, enabled := true, skill := false) -> void:
+## Cached SPD arrow icons rotated for the mobile D-pad (key = "x,y@px_scale").
+static var _dir_tex: Dictionary = {}
+
+func _btn(text: String, cb: Callable, enabled := true, skill := false, parent: Node = null) -> Button:
 	var label := String(DESK_LABELS.get(text, text)) if desktop_ui else text
 	var b := UIKit.button(label, cb, enabled)
 	if desktop_ui:
@@ -360,14 +366,148 @@ func _btn(text: String, cb: Callable, enabled := true, skill := false) -> void:
 		b.size_flags_vertical = SIZE_SHRINK_CENTER
 	else:
 		b.custom_minimum_size.x = UIKit.font_size * 6.5
+		b.size_flags_horizontal = SIZE_EXPAND_FILL
 	var ic: String = BTN_ICONS.get(text, BTN_ICONS.get(label, ""))
 	for pre in BTN_PREFIX_ICONS:
 		if text.begins_with(pre) or label.begins_with(pre): ic = BTN_PREFIX_ICONS[pre]
 	UIKit.as_toolbar(b, ic)   # SPD toolbar slots for in-fight actions
-	buttons.add_child(b)
+	(parent if parent else buttons).add_child(b)
 	if skill:
 		_skill_cbs.append(cb)
 		_skill_enabled.append(enabled)
+	return b
+
+## Icon-only toolbar slot (Search / Wait / D-pad). Tooltip carries the name.
+func _icon_btn(tip: String, icon: String, cb: Callable, enabled := true, parent: Node = null, tex: Texture2D = null) -> Button:
+	var b := UIKit.button("", cb, enabled, tip)
+	b.size_flags_horizontal = SIZE_SHRINK_BEGIN
+	b.size_flags_vertical = SIZE_SHRINK_CENTER
+	b.custom_minimum_size = Vector2.ONE * UIKit.btn_height()
+	b.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	UIKit.as_toolbar(b, icon if tex == null else "")
+	if tex != null:
+		b.icon = tex
+		b.expand_icon = false
+	(parent if parent else buttons).add_child(b)
+	return b
+
+## SPD arrow (points east) rotated for a cardinal D-pad step.
+func _dir_icon(dir: Vector2i) -> Texture2D:
+	var key := "%d,%d@%d" % [dir.x, dir.y, UIKit.px_scale]
+	if _dir_tex.has(key):
+		return _dir_tex[key]
+	var img: Image = UIKit.toolbar_icon("arrow").get_image().duplicate()
+	var turns := 0
+	if dir == Vector2i(0, 1): turns = 1
+	elif dir == Vector2i(-1, 0): turns = 2
+	elif dir == Vector2i(0, -1): turns = 3
+	for _i in turns:
+		img.rotate_90(CLOCKWISE)
+	_dir_tex[key] = ImageTexture.create_from_image(img)
+	return _dir_tex[key]
+
+## Melee Attack target: last_target if still in reach, else nearest foe in reach.
+func _attack_target() -> Dictionary:
+	var reach: Array = combat.in_reach()
+	if reach.is_empty():
+		return {}
+	for e in reach:
+		if int(e.uid) == combat.last_target:
+			return e
+	var best: Dictionary = reach[0]
+	var bd := Combat.cheb(best.pos, combat.hero.pos)
+	for e in reach:
+		var d := Combat.cheb(e.pos, combat.hero.pos)
+		if d < bd:
+			bd = d
+			best = e
+	return best
+
+func _attack_press() -> void:
+	var t := _attack_target()
+	if t.is_empty():
+		return
+	_act(func(): combat.hero_tap(t.pos, mode))
+
+func _move_dir(dir: Vector2i) -> void:
+	_act(func(): combat.hero_tap(combat.hero.pos + dir, mode))
+
+## Mobile left cluster: 4-way D-pad over icon-only Search + Wait.
+func _build_mobile_pad(parent: Node) -> void:
+	var col := UIKit.vbox(parent, int(UIKit.font_size * 0.25))
+	col.size_flags_horizontal = SIZE_SHRINK_BEGIN
+	col.size_flags_vertical = SIZE_SHRINK_BEGIN
+	var pad := GridContainer.new()
+	pad.columns = 3
+	pad.add_theme_constant_override("h_separation", int(UIKit.font_size * 0.2))
+	pad.add_theme_constant_override("v_separation", int(UIKit.font_size * 0.2))
+	col.add_child(pad)
+	var cell := UIKit.btn_height()
+	var dirs: Array = [
+		null, Vector2i(0, -1), null,
+		Vector2i(-1, 0), null, Vector2i(1, 0),
+		null, Vector2i(0, 1), null,
+	]
+	var tips := {
+		Vector2i(0, -1): "Move north", Vector2i(0, 1): "Move south",
+		Vector2i(-1, 0): "Move west", Vector2i(1, 0): "Move east",
+	}
+	for d in dirs:
+		if d == null:
+			var spacer := Control.new()
+			spacer.custom_minimum_size = Vector2.ONE * cell
+			pad.add_child(spacer)
+		else:
+			var dir: Vector2i = d
+			var b := _icon_btn(tips[dir], "", func(): _move_dir(dir), true, pad, _dir_icon(dir))
+			b.custom_minimum_size = Vector2.ONE * cell
+	var sw := UIKit.hbox(col)
+	sw.add_theme_constant_override("separation", int(UIKit.font_size * 0.25))
+	var search_tip := "Search again" if combat.hero.get("searched", false) else "Search"
+	_icon_btn(search_tip, "search", func(): _act(func(): combat.hero_search()), true, sw)
+	_icon_btn("Wait", "wait", func(): _act(func(): combat.hero_wait()), true, sw)
+
+## Mobile right cluster: Attack, class skills, Potion / Passage.
+func _build_mobile_skills(parent: Node) -> void:
+	var col := UIKit.vbox(parent, int(UIKit.font_size * 0.25))
+	col.size_flags_horizontal = SIZE_EXPAND_FILL
+	col.size_flags_vertical = SIZE_SHRINK_BEGIN
+	var tgt := _attack_target()
+	var atk := _btn("Attack", _attack_press, not tgt.is_empty(), false, col)
+	atk.custom_minimum_size = Vector2(UIKit.font_size * 7.0, UIKit.btn_height() * 1.35)
+	_add_skill_buttons(col)
+	_btn("Potion (%d)" % (potions - potions_used), _drink, potions - potions_used > 0 and combat.hero.hp < combat.hero.ht, false, col)
+	if Delve.scroll_passage_count(GameState) > 0:
+		_btn("Scroll of Passage", _ask_passage, true, false, col)
+
+## Shared class-skill strip (Shove / Slam / Cloak / Bolt). Used by mobile skill column and desktop toolbar.
+func _add_skill_buttons(parent: Node) -> void:
+	var h := combat.hero
+	if "shove" in h.abilities:
+		_btn("Shove: ON" if mode == "shove" else "Shove", func():
+			mode = "" if mode == "shove" else "shove"
+			grid.mode = mode
+			_refresh()
+		, true, true, parent)
+	if "slam" in h.abilities:
+		_btn("Slam (%d)" % h.slams, func(): _act(func(): combat.hero_slam()), int(h.slams) > 0 and combat.enemies().any(func(e): return Combat.cheb(e.pos, h.pos) == 1), true, parent)
+	if not h.cloak.is_empty():
+		_btn("Cloak (%d/%d)" % [int(h.cloak_charges), _cloak_cap(h)], func(): _act(func(): combat.hero_cloak()), int(h.cloak_charges) > 0 and not combat.hidden(), true, parent)
+	if not h.bolt.is_empty() and not h.bolt.get("infinite", false):
+		_btn("Bolt: ON (%d)" % h.charges if mode == "bolt" else "Bolt (%d)" % h.charges, _bolt_press, h.charges > 0, true, parent)
+
+func _build_mobile_controls() -> void:
+	var actions := UIKit.hbox(buttons)
+	actions.size_flags_horizontal = SIZE_EXPAND_FILL
+	actions.add_theme_constant_override("separation", int(UIKit.font_size * 0.45))
+	_build_mobile_pad(actions)
+	_build_mobile_skills(actions)
+	var chrome := UIKit.hbox(buttons)
+	chrome.size_flags_horizontal = SIZE_EXPAND_FILL
+	chrome.add_theme_constant_override("separation", int(UIKit.font_size * 0.35))
+	_btn("Bag", func(): bag_open = not bag_open; menu_open = false; set_meta("bag_scroll", 0); _refresh(), true, false, chrome)
+	_btn("Auto: ON" if auto else "Auto", func(): auto = not auto; _refresh(), true, false, chrome)
+	_btn("Menu", func(): menu_open = not menu_open; bag_open = false; _refresh(), true, false, chrome)
 
 func _refresh() -> void:
 	if status == null: return
@@ -402,7 +542,7 @@ func _refresh() -> void:
 		line += "\nSurprise ready (%.1fx dmg, can't miss%s)" % [float(h.surprise_mult), pierce]
 	if combat.enemies().any(func(e): return e.get("evade_unless_surprise", false)):
 		line += "\nSnake: melee needs a Surprise; magic always hits, bows after the first shot"
-	# Desktop: one status line under the pane (multi-line tips stay in the log / Hint).
+	# Desktop: one status line under the pane (multi-line tips stay in the log / status tooltip).
 	if desktop_ui:
 		var one := line.get_slice("\n", 0)
 		status.text = one
@@ -426,28 +566,18 @@ func _refresh() -> void:
 	_clear_result_layer()
 	if finished:
 		_result_buttons(); _refresh_log(); _refresh_bag(); _refresh_passage(); _fit_split(); return
-	_btn("Wait", func(): _act(func(): combat.hero_wait()))
-	if "shove" in h.abilities:
-		_btn("Shove: ON" if mode == "shove" else "Shove", func():
-			mode = "" if mode == "shove" else "shove"
-			grid.mode = mode
-			_refresh()
-		, true, true)
-	if "slam" in h.abilities:
-		_btn("Slam (%d)" % h.slams, func(): _act(func(): combat.hero_slam()), int(h.slams) > 0 and combat.enemies().any(func(e): return Combat.cheb(e.pos, h.pos) == 1), true)
-	if not h.cloak.is_empty():
-		_btn("Cloak (%d/%d)" % [int(h.cloak_charges), _cloak_cap(h)], func(): _act(func(): combat.hero_cloak()), int(h.cloak_charges) > 0 and not combat.hidden(), true)
-	if not h.bolt.is_empty() and not h.bolt.get("infinite", false):
-		# First press: enter aim mode. Second press: fire at last attacker if still a clear shot, else nearest (SPD QuickSlot, DECISIONS #231).
-		_btn("Bolt: ON (%d)" % h.charges if mode == "bolt" else "Bolt (%d)" % h.charges, _bolt_press, h.charges > 0, true)
-	_btn("Search" if not h.get("searched", false) else "Search again", func(): _act(func(): combat.hero_search()))
-	_btn("Potion (%d)" % (potions - potions_used), _drink, potions - potions_used > 0 and h.hp < h.ht)
-	if Delve.scroll_passage_count(GameState) > 0:
-		_btn("Scroll of Passage", _ask_passage)
-	_btn("Bag", func(): bag_open = not bag_open; menu_open = false; set_meta("bag_scroll", 0); _refresh())
-	_btn("Hint", _hint)
-	_btn("Auto: ON" if auto else "Auto", func(): auto = not auto; _refresh())
-	_btn("Menu", func(): menu_open = not menu_open; bag_open = false; _refresh())
+	if desktop_ui:
+		_btn("Wait", func(): _act(func(): combat.hero_wait()))
+		_add_skill_buttons(buttons)
+		_btn("Search" if not h.get("searched", false) else "Search again", func(): _act(func(): combat.hero_search()))
+		_btn("Potion (%d)" % (potions - potions_used), _drink, potions - potions_used > 0 and h.hp < h.ht)
+		if Delve.scroll_passage_count(GameState) > 0:
+			_btn("Scroll of Passage", _ask_passage)
+		_btn("Bag", func(): bag_open = not bag_open; menu_open = false; set_meta("bag_scroll", 0); _refresh())
+		_btn("Auto: ON" if auto else "Auto", func(): auto = not auto; _refresh())
+		_btn("Menu", func(): menu_open = not menu_open; bag_open = false; _refresh())
+	else:
+		_build_mobile_controls()
 	_refresh_log()
 	_refresh_bag()
 	_refresh_menu()
@@ -548,15 +678,21 @@ func _guide_update() -> void:
 	if guide == 1 and not adj.is_empty(): guide = 2
 	match guide:
 		1:
-			guide_label.text = "Step 1/3 - Move: tap the glowing tile to step toward the enemy. Each action costs time; enemies act on the same clock."
+			if desktop_ui:
+				guide_label.text = "Step 1/3 - Move: tap the glowing tile to step toward the enemy. Each action costs time; enemies act on the same clock."
+			else:
+				guide_label.text = "Step 1/3 - Move: use the D-pad or tap the glowing tile to step toward the enemy. Each action costs time; enemies act on the same clock."
 			if not foes.is_empty():
 				var st = combat.path_step(h.pos, foes[0].pos, true, true, true)
 				if st != null: grid.hint_cell = st
 		2:
-			guide_label.text = "Step 2/3 - Attack: tap the glowing enemy next to you."
+			if desktop_ui:
+				guide_label.text = "Step 2/3 - Attack: tap the glowing enemy next to you."
+			else:
+				guide_label.text = "Step 2/3 - Attack: tap Attack or the glowing enemy next to you."
 			grid.hint_cell = adj[0].pos if not adj.is_empty() else Vector2i(-1, -1)
 		3:
-			guide_label.text = "Step 3/3 - Finish it! Blue bar = Barrier (soaks hits first, refills each fight; each segment = one hit it stops). Red tiles = an attack is coming: step off. Stuck? Tap Hint."
+			guide_label.text = "Step 3/3 - Finish it! Blue bar = Barrier (soaks hits first, refills each fight; each segment = one hit it stops). Red tiles = an attack is coming: step off."
 	grid.queue_redraw()
 
 func _refresh_log() -> void:
