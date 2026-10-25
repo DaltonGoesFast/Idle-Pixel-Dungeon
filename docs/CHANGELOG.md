@@ -1,8 +1,12 @@
 # Changelog
 
 ## Unreleased
+
+## 0.50.3
 - Update checks re-run when the app resumes (and periodically from Camp), so Android no longer needs a force-close to notice a new release. Camp Settings shows a red badge when an update is ready, and the header Update button appears as soon as the check finishes (DECISIONS #242, +tests).
 - A new game starts with free Worn Shortsword and Cloth Armor as party camp gear (visible on the paperdoll). Empty camp slots on load get the same defaults. They never crack; forging a better sword or armor replaces them (DECISIONS #234).
+- Cracked rings and artifacts point to the Enchanter for repair, not the Forge.
+- The status pane shows SPD depth and floor-feeling icons instead of plain floor text.
 
 ## 0.50.2
 - Expedition supplies show the pack's carry cap even when the stash is short, and a Buy button on a short row purchases one at the Guild or Enchanter price (DECISIONS #238, +tests).
