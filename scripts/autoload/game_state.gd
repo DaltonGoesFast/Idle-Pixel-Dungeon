@@ -130,13 +130,13 @@ func grant_owed_sou() -> int:
 	return n
 
 ## Gold for a full first-delve buy at Lv1 facilities: 3 rations (30) + 3 torches (24) +
-## 2 healing potions (60) + 1 Scroll of Passage at the Enchanter (20). Pack caps match Guild /
-## Alchemy Lv1; early runs also get a free Passage until Goo falls.
+## 2 healing potions (60) + 1 Scroll of Passage at the Enchanter (20). No starting resin —
+## early runs use the free Passage until Goo falls; the Passage gold is spare until resin drops.
 const STARTING_GOLD := 134
 
 func new_game() -> void:
 	# Empty supply stash on purpose: buy rations, torches and potions at the Guild before the first delve.
-	mats = {"gold": STARTING_GOLD, "ration": 0, "torch": 0, "potion_healing": 0, "iron_key": 1, "seeds": 2, "arcane_resin": 2}
+	mats = {"gold": STARTING_GOLD, "ration": 0, "torch": 0, "potion_healing": 0, "iron_key": 1, "seeds": 2}
 	gear = []; next_uid = 1; id_queue = []; boss_kills = {}; run = {}; time_offset = 0.0
 	stats = STATS_DEFAULT.duplicate(); milestones_claimed = []; milestones_reached = []; seen = {}; tutorial_done = []; owed_sou = 0
 	_roll_appearances()

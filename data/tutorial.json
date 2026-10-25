@@ -19,7 +19,7 @@
   },
   "camp_delve": {
    "title": "Stock up before you delve",
-   "text": "You start with gold but no rations, torches or healing potions. Tap the Guild shopkeeper and buy a full pack (your gold covers max rations, torches, potions and a Scroll of Passage). Then open Delve to pack them. Torches keep the light on, rations stop starvation, potions heal mid-fight; unused supplies return to the stash."
+   "text": "You start with gold but no rations, torches or healing potions. Tap the Guild shopkeeper and buy a full pack (your gold covers max rations, torches and potions). Then open Delve to pack them. Early runs get a free Scroll of Passage. Torches keep the light on, rations stop starvation, potions heal mid-fight; unused supplies return to the stash."
   },
   "camp_guild": {
    "title": "The Guild",
