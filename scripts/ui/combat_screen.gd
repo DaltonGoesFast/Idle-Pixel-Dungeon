@@ -747,8 +747,8 @@ func _refresh_menu() -> void:
 	var sc := ScrollContainer.new(); sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	sc.size_flags_vertical = SIZE_EXPAND_FILL; v.add_child(sc); menu_layer.set_meta("sc", sc)
 	var body := UIKit.vbox(sc); body.size_flags_horizontal = SIZE_EXPAND_FILL
-	SettingsPanel.build(body, false, func(): if main: main.show_camp(), func():
-		UIKit.clear(body); SettingsPanel.build(body, false, func(): if main: main.show_camp(), func(): pass))
+	# on_rebuild refreshes this menu so category folds, wipe cancel, and rebind keep working.
+	SettingsPanel.build(body, false, func(): if main: main.show_camp(), func(): _refresh_menu())
 	var keep := int(get_meta("menu_scroll", 0))
 	(func(): if is_instance_valid(sc): sc.scroll_vertical = keep).call_deferred()
 

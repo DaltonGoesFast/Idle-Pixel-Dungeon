@@ -5282,17 +5282,22 @@ func test_web_no_dev_tools(gs) -> void:
 	check(SP.dev_tools_allowed(false), "web dev tools: kept off the web (Android, Windows, source)")
 	check(SP.dev_tools_allowed() == not OS.has_feature("web"), "web dev tools: default follows the web feature tag")
 	var had = gs.settings.get("dev_tools", false); gs.settings.dev_tools = true
+	SP.section_open["developer"] = true
 	var v := VBoxContainer.new(); SP.build(v, true)
 	var found := false
+	var fold := false
 	for c in v.get_children():
-		if c is Button and String(c.text).begins_with("Developer tools"): found = true
+		if c is Button and String(c.text).begins_with("Developer"): fold = true
+	for c in v.find_children("*", "Button", true, false):
+		if String(c.text).begins_with("Developer tools"): found = true
+	check(fold, "web dev tools: Settings still shows the Developer fold off the web")
 	check(found, "web dev tools: Settings still shows the Developer toggle off the web")
 	var credits := false
 	for c in v.get_children():
 		if c is Label and String(c.text).begins_with("Art, sounds and music"): credits = true
 	check(credits, "web dev tools: the GPL credits line still shows")
 	check(SP.has_wipe_button(v), "web dev tools: Wipe save data stays in main Settings")
-	v.free(); gs.settings.dev_tools = had
+	v.free(); gs.settings.dev_tools = had; SP.section_open.erase("developer")
 
 ## DECISIONS #212: Wipe save data lives in main Settings on every platform, with a confirm.
 ## Cancel keeps the save; Wipe deletes it. The anonymous telemetry id is kept. No wipe in Developer.
@@ -5804,17 +5809,19 @@ func test_patrol_widget(gs) -> void:
 	check(gs.settings.patrol_notify == true, "set_alerts(true) does not wait on a permission dialog off Android")
 	PatrolBridge.set_alerts(false)
 	var SP: GDScript = load("res://scripts/ui/settings_panel.gd")
+	SP.section_open["patrols"] = true
 	var v := VBoxContainer.new()
 	SP.build(v, false)
 	var btn: Button = null
-	for c in v.get_children():
-		if c is Button and String(c.text) == "Patrol alerts: OFF":
+	for c in v.find_children("*", "Button", true, false):
+		if String(c.text) == "Patrol alerts: OFF":
 			btn = c
 	check(btn != null, "Settings shows Patrol alerts, default off")
 	if btn != null:
 		btn.pressed.emit()
 		check(gs.settings.patrol_notify == true, "the Settings toggle turns alerts on")
 	v.free()
+	SP.section_open.erase("patrols")
 	PatrolBridge.set_alerts(false)
 	check(not PatrolBridge.take_open(), "no widget tap is waiting")
 	PatrolBridge.queued_open = true
