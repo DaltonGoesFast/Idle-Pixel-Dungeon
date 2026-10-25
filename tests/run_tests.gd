@@ -34,6 +34,7 @@ func _ready() -> void:
 	test_halls(gs)
 	test_render(gs)
 	test_combat_camera(gs)
+	test_combat_wide_side_cap()
 	test_identify(gs)
 	test_alchemy_unknown(gs)
 	test_doors_grass(gs)
@@ -944,6 +945,23 @@ func test_combat_camera(gs) -> void:
 	gv._gui_input(release2)
 	check(taps.is_empty() and gv.pan != pan_before, "drag past threshold pans and does not tap")
 	gv.free()
+
+## DECISIONS #236: ultrawide Mobile keeps a phone-sized side column instead of a cavernous D-pad.
+func test_combat_wide_side_cap() -> void:
+	print("[combat wide side cap]")
+	var CS: GDScript = load("res://scripts/ui/combat_screen.gd")
+	var area := Vector2(1908, 960)
+	var sep := 12.0
+	var side_w: float = CS.wide_side_width(area, UIKit.font_size * 13.0, sep)
+	var g: float = CS.wide_grid_side(area, UIKit.font_size * 13.0, sep)
+	check(side_w <= UIKit.font_size * CS.SIDE_MAX_FS + 0.5, "side cap is at most SIDE_MAX_FS (%s)" % side_w)
+	check(side_w < area.x * 0.5, "side is narrower than half the ultrawide window (%s)" % side_w)
+	check(g + side_w + sep <= area.x + 0.5, "grid + capped side fit the area (%s + %s)" % [g, side_w])
+	check(is_equal_approx(g, area.y) or g < area.y + 0.5, "grid can still use full height on a short ultrawide (%s)" % g)
+	# Near-square Fold-inner browser: still leaves room for the Victory column (DECISIONS #217).
+	var fold := Vector2(880, 1024)
+	var fg: float = CS.wide_grid_side(fold, UIKit.font_size * 13.0, sep)
+	check(fg + UIKit.font_size * 13.0 + sep <= fold.x + 1.0, "Fold-inner wide still reserves SIDE_MIN_FS for the column")
 
 func test_halls(gs) -> void:
 	print("[halls] Lv18 Warrior, Str 18, Greatsword+2 / Plate+2 (tier 5) vs every Halls fight")
