@@ -223,15 +223,16 @@ func _assemble_chrome() -> void:
 		status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		status.size_flags_horizontal = SIZE_EXPAND_FILL
 		_reparent(status, status_host)
-		# Outer column: mid-fight actions+chrome, or Victory/Defeat content after clear.
-		buttons = UIKit.vbox(side, int(UIKit.font_size * 0.35))
-		buttons.size_flags_horizontal = SIZE_EXPAND_FILL
-		buttons.size_flags_vertical = SIZE_SHRINK_BEGIN
+		# Log fills the band under status; controls stay thumb-reachable at the bottom.
 		log_scroll.size_flags_vertical = SIZE_EXPAND_FILL
 		log_scroll.size_flags_horizontal = SIZE_EXPAND_FILL
 		log_scroll.size_flags_stretch_ratio = 1.0
-		log_scroll.custom_minimum_size.y = UIKit.font_size * 4
+		log_scroll.custom_minimum_size.y = UIKit.font_size * 5
 		_reparent(log_scroll, side)
+		# Mid-fight actions+chrome, or Victory/Defeat content after clear.
+		buttons = UIKit.vbox(side, int(UIKit.font_size * 0.35))
+		buttons.size_flags_horizontal = SIZE_EXPAND_FILL
+		buttons.size_flags_vertical = SIZE_SHRINK_BEGIN
 
 ## The side column never gets less than SIDE_MIN_FS font sizes, nor less than what its widest row needs.
 const SIDE_MIN_FS := 13.0
@@ -432,20 +433,54 @@ func _attack_press() -> void:
 func _move_dir(dir: Vector2i) -> void:
 	_act(func(): combat.hero_tap(combat.hero.pos + dir, mode))
 
-## Mobile left cluster: 4-way D-pad over icon-only Search + Wait.
-func _build_mobile_pad(parent: Node) -> void:
-	var col := UIKit.vbox(parent, int(UIKit.font_size * 0.25))
+## Mobile: leftover action icons (Search, class extras, Passage) in a left column.
+func _build_mobile_side_icons(parent: Node) -> void:
+	var col := UIKit.vbox(parent, int(UIKit.font_size * 0.2))
 	col.size_flags_horizontal = SIZE_SHRINK_BEGIN
-	col.size_flags_vertical = SIZE_SHRINK_BEGIN
+	col.size_flags_vertical = SIZE_SHRINK_CENTER
+	var search_tip := "Search again" if combat.hero.get("searched", false) else "Search"
+	_icon_btn(search_tip, "search", func(): _act(func(): combat.hero_search()), true, col)
+	var h := combat.hero
+	if "shove" in h.abilities:
+		var shove_on := mode == "shove"
+		var shove_cb := func():
+			mode = "" if mode == "shove" else "shove"
+			grid.mode = mode
+			_refresh()
+		var sb := _icon_btn("Shove: ON" if shove_on else "Shove", "arrow", shove_cb, true, col)
+		_register_skill(shove_cb, true)
+		if shove_on:
+			sb.modulate = Color(1.15, 1.15, 0.85)
+	if "slam" in h.abilities:
+		var can_slam := int(h.slams) > 0 and combat.enemies().any(func(e): return Combat.cheb(e.pos, h.pos) == 1)
+		var slam_cb := func(): _act(func(): combat.hero_slam())
+		_icon_btn("Slam (%d)" % h.slams, "warning", slam_cb, can_slam, col)
+		_register_skill(slam_cb, can_slam)
+	if not h.cloak.is_empty():
+		var can_cloak := int(h.cloak_charges) > 0 and not combat.hidden()
+		var cloak_cb := func(): _act(func(): combat.hero_cloak())
+		_icon_btn("Cloak (%d/%d)" % [int(h.cloak_charges), _cloak_cap(h)], "buffs", cloak_cb, can_cloak, col)
+		_register_skill(cloak_cb, can_cloak)
+	if Delve.scroll_passage_count(GameState) > 0:
+		_icon_btn("Scroll of Passage", "scroll", _ask_passage, true, col)
+
+func _register_skill(cb: Callable, enabled: bool) -> void:
+	_skill_cbs.append(cb)
+	_skill_enabled.append(enabled)
+
+## Mobile center: 4-way D-pad with Wait in the middle.
+func _build_mobile_pad(parent: Node) -> void:
 	var pad := GridContainer.new()
 	pad.columns = 3
+	pad.size_flags_horizontal = SIZE_SHRINK_CENTER
+	pad.size_flags_vertical = SIZE_SHRINK_CENTER
 	pad.add_theme_constant_override("h_separation", int(UIKit.font_size * 0.2))
 	pad.add_theme_constant_override("v_separation", int(UIKit.font_size * 0.2))
-	col.add_child(pad)
-	var cell := UIKit.btn_height()
+	parent.add_child(pad)
+	var cell := UIKit.btn_height() * 1.15
 	var dirs: Array = [
 		null, Vector2i(0, -1), null,
-		Vector2i(-1, 0), null, Vector2i(1, 0),
+		Vector2i(-1, 0), Vector2i.ZERO, Vector2i(1, 0),
 		null, Vector2i(0, 1), null,
 	]
 	var tips := {
@@ -457,30 +492,28 @@ func _build_mobile_pad(parent: Node) -> void:
 			var spacer := Control.new()
 			spacer.custom_minimum_size = Vector2.ONE * cell
 			pad.add_child(spacer)
+		elif d == Vector2i.ZERO:
+			var wait_b := _icon_btn("Wait", "wait", func(): _act(func(): combat.hero_wait()), true, pad)
+			wait_b.custom_minimum_size = Vector2.ONE * cell
 		else:
 			var dir: Vector2i = d
 			var b := _icon_btn(tips[dir], "", func(): _move_dir(dir), true, pad, _dir_icon(dir))
 			b.custom_minimum_size = Vector2.ONE * cell
-	var sw := UIKit.hbox(col)
-	sw.add_theme_constant_override("separation", int(UIKit.font_size * 0.25))
-	var search_tip := "Search again" if combat.hero.get("searched", false) else "Search"
-	_icon_btn(search_tip, "search", func(): _act(func(): combat.hero_search()), true, sw)
-	_icon_btn("Wait", "wait", func(): _act(func(): combat.hero_wait()), true, sw)
 
-## Mobile right cluster: Attack, class skills, Potion / Passage.
+## Mobile right: Attack, Bolt (if any), Potion.
 func _build_mobile_skills(parent: Node) -> void:
 	var col := UIKit.vbox(parent, int(UIKit.font_size * 0.25))
 	col.size_flags_horizontal = SIZE_EXPAND_FILL
-	col.size_flags_vertical = SIZE_SHRINK_BEGIN
+	col.size_flags_vertical = SIZE_SHRINK_CENTER
 	var tgt := _attack_target()
 	var atk := _btn("Attack", _attack_press, not tgt.is_empty(), false, col)
-	atk.custom_minimum_size = Vector2(UIKit.font_size * 7.0, UIKit.btn_height() * 1.35)
-	_add_skill_buttons(col)
-	_btn("Potion (%d)" % (potions - potions_used), _drink, potions - potions_used > 0 and combat.hero.hp < combat.hero.ht, false, col)
-	if Delve.scroll_passage_count(GameState) > 0:
-		_btn("Scroll of Passage", _ask_passage, true, false, col)
+	atk.custom_minimum_size = Vector2(UIKit.font_size * 7.0, UIKit.btn_height() * 1.25)
+	var h := combat.hero
+	if not h.bolt.is_empty() and not h.bolt.get("infinite", false):
+		_btn("Bolt: ON (%d)" % h.charges if mode == "bolt" else "Bolt (%d)" % h.charges, _bolt_press, h.charges > 0, true, col)
+	_btn("Potion (%d)" % (potions - potions_used), _drink, potions - potions_used > 0 and h.hp < h.ht, false, col)
 
-## Shared class-skill strip (Shove / Slam / Cloak / Bolt). Used by mobile skill column and desktop toolbar.
+## Shared class-skill strip for the desktop toolbar (Shove / Slam / Cloak / Bolt).
 func _add_skill_buttons(parent: Node) -> void:
 	var h := combat.hero
 	if "shove" in h.abilities:
@@ -499,7 +532,9 @@ func _add_skill_buttons(parent: Node) -> void:
 func _build_mobile_controls() -> void:
 	var actions := UIKit.hbox(buttons)
 	actions.size_flags_horizontal = SIZE_EXPAND_FILL
-	actions.add_theme_constant_override("separation", int(UIKit.font_size * 0.45))
+	actions.size_flags_vertical = SIZE_SHRINK_BEGIN
+	actions.add_theme_constant_override("separation", int(UIKit.font_size * 0.4))
+	_build_mobile_side_icons(actions)
 	_build_mobile_pad(actions)
 	_build_mobile_skills(actions)
 	var chrome := UIKit.hbox(buttons)
