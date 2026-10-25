@@ -1,12 +1,16 @@
 ## GridView: draws the arena (8/10/12) with SPD tiles/sprites (nearest filter, integer scale) and juice:
 ## tweened movement, hit flash, floating damage numbers, SPD projectiles and beams, pulsing red danger tiles.
-## Emits `tapped(cell)`. Visual state is driven by Combat.drain_events().
+## Emits `tapped(cell)`. Pan always + pinch/wheel zoom (DECISIONS #235). Visual state is driven by Combat.drain_events().
 extends Control
 
 signal tapped(cell: Vector2i)
 
 const TILE_IDX := {Combat.T.FLOOR: 0, Combat.T.GRASS: 66, Combat.T.WALL: 48, Combat.T.DOOR: 56, Combat.T.CHASM: 24, Combat.T.WATER: 0}
 const MOVE_TIME := 0.12
+const ZOOM_MIN := 1.0
+const ZOOM_MAX := 2.5
+const ZOOM_WHEEL := 1.12
+const DRAG_THRESH_FS := 0.55   # same spirit as TouchScroll.THRESHOLD_FS
 
 var combat: Combat
 var tex := {}
@@ -41,6 +45,18 @@ var effects: Texture2D   # SPD effects/effects.png (Lightning, DeathRay, LightRa
 var _door_was := {}      # last-frame occupancy for door tween
 var _boss := ""          # boss sprite of this arena ("" = none): picks SPD boss-room dressing, visual only (DECISIONS #185)
 var _ctex := {}          # SPD custom boss tiles (environment/custom_tiles) and the DM-300 pylon sprite
+## Combat camera: 1 = fit whole arena; pan is pixels after fit centering (DECISIONS #235).
+var zoom_mult := 1.0
+var pan := Vector2.ZERO
+var _press_pos := Vector2.ZERO
+var _pressing := false
+var _dragging := false
+var _pan_btn := -1            # MOUSE_BUTTON_* while middle/right-dragging; -1 otherwise
+var _last_ptr := Vector2.ZERO
+var _touches := {}            # finger index -> local position (pinch)
+var _pinch_active := false
+var _pinch_start_dist := 0.0
+var _pinch_start_zoom := 1.0
 
 # SPD DungeonTileSheet indices (xy(x,y) = (x-1) + 16*(y-1))
 const S_FLOOR := 0; const S_FLOOR_ALT1 := 6; const S_FLOOR_ALT2 := 12
@@ -61,10 +77,24 @@ func _ready() -> void:
 	features = load("res://assets/tiles/terrain_features.png")
 	water = load("res://assets/tiles/%s.png" % water_name)
 	texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
-	resized.connect(queue_redraw)
+	resized.connect(_on_resized)
 	clip_contents = true
 	buff_icons = load("res://assets/ui/buffs.png")
 	effects = load("res://assets/ui/effects.png")
+
+func _on_resized() -> void:
+	reset_camera()
+	queue_redraw()
+
+## Fit the whole arena again (new fight or layout change).
+func reset_camera() -> void:
+	zoom_mult = 1.0
+	pan = Vector2.ZERO
+	_pressing = false
+	_dragging = false
+	_pan_btn = -1
+	_touches.clear()
+	_pinch_active = false
 
 func sprite(name: String) -> Texture2D:
 	if not tex.has(name): tex[name] = load("res://assets/sprites/%s.png" % name)
@@ -72,6 +102,7 @@ func sprite(name: String) -> Texture2D:
 
 func set_combat(c: Combat) -> void:
 	combat = c
+	reset_camera()
 	disp.clear()
 	for u in c.units: disp[u.uid] = Vector2(u.pos)
 	if anims.is_empty():
@@ -271,26 +302,62 @@ func light_radius() -> float:
 	if Delve.darkness(run): return 1.8
 	return lerpf(3.2, 6.5, clampf(float(run.get("torch", 100.0)) / 100.0, 0.0, 1.0))
 
-## SPD-style camera: the arena plus a half-tile wall border fills the view; cells snap to whole
-## multiples of the 16 px art (integer zoom) whenever the screen allows it (DECISIONS #72).
-func cell_size() -> float:
+## Fit zoom only: arena + half-tile border fills the view (DECISIONS #72).
+func _fit_cell_size() -> float:
 	var side := float(maxi(_aw(), _ah()))
 	var raw := floorf(minf(size.x, size.y) / (side + 0.3))
+	return _snap_cell(raw)
+
+## Snap a raw px/cell to SPD integer zoom (16) or 4 px steps when that wastes >15% (DECISIONS #72).
+func _snap_cell(raw: float) -> float:
 	if raw < 16.0: return raw
 	var snapped := floorf(raw / 16.0) * 16.0
-	# integer zoom unless it would waste >15% of the screen; then 1/4-pixel steps (still nearest-filtered)
 	return snapped if snapped >= raw * 0.9 else floorf(raw / 4.0) * 4.0
 
-func origin() -> Vector2:
-	var cs := cell_size()
+## Effective cell size including player zoom (DECISIONS #235).
+func cell_size() -> float:
+	return _snap_cell(_fit_cell_size() * zoom_mult)
+
+## Centered origin for a given cell size (no pan).
+func _centered_origin(cs: float) -> Vector2:
 	var arena := Vector2(cs * _aw(), cs * _ah())
 	var slack := size - arena
 	# most vertical slack goes on top so the raised top wall face is visible (SPD rooms read from their top wall)
 	return Vector2(slack.x / 2.0, minf(slack.y * 0.8, cs * 0.75)).floor()
 
+## Keep the arena attached to the viewport (slide within slack when fit; fill view when zoomed in).
+func clamp_pan() -> void:
+	var cs := cell_size()
+	var arena := Vector2(cs * _aw(), cs * _ah())
+	var fo := _centered_origin(cs)
+	var min_o := Vector2(minf(0.0, size.x - arena.x), minf(0.0, size.y - arena.y))
+	var max_o := Vector2(maxf(0.0, size.x - arena.x), maxf(0.0, size.y - arena.y))
+	pan = pan.clamp(min_o - fo, max_o - fo)
+
+func origin() -> Vector2:
+	return (_centered_origin(cell_size()) + pan).floor()
+
+## Cell under a local screen point (fractional).
+func screen_to_cell(s: Vector2) -> Vector2:
+	var cs := cell_size()
+	if cs <= 0.0: return Vector2.ZERO
+	return (s - origin()) / cs
+
+## Zoom so `s` (local) stays on the same cell-space point.
+func zoom_at(s: Vector2, new_zoom: float) -> void:
+	var cell := screen_to_cell(s)
+	zoom_mult = clampf(new_zoom, ZOOM_MIN, ZOOM_MAX)
+	var cs := cell_size()
+	pan = s - cell * cs - _centered_origin(cs)
+	clamp_pan()
+	queue_redraw()
+
 func cell_rect(p: Vector2) -> Rect2:
 	var cs := cell_size()
 	return Rect2((origin() + p * cs).floor(), Vector2(cs, cs))
+
+func _drag_threshold() -> float:
+	return clampf(UIKit.font_size * DRAG_THRESH_FS, 10.0, 16.0)
 
 # ---- SPD terrain stitching (DungeonTileSheet / DungeonTerrainTilemap / DungeonWallsTilemap) ----
 # Cells outside the arena are walls (a SPD room border); beyond that NULL_TILE also stitches as wall.
@@ -661,12 +728,108 @@ func _tile_grass(r: Rect2, idx: int, sway: float) -> void:
 	draw_texture_rect_region(tiles, Rect2(r.position + Vector2(sway, 0), Vector2(r.size.x, blade_h)), Rect2(sx, sy, 16, 10))
 
 func _gui_input(e: InputEvent) -> void:
-	if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT:
-		var c: Vector2 = ((e.position - origin()) / cell_size()).floor()
-		var cell := Vector2i(c)
-		if cell.x >= 0 and cell.y >= 0 and cell.x < _aw() and cell.y < _ah():
-			tapped.emit(cell)
+	# Two-finger pinch (raw touches; first finger may also emulate mouse)
+	if e is InputEventScreenTouch:
+		_on_screen_touch(e)
+		return
+	if e is InputEventScreenDrag:
+		_on_screen_drag(e)
+		return
+	if _touches.size() >= 2:
+		return   # pinch owns the gesture; ignore emulated mouse
+	if e is InputEventMouseButton:
+		_on_mouse_button(e)
+		return
+	if e is InputEventMouseMotion:
+		_on_mouse_motion(e)
+
+func _on_screen_touch(e: InputEventScreenTouch) -> void:
+	# Track fingers for pinch only; single-finger tap/pan goes through emulated mouse (project default).
+	if e.pressed:
+		_touches[e.index] = e.position
+		if _touches.size() == 2:
+			_pinch_active = true
+			_pressing = false
+			_dragging = false
+			_pan_btn = -1
+			var pts: Array = _touches.values()
+			var a: Vector2 = pts[0]; var b: Vector2 = pts[1]
+			_pinch_start_dist = maxf(1.0, a.distance_to(b))
+			_pinch_start_zoom = zoom_mult
+			accept_event()
+	else:
+		_touches.erase(e.index)
+		if _pinch_active and _touches.size() < 2:
+			_pinch_active = false
+			accept_event()
+
+func _on_screen_drag(e: InputEventScreenDrag) -> void:
+	if not _touches.has(e.index): return
+	_touches[e.index] = e.position
+	if not _pinch_active or _touches.size() < 2: return
+	var pts: Array = _touches.values()
+	var a: Vector2 = pts[0]; var b: Vector2 = pts[1]
+	var dist := maxf(1.0, a.distance_to(b))
+	zoom_at((a + b) * 0.5, _pinch_start_zoom * (dist / _pinch_start_dist))
+	accept_event()
+
+func _on_mouse_button(e: InputEventMouseButton) -> void:
+	match e.button_index:
+		MOUSE_BUTTON_WHEEL_UP:
+			if e.pressed:
+				zoom_at(e.position, zoom_mult * ZOOM_WHEEL)
+				accept_event()
+		MOUSE_BUTTON_WHEEL_DOWN:
+			if e.pressed:
+				zoom_at(e.position, zoom_mult / ZOOM_WHEEL)
+				accept_event()
+		MOUSE_BUTTON_MIDDLE, MOUSE_BUTTON_RIGHT:
+			if e.pressed:
+				_pan_btn = e.button_index
+				_last_ptr = e.position
+				_pressing = false
+				_dragging = false
+				accept_event()
+			elif _pan_btn == e.button_index:
+				_pan_btn = -1
+				accept_event()
+		MOUSE_BUTTON_LEFT:
+			if e.pressed:
+				_pressing = true
+				_dragging = false
+				_press_pos = e.position
+				_last_ptr = e.position
+				accept_event()
+			else:
+				if _pressing and not _dragging:
+					_emit_tap(e.position)
+				_pressing = false
+				_dragging = false
+				accept_event()
+
+func _on_mouse_motion(e: InputEventMouseMotion) -> void:
+	if _pan_btn >= 0 and (e.button_mask & (MOUSE_BUTTON_MASK_MIDDLE | MOUSE_BUTTON_MASK_RIGHT)) != 0:
+		pan += e.position - _last_ptr
+		_last_ptr = e.position
+		clamp_pan()
+		queue_redraw()
 		accept_event()
+		return
+	if _pressing and (e.button_mask & MOUSE_BUTTON_MASK_LEFT) != 0:
+		if not _dragging and _press_pos.distance_to(e.position) >= _drag_threshold():
+			_dragging = true
+		if _dragging:
+			pan += e.position - _last_ptr
+			_last_ptr = e.position
+			clamp_pan()
+			queue_redraw()
+			accept_event()
+
+func _emit_tap(local_pos: Vector2) -> void:
+	var c: Vector2 = screen_to_cell(local_pos).floor()
+	var cell := Vector2i(c)
+	if cell.x >= 0 and cell.y >= 0 and cell.x < _aw() and cell.y < _ah():
+		tapped.emit(cell)
 
 ## SPD projectiles in flight (cell space -> screen): the spirit arrow item sprite turned along its path
 ## (MissileSprite; the art points up-right), MagicMissile as a bright core pouring particles, Lightning as the

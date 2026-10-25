@@ -33,6 +33,7 @@ func _ready() -> void:
 	test_city(gs)
 	test_halls(gs)
 	test_render(gs)
+	test_combat_camera(gs)
 	test_identify(gs)
 	test_alchemy_unknown(gs)
 	test_doors_grass(gs)
@@ -895,6 +896,53 @@ func test_render(gs) -> void:
 	check(gv.terrain_visual(Vector2i(0, -1)) >= 80, "arena border is a raised SPD wall")
 	check(gv.anims.has("rat") and gv.anims.rat.has("die"), "SPD sprite animations loaded")
 	check(gv._frame("rat", "attack", 0.0) == 2, "rat attack anim starts on SPD frame 2")
+	gv.free()
+
+## DECISIONS #235: fit default, clamped pan when zoomed, screen→cell, tap vs drag threshold.
+func test_combat_camera(gs) -> void:
+	print("[combat camera]")
+	var gv = load("res://scripts/ui/grid_view.gd").new()
+	var c := Combat.new(); c.setup(DB.rooms[0], warrior(gs), 20, ["rat"])
+	gv.size = Vector2(400, 400)
+	gv.set_combat(c)
+	check(is_equal_approx(gv.zoom_mult, 1.0) and gv.pan == Vector2.ZERO, "set_combat resets to fit zoom and zero pan")
+	var cs0: float = gv.cell_size()
+	check(cs0 > 0.0, "fit cell size is positive")
+	# zoom in then yank pan off-screen; clamp must pull it back so the arena still fills the view
+	gv.zoom_at(Vector2(200, 200), 2.5)
+	check(gv.zoom_mult >= 2.0, "zoom_at reaches the high end of the range")
+	gv.pan = Vector2(9999, 9999)
+	gv.clamp_pan()
+	var arena := Vector2(gv.cell_size() * gv._aw(), gv.cell_size() * gv._ah())
+	var o: Vector2 = gv.origin()
+	check(o.x <= 0.0 and o.y <= 0.0 and o.x + arena.x >= gv.size.x - 0.5 and o.y + arena.y >= gv.size.y - 0.5,
+		"clamped pan keeps a zoomed arena covering the view (%s + %s)" % [o, arena])
+	# screen→cell: centre of cell (2,3) maps back after pan/zoom
+	var target := Vector2i(2, 3)
+	var mid: Vector2 = gv.cell_rect(Vector2(target)).get_center()
+	var hit: Vector2i = Vector2i(gv.screen_to_cell(mid).floor())
+	check(hit == target, "screen_to_cell matches cell_rect centre after zoom (%s)" % hit)
+	# tap under threshold emits; drag past threshold does not
+	var taps: Array = []
+	gv.tapped.connect(func(cell): taps.append(cell))
+	var press := InputEventMouseButton.new()
+	press.button_index = MOUSE_BUTTON_LEFT; press.pressed = true; press.position = mid
+	var release := InputEventMouseButton.new()
+	release.button_index = MOUSE_BUTTON_LEFT; release.pressed = false; release.position = mid
+	gv._gui_input(press); gv._gui_input(release)
+	check(taps.size() == 1 and taps[0] == target, "short press taps the cell under the pointer")
+	taps.clear()
+	gv.pan = Vector2.ZERO; gv.clamp_pan()
+	var pan_before: Vector2 = gv.pan
+	gv._gui_input(press)
+	var move := InputEventMouseMotion.new()
+	move.position = mid + Vector2(0, -40); move.relative = Vector2(0, -40)
+	move.button_mask = MOUSE_BUTTON_MASK_LEFT
+	gv._gui_input(move)
+	var release2 := InputEventMouseButton.new()
+	release2.button_index = MOUSE_BUTTON_LEFT; release2.pressed = false; release2.position = move.position
+	gv._gui_input(release2)
+	check(taps.is_empty() and gv.pan != pan_before, "drag past threshold pans and does not tap")
 	gv.free()
 
 func test_halls(gs) -> void:
