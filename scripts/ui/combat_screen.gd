@@ -18,6 +18,8 @@ var grid
 var side: VBoxContainer
 var header_label: Label
 var status: Label
+## Mobile: fixed-height host so status tips don't shove Wait/Bolt and cause misclicks.
+var status_host: ScrollContainer
 var pane: StatusPane
 var buttons: Container
 var toolbar_scroll: ScrollContainer
@@ -151,6 +153,7 @@ func _assemble_chrome() -> void:
 		remove_child(c)
 		c.queue_free()
 	split = null; desk = null; desk_mid = null; side = null; toolbar_scroll = null; buttons = null
+	status_host = null
 	result_layer = null
 	if desktop_ui:
 		desk = VBoxContainer.new(); desk.name = "DeskChrome"
@@ -208,8 +211,18 @@ func _assemble_chrome() -> void:
 		pane.set_max_w(0.0)
 		pane.size_flags_horizontal = SIZE_EXPAND_FILL
 		_reparent(pane, side)
+		# Fixed slot: staff / bolt / poison tips must not move the action grid under the finger.
+		status_host = ScrollContainer.new()
+		status_host.name = "StatusHost"
+		status_host.size_flags_horizontal = SIZE_EXPAND_FILL
+		status_host.size_flags_vertical = SIZE_SHRINK_BEGIN
+		status_host.custom_minimum_size.y = _status_slot_h()
+		status_host.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+		status_host.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+		side.add_child(status_host)
 		status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		_reparent(status, side)
+		status.size_flags_horizontal = SIZE_EXPAND_FILL
+		_reparent(status, status_host)
 		buttons = HFlowContainer.new(); side.add_child(buttons)
 		log_scroll.size_flags_vertical = SIZE_EXPAND_FILL
 		log_scroll.size_flags_horizontal = SIZE_EXPAND_FILL
@@ -230,6 +243,10 @@ static func wide_grid_side(area: Vector2, side_min: float, sep: float) -> float:
 
 func _desk_toolbar_h() -> float:
 	return UIKit.btn_height() * 1.25 + 8.0
+
+## Mobile status strip: room for DR + staff line + one tip (wraps) without shifting Wait/Bolt.
+func _status_slot_h() -> float:
+	return float(UIKit.font_size) * 1.3 * 4.0
 
 ## Reserved height above/below the desktop mid row (status + toolbar + seps).
 func _desktop_chrome_h() -> float:
@@ -393,7 +410,10 @@ func _refresh() -> void:
 	else:
 		status.text = line
 		status.tooltip_text = ""
-	status.visible = not finished
+	var show_status := not finished
+	status.visible = show_status
+	if status_host and is_instance_valid(status_host):
+		status_host.visible = show_status
 	_guide_update()
 	if main and not finished:
 		# Don't pop the Surprise modal over the guided first fight (steps 1-3): an unseen foe in tall grass makes
