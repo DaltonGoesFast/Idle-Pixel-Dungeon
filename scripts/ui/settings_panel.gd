@@ -102,6 +102,10 @@ static func build(v: VBoxContainer, show_dev := true, on_wiped: Callable = Calla
 			body.add_child(UIKit.button("Developer tools: %s" % ("shown" if dev else "hidden"), func():
 				GameState.set_setting("dev_tools", not dev); GameState.touch()))
 			if dev:
+				if LiveLayout.desktop_allowed():
+					body.add_child(UIKit.button("Open Live Editor", func():
+						preload("res://scripts/ui/live_editor.gd").open()))
+					body.add_child(UIKit.label("Second window: drag Camp/UI layout, edit text and balance. Saves to data/*.json (run from the Godot project so res:// is writable).", 0.75, Color("9a8f7c")))
 				body.add_child(UIKit.button("Unlock all heroes", func():
 					for c in GameState.heroes: GameState.heroes[c].unlocked = true
 					GameState.touch()))

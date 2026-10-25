@@ -1,0 +1,73 @@
+{
+	"_note": "Camp clearing layout (DECISIONS #233). Spots: facility NPCs; seats: hero tile offsets from the fire; fire_y is feet height as a fraction of the ground. Edited by the Live Editor.",
+	"fire_y": 0.48,
+	"spots": [
+		{
+			"page": "Forge",
+			"sprite": "blacksmith",
+			"fw": 13,
+			"fh": 16,
+			"x": 0.15,
+			"y": 0.3,
+			"label": "Forge"
+		},
+		{
+			"page": "Enchanter",
+			"sprite": "wandmaker",
+			"fw": 12,
+			"fh": 14,
+			"x": 0.85,
+			"y": 0.3,
+			"label": "Enchanter"
+		},
+		{
+			"page": "Alchemy",
+			"sprite": "_pot",
+			"fw": 16,
+			"fh": 16,
+			"x": 0.16,
+			"y": 0.97,
+			"label": "Alchemy"
+		},
+		{
+			"page": "Guild",
+			"sprite": "shopkeeper",
+			"fw": 14,
+			"fh": 14,
+			"x": 0.84,
+			"y": 0.97,
+			"label": "Guild"
+		},
+		{
+			"page": "Stash",
+			"sprite": "_chest",
+			"fw": 16,
+			"fh": 16,
+			"x": 0.5,
+			"y": 0.97,
+			"label": "Stash"
+		}
+	],
+	"seats": [
+		{
+			"class": "warrior",
+			"x_tiles": 1.55,
+			"y": 0.5
+		},
+		{
+			"class": "mage",
+			"x_tiles": -1.7,
+			"y": 0.5
+		},
+		{
+			"class": "rogue",
+			"x_tiles": 2.65,
+			"y": 0.72
+		},
+		{
+			"class": "huntress",
+			"x_tiles": -2.75,
+			"y": 0.72
+		}
+	]
+}

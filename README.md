@@ -24,8 +24,8 @@ Open the folder in the Godot 4.7 editor (standard build, not .NET) or in Cursor 
 ## Layout
 | Path | What |
 |---|---|
-| `data/` | All content & balance (JSON): heroes, mobs, items, recipes, facilities, rooms, biomes, events, icon indices |
-| `scripts/autoload/` | `DB` (content), `GameState` (account + run rules), `SaveSystem` (versioned JSON save), `Sfx` |
+| `data/` | All content & balance (JSON): heroes, mobs, items, recipes, facilities, rooms, biomes, events, camp/UI layout, icon indices |
+| `scripts/autoload/` | `DB` (content), `GameState` (account + run rules), `SaveSystem` (versioned JSON save), `Sfx`, `LiveLayout` (Live Editor overlays) |
 | `scripts/core/` | Pure logic, no nodes: `Combat`, `CombatBot`, `Delve` |
 | `scripts/ui/` | Screens built in code: `main`, `camp_screen`, `delve_screen`, `combat_screen`, `grid_view`, `ui_kit` |
 | `scenes/main.tscn` | Entry scene |

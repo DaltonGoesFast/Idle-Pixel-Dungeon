@@ -1,0 +1,4 @@
+{
+	"_note": "Named UI chrome offsets (DECISIONS #233). Values are fractions of min(viewport). Applied after rebuild by LiveLayout. Empty object = defaults.",
+	"offsets": {}
+}

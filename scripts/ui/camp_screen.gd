@@ -68,6 +68,7 @@ func _build_shell() -> void:
 	var outer := UIKit.vbox(self); outer.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
 	# top bar: title, version, Update (when available), Journal + Settings
 	var top := UIKit.hbox(outer)
+	top.name = "CampTopBar"
 	var title := UIKit.header("Surface Camp"); title.size_flags_horizontal = SIZE_EXPAND_FILL; top.add_child(title)
 	var ver := UIKit.label(UIKit.version(), 0.75, Color("9a9488")); ver.size_flags_vertical = SIZE_SHRINK_CENTER
 	ver.autowrap_mode = TextServer.AUTOWRAP_OFF; top.add_child(ver)
@@ -86,7 +87,8 @@ func _build_shell() -> void:
 		if p == "Journal": journal_btn = b
 		top.add_child(b)
 	# resource strip in an SPD toast frame: one row that scrolls sideways, so it never pushes the scene down
-	var rp := PanelContainer.new(); rp.add_theme_stylebox_override("panel", UIKit.chrome("toast", Color.WHITE, UIKit.font_size * 0.35)); outer.add_child(rp)
+	var rp := PanelContainer.new(); rp.name = "ResourceStrip"
+	rp.add_theme_stylebox_override("panel", UIKit.chrome("toast", Color.WHITE, UIKit.font_size * 0.35)); outer.add_child(rp)
 	var rs := ScrollContainer.new(); rs.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	rs.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_NEVER; rp.add_child(rs)
 	summary = HBoxContainer.new(); rs.add_child(summary)
@@ -107,7 +109,7 @@ func _build_shell() -> void:
 	scene.picked.connect(open_page)
 	scene.hero_picked.connect(func(c: String): chosen_hero = c; rebuild())
 	frame.add_child(scene)
-	side = UIKit.vbox(); side.size_flags_horizontal = SIZE_EXPAND_FILL
+	side = UIKit.vbox(); side.name = "CampSide"; side.size_flags_horizontal = SIZE_EXPAND_FILL
 	side.size_flags_vertical = SIZE_EXPAND_FILL
 	side.size_flags_stretch_ratio = 1.2 if portrait else 1.0
 	root_box.add_child(side)
@@ -125,6 +127,11 @@ func rebuild() -> void:
 	scene.hero = chosen_hero
 	_build_side()
 	if open_name != "": _fill_window()
+	# Named chrome offsets (Live Editor) re-apply after container layout.
+	call_deferred("_apply_live_layout")
+
+func _apply_live_layout() -> void:
+	LiveLayout.apply_tree(self)
 
 ## Refresh the Journal button's count badge: milestones reached but not yet claimed.
 func _journal_dot() -> void:

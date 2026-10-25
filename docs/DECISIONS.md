@@ -858,3 +858,10 @@ Staff Bolt used to toggle aim mode on/off. In vanilla SPD, pressing the same qui
 ## 232. Interface Mobile/Desktop + combat keybinds
 PC fullscreen kept the Fold phone chrome (side panel + big touch buttons). Settings now has **Interface**: Auto / Mobile / Desktop (`settings.interface`, default Auto). Auto picks Desktop when not `OS.has_feature("mobile")`. Desktop combat is vanilla-SPD shaped: StatusPane on top, full-bleed grid, compact log + horizontal toolbar at the bottom; Bag / Passage / Victory stay floating chrome windows. Mobile keeps the portrait/wide split. Camp and Delve layouts are unchanged this pass.
 Combat gets remappable keyboard controls (`Keybinds`, `settings.keybinds`): WASD + arrows + numpad (with QEZC / numpad diagonals), Space wait, R search, I bag, H hint, T auto (not A — clashes with west), P potion, 1/2 class skills, Esc cancel. Settings lists every action with Rebind / Reset. Where it lives: `Main.resolve_desktop_ui`, `CombatScreen` desk chrome + `_unhandled_input`, `SettingsPanel` Interface + Keybinds, `scripts/ui/keybinds.gd`.
+
+## 233. Desktop Live Editor (second window)
+Authoring while the game runs: Settings → Developer tools → **Open Live Editor** opens a second Godot `Window` (desktop only; not web/mobile). Tabs:
+- **Layout** — toggle Edit layout, then drag Camp NPCs / hero seats / fire, or named Camp chrome (`CampTopBar`, `ResourceStrip`, `CampFrame`, `CampSide`, `DelveGo`, `JournalButton`, `SettingsButton`). Numeric X/Y for the selection. Camp positions live in `data/camp_layout.json`; UI nudges in `data/ui_layout.json` as fractions of `min(viewport)` and re-apply after Camp `rebuild`.
+- **Text** — edit JSON-backed names/descriptions/tips/milestones (not every hardcoded UI string).
+- **Balance** — edit mob/item/facility/recipe numbers and costs.
+**Apply live** pushes into `DB` + `GameState.touch()`; **Save to disk** writes `res://data/*.json` (needs a writable project folder — Godot editor / run from source). Room editing is out of scope. Where it lives: `LiveLayout` autoload, `scripts/ui/live_editor.gd`, `camp_scene.gd` / `camp_screen.gd` / `SettingsPanel` / `Main._input`.

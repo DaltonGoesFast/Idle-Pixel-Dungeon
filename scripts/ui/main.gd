@@ -86,6 +86,13 @@ func _process(delta: float) -> void:
 		_id_timer = 0.0
 		GameState.tick_identify()
 
+## Live Editor layout mode: drag named Camp chrome (DECISIONS #233). Camp NPCs use CampScene._gui_input.
+func _input(e: InputEvent) -> void:
+	if not LiveLayout.editing:
+		return
+	if LiveLayout.ui_input(self, e):
+		get_viewport().set_input_as_handled()
+
 func _relayout() -> void:
 	_apply_content_scale()
 	var vs := get_viewport_rect().size

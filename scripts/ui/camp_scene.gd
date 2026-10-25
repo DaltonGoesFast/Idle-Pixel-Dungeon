@@ -7,21 +7,13 @@ extends Control
 signal picked(page: String)
 signal hero_picked(c: String)
 
-const SPOTS := [   # page, sprite, frame w, frame h, x frac, y frac of the ground (feet), label
-	["Forge", "blacksmith", 13, 16, 0.15, 0.30, "Forge"],
-	["Enchanter", "wandmaker", 12, 14, 0.85, 0.30, "Enchanter"],
-	["Alchemy", "_pot", 16, 16, 0.16, 0.97, "Alchemy"],
-	["Guild", "shopkeeper", 14, 14, 0.84, 0.97, "Guild"],
-	["Stash", "_chest", 16, 16, 0.50, 0.97, "Stash"],
-]
-## Unlocked heroes sit around the fire: [class, x offset in tiles from fire, y frac of ground for feet].
-const HERO_SEATS := [
-	["warrior", 1.55, 0.50],
-	["mage", -1.70, 0.50],
-	["rogue", 2.65, 0.72],
-	["huntress", -2.75, 0.72],
-]
-const FIRE_Y := 0.48   # campfire height, as a fraction of the ground
+## Spots / seats / fire_y come from data/camp_layout.json via LiveLayout (DECISIONS #233).
+var SPOTS: Array:
+	get: return LiveLayout.spots
+var HERO_SEATS: Array:
+	get: return LiveLayout.seats
+var FIRE_Y: float:
+	get: return LiveLayout.fire_y
 const FAC := {"Forge": "blacksmith", "Enchanter": "enchanter", "Alchemy": "alchemy", "Guild": "guild"}
 var hero := "warrior"   # selected class (highlighted seat)
 var t := 0.0
@@ -38,11 +30,14 @@ var hero_anims := {}   # class -> idle dict from anims.json
 var hot := ""   # spot under the last press (highlight)
 
 func _ready() -> void:
+	name = "CampScene"
 	tiles = load("res://assets/tiles/tiles_sewers.png"); items = load("res://assets/sprites/items.png")
 	surface = load("res://assets/ui/surface.png"); water = load("res://assets/tiles/water0.png")
 	texture_filter = TEXTURE_FILTER_NEAREST
 	mouse_filter = MOUSE_FILTER_STOP
 	clip_contents = true
+	if not LiveLayout.layout_changed.is_connected(queue_redraw):
+		LiveLayout.layout_changed.connect(queue_redraw)
 
 var _acc := 0.0
 func _process(d: float) -> void:
@@ -487,6 +482,9 @@ func _has_news(page: String) -> bool:
 	return false
 
 func _gui_input(e: InputEvent) -> void:
+	if LiveLayout.camp_input(self, e):
+		accept_event()
+		return
 	var press: bool = (e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT) or (e is InputEventScreenTouch and e.pressed)
 	if not press: return
 	# Heroes take priority when the tap is on a seat so overlapping pads don't open a facility by mistake.
