@@ -1991,15 +1991,19 @@ func start_run(c: String, loadout: Dictionary, biome := "sewers", seed := -1) ->
 	run = {"hero": c, "biome": biome, "floor": f0, "progress": 0.0, "torch": 100.0, "satiety": 100.0,
 		"hp": s.ht, "pack": {}, "pack_gear": [], "supplies": sup, "seed": seed if seed >= 0 else int(now()) % 100000,
 		"events": [], "next_event": 0, "gather": 0, "starve": 0, "milestones_done": [], "pending_loot": 0, "boss_dead": false,
-		"haul": {}, "free_passage": free_passage}
+		"haul": {}, "free_passage": free_passage, "feeling": "", "feeling_plan": {}}
 	if cloak_cap(c) > 0: run.cloak_charges = cloak_cap(c)   # a fresh expedition starts with a full cloak (DECISIONS #206)
+	Delve.plan_biome_feelings(run)
+	Delve.plan_floor(run)
 	stats.runs += 1; note_floor(f0)
 	var team := {}
 	for hc in heroes:
 		if heroes[hc].unlocked: team[hc] = int(heroes[hc].level)
 	Telemetry.track("run_start", {"class": c, "biome": biome, "floor": f0, "hero_level": int(heroes[c].level), "gear_level": patrol_gear_level(c),
 		"power": power_rating(c), "heroes": team, "supplies": sup, "runs": int(stats.runs)})
-	say("%s descends into the %s." % [s.name, DB.biomes[biome].name]); touch(); return true
+	say("%s descends into the %s." % [s.name, DB.biomes[biome].name])
+	Delve.log_feeling(self)
+	touch(); return true
 
 func pack_add(id: String, n: int) -> void:
 	if run.is_empty(): add_mat(id, n); return  # no expedition: straight to the stash
@@ -2325,7 +2329,8 @@ func _fix_gear(g: Dictionary) -> void:
 
 ## Every key start_run creates, with its start value (for loading runs saved by older versions).
 const RUN_DEFAULTS := {"biome": "sewers", "floor": 1, "progress": 0.0, "torch": 100.0, "satiety": 100.0, "hp": 1, "pack": {}, "pack_gear": [],
-	"supplies": {}, "seed": 0, "events": [], "next_event": 0, "gather": 0, "starve": 0, "milestones_done": [], "pending_loot": 0, "boss_dead": false}
+	"supplies": {}, "seed": 0, "events": [], "next_event": 0, "gather": 0, "starve": 0, "milestones_done": [], "pending_loot": 0, "boss_dead": false,
+	"feeling": "", "feeling_plan": {}}
 
 ## JSON turns every number into float; normalise ints we compare/use as keys.
 func _fix_types() -> void:

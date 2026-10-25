@@ -8,6 +8,8 @@ Everything here is data-driven (`data/*.json`). Add content by editing JSON; no 
 
 Assets used (all from Shattered Pixel Dungeon, GPL-3.0): hero sprites (warrior, mage), mobs (rat, snake, gnoll, crab, statue, goo, piranha), `tiles_sewers.png`, `items.png` icons, ~30 sound effects, music (`sewers_1`, `sewers_boss`, `theme_1`).
 
+**Floor feelings (DECISIONS #237).** Each biome plans at least one feeling on a non-boss floor, rarely two (distinct). The plan resets when entering a new biome. Announced in the delve log. **XL** biases large rooms and denser packs, ensures a special, grants a spare ration when leaving the floor. **Secret** forces Suspicious Wall, Search always finds (richer gold). **Traps** biases trap-dense maps and forces Trapped Vault. Dark / Water / Grass / Chasm and trinket overrides are out of scope for now.
+
 <!-- GENERATED -->
 ### Patrol perks (DECISIONS #188)
 
@@ -15,149 +17,149 @@ Worn ring, artifact and the Mage's staff wand, at +0; the step is per item level
 
 | Item | Type | On patrol |
 |---|---|---|
-| Ring of Might | ring | +15% iron ore (+5/lvl) |
-| Ring of Tenacity | ring | +1 patrol power (+1/lvl) |
-| Wand of Magic Missile | wand | +1 patrol power (+1/lvl) |
-| Wand of Firebolt | wand | +15% dark gold (+5/lvl) |
-| Wand of Lightning | wand | +15% arcane resin (+5/lvl) |
-| Wand of Frost | wand | +25% dew (+10/lvl) |
-| Wand of Corrosion | wand | +1 patrol power (+1/lvl) |
-| Wand of Blast Wave | wand | +1 patrol power (+1/lvl) |
-| Wand of Disintegration | wand | +1 patrol power (+1/lvl) |
-| Wand of Transfusion | wand | +1 patrol power (+1/lvl) |
-| Wand of Prismatic Light | wand | +15% curios (+5/lvl) |
-| Wand of Regrowth | wand | +1 seeds/h (+0.5/lvl), +50% dew |
-| Ring of Evasion | ring | +15% curios (+5/lvl) |
-| Ring of Wealth | ring | +10% gold (+5/lvl), curios: any ring |
+| Cape of Thorns | artifact | +1 patrol power (+1/lvl) |
+| Chalice of Blood | artifact | +1 healing potion per 6h (-1/lvl, min 2) |
+| Ethereal Chains | artifact | +15% curios (+5/lvl) |
+| Horn of Plenty | artifact | +1 ration per 4h (-0.5/lvl, min 1.5) |
+| Ring of Elements | ring | -15% fee (max 50%) (+5/lvl) |
 | Ring of Energy | ring | +15% arcane resin (+5/lvl) |
+| Ring of Evasion | ring | +15% curios (+5/lvl) |
+| Ring of Force | ring | +15% dark gold (+5/lvl) |
 | Ring of Furor | ring | +5% materials (not gold) (+2.5/lvl) |
 | Ring of Haste | ring | +10% patrol time (+5/lvl) |
+| Ring of Might | ring | +15% iron ore (+5/lvl) |
 | Ring of Sharpshooting | ring | +25% dew (+10/lvl) |
-| Ring of Elements | ring | -15% fee (max 50%) (+5/lvl) |
-| Ring of Force | ring | +15% dark gold (+5/lvl) |
-| Chalice of Blood | artifact | +1 healing potion per 6h (-1/lvl, min 2) |
+| Ring of Tenacity | ring | +1 patrol power (+1/lvl) |
+| Ring of Wealth | ring | curios: any ring, +10% gold (+5/lvl) |
+| Sandals of Nature | artifact | +1 dew/h (+0.5/lvl), +1 seeds/h (+0.5/lvl) |
 | Talisman of Foresight | artifact | curios arrive identified, 20% of curios come +1 (+10/lvl) |
-| Horn of Plenty | artifact | +1 ration per 4h (-0.5/lvl, min 1.5) |
-| Cape of Thorns | artifact | +1 patrol power (+1/lvl) |
-| Ethereal Chains | artifact | +15% curios (+5/lvl) |
-| Timekeeper's Hourglass | artifact | +1h max (+0.5/lvl) |
-| Sandals of Nature | artifact | +1 seeds/h (+0.5/lvl), +1 dew/h (+0.5/lvl) |
 | Master Thieves' Armband | artifact | +15% gold (+5/lvl) |
+| Timekeeper's Hourglass | artifact | +1h max (+0.5/lvl) |
+| Wand of Blast Wave | wand | +1 patrol power (+1/lvl) |
+| Wand of Corrosion | wand | +1 patrol power (+1/lvl) |
+| Wand of Disintegration | wand | +1 patrol power (+1/lvl) |
+| Wand of Firebolt | wand | +15% dark gold (+5/lvl) |
+| Wand of Frost | wand | +25% dew (+10/lvl) |
+| Wand of Lightning | wand | +15% arcane resin (+5/lvl) |
+| Wand of Magic Missile | wand | +1 patrol power (+1/lvl) |
+| Wand of Prismatic Light | wand | +15% curios (+5/lvl) |
+| Wand of Regrowth | wand | +50% dew, +1 seeds/h (+0.5/lvl) |
+| Wand of Transfusion | wand | +1 patrol power (+1/lvl) |
 
 ### Milestones (DECISIONS #195)
 
-80 milestones. A reached milestone waits in the Journal until the player taps Claim. All rewards together: 555 gold, 3 ration, 2 scroll of passage, 72 iron ore, 13 torch, 19 dark gold, 15 arcane resin, 2 iron key, 21 seeds, 63 dew, 2 scroll of upgrade, 4 healing potion.
+80 milestones. A reached milestone waits in the Journal until the player taps Claim. All rewards together: 555.0 gold, 3.0 ration, 2.0 scroll of passage, 72.0 iron ore, 13.0 torch, 19.0 dark gold, 15.0 arcane resin, 2.0 iron key, 63.0 dew, 21.0 seeds, 2.0 scroll of upgrade, 4.0 healing potion.
 
 | Category | Milestone | Goal | Reward |
 |---|---|---|---|
-| Delving | First Steps | Complete an expedition (extract). | 30 gold, 1 ration |
-| Delving | Veteran | Complete 10 expeditions. | 1 scroll of passage, 100 gold |
-| Delving | Seasoned Delver | Complete 25 expeditions. | 2 iron ore, 1 scroll of passage |
-| Delving | Deep Dive | Reach floor 6 (the Prison). | 2 torch, 40 gold |
-| Delving | Into the Caves | Reach floor 11 (the Caves). | 1 torch, 2 iron ore |
-| Delving | Dwarven Metropolis | Reach floor 16 (the City). | 1 dark gold, 1 torch |
-| Delving | Demon Halls | Reach floor 21 (the Halls). | 1 dark gold, 3 iron ore |
-| Delving | Trap Sense | Find 10 hidden traps. | 2 arcane resin |
-| Delving | Secret Keeper | Discover 3 hidden doors. | 2 iron key, 1 dark gold |
-| Delving | Explorer | Explore 10 special rooms. | 1 seeds, 5 dew |
-| Delving | Treasure Hunter | Open 10 chests behind doors. | 8 dew |
-| Bosses | Slime Time | Defeat Goo. | 5 iron ore, 3 seeds |
-| Bosses | Jailbreak | Defeat Tengu. | 3 dark gold, 1 scroll of upgrade |
-| Bosses | Clockwork Breaker | Defeat DM-300. | 1 dark gold, 3 iron ore |
-| Bosses | Regicide | Defeat the King of Dwarves. | 1 dark gold, 3 iron ore |
-| Bosses | Happy End | Defeat Yog-Dzewa. | 3 dark gold, 3 arcane resin, 100 gold |
-| Bosses | Full Roster | Clear the Sewers with all four heroes. | 1 scroll of upgrade |
-| Bosses | Full Roster II | Clear the Prison with all four heroes. | 1 dark gold, 2 iron ore |
-| Bosses | Goo Slayer: Warrior | Defeat Goo with the Warrior. | 1 iron ore, 1 seeds |
-| Bosses | Goo Slayer: Mage | Defeat Goo with the Mage. | 1 iron ore, 1 seeds |
-| Bosses | Goo Slayer: Rogue | Defeat Goo with the Rogue. | 1 iron ore, 1 seeds |
-| Bosses | Goo Slayer: Huntress | Defeat Goo with the Huntress. | 1 iron ore, 1 seeds |
-| Bosses | Tengu Slayer: Warrior | Defeat Tengu with the Warrior. | 1 iron ore, 1 torch |
-| Bosses | Tengu Slayer: Mage | Defeat Tengu with the Mage. | 1 iron ore, 1 torch |
-| Bosses | Tengu Slayer: Rogue | Defeat Tengu with the Rogue. | 1 iron ore, 1 torch |
-| Bosses | Tengu Slayer: Huntress | Defeat Tengu with the Huntress. | 1 iron ore, 1 torch |
-| Monsters | Monsters Slain I | Defeat 20 monsters. | 1 iron ore |
-| Monsters | Exterminator | Defeat 100 monsters. | 80 gold, 6 iron ore |
-| Monsters | Monsters Slain III | Defeat 500 monsters. | 3 iron ore, 1 healing potion |
-| Monsters | Rat Catcher | Defeat 50 rats. | 1 seeds |
-| Monsters | Snake Charmer | Defeat 20 sewer snakes. | 6 dew |
-| Monsters | Gnoll Hunter | Defeat 40 gnolls (scouts, shamans and brutes). | 1 iron ore |
-| Monsters | Crab Cracker | Defeat 25 sewer crabs. | 1 ration |
-| Monsters | Bone Collector | Defeat 25 skeletons. | 2 iron ore |
-| Monsters | Thief Taker | Defeat 10 crazy thieves. | 25 gold |
-| Monsters | Dwarf Bane | Defeat 30 of the city's dwarves, ghouls and golems. | 1 dark gold, 1 iron ore |
-| Monsters | Demon Hunter | Defeat 30 demons in the Halls. | 2 arcane resin |
-| Monsters | Ambusher | Land 25 surprise attacks. | 1 torch, 5 dew |
-| Monsters | Ambusher II | Land 150 surprise attacks. | 2 iron ore |
-| Wealth | Gold Collected I | Bank 500 gold at Camp (extractions and patrols). | 1 iron ore |
-| Wealth | Gold Collected II | Bank 2500 gold at Camp. | 2 iron ore |
-| Wealth | Gold Collected III | Bank 10000 gold at Camp. | 1 dark gold, 1 arcane resin |
-| Wealth | Big Spender I | Spend 1000 gold. | 1 torch |
-| Wealth | Big Spender II | Spend 5000 gold. | 3 iron ore |
-| Crafting | Item Level I | Upgrade gear 5 times. | 1 iron ore |
-| Crafting | Fine Steel | Own a +3 item. | 2 iron ore |
-| Crafting | Masterwork | Own a +5 item. | 1 dark gold, 1 arcane resin |
-| Crafting | Forged in Fire | Forge 3 items at the Blacksmith. | 1 iron ore |
-| Crafting | Master Brewer | Brew 10 potions. | 5 seeds, 1 healing potion |
-| Crafting | Items Crafted II | Brew 40 potions. | 2 seeds, 8 dew |
-| Items | Treasure Seeker | Find 10 pieces of gear in the dungeon. | 1 torch |
-| Items | Researcher I | Identify 5 items, potions or scrolls. | 1 seeds |
-| Items | Researcher II | Identify 25 items, potions or scrolls. | 1 seeds, 5 dew |
-| Items | Potion Drinker | Drink 15 potions. | 6 dew |
-| Items | Scroll Reader | Read 10 scrolls. | 1 arcane resin |
-| Items | Food Eaten I | Eat 20 rations. | 1 ration |
-| Items | Collector | Own 3 different artifacts. | 8 dew |
-| Items | Bestiary | Discover 20 kinds of monster. | 1 seeds |
-| Patrols | On Patrol | Bring a hero back from patrol. | 1 iron ore |
-| Patrols | Patrol Captain | Complete 10 patrols. | 2 iron ore |
-| Patrols | Night Watch | Patrol for 24 hours in total. | 1 iron ore |
-| Patrols | Curio Hunter | Bring back 10 curios from patrols. | 1 arcane resin |
-| Patrols | Well Equipped | Have one hero wear 10 gear levels. | 2 iron ore |
-| Patrols | Armed to the Teeth | Have one hero wear 20 gear levels. | 1 dark gold, 2 iron ore |
-| Camp | Builder | Upgrade a Camp facility. | 1 iron ore |
-| Camp | Thriving Camp | Make 8 facility upgrades. | 1 dark gold, 2 iron ore |
-| Camp | Scroll Mason | Raise a facility's cap with a Scroll of Upgrade. | 1 arcane resin |
-| Camp | Master of the Camp | Raise every facility's cap to the maximum. | 100 gold, 2 arcane resin |
-| Camp | Full Camp | Unlock all four heroes. | 1 seeds, 1 torch |
-| Heroes | Level Reached I | Reach level 5 with any hero. | 1 healing potion |
-| Heroes | Level Reached II | Reach level 10 with any hero. | 2 iron ore |
-| Heroes | Talented | Have one hero hold 4 talents. | 6 dew |
-| Heroes | Masked | Choose a subclass with Tengu's Mask. | 1 torch, 1 seeds |
-| Heroes | All Masks | Choose a subclass for all four heroes. | 1 dark gold, 2 iron ore |
-| Feats | Untouchable | Defeat a boss without losing any HP. | 50 gold, 1 arcane resin |
-| Feats | By Hand | Defeat a boss without Auto Battle. | 30 gold, 1 iron ore |
-| Feats | Teetotaller | Defeat a boss without drinking a potion. | 1 iron ore |
-| Feats | Close Call | Win a fight with 10% HP or less. | 1 healing potion |
-| Feats | Crowd Control | Defeat 6 or more enemies in one fight. | 6 dew, 1 iron ore |
-| Feats | Heavy Pockets | Extract with 300 or more gold in the pack. | 1 dark gold |
+| Delving | First Steps | Complete an expedition (extract). | 30.0 gold, 1.0 ration |
+| Delving | Veteran | Complete 10 expeditions. | 100.0 gold, 1.0 scroll of passage |
+| Delving | Seasoned Delver | Complete 25 expeditions. | 2.0 iron ore, 1.0 scroll of passage |
+| Delving | Deep Dive | Reach floor 6 (the Prison). | 40.0 gold, 2.0 torch |
+| Delving | Into the Caves | Reach floor 11 (the Caves). | 2.0 iron ore, 1.0 torch |
+| Delving | Dwarven Metropolis | Reach floor 16 (the City). | 1.0 dark gold, 1.0 torch |
+| Delving | Demon Halls | Reach floor 21 (the Halls). | 1.0 dark gold, 3.0 iron ore |
+| Delving | Trap Sense | Find 10 hidden traps. | 2.0 arcane resin |
+| Delving | Secret Keeper | Discover 3 hidden doors. | 1.0 dark gold, 2.0 iron key |
+| Delving | Explorer | Explore 10 special rooms. | 5.0 dew, 1.0 seeds |
+| Delving | Treasure Hunter | Open 10 chests behind doors. | 8.0 dew |
+| Bosses | Slime Time | Defeat Goo. | 5.0 iron ore, 3.0 seeds |
+| Bosses | Jailbreak | Defeat Tengu. | 3.0 dark gold, 1.0 scroll of upgrade |
+| Bosses | Clockwork Breaker | Defeat DM-300. | 1.0 dark gold, 3.0 iron ore |
+| Bosses | Regicide | Defeat the King of Dwarves. | 1.0 dark gold, 3.0 iron ore |
+| Bosses | Happy End | Defeat Yog-Dzewa. | 3.0 arcane resin, 3.0 dark gold, 100.0 gold |
+| Bosses | Full Roster | Clear the Sewers with all four heroes. | 1.0 scroll of upgrade |
+| Bosses | Full Roster II | Clear the Prison with all four heroes. | 1.0 dark gold, 2.0 iron ore |
+| Bosses | Goo Slayer: Warrior | Defeat Goo with the Warrior. | 1.0 iron ore, 1.0 seeds |
+| Bosses | Goo Slayer: Mage | Defeat Goo with the Mage. | 1.0 iron ore, 1.0 seeds |
+| Bosses | Goo Slayer: Rogue | Defeat Goo with the Rogue. | 1.0 iron ore, 1.0 seeds |
+| Bosses | Goo Slayer: Huntress | Defeat Goo with the Huntress. | 1.0 iron ore, 1.0 seeds |
+| Bosses | Tengu Slayer: Warrior | Defeat Tengu with the Warrior. | 1.0 iron ore, 1.0 torch |
+| Bosses | Tengu Slayer: Mage | Defeat Tengu with the Mage. | 1.0 iron ore, 1.0 torch |
+| Bosses | Tengu Slayer: Rogue | Defeat Tengu with the Rogue. | 1.0 iron ore, 1.0 torch |
+| Bosses | Tengu Slayer: Huntress | Defeat Tengu with the Huntress. | 1.0 iron ore, 1.0 torch |
+| Monsters | Monsters Slain I | Defeat 20 monsters. | 1.0 iron ore |
+| Monsters | Exterminator | Defeat 100 monsters. | 80.0 gold, 6.0 iron ore |
+| Monsters | Monsters Slain III | Defeat 500 monsters. | 3.0 iron ore, 1.0 healing potion |
+| Monsters | Rat Catcher | Defeat 50 rats. | 1.0 seeds |
+| Monsters | Snake Charmer | Defeat 20 sewer snakes. | 6.0 dew |
+| Monsters | Gnoll Hunter | Defeat 40 gnolls (scouts, shamans and brutes). | 1.0 iron ore |
+| Monsters | Crab Cracker | Defeat 25 sewer crabs. | 1.0 ration |
+| Monsters | Bone Collector | Defeat 25 skeletons. | 2.0 iron ore |
+| Monsters | Thief Taker | Defeat 10 crazy thieves. | 25.0 gold |
+| Monsters | Dwarf Bane | Defeat 30 of the city's dwarves, ghouls and golems. | 1.0 dark gold, 1.0 iron ore |
+| Monsters | Demon Hunter | Defeat 30 demons in the Halls. | 2.0 arcane resin |
+| Monsters | Ambusher | Land 25 surprise attacks. | 5.0 dew, 1.0 torch |
+| Monsters | Ambusher II | Land 150 surprise attacks. | 2.0 iron ore |
+| Wealth | Gold Collected I | Bank 500 gold at Camp (extractions and patrols). | 1.0 iron ore |
+| Wealth | Gold Collected II | Bank 2500 gold at Camp. | 2.0 iron ore |
+| Wealth | Gold Collected III | Bank 10000 gold at Camp. | 1.0 arcane resin, 1.0 dark gold |
+| Wealth | Big Spender I | Spend 1000 gold. | 1.0 torch |
+| Wealth | Big Spender II | Spend 5000 gold. | 3.0 iron ore |
+| Crafting | Item Level I | Upgrade gear 5 times. | 1.0 iron ore |
+| Crafting | Fine Steel | Own a +3 item. | 2.0 iron ore |
+| Crafting | Masterwork | Own a +5 item. | 1.0 arcane resin, 1.0 dark gold |
+| Crafting | Forged in Fire | Forge 3 items at the Blacksmith. | 1.0 iron ore |
+| Crafting | Master Brewer | Brew 10 potions. | 1.0 healing potion, 5.0 seeds |
+| Crafting | Items Crafted II | Brew 40 potions. | 8.0 dew, 2.0 seeds |
+| Items | Treasure Seeker | Find 10 pieces of gear in the dungeon. | 1.0 torch |
+| Items | Researcher I | Identify 5 items, potions or scrolls. | 1.0 seeds |
+| Items | Researcher II | Identify 25 items, potions or scrolls. | 5.0 dew, 1.0 seeds |
+| Items | Potion Drinker | Drink 15 potions. | 6.0 dew |
+| Items | Scroll Reader | Read 10 scrolls. | 1.0 arcane resin |
+| Items | Food Eaten I | Eat 20 rations. | 1.0 ration |
+| Items | Collector | Own 3 different artifacts. | 8.0 dew |
+| Items | Bestiary | Discover 20 kinds of monster. | 1.0 seeds |
+| Patrols | On Patrol | Bring a hero back from patrol. | 1.0 iron ore |
+| Patrols | Patrol Captain | Complete 10 patrols. | 2.0 iron ore |
+| Patrols | Night Watch | Patrol for 24 hours in total. | 1.0 iron ore |
+| Patrols | Curio Hunter | Bring back 10 curios from patrols. | 1.0 arcane resin |
+| Patrols | Well Equipped | Have one hero wear 10 gear levels. | 2.0 iron ore |
+| Patrols | Armed to the Teeth | Have one hero wear 20 gear levels. | 1.0 dark gold, 2.0 iron ore |
+| Camp | Builder | Upgrade a Camp facility. | 1.0 iron ore |
+| Camp | Thriving Camp | Make 8 facility upgrades. | 1.0 dark gold, 2.0 iron ore |
+| Camp | Scroll Mason | Raise a facility's cap with a Scroll of Upgrade. | 1.0 arcane resin |
+| Camp | Master of the Camp | Raise every facility's cap to the maximum. | 2.0 arcane resin, 100.0 gold |
+| Camp | Full Camp | Unlock all four heroes. | 1.0 seeds, 1.0 torch |
+| Heroes | Level Reached I | Reach level 5 with any hero. | 1.0 healing potion |
+| Heroes | Level Reached II | Reach level 10 with any hero. | 2.0 iron ore |
+| Heroes | Talented | Have one hero hold 4 talents. | 6.0 dew |
+| Heroes | Masked | Choose a subclass with Tengu's Mask. | 1.0 seeds, 1.0 torch |
+| Heroes | All Masks | Choose a subclass for all four heroes. | 1.0 dark gold, 2.0 iron ore |
+| Feats | Untouchable | Defeat a boss without losing any HP. | 1.0 arcane resin, 50.0 gold |
+| Feats | By Hand | Defeat a boss without Auto Battle. | 30.0 gold, 1.0 iron ore |
+| Feats | Teetotaller | Defeat a boss without drinking a potion. | 1.0 iron ore |
+| Feats | Close Call | Win a fight with 10% HP or less. | 1.0 healing potion |
+| Feats | Crowd Control | Defeat 6 or more enemies in one fight. | 6.0 dew, 1.0 iron ore |
+| Feats | Heavy Pockets | Extract with 300 or more gold in the pack. | 1.0 dark gold |
 
 ### Recipes
 
 | Facility | Recipe | Cost | Output | Min level |
 |---|---|---|---|---|
-| blacksmith | Forge Worn Shortsword | 3 iron_ore, 20 gold | worn_shortsword | 1 |
-| blacksmith | Forge Shortsword | 6 iron_ore, 40 gold | shortsword | 1 |
-| blacksmith | Forge Leather Armor | 5 iron_ore, 30 gold | leather_armor | 1 |
-| blacksmith | Forge Sword | 8 iron_ore, 2 dark_gold | sword | 2 |
-| blacksmith | Forge Mail Armor | 10 iron_ore, 3 dark_gold | mail_armor | 2 |
-| blacksmith | Forge Longsword | 14 iron_ore, 4 dark_gold | longsword | 3 |
-| blacksmith | Forge Scale Armor | 16 iron_ore, 5 dark_gold | scale_armor | 3 |
-| blacksmith | Forge Greatsword | 20 iron_ore, 8 dark_gold | greatsword | 3 |
-| blacksmith | Forge Plate Armor | 22 iron_ore, 9 dark_gold | plate_armor | 3 |
-| alchemy | Brew Potion of Healing | 2 seeds | potion_healing | 1 |
-| alchemy | Condense Dew into Healing | 20 dew | potion_healing | 1 |
-| alchemy | Brew Starter Elixir | 5 seeds, 2 arcane_resin | elixir_starter | 2 |
-| alchemy | Neutralise Toxic Gas | 1 potion_toxic, 1 seeds | potion_healing | 1 |
-| alchemy | Thin Shielding into Healing | 1 potion_shielding, 1 seeds | potion_healing | 1 |
-| alchemy | Distil Experience | 1 potion_experience, 2 seeds | elixir_starter | 2 |
-| alchemy | Rebind Teleportation | 1 scroll_teleport, 1 seeds | scroll_passage | 1 |
-| alchemy | Render Identify to Resin | 1 scroll_identify | arcane_resin | 1 |
-| alchemy | Render Mapping to Resin | 1 scroll_mapping | arcane_resin | 1 |
-| enchanter | Scribe Scroll of Passage | 2 arcane_resin, 20 gold | scroll_passage | 1 |
-| guild | Buy Ration | 10 gold | ration | 1 |
-| guild | Buy Ration Crate | 25 gold | ration | 2 |
-| guild | Buy Potion of Healing | 30 gold | potion_healing | 1 |
-| guild | Buy Torch | 8 gold | torch | 1 |
+| alchemy | Brew Potion of Healing | 2.0 seeds | potion_healing | 1.0 |
+| alchemy | Condense Dew into Healing | 20.0 dew | potion_healing | 1.0 |
+| alchemy | Brew Starter Elixir | 2.0 arcane_resin, 5.0 seeds | elixir_starter | 2.0 |
+| alchemy | Neutralise Toxic Gas | 1.0 potion_toxic, 1.0 seeds | potion_healing | 1.0 |
+| alchemy | Thin Shielding into Healing | 1.0 potion_shielding, 1.0 seeds | potion_healing | 1.0 |
+| alchemy | Distil Experience | 1.0 potion_experience, 2.0 seeds | elixir_starter | 2.0 |
+| alchemy | Rebind Teleportation | 1.0 scroll_teleport, 1.0 seeds | scroll_passage | 1.0 |
+| alchemy | Render Identify to Resin | 1.0 scroll_identify | arcane_resin | 1.0 |
+| alchemy | Render Mapping to Resin | 1.0 scroll_mapping | arcane_resin | 1.0 |
+| blacksmith | Forge Worn Shortsword | 25.0 gold, 4.0 iron_ore | worn_shortsword | 2.0 |
+| blacksmith | Forge Shortsword | 60.0 gold, 10.0 iron_ore | shortsword | 2.0 |
+| blacksmith | Forge Leather Armor | 60.0 gold, 12.0 iron_ore | leather_armor | 2.0 |
+| blacksmith | Forge Sword | 150.0 gold, 24.0 iron_ore | sword | 3.0 |
+| blacksmith | Forge Mail Armor | 150.0 gold, 28.0 iron_ore | mail_armor | 3.0 |
+| blacksmith | Forge Longsword | 15.0 dark_gold, 350.0 gold, 45.0 iron_ore | longsword | 4.0 |
+| blacksmith | Forge Scale Armor | 15.0 dark_gold, 350.0 gold, 45.0 iron_ore | scale_armor | 4.0 |
+| blacksmith | Forge Greatsword | 15.0 arcane_resin, 30.0 dark_gold, 700.0 gold, 70.0 iron_ore | greatsword | 5.0 |
+| blacksmith | Forge Plate Armor | 15.0 arcane_resin, 30.0 dark_gold, 700.0 gold, 70.0 iron_ore | plate_armor | 5.0 |
+| enchanter | Scribe Scroll of Passage | 2.0 arcane_resin, 20.0 gold | scroll_passage | 1.0 |
+| guild | Buy Ration | 10.0 gold | ration | 1.0 |
+| guild | Buy Ration Crate | 25.0 gold | ration | 2.0 |
+| guild | Buy Potion of Healing | 30.0 gold | potion_healing | 1.0 |
+| guild | Buy Torch | 8.0 gold | torch | 1.0 |
 
 ### Door Choices
 
@@ -166,7 +168,7 @@ Worn ring, artifact and the Mage's staff wand, at +0; the step is per item level
 | ozone | caves, prison, sewers, city, halls | Door A: Smells of ozone (combat) | Door B: Locked (chest) |
 | scratch | caves, sewers, city, halls | Door A: Frantic scratching (combat) | Door B: Damp, quiet (special) |
 | glint | caves, prison, sewers, city, halls | Door A: A metallic glint (combat) | Door B: Barred (1 Iron Key) (chest) |
-| cells | caves, prison, city, halls | Door A: Rattling bones (combat: skeleton, skeleton, thief) | Door B: A guard's footlocker (1 Iron Key) (chest) |
+| cells | caves, prison, city, halls | Door A: Rattling bones (combat) | Door B: A guard's footlocker (1 Iron Key) (chest) |
 | workshop | caves, prison, city, halls | Door A: Humming machinery (combat) | Door B: A quiet storeroom (special) |
 | den | caves, city, halls | Door A: Leathery wings flapping (combat) | Door B: A gnoll camp's strongbox (1 Iron Key) (chest) |
 
@@ -174,23 +176,23 @@ Worn ring, artifact and the Mage's staff wand, at +0; the step is per item level
 
 | Id | Biomes | Title | Options |
 |---|---|---|---|
-| piranha | caves, prison, sewers, city, halls | Piranha Pool | Wade in (-5 HP) / Distract with a Ration / Leave |
-| sacrificial_fire | caves, prison, sewers, city, halls | Sacrificial Fire | Offer blood (-4 HP) / Lure foes into the flame / Leave |
+| piranha | caves, prison, sewers, city, halls | Piranha Pool | Wade in (-HP) / Distract with a Ration / Leave |
+| sacrificial_fire | caves, prison, sewers, city, halls | Sacrificial Fire | Offer blood (-HP) / Lure foes into the flame / Leave |
 | statue | caves, prison, sewers, city, halls | Animated Statue | Challenge it (fight) / Leave |
-| barricade | caves, prison, sewers, city, halls | Barricade | Burn it (1 Torch) / Smash it (-3 HP) / Leave |
+| barricade | caves, prison, sewers, city, halls | Barricade | Burn it (1 Torch) / Smash it (-HP) / Leave |
 | garden | caves, prison, sewers, city, halls | Overgrown Garden | Forage / Rest in the sungrass (+35% HP, -15 food) / Harvest with a ranger's eye / Beat the deep grass |
-| trapped_hall | caves, prison, sewers, city, halls | Trapped Corridor | Search for a safe path (-10 torch) / Disarm the plates (Rogue) / Run through (-5 HP) / Leave |
+| trapped_hall | caves, prison, sewers, city, halls | Trapped Corridor | Search for a safe path (-10 torch) / Disarm the plates (Rogue) / Run through (-HP) / Leave |
 | odd_wall | caves, prison, sewers, city, halls | Suspicious Wall | Search the wall (-8 torch) / Leave |
-| cell_block | caves, prison, city, halls | Locked Cell | Unlock (1 Iron Key) / Pry the bars (-6 HP) / Leave |
+| cell_block | caves, prison, city, halls | Locked Cell | Unlock (1 Iron Key) / Pry the bars (-HP) / Leave |
 | armory | caves, prison, city, halls | Guard Armory | Scavenge / Leave |
-| crystal_vein | caves, city, halls | Crystal Vein | Mine it (-12 torch) / Pry a chunk loose (-6 HP) / Leave |
+| crystal_vein | caves, city, halls | Crystal Vein | Mine it (-12 torch) / Pry a chunk loose (-HP) / Leave |
 | vault | sewers, prison, caves, city, halls | Crystal Vault | Take the ring / Take the potion / Take the gold |
 | library | prison, caves, city, halls | Ancient Library | Search the shelves (-8 torch) / Gather arcane dust |
 | well_health | sewers, prison, caves, city, halls | Well of Health | Drink deeply / Leave |
 | well_awareness | sewers, prison, caves, city, halls | Well of Awareness | Drink / Leave |
 | laboratory | prison, caves, city, halls | Alchemy Laboratory | Search the bench / Leave |
 | treasury | sewers, prison, caves, city, halls | Collapsed Treasury | Dig it out (-10 torch) / Grab what you can |
-| shrine | city, halls | Forgotten Shrine | Offer blood (-12 HP) / Leave |
+| shrine | city, halls | Forgotten Shrine | Offer blood (-HP) / Leave |
 | larder | sewers, prison, caves, city, halls | Larder | Eat your fill / Pack rations |
 | trap_vault | sewers, prison, caves, city, halls | Trapped Vault | Disarm and loot it (Rogue) / Fight the guards among the plates / Leave |
 | prisoner | prison | Chained Prisoner | Unlock the shackles (1 Iron Key) / Fight the jailers / Leave |
@@ -199,7 +201,7 @@ Worn ring, artifact and the Mage's staff wand, at +0; the step is per item level
 
 ### Arenas
 
-10 shared 8x8 rooms, 3 sewers-only, 4 prison-only, 4 caves-only, 4 city-only, 4 halls-only, 5 boss rooms (data/rooms.json). Legend: # wall . floor " tall grass + door _ chasm ~ shallow water (conducts lightning) H hero start, 1-8 enemy spawn slots (filled in order), B boss ^ visible trap, ? hidden trap (type from the biome's trap pool). Rooms are 8x8, 10x10, or 12x12. Every + is a real threshold (open on two opposite sides, walls on the other two).
+20 shared 8x8 rooms, 10 sewers-only, 8 prison-only, 8 caves-only, 8 city-only, 8 halls-only, 5 boss rooms (data/rooms.json). Legend: # wall . floor " tall grass + door _ chasm ~ shallow water (conducts lightning) H hero start, 1-8 enemy spawn slots (filled in order), B boss ^ visible trap, ? hidden trap (type from the biome's trap pool). Rooms are 8x8, 10x10, or 12x12. Every + is a real threshold (open on two opposite sides, walls on the other two).
 
 Shared room 0:
 ```
@@ -321,6 +323,126 @@ Shared room 9:
 ########
 ```
 
+Shared room 10:
+```
+########
+#H.....#
+#.^....#
+##+##..#
+#.?..1.#
+#....2.#
+#.^..3.#
+########
+```
+
+Shared room 11:
+```
+########
+#H.""..#
+#."....#
+#......#
+###+####
+#1.^..?#
+#2....3#
+########
+```
+
+Shared room 12:
+```
+########
+#H.....#
+#.~~...#
+#.~##1.#
+#..+...#
+#.~##2.#
+#.~~.3.#
+########
+```
+
+Shared room 13:
+```
+########
+#H__...#
+#.__...#
+#......#
+##+##1.#
+#......#
+#.2..3.#
+########
+```
+
+Shared room 14:
+```
+########
+#H...."#
+#.####.#
+#.+..1.#
+#.####.#
+#2.....#
+#..."3.#
+########
+```
+
+Shared room 15:
+```
+########
+#H.....#
+#......#
+#.##1.##
+#..+...#
+#.##2.##
+#....3.#
+########
+```
+
+Shared room 16:
+```
+########
+#H.^.?.#
+#......#
+###+####
+#1.....#
+#..""..#
+#2.^..3#
+########
+```
+
+Shared room 17:
+```
+########
+#H~~~~.#
+#.~~~~1#
+#......#
+##+#####
+#2.....#
+#....3.#
+########
+```
+
+Shared room 18:
+```
+########
+#H.....#
+#.."1".#
+#......#
+#..##+##
+#2.....#
+#.__.3.#
+########
+```
+
+Shared room 19:
+```
+########
+#H.....#
+#......#
+#1.....#
+#####+##
+#.?^..2#
+#....3.#
+########
+```
+
 sewers room 0:
 ```
 ########
@@ -355,6 +477,98 @@ sewers room 2:
 #..##""#
 #.2..3.#
 ########
+```
+
+sewers room 3:
+```
+########
+#H.^...#
+#.?....#
+##+##..#
+#.^..1.#
+#....2.#
+#.?..3.#
+########
+```
+
+sewers room 4:
+```
+########
+#H..~~.#
+#.^##..#
+#..+..1#
+#..##..#
+#2.?~..#
+#....3.#
+########
+```
+
+sewers room 5:
+```
+########
+#H"""".#
+#."""".#
+###+####
+#1.....#
+#..^..2#
+#....3.#
+########
+```
+
+sewers room 6:
+```
+##########
+#H.......#
+#..""....#
+#........#
+#...##+###
+#........#
+#.1......#
+#....~~..#
+#.2......#
+##########
+```
+
+sewers room 7:
+```
+##########
+#H.......#
+#.^......#
+#....?..1#
+#..##+##.#
+#........#
+#2.^.....#
+#....?...#
+#........#
+##########
+```
+
+sewers room 8:
+```
+##########
+#H~~.....#
+#.~~.....#
+#........#
+#.###+####
+#........#
+#1.......#
+#.__.....#
+#2.......#
+##########
+```
+
+sewers room 9:
+```
+##########
+#H.......#
+#.####...#
+#.#..#..1#
+#.#..+...#
+#.#..#...#
+#2####...#
+#........#
+#........#
+##########
 ```
 
 prison room 0:
@@ -413,6 +627,62 @@ prison room 3:
 ##########
 ```
 
+prison room 4:
+```
+##########
+#H.......#
+#.^..?...#
+#.......1#
+#..##+##.#
+#........#
+#2.^..?..#
+#........#
+#........#
+##########
+```
+
+prison room 5:
+```
+##########
+#H.......#
+#.##.....#
+#.#....1.#
+#.+......#
+#.#....2.#
+#.##.....#
+#........#
+#........#
+##########
+```
+
+prison room 6:
+```
+##########
+#H.""....#
+#."".....#
+#.......1#
+###+######
+#........#
+#2.......#
+#..__....#
+#........#
+##########
+```
+
+prison room 7:
+```
+##########
+#H.......#
+#...?....#
+#.^..##1.#
+#....+...#
+#.^..##2.#
+#...?....#
+#........#
+#........#
+##########
+```
+
 caves room 0:
 ```
 ##########
@@ -464,6 +734,62 @@ caves room 3:
 #....+...#
 #..~~##..#
 #2.......#
+#........#
+#........#
+##########
+```
+
+caves room 4:
+```
+##########
+#H.......#
+#.^..~~..#
+#.?.....1#
+#...##+###
+#........#
+#2.^.....#
+#....~~..#
+#........#
+##########
+```
+
+caves room 5:
+```
+##########
+#H__.....#
+#.__.....#
+#.......1#
+#...##+###
+#........#
+#2.......#
+#."".....#
+#........#
+##########
+```
+
+caves room 6:
+```
+##########
+#H.......#
+#.####...#
+#.#..#.1.#
+#.#..+...#
+#.#..#...#
+#2####...#
+#.~......#
+#.~......#
+##########
+```
+
+caves room 7:
+```
+##########
+#H.^.?...#
+#........#
+#.......1#
+#####+####
+#........#
+#2.^..?..#
 #........#
 #........#
 ##########
@@ -529,6 +855,66 @@ city room 3:
 ############
 ```
 
+city room 4:
+```
+##########
+#H.......#
+#.^..?...#
+#...#...1#
+##+##....#
+#........#
+#2.^..?..#
+#........#
+#........#
+##########
+```
+
+city room 5:
+```
+############
+#H.........#
+#..^...?..1#
+#..........#
+#..........#
+##+#########
+#..........#
+#.2.^......#
+#.....?....#
+#..........#
+#..........#
+############
+```
+
+city room 6:
+```
+############
+#H.........#
+#.####.....#
+#.#..#....1#
+#.#..+.....#
+#.#..#.....#
+#.####.....#
+#.2........#
+#..........#
+#.~.~......#
+#..........#
+############
+```
+
+city room 7:
+```
+##########
+#H.......#
+#."".....#
+#.......1#
+#.#..##+##
+#.#......#
+#2.......#
+#.__.....#
+#........#
+##########
+```
+
 halls room 0:
 ```
 ############
@@ -588,6 +974,70 @@ halls room 3:
 #.2....#...#
 #..........#
 #..........#
+#..........#
+#..........#
+############
+```
+
+halls room 4:
+```
+############
+#H.........#
+#.^....?...#
+#......1...#
+#....#.#...#
+#....#+#...#
+#.2........#
+#.^....?...#
+#.__.......#
+#..........#
+#..........#
+############
+```
+
+halls room 5:
+```
+############
+#H.........#
+#..........#
+#.1........#
+#####+######
+#..........#
+#....2.....#
+#.^........#
+#.....?....#
+#..........#
+#..........#
+############
+```
+
+halls room 6:
+```
+############
+#H~~.......#
+#.~~.......#
+#......1...#
+#....##+##.#
+#..2.......#
+#..........#
+#.__.......#
+#.__.......#
+#."".......#
+#..........#
+############
+```
+
+halls room 7:
+```
+############
+#H.........#
+#.####.....#
+#.#..#.1...#
+#.#..+.....#
+#.#..#.....#
+#.####.2...#
+#..........#
+#.^...?....#
 #..........#
 #..........#
 ############

@@ -874,3 +874,10 @@ Larger 10x10 / 12x12 arenas (and future room types) shrink cells when the camera
 
 ## 236. Mobile wide combat on ultrawide PC
 With Interface Mobile (or a landscape window using the Mobile split), the D-pad used to size itself from `_area.x * 0.48`, so a ~1900x960 PC fullscreen grew monitor-sized arrows. Fold cover portrait was fine. The side column still expands to fill leftover width (status, log, Victory). Only the D-pad basis is capped (`min(45% width, 20 font sizes)`, hard cell cap ~3.5 font sizes) so controls stay finger-sized inside the wide column. PC players who want vanilla SPD chrome should still use Interface Auto/Desktop (#232). Where it lives: `CombatScreen.wide_pad_basis`, `_mobile_pad_cell`.
+
+## 237. Floor feelings (XL, Secret, Traps)
+SPD-style level feelings adapted to the delve bar (no full levelgen). Each biome seeds `run.feeling_plan` with **at least one** feeling on a non-boss floor and **rarely two** (~20%, distinct kinds); the plan **resets** when entering a new biome (`start_run` / `continue_deeper`). Boss floors never get a feeling. The active `run.feeling` is set in `plan_floor` and announced with an SPD log line on descend (and on run start if floor 1 is planned).
+- **XL:** weight large rooms ~3× in `room_pool` (Sewers include 10×10 maps), prefer denser encounter packs, ensure a special event, +1 ration when leaving the floor.
+- **Secret:** force `odd_wall` on a special slot; `search_floor` always finds; secret-cache gold ×1.5.
+- **Traps:** prefer authored rooms with more `^`/`?` (no map mutation); force `trap_vault`.
+Dark / Water / Grass / Chasm and Mossy Clump / Trap Mechanism trinket hooks are deferred. Room and encounter packs were roughly doubled so feelings have variety to bias. Where it lives: `Delve.plan_biome_feelings` / feeling biases, `GameState.start_run` / `RUN_DEFAULTS`, `data/rooms.json`, `data/biomes.json`, `test_floor_feelings`.

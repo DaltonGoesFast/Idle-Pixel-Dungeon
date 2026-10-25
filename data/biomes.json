@@ -79,6 +79,71 @@
      "snake",
      "snake"
     ]
+   },
+   {
+    "min_floor": 1,
+    "mobs": [
+     "rat"
+    ]
+   },
+   {
+    "min_floor": 1,
+    "mobs": [
+     "snake",
+     "rat",
+     "rat"
+    ]
+   },
+   {
+    "min_floor": 2,
+    "mobs": [
+     "gnoll"
+    ]
+   },
+   {
+    "min_floor": 2,
+    "mobs": [
+     "crab",
+     "snake"
+    ]
+   },
+   {
+    "min_floor": 3,
+    "mobs": [
+     "gnoll",
+     "gnoll"
+    ]
+   },
+   {
+    "min_floor": 3,
+    "mobs": [
+     "crab",
+     "snake",
+     "rat"
+    ]
+   },
+   {
+    "min_floor": 4,
+    "mobs": [
+     "gnoll",
+     "crab",
+     "rat"
+    ]
+   },
+   {
+    "min_floor": 4,
+    "mobs": [
+     "crab",
+     "crab"
+    ]
+   },
+   {
+    "min_floor": 4,
+    "mobs": [
+     "gnoll",
+     "snake",
+     "snake"
+    ]
    }
   ],
   "event_weights": {
@@ -216,6 +281,73 @@
      "skeleton",
      "thief"
     ]
+   },
+   {
+    "min_floor": 6,
+    "mobs": [
+     "skeleton",
+     "skeleton"
+    ]
+   },
+   {
+    "min_floor": 6,
+    "mobs": [
+     "thief",
+     "thief"
+    ]
+   },
+   {
+    "min_floor": 6,
+    "mobs": [
+     "dm100",
+     "thief"
+    ]
+   },
+   {
+    "min_floor": 7,
+    "mobs": [
+     "guard",
+     "skeleton"
+    ]
+   },
+   {
+    "min_floor": 7,
+    "mobs": [
+     "dm100",
+     "thief",
+     "skeleton"
+    ]
+   },
+   {
+    "min_floor": 8,
+    "mobs": [
+     "guard",
+     "guard"
+    ]
+   },
+   {
+    "min_floor": 8,
+    "mobs": [
+     "skeleton",
+     "thief",
+     "thief"
+    ]
+   },
+   {
+    "min_floor": 9,
+    "mobs": [
+     "guard",
+     "dm100",
+     "skeleton"
+    ]
+   },
+   {
+    "min_floor": 9,
+    "mobs": [
+     "guard",
+     "thief",
+     "thief"
+    ]
    }
   ],
   "secret_cache": {
@@ -343,6 +475,71 @@
      "spinner",
      "brute"
     ]
+   },
+   {
+    "min_floor": 11,
+    "mobs": [
+     "bat",
+     "bat"
+    ]
+   },
+   {
+    "min_floor": 11,
+    "mobs": [
+     "brute",
+     "bat"
+    ]
+   },
+   {
+    "min_floor": 11,
+    "mobs": [
+     "shaman"
+    ]
+   },
+   {
+    "min_floor": 12,
+    "mobs": [
+     "spinner",
+     "bat"
+    ]
+   },
+   {
+    "min_floor": 12,
+    "mobs": [
+     "brute",
+     "brute"
+    ]
+   },
+   {
+    "min_floor": 13,
+    "mobs": [
+     "shaman",
+     "shaman"
+    ]
+   },
+   {
+    "min_floor": 13,
+    "mobs": [
+     "spinner",
+     "brute",
+     "bat"
+    ]
+   },
+   {
+    "min_floor": 14,
+    "mobs": [
+     "spinner",
+     "shaman",
+     "bat"
+    ]
+   },
+   {
+    "min_floor": 14,
+    "mobs": [
+     "brute",
+     "shaman",
+     "bat"
+    ]
    }
   ],
   "water": "water2",
@@ -461,6 +658,71 @@
      "ghoul",
      "monk"
     ]
+   },
+   {
+    "min_floor": 16,
+    "mobs": [
+     "ghoul",
+     "ghoul"
+    ]
+   },
+   {
+    "min_floor": 16,
+    "mobs": [
+     "monk",
+     "ghoul"
+    ]
+   },
+   {
+    "min_floor": 16,
+    "mobs": [
+     "warlock"
+    ]
+   },
+   {
+    "min_floor": 17,
+    "mobs": [
+     "golem",
+     "ghoul"
+    ]
+   },
+   {
+    "min_floor": 17,
+    "mobs": [
+     "monk",
+     "warlock"
+    ]
+   },
+   {
+    "min_floor": 18,
+    "mobs": [
+     "golem",
+     "monk"
+    ]
+   },
+   {
+    "min_floor": 18,
+    "mobs": [
+     "warlock",
+     "ghoul",
+     "ghoul"
+    ]
+   },
+   {
+    "min_floor": 19,
+    "mobs": [
+     "golem",
+     "monk",
+     "ghoul"
+    ]
+   },
+   {
+    "min_floor": 19,
+    "mobs": [
+     "warlock",
+     "monk",
+     "monk"
+    ]
    }
   ],
   "water": "water3",
@@ -570,6 +832,72 @@
     "min_floor": 24,
     "mobs": [
      "eye",
+     "scorpio"
+    ]
+   },
+   {
+    "min_floor": 21,
+    "mobs": [
+     "succubus",
+     "ripper"
+    ]
+   },
+   {
+    "min_floor": 21,
+    "mobs": [
+     "eye",
+     "ripper"
+    ]
+   },
+   {
+    "min_floor": 21,
+    "mobs": [
+     "ripper",
+     "ripper",
+     "ripper"
+    ]
+   },
+   {
+    "min_floor": 22,
+    "mobs": [
+     "scorpio",
+     "ripper"
+    ]
+   },
+   {
+    "min_floor": 22,
+    "mobs": [
+     "succubus",
+     "succubus"
+    ]
+   },
+   {
+    "min_floor": 23,
+    "mobs": [
+     "eye",
+     "scorpio"
+    ]
+   },
+   {
+    "min_floor": 23,
+    "mobs": [
+     "succubus",
+     "ripper",
+     "ripper"
+    ]
+   },
+   {
+    "min_floor": 24,
+    "mobs": [
+     "eye",
+     "succubus",
+     "ripper"
+    ]
+   },
+   {
+    "min_floor": 24,
+    "mobs": [
+     "scorpio",
      "scorpio"
     ]
    }

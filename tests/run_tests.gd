@@ -117,6 +117,7 @@ func _ready() -> void:
 	test_weapons(gs)
 	test_weapon_loot(gs)
 	test_delve(gs)
+	test_floor_feelings(gs)
 	test_camp(gs)
 	test_camp_npc_hits()
 	test_camp_grass_clear_of_npcs()
@@ -619,6 +620,73 @@ func test_cavesrun(gs) -> void:
 		if cls == "warrior" and cs[1] == "": check(wins >= 2, "a geared Warrior can clear all 15 floors in one run sometimes")
 	var best_rogue := maxi(res["rogue:assassin"], res["rogue:freerunner"])
 	check(best_rogue >= 4, "a Rogue subclass makes the Caves winnable (best %d/10)" % best_rogue)
+
+## Floor feelings (DECISIONS #237): per-biome quota, XL / Secret / Traps biases.
+func test_floor_feelings(gs) -> void:
+	print("[feelings]")
+	gs.new_game()
+	for seed in 20:
+		gs.start_run("warrior", {"ration": 1, "torch": 1}, "sewers", 2000 + seed)
+		var plan: Dictionary = gs.run.feeling_plan
+		check(plan.size() >= 1 and plan.size() <= 2, "sewers feeling count 1-2 (seed %d got %d)" % [seed, plan.size()])
+		var seen_feel := {}
+		for k in plan:
+			var f := int(k)
+			check(f >= 1 and f <= 4, "feeling floor %d is non-boss" % f)
+			check(String(plan[k]) in Delve.FEELINGS, "known feeling %s" % plan[k])
+			seen_feel[String(plan[k])] = true
+		if plan.size() == 2:
+			check(seen_feel.size() == 2, "two feelings on one biome are distinct")
+		gs.end_run("extract")
+	# biome change resets the plan onto the next biome's floors
+	gs.start_run("warrior", {"ration": 2, "torch": 2}, "sewers", 42)
+	var sewers_plan: Dictionary = gs.run.feeling_plan.duplicate(true)
+	gs.run.biome = "prison"
+	Delve.plan_biome_feelings(gs.run)
+	check(gs.run.feeling_plan.size() >= 1 and gs.run.feeling_plan.size() <= 2, "prison feeling count 1-2")
+	for k in gs.run.feeling_plan:
+		check(int(k) >= 6 and int(k) <= 9, "prison feelings only on 6-9")
+	check(not gs.run.feeling_plan.has("1") and not gs.run.feeling_plan.has("2"), "prison plan is not the sewers floors")
+	check(sewers_plan.size() >= 1, "sewers had a plan before the switch")
+	# Secret: force odd_wall + guaranteed Search
+	gs.new_game()
+	gs.start_run("warrior", {"ration": 1, "torch": 3}, "sewers", 9)
+	gs.run.feeling_plan = {"2": "secret"}
+	gs.run.floor = 2
+	Delve.plan_floor(gs.run)
+	check(String(gs.run.feeling) == "secret", "secret feeling applied")
+	var odd := false
+	for e in gs.run.events:
+		if String(e.get("force_special", "")) == "odd_wall": odd = true
+	check(odd, "secret forces odd_wall")
+	gs.run.torch = 50.0; gs.run.searched_floor = 0
+	check(Delve.search_floor(gs).begins_with("A hidden door"), "secret floor Search always finds")
+	# Traps: force trap_vault
+	gs.run.feeling_plan = {"3": "traps"}
+	gs.run.floor = 3
+	Delve.plan_floor(gs.run)
+	var vault := false
+	for e in gs.run.events:
+		if String(e.get("force_special", "")) == "trap_vault": vault = true
+	check(vault, "traps forces trap_vault")
+	# XL: large rooms weighted up; spare ration on clear
+	gs.run.feeling_plan = {"2": "xl"}
+	gs.run.floor = 2
+	Delve.apply_feeling_for_floor(gs.run)
+	var large_xl := 0
+	for rm in Delve.room_pool(gs.run):
+		if Delve.is_large_room(rm): large_xl += 1
+	gs.run.feeling = ""
+	var large_n := 0
+	for rm in Delve.room_pool(gs.run):
+		if Delve.is_large_room(rm): large_n += 1
+	check(large_xl > large_n, "XL weights large rooms (%d > %d)" % [large_xl, large_n])
+	gs.run.feeling = "xl"; gs.run.xl_ration_floor = -1
+	var before := int(gs.run.supplies.get("ration", 0))
+	Delve._grant_xl_clear_reward(gs)
+	check(int(gs.run.supplies.ration) == before + 1, "XL spare ration on clear")
+	check(DB.rooms.size() >= 20 and DB.biome_rooms.sewers.size() >= 10, "heavy room content shipped")
+	check(DB.biomes.sewers.encounter_sets.size() >= 16, "heavy encounter packs shipped")
 
 func test_delve(gs) -> void:
 	print("[delve]")

@@ -74,104 +74,104 @@ GDD target: 12-13 Str, tier 2-3 gear. Two Sewers Strength potions take a fresh h
 
 | Mob | HT | Dmg | DR | Delay (ticks) | EXP | Gold | SPD source | Tuning |
 |---|---|---|---|---|---|---|---|---|
-| Marsupial Rat | 8 | 2 | 0 | 1.0 | 1 | 2 | HT 8, dmg 1-4, DR 0-1 | - |
-| Sewer Snake | 4 | 2 | 0 | 1.0 | 2 | 2 | HT 4, dmg 1-4; melee only by surprise; magic always hits; slips the first bow shot | - |
-| Gnoll Scout | 12 | 3 | 1 | 1.0 | 2 | 3 | HT 12, dmg 1-6, DR 0-2 |  Throws need a clear line (#155). |
-| Sewer Crab | 15 | 2 | 1 | 0.5 | 4 | 4 | HT 15, dmg 1-7, DR 0-4, speed 2x | dmg 4->2, DR 2->1: at 2 attacks/tick SPD avg damage was unbeatable without RNG misses |
-| Animated Statue | 20 | 4 | 2 | 1.0 | 5 | 6 | HT 15+5*depth, dmg 2+depth..2+3*depth (depth 2) | fixed to depth-2 values |
-| Goo | 90 | 4 | 0 | 1.0 | 10 | 30 | HT 100, dmg 1-8 (1-12 below half), DR 0-2, pump-up = 3x | HT 90 (SPD 100; was 70), dmg 4, enraged 6. Pump every 4 acts, every 3 below half HP. Regenerates 1 HP/turn in water; the arena has 2 water tiles like SPD's pools. Each earlier death to Goo removes 15 HT (floor 70, which also stops the enrage) until it is killed. A Goo death also restocks 2 Potions of Healing (DECISIONS #131). |
-| Skeleton | 20 | 4 | 2 | 1.0 | 5 | 4 | HT 25, dmg 2-10, DR 0-5; explodes on death for 6-12 to adjacent | HT 25->20, dmg 4. The death explosion is a 1-tick 3x3 telegraph (5 dmg) instead of instant, so melee heroes can step away |
-| Crazy Thief | 16 | 3 | 1 | 1.0 | 5 | 5 | HT 20, dmg 1-10, DR 0-3; steals an item and flees | steals 5% of pack gold (at least 1) on first hit, then flees; if not hit for 4 of its turns it escapes with that gold; kill it for loot + the stolen gold |
-| DM-100 | 16 | 3 | 2 | 1.0 | 6 | 5 | HT 20, dmg 2-8, DR 0-4; ranged lightning 3-10 | zap is a 1-tick red tile at range 2-4 (5 dmg, DR applies); cooldown 3 actions Needs a clear line; lightning x1.5 if you stand in water (#155). |
-| Prison Guard | 28 | 5 | 3 | 1.0 | 7 | 6 | HT 40, dmg 4-12, DR 0-7; chains and pulls the hero | HT 40->28, dmg 8->5, DR 3: once per fight pulls the hero adjacent from range 2-3 |
-| Tengu | 90 | 6 | 2 | 1.0 | 20 | 60 | HT 200, dmg 6-12, DR 0-5; phase 1 teleports & throws shurikens, phase 2 bombs/fire/shockers | HT 200->90. Blinks away every 15 HP lost; shuriken = 1-tick red tile (6). Below half HP lobs a 3x3 bomb every 3 actions (2-tick fuse, 8 dmg, also hurts mobs) |
-| Vampire Bat | 24 | 6 | 2 | 0.5 | 7 | 5 | HT 30, dmg 5-18, DR 0-4, speed 2x, heals (damage dealt - 4) on hit | HT 24, dmg 11->6 (it attacks twice per tick), heals (damage dealt - 2) like SPD's (dealt - 4) |
-| Gnoll Brute | 34 | 8 | 4 | 1.0 | 8 | 7 | HT 40, dmg 5-25 (15-40 enraged), DR 0-8 | HT 34, dmg 7, enraged (below half HP) 10 |
-| Gnoll Shaman | 26 | 7 | 3 | 1.0 | 8 | 7 | HT 35, dmg 5-10, DR 0-6; magic bolt 6-15 | magic zap = 1-tick red tile, 6 dmg ignoring DR, range 2-4, every 2 actions Holds range; red shamans (even uid) weaken, blue ones make you vulnerable for 3 turns (#155). |
-| Cave Spinner | 32 | 8 | 3 | 1.0 | 9 | 8 | HT 50, dmg 10-20, DR 0-6; poison bite, webs | HT 32, dmg 6, bite adds 3 poison. Spits a web at range 2-4 every 4 actions (red tile; rooted 2 turns: you can attack but not step) (#155). |
-| DM-300 | 160 | 8 | 4 | 1.0 | 30 | 100 | HT 300, dmg 15-25, DR 0-10; rockfall, toxic vents, supercharge with pylons | HT 160, dmg 8, DR 4 (+2 supercharged below half HP). Every 3 actions (2 supercharged) alternates rockfall (+ shape on you, 2-tick fuse, 10) and a toxic gas line (1 tick, 3 + 4 poison). No pylons. |
-| Dwarven Ghoul | 40 | 9 | 4 | 1.0 | 10 | 8 | HT 45, dmg 16-22, DR 0-4; rises again unless all ghouls die | HT 40, dmg 9; the first time it dies it gets back up with half HP after 2 ticks (red tile on its corpse) |
-| Dwarf Warlock | 34 | 7 | 3 | 1.0 | 10 | 9 | HT 70, dmg 12-18, DR 0-8; shadow bolt 12-18 + weakness | HT 34; shadow bolt = 1-tick red tile, 9 dmg ignoring DR, every 2 actions Holds range; the bolt weakens for 3 turns (#155). |
-| Dwarf Monk | 34 | 5 | 3 | 0.5 | 10 | 8 | HT 70, dmg 12-25, fast attacks, DR 0-2; disarms | HT 34, dmg 5, acts twice per tick Every 3rd hit knocks your weapon aside (weakened 2 turns) (#155). |
-| Golem | 75 | 15 | 7 | 1.5 | 14 | 12 | HT 120, dmg 25-30, DR 0-12; slow | HT 75, dmg 15, DR 7, acts every 1.5 ticks Every 6 actions pulls a hero it sees at range 3+ to its side (#155). |
-| King of Dwarves | 140 | 8 | 5 | 1.0 | 40 | 150 | HT 300, dmg 15-25, DR 0-10; summons, lifelinks, 3 phases | HT 140, dmg 8, DR 5. Phase 1 (>1/2 HP): every 3 actions alternates raising 2 Risen Dwarves (only when none are left) and a shadow blast (3x3 on you, 2 ticks, 8 ignoring DR); living dwarves lifelink him (he takes 2/3 damage). Phase 2 (<=1/2): +3 dmg. Phase 3 (<=1/4): throne cracks - no more summons, blasts only. |
-| Risen Dwarf | 18 | 6 | 2 | 1.0 | 2 | 0 | summon | weak summon of the Dwarf King |
-| Succubus | 70 | 16 | 5 | 1.0 | 12 | 14 | HT 80, dmg 25-30, DR 0-10; charm, lifesteal, blink | HT 70, dmg 16, DR 5; heals 5 per bite Once per fight blinks next to you from range 3+, only if nothing else is next to you (#155). |
-| Ripper Demon | 40 | 14 | 3 | 0.6 | 10 | 10 | HT 60, dmg 15-25, DR 0-4; leaps, fast | HT 40, dmg 14, DR 3, acts every 0.6 ticks Telegraphed leap onto your tile from range 2-4 (dmg, then lands), cooldown 4 (#155). |
-| Evil Eye | 60 | 12 | 4 | 1.0 | 13 | 14 | HT 100, dmg 20-30, DR 0-10; disintegration beam | HT 60, dmg 12; beam = 1-tick red tile, 20 ignoring DR, every 2 actions The beam lights the whole line through you out to range 6; the eye charges while it is up (#155). |
-| Scorpio | 72 | 16 | 6 | 1.0 | 14 | 14 | HT 110, dmg 30-40, DR 0-16; ranged spit, cripple | HT 72, dmg 16, DR 6; spits at range 2-4, bite poisons The bite cripples (steps cost 2 ticks) for 2 turns (#155). |
-| God's Larva | 18 | 9 | 2 | 1.0 | 0 | 0 | HT 25, dmg 22-30 | HT 18, dmg 9 |
-| Yog-Dzewa | 100 | 14 | 6 | 1.0 | 60 | 250 | HT 1000, immobile; fists, larva, beams, phases | HT 100, DR 6, immobile. Phases: a Burning Fist at the start, a Rotting Fist at 2/3 HP and a Bright Fist at 1/3; Yog takes no damage while a fist lives. Every 3 actions (2 below half HP) alternates larva and a row/column gaze (9). Fists and larva crumble when Yog dies. |
-| Burning Fist | 40 | 8 | 4 | 1.0 | 0 | 0 | HT 300, dmg 18-36, sets fires | HT 40, dmg 10. Shields Yog while it lives. |
-| Rotting Fist | 45 | 7 | 5 | 1.0 | 0 | 0 | HT 300, poisons, regenerates in water | HT 45, dmg 8 + 2 poison. Shields Yog while it lives. |
-| Bright Fist | 35 | 6 | 3 | 1.0 | 0 | 0 | HT 300, ranged light zaps, blinds | HT 35, dmg 6, zaps 8 at range. Shields Yog while it lives. Holds range (#155). |
+| Vampire Bat | 24.0 | 6.0 | 2.0 | 0.5 | 7.0 | 5.0 | HT 30, dmg 5-18, DR 0-4, speed 2x, heals (damage dealt - 4) on hit | HT 24, dmg 11->6 (it attacks twice per tick), heals (damage dealt - 2) like SPD's (dealt - 4) |
+| Gnoll Brute | 34.0 | 8.0 | 4.0 | 1.0 | 8.0 | 7.0 | HT 40, dmg 5-25 (15-40 enraged), DR 0-8 | HT 34, dmg 7, enraged (below half HP) 10 |
+| Sewer Crab | 15.0 | 2.0 | 1.0 | 0.5 | 4.0 | 4.0 | HT 15, dmg 1-7, DR 0-4, speed 2x | dmg 4->2, DR 2->1: at 2 attacks/tick SPD avg damage was unbeatable without RNG misses |
+| King of Dwarves | 140.0 | 10.0 | 5.0 | 1.0 | 40.0 | 150.0 | HT 300, dmg 15-25, DR 0-10; summons, lifelinks, 3 phases | HT 140, dmg 10, DR 5. Phase 1 (>1/2 HP): every 3 actions alternates raising 2 Risen Dwarves (only when none are left) and a shadow blast (3x3 on you, 2 ticks, 8 ignoring DR); living dwarves lifelink him (he takes 2/3 damage). Phase 2 (<=1/2): +3 dmg. Phase 3 (<=1/4): throne cracks - no more summons, blasts only. |
+| DM-100 | 16.0 | 3.0 | 2.0 | 1.0 | 6.0 | 5.0 | HT 20, dmg 2-8, DR 0-4; ranged lightning 3-10 | zap is a 1-tick red tile at range 2-4 (5 dmg, DR applies); cooldown 3 actions Needs a clear line; lightning x1.5 if you stand in water (#155). |
+| DM-300 | 160.0 | 8.0 | 4.0 | 1.0 | 30.0 | 100.0 | HT 300, dmg 15-25, DR 0-10; rockfall, toxic vents, supercharge with pylons | HT 160, dmg 8, DR 4 (+2 supercharged below half HP). Every 3 actions (2 supercharged) alternates rockfall (+ shape on you, 2-tick fuse, 10) and a toxic gas line (1 tick, 3 + 4 poison). No pylons. |
+| Evil Eye | 60.0 | 15.0 | 4.0 | 1.0 | 13.0 | 14.0 | HT 100, dmg 20-30, DR 0-10; disintegration beam | HT 60, dmg 15; beam = 1-tick red tile, 20 ignoring DR, every 2 actions The beam lights the whole line through you out to range 6; the eye charges while it is up (#155). |
+| Bright Fist | 35.0 | 10.0 | 3.0 | 1.0 | 0.0 | 0.0 | HT 300, ranged light zaps, blinds | HT 35, dmg 10, zaps 7 at range. Shields Yog while it lives. Holds range (#155). |
+| Burning Fist | 40.0 | 13.0 | 4.0 | 1.0 | 0.0 | 0.0 | HT 300, dmg 18-36, sets fires | HT 40, dmg 13. Shields Yog while it lives. |
+| Rotting Fist | 45.0 | 12.0 | 5.0 | 1.0 | 0.0 | 0.0 | HT 300, poisons, regenerates in water | HT 45, dmg 12 + 2 poison. Shields Yog while it lives. |
+| Dwarven Ghoul | 40.0 | 11.0 | 4.0 | 1.0 | 10.0 | 8.0 | HT 45, dmg 16-22, DR 0-4; rises again unless all ghouls die | HT 40, dmg 11; the first time it dies it gets back up with half HP after 2 ticks (red tile on its corpse) |
+| Risen Dwarf | 18.0 | 8.0 | 2.0 | 1.0 | 2.0 | 0.0 | summon | weak summon of the Dwarf King |
+| Gnoll Scout | 12.0 | 3.0 | 1.0 | 1.0 | 2.0 | 3.0 | HT 12, dmg 1-6, DR 0-2 |  Throws need a clear line (#155). |
+| Golem | 75.0 | 18.0 | 7.0 | 1.5 | 14.0 | 12.0 | HT 120, dmg 25-30, DR 0-12; slow | HT 75, dmg 18, DR 7, acts every 1.5 ticks Every 6 actions pulls a hero it sees at range 3+ to its side (#155). |
+| Goo | 90.0 | 4.0 | 0.0 | 1.0 | 10.0 | 30.0 | HT 100, dmg 1-8 (1-12 below half), DR 0-2, pump-up = 3x | HT 90 (SPD 100; was 70), dmg 4, enraged 6. Pump every 4 acts, every 3 below half HP. Regenerates 1 HP/turn in water; the arena has 2 water tiles like SPD's pools. Each earlier death to Goo removes 15 HT (floor 70, which also stops the enrage) until it is killed. A Goo death also restocks 2 Potions of Healing (DECISIONS #131). |
+| Prison Guard | 28.0 | 5.0 | 3.0 | 1.0 | 7.0 | 6.0 | HT 40, dmg 4-12, DR 0-7; chains and pulls the hero | HT 40->28, dmg 8->5, DR 3: once per fight pulls the hero adjacent from range 2-3 |
+| God's Larva | 18.0 | 12.0 | 2.0 | 1.0 | 0.0 | 0.0 | HT 25, dmg 22-30 | HT 18, dmg 12 |
+| Dwarf Monk | 34.0 | 7.0 | 3.0 | 0.5 | 10.0 | 8.0 | HT 70, dmg 12-25, fast attacks, DR 0-2; disarms | HT 34, dmg 7, acts twice per tick Every 3rd hit knocks your weapon aside (weakened 2 turns) (#155). |
+| Marsupial Rat | 8.0 | 2.0 | 0.0 | 1.0 | 1.0 | 2.0 | HT 8, dmg 1-4, DR 0-1 | - |
+| Ripper Demon | 40.0 | 17.0 | 3.0 | 0.6 | 10.0 | 10.0 | HT 60, dmg 15-25, DR 0-4; leaps, fast | HT 40, dmg 17, DR 3, acts every 0.6 ticks Telegraphed leap onto your tile from range 2-4 (dmg, then lands), cooldown 4 (#155). |
+| Scorpio | 72.0 | 20.0 | 6.0 | 1.0 | 14.0 | 14.0 | HT 110, dmg 30-40, DR 0-16; ranged spit, cripple | HT 72, dmg 20, DR 6; spits at range 2-4, bite poisons The bite cripples (steps cost 2 ticks) for 2 turns (#155). |
+| Gnoll Shaman | 26.0 | 7.0 | 3.0 | 1.0 | 8.0 | 7.0 | HT 35, dmg 5-10, DR 0-6; magic bolt 6-15 | magic zap = 1-tick red tile, 6 dmg ignoring DR, range 2-4, every 2 actions Holds range; red shamans (even uid) weaken, blue ones make you vulnerable for 3 turns (#155). |
+| Skeleton | 20.0 | 4.0 | 2.0 | 1.0 | 5.0 | 4.0 | HT 25, dmg 2-10, DR 0-5; explodes on death for 6-12 to adjacent | HT 25->20, dmg 4. The death explosion is a 1-tick 3x3 telegraph (5 dmg) instead of instant, so melee heroes can step away |
+| Sewer Snake | 4.0 | 2.0 | 0.0 | 1.0 | 2.0 | 2.0 | HT 4, dmg 1-4; melee only by surprise; magic always hits; slips the first bow shot | - |
+| Cave Spinner | 32.0 | 8.0 | 3.0 | 1.0 | 9.0 | 8.0 | HT 50, dmg 10-20, DR 0-6; poison bite, webs | HT 32, dmg 6, bite adds 3 poison. Spits a web at range 2-4 every 4 actions (red tile; rooted 2 turns: you can attack but not step) (#155). |
+| Animated Statue | 20.0 | 4.0 | 2.0 | 1.0 | 5.0 | 6.0 | HT 15+5*depth, dmg 2+depth..2+3*depth (depth 2) | fixed to depth-2 values |
+| Succubus | 70.0 | 19.0 | 5.0 | 1.0 | 12.0 | 14.0 | HT 80, dmg 25-30, DR 0-10; charm, lifesteal, blink | HT 70, dmg 19, DR 5; heals 5 per bite Once per fight blinks next to you from range 3+, only if nothing else is next to you (#155). |
+| Tengu | 90.0 | 6.0 | 2.0 | 1.0 | 20.0 | 60.0 | HT 200, dmg 6-12, DR 0-5; phase 1 teleports & throws shurikens, phase 2 bombs/fire/shockers | HT 200->90. Blinks away every 15 HP lost; shuriken = 1-tick red tile (6). Below half HP lobs a 3x3 bomb every 3 actions (2-tick fuse, 8 dmg, also hurts mobs) |
+| Crazy Thief | 16.0 | 3.0 | 1.0 | 1.0 | 5.0 | 5.0 | HT 20, dmg 1-10, DR 0-3; steals an item and flees | steals 5% of pack gold (at least 1) on first hit, then flees; if not hit for 4 of its turns it escapes with that gold; kill it to keep the gold and its loot |
+| Dwarf Warlock | 34.0 | 9.0 | 3.0 | 1.0 | 10.0 | 9.0 | HT 70, dmg 12-18, DR 0-8; shadow bolt 12-18 + weakness | HT 34; shadow bolt = 1-tick red tile, 9 dmg ignoring DR, every 2 actions Holds range; the bolt weakens for 3 turns (#155). |
+| Yog-Dzewa | 100.0 | 17.0 | 6.0 | 1.0 | 60.0 | 250.0 | HT 1000, immobile; fists, larva, beams, phases | HT 100, DR 6, immobile. Phases: a Burning Fist at the start, a Rotting Fist at 2/3 HP and a Bright Fist at 1/3; Yog takes no damage while a fist lives. Every 3 actions (2 below half HP) alternates larva and a row/column gaze (9). Fists and larva crumble when Yog dies. |
 
 ### Weapons & armor
 
 | Item | Type | Tier | Dmg / DR | Barrier | Delay | Reach | Acc | Block | Str |
 |---|---|---|---|---|---|---|---|---|---|
-| Worn Shortsword | weapon | 1 | 5 (1-10, +2 max/lvl) | - | 1.0 | 1 | - | - | 10 |
-| Cudgel | weapon | 1 | 4 (1-8, +2 max/lvl) | - | 1.0 | 1 | 1.4 | - | 10 |
-| Studded Gloves | weapon | 1 | 3 (1-5, +1 max/lvl) | - | 0.5 | 1 | - | - | 10 |
-| Rapier | weapon | 1 | 4 (1-8, +2 max/lvl) | - | 1.0 | 1 | - | 0-1 | 10 |
-| Dagger | weapon | 1 | 4 (1-8, +2 max/lvl) | - | 1.0 | 1 | - | - | 10 |
-| Mage's Staff | weapon | 1 | 3 (1-6, +2 max/lvl) | - | 1.0 | 1 | - | - | 10 |
-| Shortsword | weapon | 2 | 8 (2-15, +3 max/lvl) | - | 1.0 | 1 | - | - | 12 |
-| Hand Axe | weapon | 2 | 7 (2-12, +3 max/lvl) | - | 1.0 | 1 | 1.32 | - | 12 |
-| Spear | weapon | 2 | 11 (2-20, +4 max/lvl) | - | 1.5 | 2 | - | - | 12 |
-| Quarterstaff | weapon | 2 | 7 (2-12, +3 max/lvl) | - | 1.0 | 1 | - | 0-2 | 12 |
-| Dirk | weapon | 2 | 7 (2-12, +3 max/lvl) | - | 1.0 | 1 | - | - | 12 |
-| Sickle | weapon | 2 | 11 (2-20, +3 max/lvl) | - | 1.0 | 1 | 0.68 | - | 12 |
-| Sword | weapon | 3 | 11 (3-20, +4 max/lvl) | - | 1.0 | 1 | - | - | 14 |
-| Mace | weapon | 3 | 9 (3-16, +4 max/lvl) | - | 1.0 | 1 | 1.28 | - | 14 |
-| Scimitar | weapon | 3 | 9 (3-16, +4 max/lvl) | - | 0.8 | 1 | - | - | 14 |
-| Round Shield | weapon | 3 | 7 (3-12, +2 max/lvl) | - | 1.0 | 1 | - | 0-4 +1/lvl | 14 |
-| Sai | weapon | 3 | 6 (3-10, +2 max/lvl) | - | 0.5 | 1 | - | - | 14 |
-| Whip | weapon | 3 | 9 (3-15, +3 max/lvl) | - | 1.0 | 3 | - | - | 14 |
-| Longsword | weapon | 4 | 14 (4-25, +5 max/lvl) | - | 1.0 | 1 | - | - | 16 |
-| Battle Axe | weapon | 4 | 12 (4-20, +5 max/lvl) | - | 1.0 | 1 | 1.24 | - | 16 |
-| Flail | weapon | 4 | 19 (4-35, +8 max/lvl) | - | 1.0 | 1 | 0.8 | - | 16 |
-| Runic Blade | weapon | 4 | 12 (4-20, +6 max/lvl) | - | 1.0 | 1 | - | - | 16 |
-| Assassin's Blade | weapon | 4 | 12 (4-20, +5 max/lvl) | - | 1.0 | 1 | - | - | 16 |
-| Crossbow | weapon | 4 | 12 (4-20, +4 max/lvl) | - | 1.0 | 1 | - | - | 16 |
-| Katana | weapon | 4 | 12 (4-20, +5 max/lvl) | - | 1.0 | 1 | - | 0-3 | 16 |
-| Greatsword | weapon | 5 | 17 (5-30, +6 max/lvl) | - | 1.0 | 1 | - | - | 18 |
-| War Hammer | weapon | 5 | 14 (5-24, +6 max/lvl) | - | 1.0 | 1 | 1.2 | - | 18 |
-| Glaive | weapon | 5 | 22 (5-40, +8 max/lvl) | - | 1.5 | 2 | - | - | 18 |
-| Greataxe | weapon | 5 | 25 (5-45, +6 max/lvl) | - | 1.0 | 1 | - | - | 20 |
-| Greatshield | weapon | 5 | 11 (5-18, +4 max/lvl) | - | 1.0 | 1 | - | 0-6 +2/lvl | 18 |
-| Stone Gauntlet | weapon | 5 | 10 (5-15, +3 max/lvl) | - | 0.5 | 1 | - | - | 18 |
-| War Scythe | weapon | 5 | 22 (5-40, +6 max/lvl) | - | 1.0 | 1 | 0.8 | - | 18 |
-| Cloth Armor | armor | 1 | 1 | 1 | - | - | - | - | 10 |
-| Leather Armor | armor | 2 | 2 | 2 | - | - | - | - | 12 |
-| Mail Armor | armor | 3 | 3 | 3 | - | - | - | - | 14 |
-| Scale Armor | armor | 4 | 4 | 4 | - | - | - | - | 16 |
-| Plate Armor | armor | 5 | 5 | 5 | - | - | - | - | 18 |
+| Assassin's Blade | weapon | 4.0 | 13 (4-22, +5 max/lvl) | - | 1.0 | 1 | - | - | 16.0 |
+| Battle Axe | weapon | 4.0 | 13 (4-22, +5 max/lvl) | - | 1.0 | 1 | 1.24 | - | 16.0 |
+| Cloth Armor | armor | 1.0 | 1.0 | 1.0 | - | - | - | - | 10.0 |
+| Crossbow | weapon | 4.0 | 13 (4-22, +4 max/lvl) | - | 1.0 | 1 | - | - | 16.0 |
+| Cudgel | weapon | 1.0 | 4 (1-8, +2 max/lvl) | - | 1.0 | 1 | 1.4 | - | 10.0 |
+| Dagger | weapon | 1.0 | 4 (1-8, +2 max/lvl) | - | 1.0 | 1 | - | - | 10.0 |
+| Dirk | weapon | 2.0 | 6 (2-10, +2 max/lvl) | - | 1.0 | 1 | - | - | 12.0 |
+| Flail | weapon | 4.0 | 20 (4-36, +8 max/lvl) | - | 1.0 | 1 | 0.8 | - | 16.0 |
+| Stone Gauntlet | weapon | 5.0 | 12 (5-19, +3 max/lvl) | - | 0.5 | 1 | - | - | 18.0 |
+| Glaive | weapon | 5.0 | 26 (5-47, +8 max/lvl) | - | 1.5 | 2.0 | - | - | 18.0 |
+| Greataxe | weapon | 5.0 | 29 (5-53, +6 max/lvl) | - | 1.0 | 1 | - | - | 20.0 |
+| Greatshield | weapon | 5.0 | 13 (5-21, +4 max/lvl) | - | 1.0 | 1 | - | 0-6 +2/lvl | 18.0 |
+| Greatsword | weapon | 5.0 | 20 (5-35, +6 max/lvl) | - | 1.0 | 1 | - | - | 18.0 |
+| Hand Axe | weapon | 2.0 | 6 (2-11, +2 max/lvl) | - | 1.0 | 1 | 1.32 | - | 12.0 |
+| Katana | weapon | 4.0 | 13 (4-22, +5 max/lvl) | - | 1.0 | 1 | - | 0-3 | 16.0 |
+| Leather Armor | armor | 2.0 | 2.0 | 2.0 | - | - | - | - | 12.0 |
+| Longsword | weapon | 4.0 | 15 (4-26, +5 max/lvl) | - | 1.0 | 1 | - | - | 16.0 |
+| Mace | weapon | 3.0 | 9 (3-16, +4 max/lvl) | - | 1.0 | 1 | 1.28 | - | 14.0 |
+| Mage's Staff | weapon | 1.0 | 3 (1-6, +2 max/lvl) | - | 1.0 | 1 | - | - | 10.0 |
+| Mail Armor | armor | 3.0 | 3.0 | 4.0 | - | - | - | - | 14.0 |
+| Plate Armor | armor | 5.0 | 7.0 | 8.0 | - | - | - | - | 18.0 |
+| Quarterstaff | weapon | 2.0 | 6 (2-11, +2 max/lvl) | - | 1.0 | 1 | - | 0-2 | 12.0 |
+| Rapier | weapon | 1.0 | 4 (1-8, +2 max/lvl) | - | 1.0 | 1 | - | 0-1 | 10.0 |
+| Round Shield | weapon | 3.0 | 7 (3-12, +2 max/lvl) | - | 1.0 | 1 | - | 0-4 +1/lvl | 14.0 |
+| Runic Blade | weapon | 4.0 | 13 (4-22, +6 max/lvl) | - | 1.0 | 1 | - | - | 16.0 |
+| Sai | weapon | 3.0 | 6 (3-10, +2 max/lvl) | - | 0.5 | 1 | - | - | 14.0 |
+| Scale Armor | armor | 4.0 | 5.0 | 6.0 | - | - | - | - | 16.0 |
+| Scimitar | weapon | 3.0 | 9 (3-16, +4 max/lvl) | - | 0.8 | 1 | - | - | 14.0 |
+| Shortsword | weapon | 2.0 | 7 (2-13, +2 max/lvl) | - | 1.0 | 1 | - | - | 12.0 |
+| Sickle | weapon | 2.0 | 9 (2-16, +2 max/lvl) | - | 1.0 | 1 | 0.68 | - | 12.0 |
+| Spear | weapon | 2.0 | 8 (2-15, +2 max/lvl) | - | 1.5 | 2.0 | - | - | 12.0 |
+| Studded Gloves | weapon | 1.0 | 3 (1-5, +1 max/lvl) | - | 0.5 | 1 | - | - | 10.0 |
+| Sword | weapon | 3.0 | 11 (3-20, +4 max/lvl) | - | 1.0 | 1 | - | - | 14.0 |
+| War Hammer | weapon | 5.0 | 16 (5-28, +6 max/lvl) | - | 1.0 | 1 | 1.2 | - | 18.0 |
+| War Scythe | weapon | 5.0 | 26 (5-47, +6 max/lvl) | - | 1.0 | 1 | 0.8 | - | 18.0 |
+| Whip | weapon | 3.0 | 9 (3-15, +3 max/lvl) | - | 1.0 | 3.0 | - | - | 14.0 |
+| Worn Shortsword | weapon | 1.0 | 5 (1-10, +2 max/lvl) | - | 1.0 | 1 | - | - | 10.0 |
 
 ### Rings & wands
 
 | Item | Unidentified as | Effect |
 |---|---|---|
-| Ring of Might | Garnet Ring | dmg_bonus=1 |
-| Ring of Tenacity | Ruby Ring | barrier_bonus=1 |
-| Wand of Magic Missile | Oak Wand | bolt_dmg=5, charges=2, recharge=4 |
-| Wand of Firebolt | Ash Wand | bolt_dmg=4, charges=2, recharge=4, burns_grass=True |
-| Wand of Lightning | Birch Wand | bolt_dmg=7, charges=2, recharge=5, chains_water=True |
-| Wand of Frost | Holly Wand | bolt_dmg=3, charges=2, recharge=4 |
-| Wand of Corrosion | Yew Wand | bolt_dmg=2, charges=2, recharge=5 |
-| Wand of Blast Wave | Elm Wand | bolt_dmg=3, charges=2, recharge=5 |
-| Wand of Disintegration | Ebony Wand | bolt_dmg=4, charges=2, recharge=5 |
-| Wand of Transfusion | Willow Wand | bolt_dmg=3, charges=2, recharge=5 |
-| Wand of Prismatic Light | Rowan Wand | bolt_dmg=4, charges=2, recharge=4 |
-| Wand of Regrowth | Maple Wand | bolt_dmg=1, charges=2, recharge=5 |
-| Ring of Evasion | Topaz Ring |  |
-| Ring of Wealth | Emerald Ring |  |
+| Ring of Elements | Amethyst Ring |  |
 | Ring of Energy | Onyx Ring |  |
+| Ring of Evasion | Topaz Ring |  |
+| Ring of Force | Quartz Ring |  |
 | Ring of Furor | Opal Ring |  |
 | Ring of Haste | Tourmaline Ring |  |
+| Ring of Might | Garnet Ring |  |
 | Ring of Sharpshooting | Sapphire Ring |  |
-| Ring of Elements | Amethyst Ring |  |
-| Ring of Force | Quartz Ring |  |
+| Ring of Tenacity | Ruby Ring | barrier_bonus=1.0 |
+| Ring of Wealth | Emerald Ring |  |
+| Wand of Blast Wave | Elm Wand | bolt_dmg=3.0, charges=2.0, recharge=5.0 |
+| Wand of Corrosion | Yew Wand | bolt_dmg=2.0, charges=2.0, recharge=5.0 |
+| Wand of Disintegration | Ebony Wand | bolt_dmg=4.0, charges=2.0, recharge=5.0 |
+| Wand of Firebolt | Ash Wand | bolt_dmg=4.0, burns_grass=True, charges=2.0, recharge=4.0 |
+| Wand of Frost | Holly Wand | bolt_dmg=3.0, charges=2.0, recharge=4.0 |
+| Wand of Lightning | Birch Wand | bolt_dmg=7.0, chains_water=True, charges=2.0, recharge=5.0 |
+| Wand of Magic Missile | Oak Wand | bolt_dmg=5.0, charges=2.0, recharge=4.0 |
+| Wand of Prismatic Light | Rowan Wand | bolt_dmg=4.0, charges=2.0, recharge=4.0 |
+| Wand of Regrowth | Maple Wand | bolt_dmg=1.0, charges=2.0, recharge=5.0 |
+| Wand of Transfusion | Willow Wand | bolt_dmg=3.0, charges=2.0, recharge=5.0 |
 
 ### Sewers (floors 1-5, boss goo on 5, 10 Str)
 
@@ -187,6 +187,15 @@ Traps: worn_dart, gripping, teleport. Strength potions at [[2, 50], [4, 50]]. Se
 | 3 | crab, rat |
 | 4 | gnoll, crab |
 | 4 | crab, snake, snake |
+| 1 | rat |
+| 1 | snake, rat, rat |
+| 2 | gnoll |
+| 2 | crab, snake |
+| 3 | gnoll, gnoll |
+| 3 | crab, snake, rat |
+| 4 | gnoll, crab, rat |
+| 4 | crab, crab |
+| 4 | gnoll, snake, snake |
 
 ### Prison (floors 6-10, boss tengu on 10, 12 Str)
 
@@ -203,6 +212,15 @@ Traps: worn_dart, gripping, teleport, poison_dart. Strength potions at [[7, 50],
 | 8 | guard, thief |
 | 9 | guard, dm100 |
 | 9 | skeleton, skeleton, thief |
+| 6 | skeleton, skeleton |
+| 6 | thief, thief |
+| 6 | dm100, thief |
+| 7 | guard, skeleton |
+| 7 | dm100, thief, skeleton |
+| 8 | guard, guard |
+| 8 | skeleton, thief, thief |
+| 9 | guard, dm100, skeleton |
+| 9 | guard, thief, thief |
 
 ### Caves (floors 11-15, boss dm300 on 15, 14 Str)
 
@@ -219,6 +237,15 @@ Traps: worn_dart, gripping, teleport, poison_dart. Strength potions at [[12, 50]
 | 13 | spinner, shaman |
 | 14 | brute, bat |
 | 14 | spinner, brute |
+| 11 | bat, bat |
+| 11 | brute, bat |
+| 11 | shaman |
+| 12 | spinner, bat |
+| 12 | brute, brute |
+| 13 | shaman, shaman |
+| 13 | spinner, brute, bat |
+| 14 | spinner, shaman, bat |
+| 14 | brute, shaman, bat |
 
 ### Dwarf City (floors 16-20, boss dking on 20, 15 Str)
 
@@ -235,6 +262,15 @@ Traps: worn_dart, gripping, teleport, poison_dart. Strength potions at [[17, 50]
 | 18 | ghoul, ghoul |
 | 19 | golem, warlock |
 | 19 | ghoul, monk |
+| 16 | ghoul, ghoul |
+| 16 | monk, ghoul |
+| 16 | warlock |
+| 17 | golem, ghoul |
+| 17 | monk, warlock |
+| 18 | golem, monk |
+| 18 | warlock, ghoul, ghoul |
+| 19 | golem, monk, ghoul |
+| 19 | warlock, monk, monk |
 
 ### Demon Halls (floors 21-25, boss yog on 25, 17 Str)
 
@@ -250,16 +286,25 @@ Traps: worn_dart, poison_dart, teleport, gripping. Strength potions at [[22, 50]
 | 23 | eye, ripper |
 | 23 | scorpio, succubus |
 | 24 | eye, scorpio |
+| 21 | succubus, ripper |
+| 21 | eye, ripper |
+| 21 | ripper, ripper, ripper |
+| 22 | scorpio, ripper |
+| 22 | succubus, succubus |
+| 23 | eye, scorpio |
+| 23 | succubus, ripper, ripper |
+| 24 | eye, succubus, ripper |
+| 24 | scorpio, scorpio |
 
 ### Patrol yields per hour (x efficiency x gear bonus; gold has no gear bonus)
 
 | Biome | Str gate | gold | iron_ore | dark_gold | arcane_resin | dew | seeds | Curio every |
 |---|---|---|---|---|---|---|---|---|
-| Sewers | 10 | 15 | 3 | - | 1 | 4 | 2 | 3h |
-| Prison | 12 | 25 | 5 | 1 | 2 | 3 | - | 2h |
-| Caves | 14 | 35 | 7 | 2 | 2 | 3 | - | 2h |
-| Dwarf City | 15 | 45 | 8 | 3 | 3 | 3 | - | 2h |
-| Demon Halls | 17 | 60 | 6 | 5 | 5 | 3 | - | 2h |
+| Sewers | 10 | 12 | 2 | - | 0.25 | 1 | 2 | 4h |
+| Prison | 12 | 18 | 3 | 0.5 | 0.35 | 1 | - | 4h |
+| Caves | 14 | 25 | 4 | 0.7 | 0.45 | 1 | - | 4h |
+| Dwarf City | 15 | 35 | 5 | 1.0 | 0.55 | 1 | - | 3h |
+| Demon Halls | 17 | 45 | 4 | 1.4 | 0.7 | 1 | - | 3h |
 
 ### Traps
 
@@ -274,10 +319,10 @@ Traps: worn_dart, poison_dart, teleport, gripping. Strength potions at [[22, 50]
 
 | Facility | Upgrade cost (x current level) | Scrolls of Upgrade per cap raise | Max |
 |---|---|---|---|
-| Blacksmith | 10 iron_ore, 50 gold | 1 / 5 | 3 |
-| Alchemy Pot | 8 seeds, 40 gold | 1 / 4 | 3 |
-| Guild Hall | 100 gold | 1 / 5 | 3 |
-| Enchanter's Desk | 3 arcane_resin, 40 gold | 1 / 4 | 3 |
+| Alchemy Pot | 35.0 dew, 150.0 gold, 25.0 seeds | 1.0 / 1.0 / 2.0 / 1.0 | 5.0 |
+| Blacksmith | 150.0 gold, 35.0 iron_ore | 1.0 / 1.0 / 2.0 / 2.0 | 5.0 |
+| Enchanter's Desk | 15.0 arcane_resin, 150.0 gold | 1.0 / 1.0 / 2.0 / 1.0 | 5.0 |
+| Guild Hall | 250.0 gold, 20.0 iron_ore | 1.0 / 1.0 / 2.0 / 2.0 | 5.0 |
 <!-- /GENERATED -->
 
 ## Caves + subclasses (v0.12.0, tests [cavesrun], Lv8 / Str 14, tier-3 gear, 10 seeds)

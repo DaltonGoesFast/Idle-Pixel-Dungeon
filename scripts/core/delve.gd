@@ -18,6 +18,16 @@ const SEARCH_CHANCE := 50     # % to find a hidden door (Rogue: always)
 const AUTO_STOP_HP := 0.3     # at or below this HP fraction Auto Battle turns off for manual control / Scroll of Passage
 const CLOSE_CALL_HP := 0.1    # "Close Call" feat: win a fight at or below this HP fraction (DECISIONS #195)
 const CROWD_KILLS := 6        # "Crowd Control" feat: kills in one fight
+## Floor feelings (DECISIONS #237): XL / Secret / Traps. Per biome: at least 1, rarely 2; resets on new biome.
+const FEELINGS := ["xl", "secret", "traps"]
+const FEELING_TWO_CHANCE := 0.20
+const SECRET_CACHE_GOLD_MULT := 1.5
+const XL_LARGE_WEIGHT := 3
+const FEELING_LOG := {
+	"xl": "This dungeon floor seems unusually large.",
+	"secret": "The atmosphere hints that this floor hides many secrets.",
+	"traps": "The ground seems especially treacherous here.",
+}
 
 static func biome(run: Dictionary) -> Dictionary:
 	return DB.biomes[run.biome]
@@ -27,8 +37,55 @@ static func rng_for(run: Dictionary, salt: int) -> RandomNumberGenerator:
 	r.seed = hash([int(run.seed), int(run.floor), salt])
 	return r
 
+## Seed which non-boss floors in this biome get a feeling. Call on biome entry; resets the plan.
+static func plan_biome_feelings(run: Dictionary) -> void:
+	var b := biome(run)
+	var boss := int(b.boss_floor)
+	var fr: Array = b.floors
+	var lo := maxi(int(fr[0]), int(run.floor))
+	var eligible: Array = []
+	for f in range(lo, boss):
+		eligible.append(f)
+	if eligible.is_empty():
+		run.feeling_plan = {}; run.feeling = ""; return
+	var r := RandomNumberGenerator.new()
+	r.seed = hash([int(run.seed), String(run.biome), 9001])
+	var n := 2 if (eligible.size() >= 2 and r.randf() < FEELING_TWO_CHANCE) else 1
+	n = mini(n, eligible.size())
+	var pool_floors: Array = eligible.duplicate()
+	var chosen: Array = []
+	for _i in n:
+		var idx := r.randi() % pool_floors.size()
+		chosen.append(pool_floors[idx])
+		pool_floors.remove_at(idx)
+	var feel_pool: Array = FEELINGS.duplicate()
+	var plan := {}
+	for f in chosen:
+		var fi := r.randi() % feel_pool.size()
+		plan[str(int(f))] = String(feel_pool[fi])
+		feel_pool.remove_at(fi)
+		if feel_pool.is_empty(): feel_pool = FEELINGS.duplicate()
+	run.feeling_plan = plan
+	apply_feeling_for_floor(run)
+
+static func apply_feeling_for_floor(run: Dictionary) -> void:
+	var plan: Dictionary = run.get("feeling_plan", {})
+	run.feeling = String(plan.get(str(int(run.floor)), ""))
+
+static func feeling_log(feeling: String) -> String:
+	return String(FEELING_LOG.get(feeling, ""))
+
+static func log_feeling(gs) -> void:
+	var msg := feeling_log(String(gs.run.get("feeling", "")))
+	if msg != "": gs.log_line(msg, "highlight")
+
 ## Build this floor's event schedule.
 static func plan_floor(run: Dictionary) -> void:
+	# Old saves / first tick: seed the biome quota if missing (DECISIONS #237).
+	if run.get("feeling_plan", {}).is_empty() and int(run.floor) < int(biome(run).boss_floor):
+		plan_biome_feelings(run)
+	else:
+		apply_feeling_for_floor(run)
 	var b := biome(run)
 	var r := rng_for(run, 1)
 	var evs := []
@@ -43,10 +100,34 @@ static func plan_floor(run: Dictionary) -> void:
 			kind = "combat" if roll <= int(w.combat) else ("door" if roll <= int(w.combat) + int(w.door) else "special")
 		evs.append({"at": at, "kind": kind, "salt": i})
 	run.events = evs
+	_apply_feeling_to_schedule(run)
 	run.next_event = 0
 	run.progress = 0.0
 	run.gather = 0
 	run.starve = 0
+
+## Force a special (and sticky special id) when the floor feeling needs one.
+static func _apply_feeling_to_schedule(run: Dictionary) -> void:
+	var feel := String(run.get("feeling", ""))
+	if feel == "" or int(run.floor) == int(biome(run).boss_floor): return
+	var evs: Array = run.events
+	var has_special := false
+	for e in evs:
+		if String(e.kind) == "special": has_special = true; break
+	if not has_special:
+		for i in range(evs.size() - 1, -1, -1):
+			if String(evs[i].kind) != "boss":
+				evs[i].kind = "special"
+				break
+	var force := ""
+	match feel:
+		"secret": force = "odd_wall"
+		"traps": force = "trap_vault"
+	if force == "": return
+	for e in evs:
+		if String(e.kind) == "special":
+			e.force_special = force
+			break
 
 ## Advance progress by `pct`. Returns an event dictionary to present, or {} if none / floor done.
 static func advance(gs, pct: float) -> Dictionary:
@@ -129,7 +210,16 @@ static func build_event(run: Dictionary, ev: Dictionary) -> Dictionary:
 			var ds := _for_biome(DB.doors, run)
 			return {"kind": "door", "door": ds[r.randi() % ds.size()]}
 		"special":
+			var forced := String(ev.get("force_special", ""))
+			if forced != "":
+				for s in DB.specials:
+					if String(s.id) == forced:
+						return {"kind": "special", "special": s}
 			var ss := _for_biome(DB.specials, run)
+			if String(run.get("feeling", "")) == "traps":
+				for s in ss:
+					if String(s.id) == "trap_vault":
+						return {"kind": "special", "special": s}
 			return {"kind": "special", "special": ss[r.randi() % ss.size()]}
 	return combat_event(run, r)
 
@@ -138,18 +228,28 @@ static func _for_biome(list: Array, run: Dictionary) -> Array:
 	return list.filter(func(x): return run.biome in x.get("biomes", [run.biome]) and int(run.floor) >= int(x.get("min_floor", 0)))
 
 ## Rooms used for ordinary fights. Sewers/Prison keep shared 8x8s; later biomes use larger maps only.
+## XL floors weight large maps ~3x (DECISIONS #237).
 static func room_pool(run: Dictionary) -> Array:
 	var biome_id := String(run.biome)
 	var own: Array = DB.biome_rooms.get(biome_id, [])
+	var pool: Array
 	match biome_id:
 		"sewers":
-			return DB.rooms + own
+			pool = DB.rooms + own
 		"prison":
-			return DB.rooms + own + own   # 10x10s listed twice so they show up often
+			pool = DB.rooms + own + own   # 10x10s listed twice so they show up often
 		"caves", "city", "halls":
-			return own if not own.is_empty() else DB.rooms
+			pool = own if not own.is_empty() else DB.rooms
 		_:
-			return DB.rooms + own
+			pool = DB.rooms + own
+	if String(run.get("feeling", "")) != "xl": return pool
+	var weighted: Array = []
+	for rm in pool:
+		weighted.append(rm)
+		if is_large_room(rm):
+			for _i in XL_LARGE_WEIGHT - 1:
+				weighted.append(rm)
+	return weighted
 
 ## True for the 10x10 / 12x12 maps (anything wider or taller than the classic 8x8).
 static func is_large_room(room: Array) -> bool:
@@ -245,15 +345,58 @@ static func _hunger(gs) -> float:
 static func combat_event(run: Dictionary, r: RandomNumberGenerator, mobs := []) -> Dictionary:
 	if mobs.is_empty():
 		var sets: Array = biome(run).encounter_sets.filter(func(s): return int(s.min_floor) <= int(run.floor))
-		# prefer encounters introduced recently so floors feel different
-		var pick: Dictionary = sets[r.randi() % sets.size()]
-		mobs = pick.mobs
+		# XL: prefer denser packs; otherwise flat pick (comment once hoped for "recent" bias)
+		if String(run.get("feeling", "")) == "xl":
+			mobs = _pick_dense_pack(sets, r)
+		else:
+			mobs = sets[r.randi() % sets.size()].mobs
 	var rooms := room_pool(run)
 	if "snake" in mobs:
 		var with_door: Array = rooms.filter(func(rm): return room_has_door(rm))
 		if not with_door.is_empty(): rooms = with_door
-	var room: Array = rooms[r.randi() % rooms.size()]
+	var room: Array
+	if String(run.get("feeling", "")) == "traps":
+		room = _pick_trap_room(rooms, r)
+	else:
+		room = rooms[r.randi() % rooms.size()]
 	return {"kind": "combat", "room": room, "mobs": fill_mobs(mobs, room)}
+
+## Weight encounter packs by mob count (XL floors).
+static func _pick_dense_pack(sets: Array, r: RandomNumberGenerator) -> Array:
+	if sets.is_empty(): return []
+	var total := 0
+	for s in sets:
+		total += maxi(1, (s.mobs as Array).size())
+	var roll := r.randi_range(1, total)
+	var acc := 0
+	for s in sets:
+		acc += maxi(1, (s.mobs as Array).size())
+		if roll <= acc: return s.mobs
+	return sets[sets.size() - 1].mobs
+
+## Visible + hidden trap glyphs in a room map.
+static func room_trap_count(room: Array) -> int:
+	var n := 0
+	for row in room:
+		for i in String(row).length():
+			var ch := String(row)[i]
+			if ch == "^" or ch == "?": n += 1
+	return n
+
+## Prefer trap-dense authored rooms on Traps floors (no map mutation).
+static func _pick_trap_room(rooms: Array, r: RandomNumberGenerator) -> Array:
+	if rooms.is_empty(): return []
+	var total := 0
+	var weights: Array = []
+	for rm in rooms:
+		var w := 1 + room_trap_count(rm) * 3
+		weights.append(w); total += w
+	var roll := r.randi_range(1, total)
+	var acc := 0
+	for i in rooms.size():
+		acc += int(weights[i])
+		if roll <= acc: return rooms[i]
+	return rooms[rooms.size() - 1]
 
 ## Fight behind a special-room option: "fight" is "biome" (this floor's encounter pool) or a mob list.
 ## An optional "room" gives the fight its own map, e.g. the Trapped Vault's trap floor (DECISIONS #151).
@@ -535,10 +678,14 @@ static func search_floor(gs) -> String:
 	if int(run.get("searched_floor", 0)) == int(run.floor) or float(run.torch) < SEARCH_TORCH: return ""
 	run.searched_floor = int(run.floor)
 	run.torch = float(run.torch) - SEARCH_TORCH
-	var found: bool = run.hero == "rogue" or rng_for(run, 31).randi_range(1, 100) <= SEARCH_CHANCE
+	var secret_feel := String(run.get("feeling", "")) == "secret"
+	var found: bool = run.hero == "rogue" or secret_feel or rng_for(run, 31).randi_range(1, 100) <= SEARCH_CHANCE
 	if not found: return "You search every wall... nothing this time."
 	gs.add_stat("hidden_doors", 1)
-	return "A hidden door! Secret cache: " + reward(gs, biome(run).secret_cache)
+	var cache: Dictionary = biome(run).secret_cache.duplicate()
+	if secret_feel and cache.has("gold"):
+		cache.gold = int(ceil(float(cache.gold) * SECRET_CACHE_GOLD_MULT))
+	return "A hidden door! Secret cache: " + reward(gs, cache)
 
 static func can_search_floor(run: Dictionary) -> bool:
 	return int(run.get("searched_floor", 0)) != int(run.floor) and float(run.torch) >= SEARCH_TORCH
@@ -555,12 +702,23 @@ static func continue_deeper(gs) -> void:
 	run.boss_dead = false
 	# resting at the campfire: half a torch and half a meal (DECISIONS #57)
 	run.torch = minf(100.0, float(run.torch) + CAMPFIRE_REST); run.satiety = minf(100.0, float(run.satiety) + CAMPFIRE_REST)
+	plan_biome_feelings(run)   # quota resets per biome (DECISIONS #237); floor still the old boss until descend
 	descend(gs)
 	gs.say("You enter the %s. Traps lurk on these floors - search before you step." % biome(run).name)
+
+## Spare ration when leaving an XL floor (once).
+static func _grant_xl_clear_reward(gs) -> void:
+	var run: Dictionary = gs.run
+	if String(run.get("feeling", "")) != "xl": return
+	if int(run.get("xl_ration_floor", -1)) == int(run.floor): return
+	run.xl_ration_floor = int(run.floor)
+	run.supplies.ration = int(run.supplies.get("ration", 0)) + 1
+	gs.log_line("The sprawling floor yields a spare ration.", "positive")
 
 ## Move to the next floor: heal a little, recover chasm loot.
 static func descend(gs) -> void:
 	var run: Dictionary = gs.run
+	_grant_xl_clear_reward(gs)
 	run.floor += 1
 	gs.note_floor(int(run.floor))
 	Telemetry.track("floor_reached", {"class": String(run.hero), "biome": String(run.biome), "floor": int(run.floor), "hp": int(run.hp),
@@ -577,6 +735,7 @@ static func descend(gs) -> void:
 		gs.pack_add("gold", int(run.pending_loot)); gs.say("Recovered %d gold that fell from above." % run.pending_loot)
 		run.pending_loot = 0
 	plan_floor(run)
+	log_feeling(gs)
 	gs.touch()
 
 ## Gold escaped thieves carried off (clamped to what the pack actually holds).
