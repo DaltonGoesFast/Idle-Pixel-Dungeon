@@ -253,7 +253,8 @@ func _mobile_controls_min_h() -> float:
 	var fs := float(UIKit.font_size)
 	var cell := _mobile_pad_cell()
 	var pad_h := cell * 3.0 + fs * 0.4
-	var skill_h := UIKit.btn_height() * 1.15 + UIKit.btn_height() * 2.0 + fs * 0.5
+	# Attack + up to 3 class skills + potion.
+	var skill_h := UIKit.btn_height() * 1.15 + UIKit.btn_height() * 4.0 + fs * 1.0
 	var chrome := UIKit.btn_height() + fs * 0.35
 	return maxf(pad_h, skill_h) + chrome + fs * 0.35
 
@@ -417,20 +418,57 @@ func _icon_btn(tip: String, icon: String, cb: Callable, enabled := true, parent:
 	(parent if parent else buttons).add_child(b)
 	return b
 
-## SPD arrow (points east) rotated for a cardinal D-pad step.
+## SPD arrow (points east). Angle is clockwise degrees in image space (y grows down).
 func _dir_icon(dir: Vector2i) -> Texture2D:
 	var key := "%d,%d@%d" % [dir.x, dir.y, UIKit.px_scale]
 	if _dir_tex.has(key):
 		return _dir_tex[key]
+	var deg := 0
+	match dir:
+		Vector2i(1, 0): deg = 0
+		Vector2i(1, 1): deg = 45
+		Vector2i(0, 1): deg = 90
+		Vector2i(-1, 1): deg = 135
+		Vector2i(-1, 0): deg = 180
+		Vector2i(-1, -1): deg = 225
+		Vector2i(0, -1): deg = 270
+		Vector2i(1, -1): deg = 315
 	var img: Image = UIKit.toolbar_icon("arrow").get_image().duplicate()
-	var turns := 0
-	if dir == Vector2i(0, 1): turns = 1
-	elif dir == Vector2i(-1, 0): turns = 2
-	elif dir == Vector2i(0, -1): turns = 3
+	# Cardinals: crisp rotate_90. Diagonals: nearest-neighbour 45° spin.
+	var turns := int(deg / 90)
+	var rem := deg % 90
 	for _i in turns:
 		img.rotate_90(CLOCKWISE)
+	if rem != 0:
+		img = _rotate_image_nn(img, float(rem) * PI / 180.0)
 	_dir_tex[key] = ImageTexture.create_from_image(img)
 	return _dir_tex[key]
+
+## Nearest-neighbour rotate (clockwise, y-down) into a padded square so diagonal arrows stay on-pixel.
+func _rotate_image_nn(src: Image, angle: float) -> Image:
+	var w := src.get_width()
+	var h := src.get_height()
+	var size := int(ceil(sqrt(float(w * w + h * h))))
+	if size % 2 == 1:
+		size += 1
+	var out := Image.create(size, size, false, src.get_format())
+	out.fill(Color(0, 0, 0, 0))
+	var cx := (w - 1) * 0.5
+	var cy := (h - 1) * 0.5
+	var ocx := (size - 1) * 0.5
+	var ocy := (size - 1) * 0.5
+	var c := cos(angle)
+	var s := sin(angle)
+	for y in size:
+		for x in size:
+			var dx := float(x) - ocx
+			var dy := float(y) - ocy
+			# Clockwise in y-down image space (east → south at +90°).
+			var sx := int(round(c * dx + s * dy + cx))
+			var sy := int(round(s * dx - c * dy + cy))
+			if sx >= 0 and sy >= 0 and sx < w and sy < h:
+				out.set_pixel(x, y, src.get_pixel(sx, sy))
+	return out
 
 ## Melee Attack target: last_target if still in reach, else nearest foe in reach.
 func _attack_target() -> Dictionary:
@@ -458,34 +496,13 @@ func _attack_press() -> void:
 func _move_dir(dir: Vector2i) -> void:
 	_act(func(): combat.hero_tap(combat.hero.pos + dir, mode))
 
-## Mobile: leftover action icons (Search, class extras, Passage) in a left column.
+## Mobile: Search (+ Passage when carried) in a left column. Class skills live on the right.
 func _build_mobile_side_icons(parent: Node) -> void:
 	var col := UIKit.vbox(parent, int(UIKit.font_size * 0.2))
 	col.size_flags_horizontal = SIZE_SHRINK_BEGIN
 	col.size_flags_vertical = SIZE_SHRINK_CENTER
 	var search_tip := "Search again" if combat.hero.get("searched", false) else "Search"
 	_icon_btn(search_tip, "search", func(): _act(func(): combat.hero_search()), true, col)
-	var h := combat.hero
-	if "shove" in h.abilities:
-		var shove_on := mode == "shove"
-		var shove_cb := func():
-			mode = "" if mode == "shove" else "shove"
-			grid.mode = mode
-			_refresh()
-		var sb := _icon_btn("Shove: ON" if shove_on else "Shove", "arrow", shove_cb, true, col)
-		_register_skill(shove_cb, true)
-		if shove_on:
-			sb.modulate = Color(1.15, 1.15, 0.85)
-	if "slam" in h.abilities:
-		var can_slam := int(h.slams) > 0 and combat.enemies().any(func(e): return Combat.cheb(e.pos, h.pos) == 1)
-		var slam_cb := func(): _act(func(): combat.hero_slam())
-		_icon_btn("Slam (%d)" % h.slams, "warning", slam_cb, can_slam, col)
-		_register_skill(slam_cb, can_slam)
-	if not h.cloak.is_empty():
-		var can_cloak := int(h.cloak_charges) > 0 and not combat.hidden()
-		var cloak_cb := func(): _act(func(): combat.hero_cloak())
-		_icon_btn("Cloak (%d/%d)" % [int(h.cloak_charges), _cloak_cap(h)], "buffs", cloak_cb, can_cloak, col)
-		_register_skill(cloak_cb, can_cloak)
 	if Delve.scroll_passage_count(GameState) > 0:
 		_icon_btn("Scroll of Passage", "scroll", _ask_passage, true, col)
 
@@ -493,31 +510,29 @@ func _register_skill(cb: Callable, enabled: bool) -> void:
 	_skill_cbs.append(cb)
 	_skill_enabled.append(enabled)
 
-## Mobile center: 4-way D-pad with Wait in the middle.
+## Mobile center: 8-way D-pad with Wait in the middle.
 func _build_mobile_pad(parent: Node) -> void:
 	var pad := GridContainer.new()
 	pad.columns = 3
 	pad.size_flags_horizontal = SIZE_SHRINK_CENTER
 	pad.size_flags_vertical = SIZE_SHRINK_CENTER
-	pad.add_theme_constant_override("h_separation", int(UIKit.font_size * 0.2))
-	pad.add_theme_constant_override("v_separation", int(UIKit.font_size * 0.2))
+	pad.add_theme_constant_override("h_separation", int(UIKit.font_size * 0.15))
+	pad.add_theme_constant_override("v_separation", int(UIKit.font_size * 0.15))
 	parent.add_child(pad)
 	var cell := _mobile_pad_cell()
 	var dirs: Array = [
-		null, Vector2i(0, -1), null,
+		Vector2i(-1, -1), Vector2i(0, -1), Vector2i(1, -1),
 		Vector2i(-1, 0), Vector2i.ZERO, Vector2i(1, 0),
-		null, Vector2i(0, 1), null,
+		Vector2i(-1, 1), Vector2i(0, 1), Vector2i(1, 1),
 	]
 	var tips := {
 		Vector2i(0, -1): "Move north", Vector2i(0, 1): "Move south",
 		Vector2i(-1, 0): "Move west", Vector2i(1, 0): "Move east",
+		Vector2i(-1, -1): "Move NW", Vector2i(1, -1): "Move NE",
+		Vector2i(-1, 1): "Move SW", Vector2i(1, 1): "Move SE",
 	}
 	for d in dirs:
-		if d == null:
-			var spacer := Control.new()
-			spacer.custom_minimum_size = Vector2.ONE * cell
-			pad.add_child(spacer)
-		elif d == Vector2i.ZERO:
+		if d == Vector2i.ZERO:
 			var wait_b := _icon_btn("Wait", "wait", func(): _act(func(): combat.hero_wait()), true, pad)
 			wait_b.custom_minimum_size = Vector2.ONE * cell
 		else:
@@ -525,7 +540,7 @@ func _build_mobile_pad(parent: Node) -> void:
 			var b := _icon_btn(tips[dir], "", func(): _move_dir(dir), true, pad, _dir_icon(dir))
 			b.custom_minimum_size = Vector2.ONE * cell
 
-## Mobile right: Attack, Bolt (if any), Potion. Fills leftover width beside the D-pad.
+## Mobile right: Attack, class skills (Shove / Slam / Cloak / Bolt), Potion.
 func _build_mobile_skills(parent: Node) -> void:
 	var col := UIKit.vbox(parent, int(UIKit.font_size * 0.25))
 	col.size_flags_horizontal = SIZE_EXPAND_FILL
@@ -536,6 +551,24 @@ func _build_mobile_skills(parent: Node) -> void:
 	atk.custom_minimum_size.y = UIKit.btn_height() * 1.15
 	atk.tooltip_text = "Attack"
 	var h := combat.hero
+	if "shove" in h.abilities:
+		var shove_on := mode == "shove"
+		var shove_cb := func():
+			mode = "" if mode == "shove" else "shove"
+			grid.mode = mode
+			_refresh()
+		var shove := _btn("Shove", shove_cb, true, true, col)
+		shove.tooltip_text = "Shove: ON" if shove_on else "Shove"
+		if shove_on:
+			shove.modulate = Color(1.15, 1.15, 0.85)
+	if "slam" in h.abilities:
+		var can_slam := int(h.slams) > 0 and combat.enemies().any(func(e): return Combat.cheb(e.pos, h.pos) == 1)
+		var slam := _btn("Slam %d" % h.slams, func(): _act(func(): combat.hero_slam()), can_slam, true, col)
+		slam.tooltip_text = "Slam (%d)" % h.slams
+	if not h.cloak.is_empty():
+		var can_cloak := int(h.cloak_charges) > 0 and not combat.hidden()
+		var cloak := _btn("Cloak", func(): _act(func(): combat.hero_cloak()), can_cloak, true, col)
+		cloak.tooltip_text = "Cloak (%d/%d)" % [int(h.cloak_charges), _cloak_cap(h)]
 	if not h.bolt.is_empty() and not h.bolt.get("infinite", false):
 		var bolt_on := mode == "bolt"
 		var bolt_tip := "Bolt: ON (%d)" % h.charges if bolt_on else "Bolt (%d)" % h.charges
