@@ -328,11 +328,21 @@ func _make_window(title: String, icon_name: String, close_cb: Callable, w_frac :
 	pc.position = ((vs - Vector2(w, h)) / 2.0).floor(); pc.size = Vector2(w, h); pc.custom_minimum_size = Vector2(w, 0)
 	var v := UIKit.vbox(pc)
 	var tr := UIKit.hbox(v)
+	var tic: Control = null
 	if icon_name != "":
-		var ic := UIKit.pixel(UIKit.spd_icon(icon_name), 1); ic.size_flags_vertical = SIZE_SHRINK_CENTER; tr.add_child(ic)
-	var tl := UIKit.header(title); tl.size_flags_horizontal = SIZE_EXPAND_FILL; tr.add_child(tl)
+		tic = UIKit.pixel(UIKit.spd_icon(icon_name), 1); tic.size_flags_vertical = SIZE_SHRINK_CENTER; tr.add_child(tic)
+	# Set the title's maximum width before it enters the tree. Otherwise the first minimum shapes one
+	# glyph per line, Control caches that, and set_size clamps the window up to it and never shrinks.
+	# "Forge Worn Shortsword" is tall enough to pin the popup at the bottom; "Forge Shortsword" often is not.
+	var tl := UIKit.header(title); tl.size_flags_horizontal = SIZE_EXPAND_FILL
 	var x := UIKit.button("X", close_cb); UIKit.secondary(x); x.custom_minimum_size = Vector2.ONE * UIKit.btn_height()
-	x.size_flags_horizontal = SIZE_SHRINK_END; tr.add_child(x)
+	x.size_flags_horizontal = SIZE_SHRINK_END
+	var inner := _window_inner_width(pc)
+	var sep := float(tr.get_theme_constant("separation"))
+	var title_w := inner - x.get_combined_minimum_size().x - sep
+	if tic: title_w -= tic.get_combined_minimum_size().x + sep
+	tl.custom_maximum_size.x = maxf(UIKit.font_size * 6.0, title_w)
+	tr.add_child(tl); tr.add_child(x)
 	# Vendor pages fill this; stays above the scroller so materials stay put while the shop scrolls.
 	var mats_host := VBoxContainer.new(); mats_host.name = "MatsHost"; mats_host.visible = false; v.add_child(mats_host)
 	layer.set_meta("mats_host", mats_host)
@@ -342,6 +352,7 @@ func _make_window(title: String, icon_name: String, close_cb: Callable, w_frac :
 	var foot := UIKit.vbox(v); foot.visible = false; layer.set_meta("foot", foot)
 	# message strip at the window's foot: toasts land here instead of floating over the window
 	var msg := UIKit.label("", 0.8, Color("ffff88")); msg.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	msg.custom_maximum_size.x = maxf(UIKit.font_size * 6.0, inner)
 	msg.visible = false; v.add_child(msg); layer.set_meta("msg", msg)
 	if Time.get_ticks_msec() - int(last_msg[1]) < 3500:   # windows rebuild on every change; keep the latest message
 		(func(): if is_instance_valid(msg): _show_msg(msg, last_msg[0], 3.5 - (Time.get_ticks_msec() - int(last_msg[1])) / 1000.0)).call_deferred()
@@ -427,13 +438,58 @@ func info(id: String, title: String, lines: Array, actions: Array = [], badge :=
 			tv.add_child(UIKit.label(String(l), 0.9))
 	for a in actions:   # [text, callable, reason]
 		body.add_child(UIKit.action(a[0], func(): a[1].call(); _close_info(), a[2]))
-	# fit the popup to its content
-	(func():
-		# the window may be gone, or the Camp screen swapped out (a delve started) before this deferred fit runs
-		if not is_instance_valid(w[2]) or not is_inside_tree(): return
-		var pc: PanelContainer = w[2]; var vs := get_viewport_rect().size
-		var hh := minf(vs.y * 0.8, body.get_combined_minimum_size().y + UIKit.font_size * 4.0)
-		pc.size.y = hh; pc.position.y = floorf((vs.y - hh) / 2.0)).call_deferred()
+	var pc: PanelContainer = w[2]
+	var inner := _window_inner_width(pc)
+	# Side column is beside the icon; wide rows (quantity picker, actions) span the window.
+	var side := inner - ic.get_combined_minimum_size().x - float(top.get_theme_constant("separation"))
+	_cap_vbox_wrap(tv, side)
+	for c in body.get_children():
+		if c != top: _cap_vbox_wrap(c, inner)
+	# After the sorts queued by add_child, so a flow row's cached height is in the minimum. A second
+	# pass once layout has settled corrects a clamp from a minimum that was still stale.
+	_apply_info_fit.bind(pc, body).call_deferred()
+	_refit_info_after_layout(pc, body)
+
+## Content width inside the window chrome. Theme margins, else the same chrome() the theme uses.
+func _window_inner_width(pc: PanelContainer) -> float:
+	var sb := pc.get_theme_stylebox("panel")
+	var m := sb.get_margin(SIDE_LEFT) + sb.get_margin(SIDE_RIGHT)
+	if m < 1.0:
+		sb = UIKit.chrome("window")
+		m = sb.get_margin(SIDE_LEFT) + sb.get_margin(SIDE_RIGHT)
+	return pc.size.x - m
+
+## Wrapping labels in a column need a maximum width or their first minimum is one glyph per line (DECISIONS #240).
+func _cap_vbox_wrap(root: Node, width: float) -> void:
+	var w := maxf(UIKit.font_size * 4.0, width)
+	var nodes: Array = root.find_children("*", "Label", true, false)
+	if root is Label: nodes.append(root)
+	for n in nodes:
+		var l := n as Label
+		if l.autowrap_mode == TextServer.AUTOWRAP_OFF or not (l.get_parent() is VBoxContainer): continue
+		l.custom_maximum_size.x = w
+		# Setting the maximum does not drop a minimum already cached at width 1.
+		l.update_minimum_size()
+
+func _apply_info_fit(pc: PanelContainer, body: VBoxContainer) -> void:
+	# the window may be gone, or the Camp screen swapped out (a delve started) before this fit runs
+	if not is_instance_valid(pc) or not is_instance_valid(body) or not is_inside_tree(): return
+	var vs := get_viewport_rect().size
+	var hh := minf(vs.y * 0.8, body.get_combined_minimum_size().y + UIKit.font_size * 4.0)
+	if absf(pc.size.y - hh) <= 1.0: return
+	pc.size.y = hh
+	pc.position.y = floorf((vs.y - hh) / 2.0)
+
+func _refit_info_after_layout(pc: PanelContainer, body: VBoxContainer) -> void:
+	await get_tree().process_frame
+	await get_tree().process_frame
+	if not is_instance_valid(pc) or not is_instance_valid(body) or not is_inside_tree(): return
+	_bust_wrap_mins(body)
+	_apply_info_fit(pc, body)
+
+func _bust_wrap_mins(n: Node) -> void:
+	if n is Control: (n as Control).update_minimum_size()
+	for c in n.get_children(): _bust_wrap_mins(c)
 
 func _close_info() -> void:
 	if info_layer: info_layer.queue_free(); info_layer = null
