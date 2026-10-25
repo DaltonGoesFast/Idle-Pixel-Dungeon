@@ -1,6 +1,8 @@
 # Changelog
 
 ## Unreleased
+
+## 0.50.2
 - Expedition supplies show the pack's carry cap even when the stash is short, and a Buy button on a short row purchases one at the Guild or Enchanter price (DECISIONS #238, +tests).
 - A Scroll of Passage can be read from the Bag during a fight. Read asks first, then extracts and banks the pack the same way it does outside combat. The fight ends on Read, so no extra turn is spent, and Auto Battle never reads it (DECISIONS #239, +test).
 - Forge item windows shrink to their content. A longer title such as Forge Worn Shortsword no longer leaves a tall empty area under the need line; a note that is taller than the screen scrolls instead (DECISIONS #240, +test).
