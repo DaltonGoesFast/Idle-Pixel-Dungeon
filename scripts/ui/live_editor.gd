@@ -4,6 +4,59 @@ extends Window
 
 const LiveEditorScript := preload("res://scripts/ui/live_editor.gd")
 
+## Hover help for Balance / Text field keys (and a few layout keys).
+const FIELD_TIPS := {
+	"ht": "Hit points (max HP). How much damage the mob can take before it dies.",
+	"hp": "Hit points. Same idea as ht on mobs.",
+	"dmg": "Attack damage dealt per hit (fixed; no RNG roll in combat).",
+	"dr": "Damage reduction / armor. Subtracted from incoming hits before HP is lost.",
+	"delay": "Action speed. 1.0 = normal turn rate; lower = acts more often (SPD: 1/baseSpeed).",
+	"exp": "Experience the hero gains when this mob dies.",
+	"loot": "Gold (or loot value) dropped when the mob dies.",
+	"fw": "Sprite frame width in pixels (how the sheet is sliced). Visual only — does not affect combat.",
+	"fh": "Sprite frame height in pixels. Visual only — does not affect combat.",
+	"sprite": "Sprite sheet file under assets/sprites (without .png).",
+	"name": "Display name shown in UI, inspect, and codex.",
+	"spd": "Short SPD reference note (not used by combat rules).",
+	"spd_desc": "Longer flavor / SPD description text shown when identified.",
+	"desc": "Description shown in Camp / facility UI.",
+	"tier": "Item tier (1–5). Drives forge unlock level, upgrade costs, and weapon scaling.",
+	"str": "Strength required to use this gear at +0 (lowered by upgrades like SPD).",
+	"acc": "Accuracy multiplier (1.0 = normal). Higher hits more often vs evasion.",
+	"reach": "Melee reach in tiles (1 = adjacent). Higher can hit farther.",
+	"surprise_pct": "Bonus chance / strength of surprise (backstab) damage for dagger-family weapons.",
+	"block": "Shield-style block DR as [base, per level]. Contributes armor when blocking.",
+	"max": "For weapons: [base max damage, damage gained per upgrade level].",
+	"delay_weapon": "Weapon attack delay (turns between swings). Lower = faster attacks.",
+	"dr_per_lvl": "Extra armor DR added per upgrade level on this armor.",
+	"barrier_per_lvl": "Barrier (overshield) gained per armor upgrade level.",
+	"upgrade_cost": "Materials spent to raise this facility one level (scaled by current level in code).",
+	"cost": "Crafting / recipe material costs paid when you forge or brew this.",
+	"reward": "Items or materials granted when this milestone is claimed.",
+	"min_level": "Facility level required before this recipe appears at the vendor.",
+	"max_facility": "Highest facility level (Scroll-of-Upgrade cap ceiling).",
+	"cap_scrolls": "Scrolls of Upgrade needed to raise the facility cap at each step.",
+	"pack_cap": "Guild pack size (rations/torches slots) by facility level.",
+	"fuel": "Primary material this facility consumes for upgrades / crafts.",
+	"goal": "How many of the tracked stat you need to unlock this milestone.",
+	"badge": "Index into assets/ui/badges.png for the Journal icon.",
+	"title": "Title on a tutorial tip card.",
+	"text": "Body copy on a tutorial tip card.",
+	"label": "Short label drawn under a Camp NPC / spot.",
+	"fire_y": "Campfire height as a fraction of the ground (0 = horizon, 1 = bottom).",
+	"x": "Horizontal position (0–1 across the clearing, or UI offset fraction).",
+	"y": "Vertical position (ground fraction for camp, or UI offset fraction).",
+	"x_tiles": "Hero seat offset from the fire, in tile widths (negative = left).",
+	"dx": "UI chrome horizontal nudge as a fraction of min(viewport size).",
+	"dy": "UI chrome vertical nudge as a fraction of min(viewport size).",
+	"out": "Item id produced by this recipe.",
+	"id": "Stable id used in saves and code (do not rename lightly).",
+	"type": "Item type: weapon, armor, ring, wand, artifact, etc.",
+	"icon": "Icon key into the items sprite sheet / icons.json.",
+	"cat": "Milestone category tab in the Journal.",
+	"stat": "Which GameState counter this milestone tracks (see GameState.stat_value).",
+}
+
 static var instance: Window = null
 
 var _tabs: TabContainer
@@ -108,9 +161,15 @@ func _build() -> void:
 
 	var bar := HBoxContainer.new()
 	root.add_child(bar)
-	bar.add_child(UIKit.button("Reload", _reload_all))
-	bar.add_child(UIKit.button("Save to disk", _save_all))
-	bar.add_child(UIKit.button("Apply live", _apply_live))
+	var b_reload := UIKit.button("Reload", _reload_all)
+	b_reload.tooltip_text = "Discard unsaved form edits and re-read data/*.json from disk."
+	bar.add_child(b_reload)
+	var b_save := UIKit.button("Save to disk", _save_all)
+	b_save.tooltip_text = "Write mobs/items/facilities/recipes/tutorial/milestones and camp/UI layout JSON into the project."
+	bar.add_child(b_save)
+	var b_apply := UIKit.button("Apply live", _apply_live)
+	b_apply.tooltip_text = "Push current edits into the running game without saving files yet."
+	bar.add_child(b_apply)
 	_status = UIKit.label("Ready", 0.8, Color("9a8f7c"))
 	_status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	bar.add_child(_status)
@@ -145,6 +204,7 @@ func _build_layout_tab() -> void:
 		0.75, Color("9a8f7c")))
 	_edit_on = CheckButton.new()
 	_edit_on.text = "Edit layout on game window"
+	_edit_on.tooltip_text = "When on, drag Camp NPCs, hero seats, the fire, or named Camp chrome in the game window."
 	_edit_on.button_pressed = LiveLayout.editing
 	_edit_on.toggled.connect(func(on: bool):
 		LiveLayout.set_editing(on)
@@ -360,13 +420,24 @@ func _fill_form(body: VBoxContainer, balance: bool) -> void:
 	if form.get_child_count() == 0:
 		form.add_child(UIKit.label("No editable %s fields on this entry." % ("number" if balance else "text"), 0.75, Color("9a8f7c")))
 
+func _field_tip(key: String) -> String:
+	return String(FIELD_TIPS.get(key, "Data field \"%s\" from the JSON entry." % key))
+
+func _tip(ctrl: Control, key: String) -> void:
+	ctrl.tooltip_text = _field_tip(key)
+	if ctrl is Label:
+		ctrl.mouse_filter = Control.MOUSE_FILTER_STOP
+
 func _add_text_field(form: VBoxContainer, cat: String, id: String, key: String, val: String) -> void:
-	form.add_child(UIKit.label(key, 0.75, Color("bdb3a0")))
+	var hdr := UIKit.label(key, 0.75, Color("bdb3a0"))
+	_tip(hdr, key)
+	form.add_child(hdr)
 	var te := TextEdit.new()
 	te.text = val
 	te.custom_minimum_size = Vector2(0, 72 if val.length() > 60 else 40)
 	te.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	te.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
+	_tip(te, key)
 	te.text_changed.connect(func():
 		_set_entry_field(cat, id, key, te.text)
 		_dirty = true)
@@ -401,9 +472,11 @@ func _add_tip_pages(form: VBoxContainer, cat: String, id: String, pages: Array) 
 
 func _add_num_field(form: VBoxContainer, cat: String, id: String, key: String, val: float) -> void:
 	var row := HBoxContainer.new()
+	_tip(row, key)
 	form.add_child(row)
 	var l := UIKit.label(key, 0.8, Color("bdb3a0"))
 	l.custom_minimum_size.x = 120
+	_tip(l, key)
 	row.add_child(l)
 	var s := SpinBox.new()
 	s.min_value = -99999
@@ -413,6 +486,7 @@ func _add_num_field(form: VBoxContainer, cat: String, id: String, key: String, v
 	s.allow_lesser = true
 	s.value = val
 	s.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_tip(s, key)
 	s.value_changed.connect(func(v):
 		var out: Variant = int(v) if s.step >= 1.0 else v
 		_set_entry_field(cat, id, key, out)
@@ -420,15 +494,29 @@ func _add_num_field(form: VBoxContainer, cat: String, id: String, key: String, v
 	row.add_child(s)
 
 func _add_array_num_field(form: VBoxContainer, cat: String, id: String, key: String, arr: Array) -> void:
-	form.add_child(UIKit.label(key, 0.75, Color("bdb3a0")))
+	var hdr := UIKit.label(key, 0.75, Color("bdb3a0"))
+	_tip(hdr, key)
+	form.add_child(hdr)
 	var row := HBoxContainer.new()
+	_tip(row, key)
 	form.add_child(row)
+	var parts := [
+		"First value (base / level 1).",
+		"Second value (per level or next step).",
+		"Third value.",
+		"Fourth value.",
+		"Fifth value.",
+	]
 	for i in arr.size():
 		var s := SpinBox.new()
 		s.min_value = -99999; s.max_value = 99999; s.allow_greater = true; s.allow_lesser = true
 		s.step = 1.0
 		s.value = float(arr[i])
 		s.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var tip := _field_tip(key)
+		if i < parts.size():
+			tip = "%s\n%s" % [tip, parts[i]]
+		s.tooltip_text = tip
 		var ii := i
 		s.value_changed.connect(func(v):
 			var data := _entry_data(cat, id)
@@ -438,18 +526,24 @@ func _add_array_num_field(form: VBoxContainer, cat: String, id: String, key: Str
 		row.add_child(s)
 
 func _add_cost_fields(form: VBoxContainer, cat: String, id: String, key: String, cost: Dictionary) -> void:
-	form.add_child(UIKit.label(key, 0.75, Color("bdb3a0")))
+	var hdr := UIKit.label(key, 0.75, Color("bdb3a0"))
+	_tip(hdr, key)
+	form.add_child(hdr)
 	for mk in cost.keys():
 		var row := HBoxContainer.new()
 		form.add_child(row)
-		var l := UIKit.label(String(mk), 0.75)
+		var mat := String(mk)
+		var l := UIKit.label(mat, 0.75)
 		l.custom_minimum_size.x = 120
+		var tip := "%s\nAmount of %s required." % [_field_tip(key), mat]
+		l.tooltip_text = tip
+		l.mouse_filter = Control.MOUSE_FILTER_STOP
 		row.add_child(l)
 		var s := SpinBox.new()
 		s.min_value = 0; s.max_value = 999999; s.step = 1; s.allow_greater = true
 		s.value = float(cost[mk])
 		s.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		var mat := String(mk)
+		s.tooltip_text = tip
 		s.value_changed.connect(func(v):
 			var data := _entry_data(cat, id)
 			if data.has(key) and data[key] is Dictionary:
