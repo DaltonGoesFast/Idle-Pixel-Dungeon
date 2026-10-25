@@ -567,6 +567,16 @@ static func descend(gs) -> void:
 	plan_floor(run)
 	gs.touch()
 
+## Gold escaped thieves carried off (clamped to what the pack actually holds).
+static func _apply_gold_debt(gs, res: Dictionary) -> void:
+	var debt := int(res.get("gold_debt", 0))
+	if debt <= 0: return
+	var have := int(gs.run.pack.get("gold", 0))
+	var take := mini(debt, have)
+	if take <= 0: return
+	gs.pack_add("gold", -take)
+	gs.log_line("A thief escaped with %d gold." % take, "negative")
+
 ## Apply a finished fight to the run (shared by DelveScreen and the full-run simulator).
 ## Returns false if the hero died (caller should end the run with "death").
 static func apply_fight_result(gs, ev: Dictionary, res: Dictionary, reward: Dictionary) -> bool:
@@ -578,10 +588,12 @@ static func apply_fight_result(gs, ev: Dictionary, res: Dictionary, reward: Dict
 	if int(res.get("traps_found", 0)) > 0: gs.log_line("Spotted %d trap%s." % [res.traps_found, "" if int(res.traps_found) == 1 else "s"], "warning")
 	var taken := maxi(0, int(run.hp) - int(res.hp))
 	if not res.won:
+		_apply_gold_debt(gs, res)
 		gs.log_line("Defeated by %s." % ", ".join(ev.get("mobs", []).map(func(m): return DB.mobs[m].name)), "negative"); return false
 	gs.log_line("Victory: %d kill%s, took %d damage, +%d gold, +%d xp." % [int(res.get("kills", 0)), "" if int(res.get("kills", 0)) == 1 else "s", taken, int(res.loot), int(res.xp)], "positive")
 	run.hp = int(res.hp)
 	gs.pack_add("gold", int(round(int(res.loot) * float(gs.hero_stats(run.hero).get("gold_mult", 1.0)) * float(gs.hero_stats(run.hero).get("loot_mult", 1.0)))))   # Ring of Wealth
+	_apply_gold_debt(gs, res)
 	# every 4th won fight drops an unknown potion or scroll (SPD-style consumable loot, DECISIONS #80)
 	run.fights_won = int(run.get("fights_won", 0)) + 1
 	if gs.cloak_cap(run.hero) > 0:   # Cloak of Shadows: charges persist, a cleared fight gives 1 back (DECISIONS #206)

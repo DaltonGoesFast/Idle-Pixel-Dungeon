@@ -729,6 +729,7 @@ func _ensure_victory_summary() -> void:
 		if combat.loot > 0: got.append("+%d Gold" % combat.loot); icons[got[-1]] = {"id": "gold", "known": true, "drop": false}
 		if combat.fallen_loot > 0: got.append("+%d Gold on the next floor" % combat.fallen_loot); icons[got[-1]] = {"id": "gold", "known": true, "drop": false}
 		if combat.xp > 0: got.append("+%d XP" % combat.xp)
+		if combat.gold_debt > 0: lost.append("-%d Gold (thief escaped)" % combat.gold_debt); icons[lost[-1]] = {"id": "gold", "known": true, "drop": false}
 		if potions_used > 0: lost.append("-%d %s" % [potions_used, DB.display_name("potion_healing")]); icons[lost[-1]] = {"id": "potion_healing", "known": true, "drop": true}
 		_summary = {"got": got, "lost": lost, "icons": icons}
 
@@ -883,7 +884,7 @@ static func _victory_text(text: String, scale: float, color: Color, px: int) -> 
 	return l
 
 func result() -> Dictionary:
-	var r := {"won": combat.won, "hp": combat.hero.hp, "loot": combat.loot, "fallen_loot": combat.fallen_loot, "xp": combat.xp,
+	var r := {"won": combat.won, "hp": combat.hero.hp, "loot": combat.loot, "fallen_loot": combat.fallen_loot, "gold_debt": combat.gold_debt, "xp": combat.xp,
 		"boss_killed": combat.boss_killed, "potions_used": potions_used, "kills": combat.kills, "traps_found": combat.traps_found,
 		"trap_ids": combat.trap_ids_seen, "applied": _applied, "pause_after": _pause_after}
 	r.merge(combat.milestone_result())

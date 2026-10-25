@@ -35,6 +35,7 @@ var events: Array = []          # visual/audio events since last drain_events()
 var danger: Array = []          # [{pos, dmg, at, src, uid}]
 var loot := 0
 var fallen_loot := 0            # loot halved by chasm kills (recovered next floor)
+var gold_debt := 0              # gold escaped thieves took from the pack (applied after the fight)
 var xp := 0
 var over := false
 var won := false
@@ -64,7 +65,7 @@ func setup(room_rows: Array, hs: Dictionary, hp: int, mob_ids: Array, darkness :
 	surprises = 0; kill_ids = {}; auto_used = false; hp_lost = 0; potions_drunk = 0; last_target = 0
 	remains = {}
 	if not pool.is_empty(): trap_pool = pool
-	time = 0.0; loot = 0; fallen_loot = 0; xp = 0; over = false; won = false; boss_killed = false; _uid = 0
+	time = 0.0; loot = 0; fallen_loot = 0; gold_debt = 0; xp = 0; over = false; won = false; boss_killed = false; _uid = 0
 	h = room_rows.size(); w = String(room_rows[0]).length() if h > 0 else SIZE
 	hero = {"uid": _next_uid(), "id": "hero", "name": hs.name, "hp": hp, "ht": hs.ht, "dmg": hs.dmg, "dr": hs.dr,
 		"barrier": 0 if darkness else hs.barrier_max, "barrier_max": hs.barrier_max, "delay": hs.delay, "next": 0.0,
@@ -121,7 +122,7 @@ func to_dict() -> Dictionary:
 	var tr := []
 	for k in traps: tr.append({"pos": [k.x, k.y], "id": traps[k].id, "hidden": traps[k].hidden})
 	return {"terrain": terrain, "w": w, "h": h, "units": us, "danger": dz, "traps": tr, "trap_pool": trap_pool, "kills": kills, "traps_found": traps_found, "trap_ids_seen": trap_ids_seen, "time": time, "log": Array(log_lines), "loot": loot,
-		"fallen_loot": fallen_loot, "xp": xp, "over": over, "won": won, "boss_killed": boss_killed, "uid": _uid, "floor": floor,
+		"fallen_loot": fallen_loot, "gold_debt": gold_debt, "xp": xp, "over": over, "won": won, "boss_killed": boss_killed, "uid": _uid, "floor": floor,
 		"surprises": surprises, "kill_ids": kill_ids, "auto_used": auto_used, "hp_lost": hp_lost, "potions_drunk": potions_drunk, "dmg_in": dmg_in, "absorbed_total": absorbed_total, "dmg_out": dmg_out, "hero_turns": hero_turns, "last_target": last_target, "remains": remains.keys().map(func(k): return [k.x, k.y]), "trampled": trampled.keys().map(func(k): return [k.x, k.y])}
 
 func from_dict(d: Dictionary) -> void:
@@ -138,7 +139,7 @@ func from_dict(d: Dictionary) -> void:
 	for u in d.units:
 		var x: Dictionary = u.duplicate(true)
 		x.pos = Vector2i(int(u.pos[0]), int(u.pos[1]))
-		for k in ["uid", "hp", "ht", "dmg", "dr", "barrier", "barrier_max", "charges", "cloak_charges", "cloak_cap", "cooldown", "acts", "exp", "loot", "pump_count", "poison", "search_radius", "stolen", "hits", "slams", "bombs", "blinks", "steal_gold", "abil", "abil_n", "combo", "level"]:
+		for k in ["uid", "hp", "ht", "dmg", "dr", "barrier", "barrier_max", "charges", "cloak_charges", "cloak_cap", "cooldown", "acts", "exp", "loot", "pump_count", "poison", "search_radius", "stolen", "escape_left", "escape_turns", "hits", "slams", "bombs", "blinks", "steal_gold", "abil", "abil_n", "combo", "level"]:
 			if x.has(k): x[k] = int(x[k])
 		if x.has("sub"): x.sub = String(x.sub)
 		if x.has("aim"): x.aim = Vector2i(int(x.aim[0]), int(x.aim[1])) if x.aim is Array else x.aim
@@ -161,6 +162,7 @@ func from_dict(d: Dictionary) -> void:
 	var ki: Dictionary = d.get("kill_ids", {})
 	for k in ki: kill_ids[String(k)] = int(ki[k])
 	time = float(d.time); log_lines = PackedStringArray(d.log); loot = int(d.loot); fallen_loot = int(d.fallen_loot)
+	gold_debt = int(d.get("gold_debt", 0))
 	xp = int(d.xp); over = d.over; won = d.won; boss_killed = d.boss_killed; _uid = int(d.uid); events = []
 
 func _next_uid() -> int:
@@ -478,6 +480,9 @@ func hit_mob(m: Dictionary, raw: int, surprise := false, magic := false, ranged 
 	if surprise: surprises += 1
 	_log("%s%s takes %d." % ["SURPRISE! " if surprise else "", m.name, dmg])
 	_ev({"t": "hit", "uid": m.uid, "amount": dmg, "kind": "surprise" if surprise else ("magic" if magic else "hp"), "pos": m.pos})
+	# Hitting a fleeing thief resets its escape countdown (DECISIONS: steal-and-flee).
+	if int(m.get("stolen", 0)) > 0 and m.hp > 0:
+		m.escape_left = int(m.get("escape_turns", 4))
 	if m.hp <= 0:
 		_kill(m, false)
 	elif m.get("ability", "") == "tengu":
@@ -1247,7 +1252,9 @@ func _mob_act(m: Dictionary) -> void:
 				_log("%s knocks your weapon aside!" % m.name); add_debuff("weak", float(m.disarm_t))
 		if m.get("ability", "") == "steal" and int(m.get("stolen", 0)) == 0 and not over:
 			m.stolen = int(m.steal_gold)
-			_log("%s snatches %d gold and runs! Kill it to get it back." % [m.name, m.stolen]); _ev({"t": "sfx", "name": "gold"})
+			m.escape_left = int(m.get("escape_turns", 4))
+			_log("%s snatches %d gold and runs! Hit it within %d turns or it escapes with the gold." % [m.name, m.stolen, int(m.escape_left)])
+			_ev({"t": "sfx", "name": "gold"})
 		return
 	if m.get("stationary", false): return   # Yog-Dzewa never moves
 	# SPD casters (shaman, warlock, Bright Fist): with a clear shot in range they hold position instead
@@ -1312,8 +1319,12 @@ func _adjacent_free(around: Vector2i, toward: Vector2i) -> Vector2i:
 		if passable(n) and unit_at(n) == null and not traps.has(n) and cheb(n, toward) < bd: bd = cheb(n, toward); best = n
 	return best
 
-## Thief: after stealing, runs to the tile farthest from the hero.
+## Thief: after stealing, runs to the tile farthest from the hero. Each flee act burns one
+## escape_left; if the hero never lands a hit before it hits 0, the thief escapes with the gold.
 func _flee(m: Dictionary) -> void:
+	m.escape_left = int(m.get("escape_left", 0)) - 1
+	if int(m.escape_left) <= 0:
+		_escape(m); return
 	var best = null; var bd := cheb(m.pos, hero.pos)
 	for d in DIRS:
 		var n: Vector2i = m.pos + d
@@ -1322,6 +1333,21 @@ func _flee(m: Dictionary) -> void:
 	elif cheb(m.pos, hero.pos) == 1:
 		note_last_target(m)
 		hit_hero(int(m.dmg), m.name)
+
+## Thief got away: no XP/loot kill, and the stolen gold is charged to the pack after the fight.
+func _escape(m: Dictionary) -> void:
+	var took := int(m.get("stolen", 0))
+	gold_debt += took
+	m.stolen = 0
+	m.hp = 0
+	danger = danger.filter(func(d): return d.uid != m.uid)
+	_log("%s escapes with %d gold!" % [m.name, took])
+	_ev({"t": "die", "uid": m.uid, "pos": m.pos})
+	_ev({"t": "sfx", "name": "miss"})
+	if enemies().is_empty():
+		over = true; won = true
+		danger.clear()
+		_log("Room cleared!")
 
 ## Tengu (SPD Prison boss). Phase 1: throws telegraphed shurikens from range, blinks away after being hurt.
 ## Phase 2 (<= half HP): also lobs bombs - a 3x3 red area that blows up 2 ticks later (bombs hurt mobs too).

@@ -128,9 +128,10 @@
   "fh": 13,
   "ability": "steal",
   "steal_gold": 8,
+  "escape_turns": 4,
   "hp_flee": true,
   "spd": "HT 20, dmg 1-10, DR 0-3; steals an item and flees",
-  "tuned": "steals 8 gold (dropped back when killed) instead of an item; flees at normal speed so ranged heroes can catch it"
+  "tuned": "steals 8 gold on first hit, then flees; if not hit for 4 of its turns it escapes with that gold from your purse; kill it to keep the gold and its loot"
  },
  "dm100": {
   "name": "DM-100",

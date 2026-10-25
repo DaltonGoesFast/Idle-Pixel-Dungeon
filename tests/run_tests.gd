@@ -379,6 +379,32 @@ func test_prison(gs) -> void:
 	var s0 = sk.enemies()[0]
 	sk.hit_mob(s0, 99, false, true)
 	check(sk.danger.size() >= 6, "Skeleton death telegraphs a bone burst")
+	# Crazy Thief: steals on first hit, flees, escapes with gold if not hit for escape_turns
+	var room := ["########", "#H.....#", "#......#", "#......#", "#......#", "#......#", "#.....1#", "########"]
+	var th := Combat.new(); th.setup(room, hs, hs.ht, ["thief"])
+	var tf = th.enemies()[0]
+	tf.pos = Vector2i(2, 1); th.hero.pos = Vector2i(1, 1)
+	th._mob_act(tf)
+	check(int(tf.stolen) == int(DB.mobs.thief.steal_gold), "thief steals gold on its first melee hit")
+	check(int(tf.escape_left) == int(DB.mobs.thief.escape_turns), "thief escape timer starts at escape_turns")
+	for _i in int(DB.mobs.thief.escape_turns) - 1:
+		th._mob_act(tf)
+		check(tf.hp > 0 and th.gold_debt == 0, "thief still fleeing before the last escape turn")
+	th._mob_act(tf)
+	check(tf.hp <= 0 and th.gold_debt == int(DB.mobs.thief.steal_gold), "thief escapes with the stolen gold after escape_turns without a hit")
+	check(th.won and th.loot == 0, "an escaped thief clears the room with no kill loot")
+	th = Combat.new(); th.setup(room, hs, hs.ht, ["thief"])
+	tf = th.enemies()[0]
+	tf.pos = Vector2i(2, 1); th.hero.pos = Vector2i(1, 1)
+	th._mob_act(tf)
+	for _i in 2: th._mob_act(tf)
+	var left_before := int(tf.escape_left)
+	th.hit_mob(tf, 1, false, true)
+	check(int(tf.escape_left) == int(DB.mobs.thief.escape_turns), "hitting the fleeing thief resets its escape timer (was %d)" % left_before)
+	gs.run.pack.gold = 20
+	var res := {"won": true, "hp": hs.ht, "loot": 0, "fallen_loot": 0, "gold_debt": 8, "xp": 0, "boss_killed": false, "kills": 0, "traps_found": 0, "trap_ids": []}
+	Delve.apply_fight_result(gs, {"kind": "combat", "mobs": ["thief"]}, res, {})
+	check(int(gs.run.pack.gold) == 12, "escaped-thief gold debt is taken from the pack after the fight")
 
 func test_caves(gs) -> void:
 	print("[caves] Lv10 Warrior, Str 14, Mace+1 / Mail+1 (GDD Caves: 14-15 Str, tier 3) vs every Caves fight")
