@@ -129,8 +129,14 @@ func grant_owed_sou() -> int:
 	say("A lost Scroll of Upgrade returns to Camp!" if n == 1 else "%d lost Scrolls of Upgrade return to Camp!" % n, "highlight")
 	return n
 
+## Gold for a full first-delve buy at Lv1 facilities: 3 rations (30) + 3 torches (24) +
+## 2 healing potions (60) + 1 Scroll of Passage at the Enchanter (20). Pack caps match Guild /
+## Alchemy Lv1; early runs also get a free Passage until Goo falls.
+const STARTING_GOLD := 134
+
 func new_game() -> void:
-	mats = {"gold": 30, "ration": 2, "torch": 2, "potion_healing": 1, "iron_key": 1, "seeds": 2}
+	# Empty supply stash on purpose: buy rations, torches and potions at the Guild before the first delve.
+	mats = {"gold": STARTING_GOLD, "ration": 0, "torch": 0, "potion_healing": 0, "iron_key": 1, "seeds": 2, "arcane_resin": 2}
 	gear = []; next_uid = 1; id_queue = []; boss_kills = {}; run = {}; time_offset = 0.0
 	stats = STATS_DEFAULT.duplicate(); milestones_claimed = []; milestones_reached = []; seen = {}; tutorial_done = []; owed_sou = 0
 	_roll_appearances()

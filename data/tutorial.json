@@ -9,7 +9,7 @@
     },
     {
      "title": "The loop",
-     "text": "1. Pack supplies and pick a hero (Delve tab).\n2. The Delve Bar explores for you; encounters pop up as cards.\n3. Fights play out on an 8x8 grid where you control every move.\n4. Extract at a boss campfire (or with a Scroll of Passage) to bank your loot."
+     "text": "1. Buy rations, torches and healing potions at the Guild (you start with gold, not supplies).\n2. Pack them and pick a hero (Delve tab).\n3. The Delve Bar explores for you; encounters pop up as cards.\n4. Fights play out on an 8x8 grid where you control every move.\n5. Extract at a boss campfire (or with a Scroll of Passage) to bank your loot."
     },
     {
      "title": "Death has a price",
@@ -18,8 +18,12 @@
    ]
   },
   "camp_delve": {
-   "title": "Packing for a delve",
-   "text": "Torches keep the light on - in darkness you fight with no Barrier. Rations stop starvation. Potions heal mid-fight. Unused supplies come back to the stash."
+   "title": "Stock up before you delve",
+   "text": "You start with gold but no rations, torches or healing potions. Tap the Guild shopkeeper and buy a full pack (your gold covers max rations, torches, potions and a Scroll of Passage). Then open Delve to pack them. Torches keep the light on, rations stop starvation, potions heal mid-fight; unused supplies return to the stash."
+  },
+  "camp_guild": {
+   "title": "The Guild",
+   "text": "Buy rations, torches and Potions of Healing here before your first delve. Your starting gold is enough for a full Lv1 pack. Upgrade the Guild later to carry more rations and torches per expedition, and to send heroes on longer patrols."
   },
   "camp_forge": {
    "title": "The Forge",

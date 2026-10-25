@@ -287,7 +287,8 @@ func test_fullrun(gs) -> void:
 			for seed in 10:
 				gs.new_game()
 				for c in gs.heroes: gs.heroes[c].unlocked = true
-				gs.add_mat("potion_healing", 1)
+				# new_game leaves supplies empty (buy at Guild); stock the loadout the bot packs
+				gs.add_mat("ration", 2); gs.add_mat("torch", 2); gs.add_mat("potion_healing", 2)
 				gs.stats.goo_losses = grudge
 				var r := RunSim.play(gs, cls, {"ration": 2, "torch": 2, "potion_healing": 2}, 1000 + seed)
 				if r.result == "extract": wins += 1; lv += r.level
@@ -5358,7 +5359,8 @@ func test_wipe_save_confirm(gs) -> void:
 	check(wipe_btn != null, "wipe: Wipe button present")
 	wipe_btn.pressed.emit()
 	await get_tree().process_frame
-	check(gs.mat("gold") == 30, "wipe: Wipe resets to a new game (starter gold 30, got %d)" % gs.mat("gold"))
+	check(gs.mat("gold") == gs.STARTING_GOLD, "wipe: Wipe resets to a new game (starter gold %d, got %d)" % [gs.STARTING_GOLD, gs.mat("gold")])
+	check(gs.mat("ration") == 0 and gs.mat("torch") == 0 and gs.mat("potion_healing") == 0, "wipe: new game starts with empty supply stash")
 	check(gs.run.is_empty(), "wipe: no run after Wipe")
 	check(Telemetry.distinct_id == tel_before, "wipe: anonymous telemetry id is kept")
 	# Developer section still has no wipe when opened.
