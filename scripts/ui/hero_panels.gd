@@ -64,8 +64,9 @@ static func talents(parent: Control, c: String, refresh: Callable) -> void:
 					if GameState.pick_talent(c, tid2): Sfx.play("levelup"); sel_talent = ""; refresh.call(), why2))
 
 ## In-delve backpack: belt supplies (use), equipped slots (unequip), carried gear (equip / compare / drop),
-## full-pack loot decisions. in_combat: only equip actions, each costs a turn (on_equip_in_combat is called).
-static func backpack(parent: Control, refresh: Callable, in_combat := false, on_equip_in_combat := Callable()) -> void:
+## full-pack loot decisions. in_combat: equip actions cost a turn (on_equip_in_combat). A carried Scroll of
+## Passage can be read from the fight Bag (on_read_passage opens the same confirm as the toolbar).
+static func backpack(parent: Control, refresh: Callable, in_combat := false, on_equip_in_combat := Callable(), on_read_passage := Callable()) -> void:
 	var run: Dictionary = GameState.run
 	if run.is_empty(): return
 	var c: String = run.hero
@@ -73,7 +74,23 @@ static func backpack(parent: Control, refresh: Callable, in_combat := false, on_
 	var card := UIKit.card(); parent.add_child(card)
 	var v := UIKit.vbox(card)
 	v.add_child(UIKit.label("Backpack  %d/%d slots" % [GameState.backpack_used(), GameState.BACKPACK_SLOTS], 1.1, Color("ffd27a")))
-	if in_combat: v.add_child(UIKit.label("Swapping gear in a fight costs your turn.", 0.8, Color("c9a96e")))
+	if in_combat:
+		v.add_child(UIKit.label("Swapping gear in a fight costs your turn.", 0.8, Color("c9a96e")))
+		# Other supplies and found scrolls stay out of a fight. Passage is the escape (DECISIONS #239).
+		var npass := Delve.scroll_passage_count(GameState)
+		if npass > 0 and on_read_passage.is_valid():
+			var pr := UIKit.hbox(v)
+			pr.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+			pr.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+			var ic := UIKit.icon("scroll_passage")
+			ic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+			pr.add_child(ic)
+			var pb := UIKit.button("Read Scroll of Passage", on_read_passage)
+			pb.autowrap_mode = TextServer.AUTOWRAP_OFF
+			pb.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+			pb.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+			pb.tooltip_text = Delve.passage_text()
+			pr.add_child(pb)
 	# overflow first: it blocks nothing but needs a decision
 	var ov: Array = run.get("overflow", [])
 	if not ov.is_empty() and not in_combat:

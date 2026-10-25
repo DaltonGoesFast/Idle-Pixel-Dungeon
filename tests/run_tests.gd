@@ -97,6 +97,7 @@ func _ready() -> void:
 	await test_icon_sizes(gs)
 	test_full_auto(gs)
 	test_passage_confirm(gs)
+	test_passage_bag(gs)
 	test_use_popup(gs)
 	test_encounter_dismiss(gs)
 	test_encounter_restart(gs)
@@ -2625,6 +2626,103 @@ func test_passage_confirm(gs) -> void:
 	_find_btn(cs.passage_layer, "Read").pressed.emit()
 	check(gs.run.is_empty() and gs.last_result == "extract" and gs.mat("iron_ore") == ore_before + 3, "combat Read extracts and banks the pack")
 	cs.queue_free()
+
+## DECISIONS #239: the combat Bag can read a Scroll of Passage. Confirm spends nothing; Read extracts
+## and banks the pack. Other supplies stay hidden. Auto Battle never reads it. The delve Bag still cannot.
+func test_passage_bag(gs) -> void:
+	print("[passage bag]")
+	gs.new_game(); gs.settings.tutorial = false; gs.stats.goo_kills = 1
+	gs.add_mat("ration", 1); gs.add_mat("scroll_passage", 2)
+	gs.start_run("warrior", {"ration": 1, "scroll_passage": 1}, "sewers", 11)
+	gs.run.talent_prompted = true
+	gs.run.pack["gold"] = 11
+	gs.run.pack["iron_ore"] = 4
+	check(gs.mat("scroll_passage") == 1 and int(gs.run.supplies.scroll_passage) == 1, "one Passage is packed and one stays in the stash")
+	check(not gs.delve_use("scroll_passage") and int(gs.run.supplies.scroll_passage) == 1, "delve_use still refuses Passage")
+	var host := VBoxContainer.new(); add_child(host)
+	HeroPanels.backpack(host, func(): pass)
+	check(_find_btn(host, "Read Scroll of Passage") == null, "delve Bag does not read Passage")
+	check(_find_btn(host, "Use Ration (1)") != null, "delve Bag still uses rations")
+	host.queue_free()
+	var fight := Delve.combat_event(gs.run, Delve.rng_for(gs.run, 1), ["bat"])
+	var cs = load("res://scripts/ui/combat_screen.gd").new()
+	cs.setup(fight, func(_r): pass)
+	add_child(cs)
+	cs.apply_layout(true, Vector2(484, 1188))
+	check(_find_btn(cs.buttons, "Scroll of Passage") != null, "phone chrome still offers Passage")
+	check(_find_btn(cs.buttons, "Use Ration (1)") == null and _find_btn(cs, "Attack") != null, "combat actions stay Attack and the chrome, not a ration button")
+	_find_btn(cs.buttons, "Bag").pressed.emit()
+	check(cs.bag_open and cs.bag_layer != null, "combat Bag opens")
+	check(_find_btn(cs.bag_layer, "Use Ration (1)") == null, "combat Bag still hides rations")
+	var rb: Button = _find_btn(cs.bag_layer, "Read Scroll of Passage")
+	check(rb != null, "combat Bag offers Scroll of Passage")
+	var time0: float = cs.combat.time
+	rb.pressed.emit()
+	check(cs.passage_confirm and not cs.bag_open, "Bag Read opens the confirm and closes the Bag")
+	check(int(gs.run.supplies.scroll_passage) == 1 and is_equal_approx(cs.combat.time, time0), "confirm keeps the scroll and spends no turn")
+	_find_btn(cs.passage_layer, "Cancel").pressed.emit()
+	check(not cs.passage_confirm and int(gs.run.supplies.scroll_passage) == 1 and is_equal_approx(cs.combat.time, time0), "Cancel from the Bag keeps the scroll and spends no turn")
+	_find_btn(cs.buttons, "Bag").pressed.emit()
+	_find_btn(cs.bag_layer, "Read Scroll of Passage").pressed.emit()
+	var gold0: int = gs.mat("gold")
+	var ore0: int = gs.mat("iron_ore")
+	_find_btn(cs.passage_layer, "Read").pressed.emit()
+	check(gs.run.is_empty() and gs.last_result == "extract", "Bag Read extracts")
+	check(gs.mat("iron_ore") == ore0 + 4 and gs.mat("gold") >= gold0 + 11, "extract banks the pack")
+	check(gs.mat("scroll_passage") == 1, "the read scroll is consumed and the spare stays in the stash")
+	cs.queue_free()
+	# A scroll sitting in the pack (not the supply belt) is the same escape.
+	gs.add_mat("ration", 1)
+	gs.start_run("warrior", {"ration": 1}, "sewers", 12)
+	gs.run.supplies.scroll_passage = 0
+	gs.run.free_passage = false
+	gs.run.pack["scroll_passage"] = 1
+	gs.run.pack["gold"] = 3
+	var stash_scroll: int = gs.mat("scroll_passage")
+	fight = Delve.combat_event(gs.run, Delve.rng_for(gs.run, 2), ["bat"])
+	cs = load("res://scripts/ui/combat_screen.gd").new()
+	cs.setup(fight, func(_r): pass)
+	add_child(cs)
+	cs.apply_layout(true, Vector2(484, 1188))
+	_find_btn(cs.buttons, "Bag").pressed.emit()
+	check(_find_btn(cs.bag_layer, "Read Scroll of Passage") != null, "combat Bag offers a Passage carried in the pack")
+	_find_btn(cs.bag_layer, "Read Scroll of Passage").pressed.emit()
+	_find_btn(cs.passage_layer, "Read").pressed.emit()
+	check(gs.run.is_empty() and gs.last_result == "extract" and gs.mat("gold") >= gold0 + 11 + 3 and gs.mat("scroll_passage") == stash_scroll, "pack Passage extracts, banks gold, and is consumed")
+	cs.queue_free()
+	# No scroll: the Bag row is absent. Auto Battle never spends one that is carried.
+	gs.add_mat("ration", 1)
+	gs.start_run("warrior", {"ration": 1}, "sewers", 13)
+	gs.run.supplies.scroll_passage = 0
+	gs.run.free_passage = false
+	fight = Delve.combat_event(gs.run, Delve.rng_for(gs.run, 3), ["bat"])
+	cs = load("res://scripts/ui/combat_screen.gd").new()
+	cs.setup(fight, func(_r): pass)
+	add_child(cs)
+	_find_btn(cs.buttons, "Bag").pressed.emit()
+	check(_find_btn(cs.bag_layer, "Read Scroll of Passage") == null, "combat Bag hides Passage when none is carried")
+	cs.queue_free()
+	gs.end_run("abandon")
+	gs.add_mat("scroll_passage", 1); gs.add_mat("ration", 1)
+	gs.settings.full_auto = true
+	gs.start_run("warrior", {"ration": 1, "scroll_passage": 1}, "sewers", 14)
+	var left := int(gs.run.supplies.scroll_passage)
+	fight = Delve.combat_event(gs.run, Delve.rng_for(gs.run, 4), ["bat"])
+	cs = load("res://scripts/ui/combat_screen.gd").new()
+	cs.setup(fight, func(_r): pass)
+	add_child(cs)
+	check(cs.auto, "Auto Battle starts on")
+	var suggested := false
+	for _i in 25:
+		if cs.finished or gs.run.is_empty(): break
+		var sug: Dictionary = CombatBot.suggest(cs.combat, cs.potions - cs.potions_used, cs.heal)
+		if String(sug.get("act", "")) == "passage": suggested = true
+		cs._do_bot()
+	check(not suggested and not cs.passage_confirm, "Auto Battle never chooses or opens Passage")
+	check(not gs.run.is_empty() and int(gs.run.supplies.get("scroll_passage", 0)) == left, "Auto Battle leaves the scroll unspent")
+	cs.queue_free()
+	gs.settings.full_auto = false
+	if not gs.run.is_empty(): gs.end_run("abandon")
 
 ## Using a potion, scroll, ration or torch from the Backpack shows its lines in a pop-up over the Bag (DECISIONS #214).
 func test_use_popup(gs) -> void:

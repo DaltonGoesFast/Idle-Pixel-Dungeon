@@ -5,7 +5,8 @@
 class_name CombatBot
 extends RefCounted
 
-## Returns {"act": "tap"|"wait"|"heal", "pos": Vector2i, "mode": String, "why": String}
+## Returns {"act": "tap"|"wait"|"heal", "pos": Vector2i, "mode": String, "why": String}.
+## Never suggests reading a Scroll of Passage (DECISIONS #239): escape stays a manual choice.
 static func suggest(c: Combat, potions := 0, heal_amount := 10) -> Dictionary:
 	var h: Dictionary = c.hero
 	var es := c.enemies()

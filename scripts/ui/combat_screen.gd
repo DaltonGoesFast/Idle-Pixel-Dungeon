@@ -746,7 +746,8 @@ func _refresh() -> void:
 	_refresh_passage()
 	_fit_split()
 
-## In-combat Bag: swap weapon/armor/ring/wand from the backpack; costs the hero's turn (1 tick).
+## In-combat Bag: swap weapon/armor/ring/wand from the backpack; a swap costs the hero's turn (1 tick).
+## A carried Scroll of Passage is listed here too. Read opens the confirm; accepting extracts with no tick.
 ## Opens as a modal window clamped to the viewport (DECISIONS #143): it used to be appended under the
 ## buttons in the side column, which ran off the bottom on the Fold cover and off the right on the inner screen.
 const BAG_MARGIN := 0.02
@@ -781,7 +782,7 @@ func _refresh_bag() -> void:
 	var sc := ScrollContainer.new(); sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	sc.size_flags_vertical = SIZE_EXPAND_FILL; v.add_child(sc); bag_layer.set_meta("sc", sc)
 	var body := UIKit.vbox(sc); body.size_flags_horizontal = SIZE_EXPAND_FILL
-	HeroPanels.backpack(body, _refresh, true, _equip_in_combat)
+	HeroPanels.backpack(body, _refresh, true, _equip_in_combat, _ask_passage)
 	var keep := int(get_meta("bag_scroll", 0))
 	(func(): if is_instance_valid(sc): sc.scroll_vertical = keep).call_deferred()
 
