@@ -33,7 +33,7 @@ if [ -z "$IOS_CODE" ] || [ -z "$IOS_VER" ]; then
   echo "Missing application/version or application/short_version in export_presets.cfg."
   exit 1
 fi
-echo "Uploading SPD Tactics $IOS_VER ($IOS_CODE) to App Store Connect…"
+echo "Uploading Idle PD $IOS_VER ($IOS_CODE) to App Store Connect…"
 
 PROJ="builds/ios/spd-tactics.xcodeproj"
 if [ ! -d "$PROJ" ]; then

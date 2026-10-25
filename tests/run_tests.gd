@@ -6122,7 +6122,7 @@ func test_telemetry(gs) -> void:
 	var ov = load("res://scripts/ui/tip_overlay.gd").new()
 	add_child(ov)
 	var okd := [false]
-	ov.push_notice("data_notice", "Gameplay data", "SPD Tactics collects anonymous gameplay data.", func(): okd[0] = true, "Privacy", "https://example.invalid")
+	ov.push_notice("data_notice", "Gameplay data", "Idle PD collects anonymous gameplay data.", func(): okd[0] = true, "Privacy", "https://example.invalid")
 	await get_tree().process_frame
 	check(ov.is_open() and ov.queue[0].id == "data_notice", "telemetry: notice opens first")
 	ov.skip_all()

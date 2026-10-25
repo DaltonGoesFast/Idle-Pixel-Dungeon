@@ -1,4 +1,4 @@
-# SPD Tactics (working title)
+# Idle PD
 
 A hybrid semi-idle dungeon-management RPG and deterministic tactical roguelite built in **Godot 4.7** on top of
 [Shattered Pixel Dungeon](https://github.com/00-Evan/shattered-pixel-dungeon)'s art, sounds and stats.

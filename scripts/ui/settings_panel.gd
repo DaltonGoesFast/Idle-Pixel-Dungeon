@@ -28,7 +28,7 @@ static func dev_tools_allowed(is_web: bool = OS.has_feature("web")) -> bool:
 	return not is_web
 
 static func build(v: VBoxContainer, show_dev := true, on_wiped: Callable = Callable(), on_rebuild: Callable = Callable()) -> void:
-	v.add_child(UIKit.label("SPD Tactics " + UIKit.version(), 0.8, Color("c9a96e")))
+	v.add_child(UIKit.label("Idle PD " + UIKit.version(), 0.8, Color("c9a96e")))
 	_build_update(v, show_dev, on_wiped, on_rebuild)
 	var audio := _section(v, "audio", "Audio", show_dev, on_wiped, on_rebuild)
 	if audio:

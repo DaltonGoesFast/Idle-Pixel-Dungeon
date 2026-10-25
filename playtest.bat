@@ -1,7 +1,7 @@
 @echo off
 setlocal EnableExtensions
 cd /d "%~dp0"
-title SPD Tactics playtest
+title Idle PD playtest
 
 set "GODOT_BIN=C:\Users\dalto\Documents\My Games\idlrPD\Godot_v4.7.2-stable_win64.exe"
 

@@ -1,6 +1,6 @@
 # Credits & License
 
-SPD Tactics prototype is licensed under the GNU GPL v3.0 (see LICENSE).
+Idle PD is licensed under the GNU GPL v3.0 (see LICENSE).
 
 Art assets (sprites in assets/sprites, tiles in assets/tiles, interface art in assets/ui including the badge icons in badges.png), sound effects (assets/sounds) and music (assets/music) and the monster/item stat values are taken from
 **Shattered Pixel Dungeon** by Evan Debenham (https://github.com/00-Evan/shattered-pixel-dungeon), GPL-3.0,

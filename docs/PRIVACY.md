@@ -1,6 +1,6 @@
 # Privacy: gameplay data
 
-SPD Tactics sends **anonymous gameplay data** so the game's balance can be tuned from real play
+Idle PD sends **anonymous gameplay data** so the game's balance can be tuned from real play
 (where heroes die, how hard bosses are, how much gold and loot runs bring back). It is collected
 from every player on every platform (Android, Windows and the browser version). The first launch
 shows a short notice about it.

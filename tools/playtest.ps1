@@ -146,7 +146,7 @@ try {
         if ($Run -gt 0) {
             Write-Both ("Run #" + $Run)
         }
-        Write-Both "SPD Tactics playtest"
+        Write-Both "Idle PD playtest"
         Write-Both ("started: " + (Get-Date -Format "yyyy-MM-dd HH:mm:ss"))
         Write-Both ("root: " + $Root)
         Write-Both ("godot: " + $Godot)

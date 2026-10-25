@@ -190,7 +190,7 @@ func end_combat() -> void:
 
 ## One-time notice that anonymous gameplay data is collected (DECISIONS #197). Tip card look; OK + Privacy link.
 const DATA_NOTICE_TITLE := "Gameplay data"
-const DATA_NOTICE_TEXT := "SPD Tactics collects anonymous gameplay data (fights, floors, deaths, loot) to improve the game's balance. No names or accounts."
+const DATA_NOTICE_TEXT := "Idle PD collects anonymous gameplay data (fights, floors, deaths, loot) to improve the game's balance. No names or accounts."
 func show_data_notice() -> void:
 	tips.push_notice("data_notice", DATA_NOTICE_TITLE, DATA_NOTICE_TEXT, Telemetry.mark_notice_seen, "Privacy", Telemetry.privacy_url)
 

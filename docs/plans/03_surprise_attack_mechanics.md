@@ -46,7 +46,7 @@ Because rooms have doors, 2x2 pillars, and grass—and `CombatBot` is explicitly
 ### Why Plan 03 Differs from Vanilla SPD on Multiplier & Stealth DR Pierce
 1. **Why `1.5x` Base Multiplier Instead of Vanilla SPD's `1.0x`:**
    - In Vanilla SPD, normal melee attacks have RNG accuracy (~15–25% miss rate) and RNG damage rolls (`min` to `max`), so a guaranteed hit is already a ~20–30% DPS boost.
-   - In **SPD Tactics**, combat is **deterministic** (`Weapons.dmg()` always deals the average `(min + max) / 2`, and `1.0 acc` weapons never miss normal enemies). If Surprise were `1.0x` like vanilla SPD, stepping through a door or grass with a normal sword would do nothing against any non-snake enemy. Keeping `1.5x` ensures tactical positioning around doors, grass, and pillars remains rewarding.
+   - In **Idle PD**, combat is **deterministic** (`Weapons.dmg()` always deals the average `(min + max) / 2`, and `1.0 acc` weapons never miss normal enemies). If Surprise were `1.0x` like vanilla SPD, stepping through a door or grass with a normal sword would do nothing against any non-snake enemy. Keeping `1.5x` ensures tactical positioning around doors, grass, and pillars remains rewarding.
 2. **Why Stealth Weapons & Assassin Pierce 50% DR:**
    - `Dagger`, `Dirk`, and `Assassin's Blade` have lower base max damage than standard weapons of their tier. Giving them `sur_bonus` + `1.5x` + **50% DR pierce** (`eff_dr = int(m.dr) / 2`) on melee ambushes carves out a sharp armor-cracking identity against late-game high-DR enemies.
 
