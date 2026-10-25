@@ -202,11 +202,13 @@ func _assemble_chrome() -> void:
 	else:
 		split = BoxContainer.new(); split.name = "MobileSplit"
 		split.add_theme_constant_override("separation", 12)
+		split.clip_contents = true
 		add_child(split)
 		_pin_full_rect(split)
 		_reparent(grid, split)
 		side = UIKit.vbox(split)
 		side.size_flags_horizontal = SIZE_EXPAND_FILL; side.size_flags_vertical = SIZE_EXPAND_FILL
+		side.clip_contents = true
 		_reparent(header_label, side)
 		if guide_label: _reparent(guide_label, side)
 		pane.set_max_w(0.0)
@@ -386,7 +388,10 @@ func _btn(text: String, cb: Callable, enabled := true, skill := false, parent: N
 		b.size_flags_horizontal = SIZE_SHRINK_BEGIN
 		b.size_flags_vertical = SIZE_SHRINK_CENTER
 	else:
-		b.custom_minimum_size.x = UIKit.font_size * 6.5
+		# No large min width: 3x (font*6.5) Bag/Auto/Menu overflowed phone widths and clipped the right edge.
+		b.autowrap_mode = TextServer.AUTOWRAP_OFF
+		b.clip_text = true
+		b.custom_minimum_size = Vector2(0, UIKit.btn_height())
 		b.size_flags_horizontal = SIZE_EXPAND_FILL
 	var ic: String = BTN_ICONS.get(text, BTN_ICONS.get(label, ""))
 	for pre in BTN_PREFIX_ICONS:
@@ -520,22 +525,28 @@ func _build_mobile_pad(parent: Node) -> void:
 			var b := _icon_btn(tips[dir], "", func(): _move_dir(dir), true, pad, _dir_icon(dir))
 			b.custom_minimum_size = Vector2.ONE * cell
 
-## Mobile right: Attack, Bolt (if any), Potion.
+## Mobile right: Attack, Bolt (if any), Potion. Fills leftover width beside the D-pad.
 func _build_mobile_skills(parent: Node) -> void:
 	var col := UIKit.vbox(parent, int(UIKit.font_size * 0.25))
 	col.size_flags_horizontal = SIZE_EXPAND_FILL
 	col.size_flags_vertical = SIZE_SHRINK_CENTER
+	col.size_flags_stretch_ratio = 1.0
 	var tgt := _attack_target()
 	var atk := _btn("Attack", _attack_press, not tgt.is_empty(), false, col)
-	# Flexible mins so the pad + skills row fits narrow Fold-cover widths.
-	atk.custom_minimum_size = Vector2(UIKit.font_size * 4.5, UIKit.btn_height() * 1.15)
-	atk.size_flags_horizontal = SIZE_EXPAND_FILL
+	atk.custom_minimum_size.y = UIKit.btn_height() * 1.15
+	atk.tooltip_text = "Attack"
 	var h := combat.hero
 	if not h.bolt.is_empty() and not h.bolt.get("infinite", false):
-		var bolt := _btn("Bolt: ON (%d)" % h.charges if mode == "bolt" else "Bolt (%d)" % h.charges, _bolt_press, h.charges > 0, true, col)
-		bolt.custom_minimum_size.x = UIKit.font_size * 4.5
-	var pot := _btn("Potion (%d)" % (potions - potions_used), _drink, potions - potions_used > 0 and h.hp < h.ht, false, col)
-	pot.custom_minimum_size.x = UIKit.font_size * 4.5
+		var bolt_on := mode == "bolt"
+		var bolt_tip := "Bolt: ON (%d)" % h.charges if bolt_on else "Bolt (%d)" % h.charges
+		# Short label so the D-pad row fits phone widths; full name stays in the tooltip.
+		var bolt := _btn("Bolt %d" % h.charges, _bolt_press, h.charges > 0, true, col)
+		bolt.tooltip_text = bolt_tip
+		if bolt_on:
+			bolt.modulate = Color(1.15, 1.15, 0.85)
+	var pot_n := potions - potions_used
+	var pot := _btn("Pot %d" % pot_n, _drink, pot_n > 0 and h.hp < h.ht, false, col)
+	pot.tooltip_text = "Potion (%d)" % pot_n
 
 ## Shared class-skill strip for the desktop toolbar (Shove / Slam / Cloak / Bolt).
 func _add_skill_buttons(parent: Node) -> void:
@@ -557,16 +568,22 @@ func _build_mobile_controls() -> void:
 	var actions := UIKit.hbox(buttons)
 	actions.size_flags_horizontal = SIZE_EXPAND_FILL
 	actions.size_flags_vertical = SIZE_SHRINK_BEGIN
-	actions.add_theme_constant_override("separation", int(UIKit.font_size * 0.4))
+	actions.add_theme_constant_override("separation", int(UIKit.font_size * 0.25))
 	_build_mobile_side_icons(actions)
 	_build_mobile_pad(actions)
 	_build_mobile_skills(actions)
+	# Icon-only chrome: text+icon Bag/Auto/Menu mins overflowed narrow portrait widths.
 	var chrome := UIKit.hbox(buttons)
 	chrome.size_flags_horizontal = SIZE_EXPAND_FILL
-	chrome.add_theme_constant_override("separation", int(UIKit.font_size * 0.35))
-	_btn("Bag", func(): bag_open = not bag_open; menu_open = false; set_meta("bag_scroll", 0); _refresh(), true, false, chrome)
-	_btn("Auto: ON" if auto else "Auto", func(): auto = not auto; _refresh(), true, false, chrome)
-	_btn("Menu", func(): menu_open = not menu_open; bag_open = false; _refresh(), true, false, chrome)
+	chrome.add_theme_constant_override("separation", int(UIKit.font_size * 0.25))
+	var bag := _icon_btn("Bag", "backpack", func(): bag_open = not bag_open; menu_open = false; set_meta("bag_scroll", 0); _refresh(), true, chrome)
+	bag.size_flags_horizontal = SIZE_EXPAND_FILL
+	var auto_b := _icon_btn("Auto battle: ON" if auto else "Auto battle", "busy", func(): auto = not auto; _refresh(), true, chrome)
+	auto_b.size_flags_horizontal = SIZE_EXPAND_FILL
+	if auto:
+		auto_b.modulate = Color(1.15, 1.15, 0.85)
+	var menu_b := _icon_btn("Menu", "prefs", func(): menu_open = not menu_open; bag_open = false; _refresh(), true, chrome)
+	menu_b.size_flags_horizontal = SIZE_EXPAND_FILL
 
 func _refresh() -> void:
 	if status == null: return
