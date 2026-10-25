@@ -4734,6 +4734,9 @@ func test_victory_card(gs) -> void:
 	print("[victory card]")
 	var win := get_window(); var old := win.size
 	gs.new_game(); gs.settings.tutorial = false
+	# The card these checks measure is the mobile side-column card (DECISIONS #217). Auto is Desktop
+	# off phones (DECISIONS #232), which draws the same results in a floating panel with no VictoryResults node.
+	gs.settings.interface = "mobile"
 	var main = load("res://scenes/main.tscn").instantiate(); add_child(main)
 	# the report's Chrome viewport first, then the Fold cover/inner, PC, and odd browser windows around the
 	# portrait/wide switch (aspect 0.85) and very wide ones
@@ -4826,6 +4829,7 @@ func test_victory_card(gs) -> void:
 	check(cs3.side_min_width() < cs3.side.get_combined_minimum_size().x + 0.5, "the side column's floor leaves out the log")
 	check(cs3.grid.size.x >= 1024 * 0.25, "after shrinking from a wide window the arena keeps its size (%s)" % cs3.grid.size)
 	gs.end_run("abandon")
+	gs.settings.interface = "auto"
 	main.queue_free()
 	win.size = old
 	await get_tree().process_frame
