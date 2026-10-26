@@ -8,7 +8,7 @@ static func ability_text(m: Dictionary) -> String:
 		"throw": return "Throws a spear at range %d-%d: red tile, %d dmg." % [m.throw_range[0], m.throw_range[1], int(m.dmg) + int(m.throw_bonus)]
 		"pump": return "Every %d actions (%s below half HP) pumps up and slams all adjacent tiles for x%d." % [int(m.pump_every), int(m.get("pump_every_enraged", m.pump_every)), int(m.pump_mult)]
 		"bone_burst": return "Bursts into bone shards %d tick after dying: 3x3 red area, %d dmg." % [int(m.burst_delay), m.burst_dmg]
-		"steal": return "Steals %d%% of your gold (at least 1) on its first hit, then runs. Hit it within %d turns or it escapes with that gold; kill it to keep the gold and its loot." % [int(round(float(m.get("steal_pct", 0.05)) * 100.0)), int(m.get("escape_turns", 4))]
+		"steal": return "Steals %d%% of your gold (at least 1) on its first hit, then runs at 5/6 speed. It escapes only when neither of you can see the other and it is at least %d tiles away. Cornered, it fights. Kill it to get the gold back." % [int(round(float(m.get("steal_pct", 0.05)) * 100.0)), int(m.get("escape_dist", 4))]
 		"zap": return "Zaps at range 2-4: red tile, %d dmg, every %d actions." % [m.zap_dmg, m.zap_cooldown]
 		"chain": return "Once per fight, chains you from 2-3 tiles away and drags you next to it."
 		"tengu": return "Throws shurikens (red tile, %d dmg) and teleports away every %d HP lost. Below half HP lobs 3x3 bombs (2-tick fuse, %d dmg)." % [m.throw_dmg, m.blink_every, m.bomb_dmg]

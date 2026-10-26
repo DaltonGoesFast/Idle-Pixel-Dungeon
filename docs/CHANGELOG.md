@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- A Crazy Thief no longer vanishes after a few unhit turns. It runs at 5/6 speed and escapes only when neither of you can see the other and it is at least 4 tiles away (SPD's distance roll, scaled from 6 to 4). Cornered and still in sight, it turns and fights. Killing it returns the stolen gold instead of paying that gold again on top of its loot (DECISIONS #244, +tests).
 
 ## 0.50.4
 - The player-facing title is Idle PD.

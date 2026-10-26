@@ -562,9 +562,6 @@ func hit_mob(m: Dictionary, raw: int, surprise := false, magic := false, ranged 
 	if surprise: surprises += 1
 	_log("%s%s takes %d." % ["SURPRISE! " if surprise else "", m.name, dmg])
 	_ev({"t": "hit", "uid": m.uid, "amount": dmg, "kind": "surprise" if surprise else ("magic" if magic else "hp"), "pos": m.pos})
-	# Hitting a fleeing thief resets its escape countdown (DECISIONS: steal-and-flee).
-	if int(m.get("stolen", 0)) > 0 and m.hp > 0:
-		m.escape_left = int(m.get("escape_turns", 4))
 	if m.hp <= 0:
 		_kill(m, false)
 	elif m.get("ability", "") == "tengu":
@@ -740,8 +737,13 @@ func _kill(m: Dictionary, chasm: bool) -> void:
 	kills += 1
 	kill_ids[String(m.id)] = int(kill_ids.get(String(m.id), 0)) + 1
 	if not chasm and tile(m.pos) == T.DOOR: remains[m.pos] = true
-	var l := int(m.loot) + int(m.get("stolen", 0))
+	# Stolen gold was only reserved. A kill returns it (no gold_debt, and not a second payout). SPD drops the item (DECISIONS #244).
+	var stolen_back := int(m.get("stolen", 0))
+	m.stolen = 0
+	var l := int(m.loot)
 	xp += int(m.exp)
+	if stolen_back > 0:
+		_log("You take back the stolen gold.")
 	if chasm:
 		fallen_loot += int(l / 2.0)
 		_log("%s falls. Its loot (%d) drops to the next floor." % [m.name, int(l / 2.0)])
@@ -1208,8 +1210,11 @@ func _mob_act(m: Dictionary) -> void:
 		_ev({"t": "heal", "uid": m.uid, "amount": wh, "pos": m.pos}); _log("%s soaks up the water (+%d)." % [m.name, wh])
 	if m.has("enraged_dmg") and int(m.hp) * 2 <= int(m.ht) and int(m.dmg) != int(m.enraged_dmg):
 		m.dmg = int(m.enraged_dmg); _log("%s is enraged! (dmg %d)" % [m.name, m.dmg])
-	if m.has("hp_flee") and int(m.get("stolen", 0)) > 0:
-		_flee(m); return
+	# Lost the hero while still holding gold: run again (SPD wanders, then flees once it notices you).
+	if int(m.get("stolen", 0)) > 0 and not in_view:
+		m.fleeing = true
+	if m.has("hp_flee") and int(m.get("stolen", 0)) > 0 and bool(m.get("fleeing", true)):
+		if _thief_flee_turn(m, in_view): return
 	match m.get("ability", ""):
 		"throw":
 			var rng: Array = m.throw_range
@@ -1336,8 +1341,8 @@ func _mob_act(m: Dictionary) -> void:
 			var amt := _steal_amount(m)
 			if amt > 0:
 				m.stolen = amt
-				m.escape_left = int(m.get("escape_turns", 4))
-				_log("%s snatches %d gold and runs! Hit it within %d turns or it escapes with the gold." % [m.name, m.stolen, int(m.escape_left)])
+				m.fleeing = true
+				_log("%s snatches %d gold and runs!" % [m.name, m.stolen])
 				_ev({"t": "sfx", "name": "gold"})
 		return
 	if m.get("stationary", false): return   # Yog-Dzewa never moves
@@ -1437,20 +1442,61 @@ func _steal_amount(m: Dictionary) -> int:
 	if purse <= 0: return 0
 	return mini(purse, maxi(1, int(purse * float(m.get("steal_pct", 0.05)))))
 
-## Thief: after stealing, runs to the tile farthest from the hero. Each flee act burns one
-## escape_left; if the hero never lands a hit before it hits 0, the thief escapes with the gold.
-func _flee(m: Dictionary) -> void:
-	m.escape_left = int(m.get("escape_left", 0)) - 1
-	if int(m.escape_left) <= 0:
-		_escape(m); return
-	var best = null; var bd := cheb(m.pos, hero.pos)
+## SPD Thief flee (DECISIONS #244). Returns true when this action is the flee (escape, step, or wander).
+## Returns false when the thief is cornered and can see the hero: the rest of the turn is a normal fight.
+func _thief_flee_turn(m: Dictionary, thief_sees: bool) -> bool:
+	var dist := cheb(m.pos, hero.pos)
+	var hero_sees := sees(hero.pos, m.pos)
+	var min_d := int(m.get("escape_dist", 4))
+	# SPD: thief blind, hero blind, and `1 + Random.Int(distance) >= escape_dist` (scaled from 6 to 4).
+	if not thief_sees and not hero_sees and _escape_roll_succeeds(m, dist, min_d):
+		_escape(m)
+		return true
+	var away = _step_away(m)
+	if away != null:
+		_place(m, away)
+		# Scheduler adds `delay` after the act. A real step away totals flee_delay (SPD 5/6 speed → 1.2).
+		var extra := float(m.get("flee_delay", 1.2)) - float(m.delay)
+		if extra > 0.0:
+			m.next += extra
+		return true
+	if thief_sees:
+		m.fleeing = false
+		_log("%s is cornered and fights!" % m.name)
+		return false
+	m.state = "wandering"
+	if not m.has("aim") or m.aim == m.pos:
+		m.aim = _wander_dest(m)
+	var wstep = mob_step(m, m.aim)
+	if wstep != null:
+		_place(m, wstep)
+	else:
+		m.aim = _wander_dest(m)
+	return true
+
+## SPD `1 + Random.Int(distance) >= min_dist`, with no combat RNG (DECISIONS #23, #244).
+## `escape_salt` forces a roll in tests; otherwise salt changes every action.
+func _escape_roll_succeeds(m: Dictionary, dist: int, min_dist: int) -> bool:
+	if dist < min_dist or dist <= 0:
+		return false
+	var salt := int(m.escape_salt) if m.has("escape_salt") else _flee_salt(m)
+	return 1 + posmod(salt, dist) >= min_dist
+
+func _flee_salt(m: Dictionary) -> int:
+	var hsh := int(m.uid) * 374761393 + int(m.get("acts", 0)) * 668265263 + int(floor(time * 2.0))
+	hsh = (hsh ^ (hsh >> 16)) & 0x7fffffff
+	return hsh
+
+## Neighbor that strictly increases Chebyshev distance from the hero, or null if the thief is boxed in.
+func _step_away(m: Dictionary):
+	var best = null
+	var bd := cheb(m.pos, hero.pos)
 	for d in DIRS:
 		var n: Vector2i = m.pos + d
-		if passable(n) and unit_at(n) == null and not traps.has(n) and cheb(n, hero.pos) > bd: bd = cheb(n, hero.pos); best = n
-	if best != null: _place(m, best)
-	elif cheb(m.pos, hero.pos) == 1:
-		note_last_target(m)
-		hit_hero(int(m.dmg), m.name)
+		if passable(n) and unit_at(n) == null and not traps.has(n) and cheb(n, hero.pos) > bd:
+			bd = cheb(n, hero.pos)
+			best = n
+	return best
 
 ## Thief got away: no XP/loot kill, and the stolen gold is charged to the pack after the fight.
 func _escape(m: Dictionary) -> void:

@@ -128,10 +128,11 @@
   "fh": 13,
   "ability": "steal",
   "steal_pct": 0.05,
-  "escape_turns": 4,
+  "escape_dist": 4,
+  "flee_delay": 1.2,
   "hp_flee": true,
   "spd": "HT 20, dmg 1-10, DR 0-3; steals an item and flees",
-  "tuned": "steals 5% of pack gold (at least 1) on first hit, then flees; if not hit for 4 of its turns it escapes with that gold; kill it to keep the gold and its loot"
+  "tuned": "steals 5% of pack gold (at least 1) on first hit, then flees at 5/6 speed. Escapes only when neither of you can see the other and it is at least 4 tiles away (SPD's distance roll, scaled to 4). Cornered and in sight, it fights. Kill it and the stolen gold is returned, not paid again as loot (#244)."
  },
  "dm100": {
   "name": "DM-100",
