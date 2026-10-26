@@ -2,7 +2,7 @@
 ## Layout in SPD game pixels (x right, y down), all multiplied by k:
 ##   bg        NinePatch(status_pane.png 0,64,41,39; left 33, right 4) stretched to the pane width
 ##   avatar    hero frame centred at (15,16) in the portrait box; level number centred at (15,33) in the badge strip
-##   buffs     row at (31,0..16): hero name, then BuffIndicator icons; depth icon + floor # + danger at the right end
+##   buffs     row at (31,0..16): hero name, then BuffIndicator icons; depth icon (sized to the floor digits) + floor # + danger at the right end
 ##   hp        bar at (30,19), 9 tall: shield (blue, one segment per hit it stops, DECISIONS #210) after hp (red) like SPD's shieldHP/hp scale.x; "HP/HT" centred
 ##   minis     torch/food row at (30,29), 9 tall like the HP bar, equal widths, same left/right edges (DECISIONS #133)
 class_name StatusPane
@@ -16,6 +16,8 @@ const SHIELD := Rect2(0, 112, 128, 9)
 const EXP := Rect2(0, 121, 128, 7)
 ## SPD MenuPane depth number colour (Icons / BitmapText hardlight 0xCACFC2).
 const DEPTH_COL := Color("cacfc2")
+## pixel_font.ttf cap height (1456) over the em (2048). The depth digits occupy this, not the full ascent.
+const DEPTH_CAP_EM := 1456.0 / 2048.0
 
 ## Minis drawn as an item icon + percent instead of a bar, keyed by the first word of their text.
 const MINI_ICONS := {"Torch": "torch", "Food": "ration"}
@@ -192,11 +194,11 @@ func _draw() -> void:
 		var num := str(floor_n)
 		var nw := font.get_string_size(num, HORIZONTAL_ALIGNMENT_LEFT, -1, tfs).x
 		var src: Rect2 = UIKit.SPD_ICONS[UIKit.depth_icon_name(String(d.get("feeling", "")))]
-		var iw := src.size.x * k
-		var ih := src.size.y * k
+		# Same header on the combat side panel and the delve bar. The glyph tracks the digits, not 7*k (DECISIONS #244).
+		var ir := depth_icon_rect(right, nw, k, src.size, tfs)
 		_text(font, Vector2(right - nw, floorf(13 * k)), num, tfs, DEPTH_COL, k)
-		draw_texture_rect_region(icons_tex, Rect2(floorf(right - nw - k - iw), floorf((16.0 * k - ih) / 2.0), iw, ih), src)
-		right -= nw + k + iw + 3 * k
+		draw_texture_rect_region(icons_tex, ir, src)
+		right -= nw + k + ir.size.x + 3 * k
 	var danger := int(d.get("danger", 0))
 	if danger > 0:
 		var s := str(danger)
@@ -252,3 +254,23 @@ static func icon_size(src: Vector2, h: float) -> Vector2:
 	var fit := (h - 2.0) / maxf(1.0, src.y)
 	var sc := floorf(fit) if fit >= 1.0 else fit
 	return (src * sc).floor()
+
+## Height of the depth number's digits at font size `fs` (the ink, not the line gap or the outline).
+static func depth_digit_height(fs: int) -> float:
+	return float(fs) * DEPTH_CAP_EM
+
+## DEPTH_* frame scaled so its height matches the depth digits. Whole source-pixel steps keep the stairs crisp.
+## SPD's MenuPane does the same match the other way: a 7px glyph beside text at scale 0.67 (DECISIONS #244).
+static func depth_icon_size(src: Vector2, digit_h: float) -> Vector2:
+	var sy := maxf(1.0, src.y)
+	var sc := maxf(1.0, round(digit_h / sy))
+	return Vector2(floorf(src.x * sc), floorf(sy * sc))
+
+## Icon rect just left of the floor number, centred on the digit ink. `right` is the number's right edge.
+static func depth_icon_rect(right: float, num_w: float, k: float, src: Vector2, fs: int) -> Rect2:
+	var digit_h := depth_digit_height(fs)
+	var isz := depth_icon_size(src, digit_h)
+	var baseline := floorf(13.0 * k)
+	var x := floorf(right - num_w - k - isz.x)
+	var y := floorf(baseline - digit_h + (digit_h - isz.y) / 2.0)
+	return Rect2(x, y, isz.x, isz.y)

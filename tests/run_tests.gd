@@ -22,6 +22,7 @@ func _ready() -> void:
 	test_bat_drain(gs)
 	test_vanilla_mobs(gs)
 	test_status_pane_layout(gs)
+	test_depth_icon_scale(gs)
 	test_combat_bag_fits(gs)
 	test_balance(gs)
 	test_boss(gs)
@@ -4814,6 +4815,43 @@ func test_status_pane_layout(_gs) -> void:
 			check(Rect2(L.level).end.x <= hp.position.x, "%s: level badge clear of the bars" % tag)
 			var isz: Vector2 = StatusPane.icon_size(Vector2(14, 14), a.size.y)
 			check(isz.y <= a.size.y and isz.y >= a.size.y * 0.5, "%s: supply icon fits the bar height" % tag)
+
+## The floor glyph in the hero header matches the depth number, including on the Fold (DECISIONS #244).
+## Combat's side panel and the delve bar are the same StatusPane, so one size covers both.
+func test_depth_icon_scale(_gs) -> void:
+	print("[depth icon]")
+	var saved_fs := UIKit.font_size
+	var pane := StatusPane.new()
+	# Cover is min(968, 2376) / 24 = 40. The inner screen clamps at 60. 22 and 31 are the short plateaus just below a px_scale step.
+	for fs in [22, 31, 40, 60]:
+		UIKit.font_size = fs
+		var k := float(clampi(int(round(float(fs) / 9.0)), 2, 6))
+		var tfs: int = pane._fit_fs(14.0 * k)
+		var digit_h := StatusPane.depth_digit_height(tfs)
+		for key in ["depth", "depth_chasm", "depth_large", "depth_traps", "depth_secrets"]:
+			var src: Vector2 = UIKit.SPD_ICONS[key].size
+			var got: Vector2 = StatusPane.depth_icon_size(src, digit_h)
+			var old_h := src.y * k
+			var tag := "fs%d %s" % [fs, key]
+			check(got.y > 0.0 and got.x > 0.0, "%s: icon has a size" % tag)
+			check(is_equal_approx(got.x / src.x, got.y / src.y), "%s: keeps the DEPTH frame's aspect" % tag)
+			check(absf(got.y - digit_h) <= src.y * 0.5, "%s: height matches the digits (icon %s, digits %s)" % [tag, got.y, digit_h])
+			check(absf(got.y - digit_h) <= absf(old_h - digit_h) + 0.01, "%s: not farther from the digits than 7px * scale" % tag)
+		var src0: Vector2 = UIKit.SPD_ICONS["depth"].size
+		var num_w := 24.0
+		var rect := StatusPane.depth_icon_rect(500.0, num_w, k, src0, tfs)
+		var baseline := floorf(13.0 * k)
+		check(rect.end.x <= 500.0 - num_w - k + 0.01, "fs%d: icon sits left of the number" % fs)
+		check(rect.position.y < baseline and rect.end.y > baseline - digit_h, "fs%d: icon covers the digit box" % fs)
+		check(rect.end.y <= 19.0 * k + 0.01, "fs%d: icon stays above the HP bar" % fs)
+	UIKit.font_size = 40
+	var cover: Vector2 = StatusPane.depth_icon_size(UIKit.SPD_ICONS["depth"].size, StatusPane.depth_digit_height(pane._fit_fs(14.0 * 4.0)))
+	check(cover.y > 7.0 * 4.0, "Fold cover: the stairs grow past 7px * scale beside the number")
+	UIKit.font_size = 60
+	var inner: Vector2 = StatusPane.depth_icon_size(UIKit.SPD_ICONS["depth"].size, StatusPane.depth_digit_height(pane._fit_fs(14.0 * 6.0)))
+	check(inner.y > 7.0 * 6.0, "Fold inner: the stairs grow past 7px * scale beside the number")
+	UIKit.font_size = saved_fs
+	pane.free()
 
 
 func test_barrier_spd(gs) -> void:
