@@ -131,6 +131,7 @@ func _ready() -> void:
 	test_backpack(gs)
 	test_updater()
 	test_export_presets()
+	test_vita_handheld()
 	test_build_script_android_template()
 	test_release_cert_pin()
 	test_verify_apk_java()
@@ -3309,6 +3310,73 @@ func test_export_presets() -> void:
 	var dsh := deploy.get_as_text() if deploy else ""
 	check(dsh.contains("favicon_16.png") and dsh.contains("favicon_32.png"),
 		"deploy_web.sh copies favicons next to index.html")
+	var found_vita := false
+	for s in cfg.get_sections():
+		if s.ends_with(".options") or String(cfg.get_value(s, "platform", "")) != "PS Vita": continue
+		found_vita = true
+		var vopt := s + ".options"
+		check(String(cfg.get_value(s, "custom_features", "")) == "vita", "PS Vita preset carries the vita feature tag")
+		check(int(cfg.get_value(s, "script_export_mode", -1)) == 0, "PS Vita scripts export as text")
+		check(not bool(cfg.get_value(s, "encrypt_pck", true)) and not bool(cfg.get_value(s, "encrypt_directory", true)), "PS Vita pack is not encrypted")
+		check(String(cfg.get_value(s, "exclude_filter", "")).contains("tests/*"), "PS Vita preset excludes tests")
+		check(String(cfg.get_value(s, "export_path", "")).ends_with(".vpk"), "PS Vita preset exports a .vpk")
+		check(bool(cfg.get_value(vopt, "data/separate_folder", false)), "PS Vita game data is a separate ux0:data folder")
+		check(String(cfg.get_value(vopt, "data/folder_name", "")) == "idlepd", "PS Vita data folder is idlepd")
+		check(String(cfg.get_value(vopt, "textures/gpu_format", "")) == "RGBA4444", "PS Vita textures default to RGBA4444")
+		check(String(cfg.get_value(vopt, "performance/capunlocker", "")) == "optional", "CapUnlocker is optional")
+		check(String(cfg.get_value(vopt, "application/title_id", "")) == "IDLEPD001", "PS Vita title id is IDLEPD001")
+		check(String(cfg.get_value(vopt, "application/version", "")) == "00.50", "PS Vita PARAM.SFO version is 00.50")
+		check(String(cfg.get_value(vopt, "application/title", "")) == "Idle PD", "PS Vita bubble title is Idle PD")
+	check(found_vita, "PS Vita export preset exists")
+	var proj := ConfigFile.new()
+	check(proj.load("res://project.godot") == OK, "project.godot loads")
+	check(int(proj.get_value("display", "window/size/viewport_width", 0)) == 968, "phone viewport width stays 968")
+	check(int(proj.get_value("display", "window/size/viewport_height", 0)) == 2376, "phone viewport height stays 2376")
+	check(int(proj.get_value("display", "window/size/viewport_width.vita", 0)) == 960, "vita feature viewport width is 960")
+	check(int(proj.get_value("display", "window/size/viewport_height.vita", 0)) == 544, "vita feature viewport height is 544")
+	check(int(proj.get_value("display", "window/size/viewport_width.Vita", 0)) == 960, "Vita export feature viewport width is 960")
+	check(int(proj.get_value("display", "window/size/viewport_height.Vita", 0)) == 544, "Vita export feature viewport height is 544")
+	check(int(proj.get_value("threading", "worker_pool/max_threads.vita", 0)) == 2, "vita worker pool is 2")
+	check(int(proj.get_value("threading", "worker_pool/max_threads.Vita", 0)) == 2, "Vita export worker pool is 2")
+	check(bool(proj.get_value("application", "config/use_custom_user_dir.vita", false)), "vita uses a custom user dir")
+	check(String(proj.get_value("application", "config/custom_user_dir_name.vita", "")) == "idlepd-saves", "vita saves live in idlepd-saves")
+	check(String(proj.get_value("rendering", "renderer/rendering_method", "")) == "gl_compatibility", "Compatibility renderer stays the project default")
+
+## DECISIONS #244: Vita is the wide mobile layout plus the native pad. Phone desktop rules stay put.
+func test_vita_handheld() -> void:
+	print("[vita handheld]")
+	var Main: GDScript = load("res://scripts/ui/main.gd")
+	check(not Main.resolve_desktop_ui({"interface": "desktop"}, false, "Vita"), "Vita keeps touch chrome when interface is desktop")
+	check(not Main.resolve_desktop_ui({"interface": "auto"}, false, "Vita"), "Vita auto is the mobile layout")
+	check(Main.resolve_desktop_ui({"interface": "desktop"}, false, "Windows"), "Windows desktop interface is unchanged")
+	check(not Main.resolve_desktop_ui({"interface": "auto"}, true, "Android"), "Android auto stays mobile")
+	check(not Main.layout_is_portrait(Vector2(960, 544)), "960x544 uses the wide layout")
+	check(Main.layout_is_portrait(Vector2(968, 2376)), "the phone design size stays portrait")
+	var Live: GDScript = load("res://scripts/autoload/live_layout.gd")
+	check(not Live.desktop_allowed("Vita", false, false), "the Live Editor stays off on Vita")
+	check(Live.desktop_allowed("Linux", false, false), "the Live Editor stays available on Linux")
+	check(not Telemetry.http_uses_threads("Vita") and Telemetry.http_uses_threads("Android"), "telemetry threads stay off on Vita and on for Android")
+	check(not Updater.http_uses_threads("Vita") and Updater.http_uses_threads("Android"), "updater threads stay off on Vita and on for Android")
+	check(not Updater.supports_platform() or OS.get_name() in ["Android", "Windows"], "in-game updates stay Android and Windows only")
+	var pad: Dictionary = Keybinds.vita_joy_buttons()
+	check(int(pad["combat_move_n"]) == JOY_BUTTON_DPAD_UP and int(pad["combat_wait"]) == JOY_BUTTON_A, "D-pad north and Cross map to move and Wait")
+	check(int(pad["combat_cancel"]) == JOY_BUTTON_B and int(pad["combat_auto"]) == JOY_BUTTON_START, "Circle cancels and Start toggles Auto")
+	check(not pad.has("combat_move_ne") and not pad.has("combat_hint"), "diagonals and Hint stay on touch")
+	var key := InputEventKey.new(); key.pressed = true; key.keycode = KEY_W
+	var cross := InputEventJoypadButton.new(); cross.button_index = JOY_BUTTON_A; cross.pressed = true
+	check(Keybinds.accepts_combat_shortcut(key, "Linux"), "keyboard shortcuts still reach combat on PC")
+	check(not Keybinds.accepts_combat_shortcut(cross, "Linux"), "a PC gamepad does not drive combat")
+	check(Keybinds.accepts_combat_shortcut(cross, "Vita"), "Cross reaches combat on Vita")
+	var action := "combat_wait"
+	if not InputMap.has_action(action):
+		InputMap.add_action(action)
+	var before := InputMap.action_get_events(action).duplicate()
+	InputMap.action_erase_events(action)
+	InputMap.action_add_event(action, cross)
+	check(Keybinds.just_pressed(action, cross), "Cross pressed on the Wait action counts")
+	InputMap.action_erase_events(action)
+	for ev in before:
+		InputMap.action_add_event(action, ev)
 
 ## DECISIONS #140: Godot's Gradle export checks res://android/.build_version before running Gradle;
 ## tools/build.sh must write it alongside android/build when unpacking android_source.zip.

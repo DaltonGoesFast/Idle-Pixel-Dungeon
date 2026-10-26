@@ -81,6 +81,12 @@ static func apply(settings: Dictionary = GameState.settings) -> void:
 			var ev := InputEventKey.new()
 			ev.keycode = int(code) as Key
 			InputMap.action_add_event(action, ev)
+		if on_vita():
+			var joy := int(vita_joy_buttons().get(action, -1))
+			if joy >= 0:
+				var jb := InputEventJoypadButton.new()
+				jb.button_index = joy as JoyButton
+				InputMap.action_add_event(action, jb)
 
 ## Human-readable keys for an action ("W, Up, Numpad 8").
 static func binding_text(action: String, settings: Dictionary = GameState.settings) -> String:
@@ -115,6 +121,33 @@ static func reset_defaults() -> void:
 	GameState.set_setting("keybinds", {})
 	apply()
 	SaveSystem.save_game()
+
+## Vita pad (JoypadVita): Cross A, Circle B, Square X, Triangle Y, Select BACK, Start START.
+## Diagonals and Hint stay on the front touch panel (and the keyboard map).
+static func vita_joy_buttons() -> Dictionary:
+	return {
+		"combat_move_n": JOY_BUTTON_DPAD_UP,
+		"combat_move_s": JOY_BUTTON_DPAD_DOWN,
+		"combat_move_w": JOY_BUTTON_DPAD_LEFT,
+		"combat_move_e": JOY_BUTTON_DPAD_RIGHT,
+		"combat_wait": JOY_BUTTON_A,
+		"combat_cancel": JOY_BUTTON_B,
+		"combat_search": JOY_BUTTON_X,
+		"combat_bag": JOY_BUTTON_Y,
+		"combat_potion": JOY_BUTTON_LEFT_SHOULDER,
+		"combat_skill_1": JOY_BUTTON_RIGHT_SHOULDER,
+		"combat_skill_2": JOY_BUTTON_BACK,
+		"combat_auto": JOY_BUTTON_START,
+	}
+
+static func on_vita(os_name: String = OS.get_name()) -> bool:
+	return os_name == "Vita"
+
+## Combat shortcuts are keys everywhere. Joypad buttons count only on Vita, so a PC gamepad does not start driving fights.
+static func accepts_combat_shortcut(event: InputEvent, os_name: String = OS.get_name()) -> bool:
+	if event is InputEventKey:
+		return true
+	return event is InputEventJoypadButton and on_vita(os_name)
 
 ## True when the event just pressed this action (ignores echo).
 static func just_pressed(action: String, event: InputEvent) -> bool:

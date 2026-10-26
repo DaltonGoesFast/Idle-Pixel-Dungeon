@@ -37,11 +37,20 @@ static func use_integer_content_scale(is_web: bool = OS.has_feature("web"), win:
 	return float(win.x) >= bw and float(win.y) >= bh
 
 ## DECISIONS #232: Desktop UI when set to desktop, or Auto on non-mobile. Mobile OS feature covers Android/iOS.
-static func resolve_desktop_ui(settings: Dictionary = GameState.settings, is_mobile: bool = OS.has_feature("mobile")) -> bool:
+## Vita is a 960×544 touch handheld (DECISIONS #244). It keeps the wide mobile chrome even if interface is desktop.
+static func resolve_desktop_ui(settings: Dictionary = GameState.settings, is_mobile: bool = OS.has_feature("mobile"), os_name: String = OS.get_name()) -> bool:
+	if os_name == "Vita":
+		return false
 	match String(settings.get("interface", "auto")):
 		"desktop": return true
 		"mobile": return false
 		_: return not is_mobile
+
+## Same portrait cut as _relayout (aspect < 0.85). The phone design is portrait; 960×544 is wide.
+static func layout_is_portrait(size: Vector2) -> bool:
+	if size.y <= 0.0:
+		return true
+	return size.x / size.y < 0.85
 
 func _apply_content_scale() -> void:
 	var root := get_tree().root
@@ -107,7 +116,7 @@ func _unhandled_input(e: InputEvent) -> void:
 func _relayout() -> void:
 	_apply_content_scale()
 	var vs := get_viewport_rect().size
-	portrait = vs.x / vs.y < 0.85
+	portrait = layout_is_portrait(vs)
 	desktop_ui = resolve_desktop_ui()
 	var l := 12.0; var t := 12.0; var r := 12.0; var b := 12.0
 	var safe := DisplayServer.get_display_safe_area()

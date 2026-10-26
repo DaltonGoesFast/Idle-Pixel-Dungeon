@@ -1,6 +1,6 @@
 ## Home-screen patrol widget and return alerts (DECISIONS #229).
 ## The snapshot and the alarm list are pure data. Android's PatrolWidget plugin stores them and
-## draws the widget; PC, web, and an export without the plugin no-op.
+## draws the widget; PC, web, Vita, and an export without the plugin no-op.
 extends Node
 
 signal open_guild

@@ -1,4 +1,5 @@
 ## SaveSystem: versioned JSON save in user://save.json, with atomic write + migration hook.
+## On PS Vita that directory is ux0:/data/idlepd-saves/ (project.godot feature override).
 extends Node
 
 const SAVE_VERSION := 2

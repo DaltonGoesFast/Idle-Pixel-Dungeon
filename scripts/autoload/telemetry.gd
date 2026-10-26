@@ -73,7 +73,7 @@ func _ready() -> void:
 	_load_queue()
 	_http = HTTPRequest.new()
 	_http.timeout = HTTP_TIMEOUT
-	_http.use_threads = OS.get_name() != "Web"   # the web export has no threads; fetch() is async anyway
+	_http.use_threads = http_uses_threads()
 	add_child(_http)
 	_http.request_completed.connect(_on_request_completed)
 	_new_session()
@@ -300,6 +300,10 @@ func _js_beacon(url: String, body: String) -> bool:
 	return automated_browser(win.__spdTelemetryBeacon(url, body))   # a JS true comes back as 1 (DECISIONS #198)
 
 # ------------------------------------------------------------------ events
+## Web has no threads. Vita's export runtime caps the worker pool at two, so telemetry stays on the main thread.
+static func http_uses_threads(os_name: String = OS.get_name()) -> bool:
+	return os_name != "Web" and os_name != "Vita"
+
 static func platform() -> String:
 	match OS.get_name():
 		"Android": return "android"

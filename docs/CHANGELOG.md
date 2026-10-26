@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- PS Vita export preset for the Godot 4 Vita runtime (960×544, two worker threads, touch layout, face buttons and D-pad). Phone, desktop, and web layouts stay as they are. Saves on a Vita go to `ux0:/data/idlepd-saves/` (DECISIONS #244, +tests).
+
 ## 0.50.4
 - The player-facing title is Idle PD.
 - Launcher icons: Android adaptive FG/BG/mono, Windows `.ico`, and web favicons from `assets/branding/` (DECISIONS #243, +tests).

@@ -340,10 +340,10 @@ func _process(d: float) -> void:
 		if _auto_t > 0.35:
 			_auto_t = 0.0; _do_bot()
 
-## Combat keyboard (DECISIONS #232). Bag / Passage / Menu / tip own cancel first.
+## Combat keyboard (DECISIONS #232) and the Vita pad (DECISIONS #244). Bag / Passage / Menu / tip own cancel first.
 func _unhandled_input(event: InputEvent) -> void:
 	if main and main.tip_open(): return
-	if not event is InputEventKey: return
+	if not Keybinds.accepts_combat_shortcut(event): return
 	if Keybinds.just_pressed("combat_cancel", event):
 		get_viewport().set_input_as_handled()
 		if menu_open:

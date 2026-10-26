@@ -34,7 +34,7 @@ func _ready() -> void:
 	_http = HTTPRequest.new()
 	_http.timeout = DOWNLOAD_TIMEOUT
 	_http.max_redirects = 8
-	_http.use_threads = true
+	_http.use_threads = http_uses_threads()
 	add_child(_http)
 	_http.request_completed.connect(_on_http)
 	# First check without waiting for Camp or Settings to open (Android often stays warm in memory).
@@ -47,6 +47,10 @@ func _notification(what: int) -> void:
 
 func supports_platform() -> bool:
 	return asset_suffix() != ""
+
+## Vita has no installer asset, and its HTTP client stays on the main thread.
+static func http_uses_threads(os_name: String = OS.get_name()) -> bool:
+	return os_name != "Vita"
 
 ## ".apk", "-windows.zip", or "" if this build has no update asset.
 static func asset_suffix() -> String:

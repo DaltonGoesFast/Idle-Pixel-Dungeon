@@ -57,11 +57,10 @@ func _process(_d: float) -> void:
 	if main:
 		apply_tree(main)
 
-static func desktop_allowed() -> bool:
-	if OS.has_feature("web") or OS.has_feature("mobile"):
+static func desktop_allowed(os_name: String = OS.get_name(), mobile: bool = OS.has_feature("mobile"), web: bool = OS.has_feature("web")) -> bool:
+	if web or mobile or os_name == "Vita":
 		return false
-	var n := OS.get_name()
-	return n == "Windows" or n == "Linux" or n == "macOS" or n == "FreeBSD"
+	return os_name == "Windows" or os_name == "Linux" or os_name == "macOS" or os_name == "FreeBSD"
 
 func reload() -> void:
 	_camp_raw = _load_dict(CAMP_PATH)

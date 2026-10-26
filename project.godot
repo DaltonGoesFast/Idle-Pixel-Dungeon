@@ -16,6 +16,11 @@ run/main_scene="res://scenes/main.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 config/icon="res://icon.png"
 config/windows_native_icon="res://assets/branding/idle_pd.ico"
+; Vita user:// is ux0:/data/idlepd-saves/ so a recopy of ux0:data/idlepd does not wipe the save.
+config/use_custom_user_dir.vita=true
+config/custom_user_dir_name.vita="idlepd-saves"
+config/use_custom_user_dir.Vita=true
+config/custom_user_dir_name.Vita="idlepd-saves"
 
 [autoload]
 
@@ -38,9 +43,20 @@ window/size/viewport_width=968
 window/size/viewport_height=2376
 window/size/window_width_override=484
 window/size/window_height_override=1188
+; PS Vita panel is 960×544 landscape. Feature tags: runtime "vita", export platform "Vita".
+window/size/viewport_width.vita=960
+window/size/viewport_height.vita=544
+window/size/viewport_width.Vita=960
+window/size/viewport_height.Vita=544
+window/size/window_width_override.vita=960
+window/size/window_height_override.vita=544
+window/size/window_width_override.Vita=960
+window/size/window_height_override.Vita=544
 window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
 window/handheld/orientation=6
+window/handheld/orientation.vita=0
+window/handheld/orientation.Vita=0
 
 [gui]
 
@@ -58,3 +74,9 @@ renderer/rendering_method.mobile="gl_compatibility"
 textures/vram_compression/import_etc2_astc=true
 2d/snap/snap_2d_transforms_to_pixel=true
 2d/snap/snap_2d_vertices_to_pixel=true
+
+[threading]
+
+; The Vita runtime crashes if the worker pool is wider than two threads.
+worker_pool/max_threads.vita=2
+worker_pool/max_threads.Vita=2
