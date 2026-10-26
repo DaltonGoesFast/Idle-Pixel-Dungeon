@@ -21,9 +21,15 @@ config/use_custom_user_dir.vita=true
 config/custom_user_dir_name.vita="idlepd-saves"
 config/use_custom_user_dir.Vita=true
 config/custom_user_dir_name.Vita="idlepd-saves"
+; The Godot logo is the loader animation. A flat color here means the engine splash actually started.
+boot_splash/show_image.vita=false
+boot_splash/show_image.Vita=false
+boot_splash/bg_color.vita=Color(0.05, 0.12, 0.28, 1)
+boot_splash/bg_color.Vita=Color(0.05, 0.12, 0.28, 1)
 
 [autoload]
 
+VitaBoot="*res://scripts/platform/vita_boot.gd"
 DB="*res://scripts/autoload/db.gd"
 GameState="*res://scripts/autoload/game_state.gd"
 SaveSystem="*res://scripts/autoload/save_system.gd"
@@ -71,6 +77,8 @@ pointing/emulate_touch_from_mouse=true
 textures/canvas_textures/default_texture_filter=0
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
+renderer/rendering_method.vita="gl_compatibility"
+renderer/rendering_method.Vita="gl_compatibility"
 textures/vram_compression/import_etc2_astc=true
 2d/snap/snap_2d_transforms_to_pixel=true
 2d/snap/snap_2d_vertices_to_pixel=true

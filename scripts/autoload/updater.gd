@@ -31,6 +31,10 @@ var _poll_left := 0.0
 var _last_check_unix := 0.0
 
 func _ready() -> void:
+	# Vita, web, and desktop Linux have no update package. Skip HTTPRequest so boot
+	# does not construct the HTTP client (the Vita port has no working request path).
+	if not supports_platform():
+		return
 	_http = HTTPRequest.new()
 	_http.timeout = DOWNLOAD_TIMEOUT
 	_http.max_redirects = 8

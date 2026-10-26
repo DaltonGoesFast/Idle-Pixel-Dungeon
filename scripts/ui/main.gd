@@ -3,9 +3,9 @@
 extends Control
 
 const CampScreen := preload("res://scripts/ui/camp_screen.gd")
-const DelveScreen := preload("res://scripts/ui/delve_screen.gd")
-const CombatScreen := preload("res://scripts/ui/combat_screen.gd")
 const TipOverlay := preload("res://scripts/ui/tip_overlay.gd")
+## Delve and combat stay unloaded until a run starts. Parsing both at boot cost ~45s on ux0
+## and the free RAM (about 28 MiB before the main scene) that the first frame needs.
 const Keybinds := preload("res://scripts/ui/keybinds.gd")
 
 var margin: MarginContainer
@@ -56,7 +56,13 @@ func _apply_content_scale() -> void:
 	var root := get_tree().root
 	root.content_scale_stretch = Window.CONTENT_SCALE_STRETCH_INTEGER if use_integer_content_scale() else Window.CONTENT_SCALE_STRETCH_FRACTIONAL
 
+func _vita_log(stage: String) -> void:
+	if OS.get_name() != "Vita":
+		return
+	printerr("[vita-boot] %s static=%d peak=%d" % [stage, OS.get_static_memory_usage(), OS.get_static_memory_peak_usage()])
+
 func _ready() -> void:
+	_vita_log("main enter")
 	Keybinds.apply()
 	_apply_content_scale()
 	set_anchors_and_offsets_preset(PRESET_FULL_RECT)
@@ -78,6 +84,16 @@ func _ready() -> void:
 	get_viewport().size_changed.connect(_relayout)
 	PatrolBridge.open_guild.connect(_open_guild_patrols)
 	_relayout()
+	_vita_log("theme ready")
+	# SceneTree::initialize is root->_set_tree. Building Camp inside that call sits on the
+	# loader's 8 MiB main stack and is where the device died (last line: initialize begin).
+	if OS.get_name() == "Vita":
+		call_deferred("_open_initial_screen")
+	else:
+		_open_initial_screen()
+
+func _open_initial_screen() -> void:
+	_vita_log("open screen")
 	GameState.tick_identify()
 	if Telemetry.needs_notice(): show_data_notice()
 	if GameState.run.is_empty(): show_camp()
@@ -86,6 +102,7 @@ func _ready() -> void:
 		if GameState.run.has("active_fight"): delve.resume_fight()
 	if PatrolBridge.take_open():
 		_open_guild_patrols()
+	_vita_log("screen open")
 
 func _process(delta: float) -> void:
 	# toasts never cover a tutorial card (they keep their timers and reappear when it closes)
@@ -172,11 +189,19 @@ func show_camp() -> void:
 		"extract": tip("after_extract")
 	GameState.last_result = ""
 	if int(GameState.stats.runs) == 0: tip("welcome"); tip("camp_delve")
+	if OS.get_name() == "Vita":
+		call_deferred("_vita_camp_music")
+	else:
+		Sfx.music("theme_2" if int(GameState.stats.get("goo_kills", 0)) > 0 else "theme_1")
+
+func _vita_camp_music() -> void:
+	_vita_log("before music")
 	Sfx.music("theme_2" if int(GameState.stats.get("goo_kills", 0)) > 0 else "theme_1")
+	_vita_log("after music")
 
 func show_delve() -> void:
 	if delve == null:
-		delve = DelveScreen.new(); delve.main = self
+		delve = load("res://scripts/ui/delve_screen.gd").new(); delve.main = self
 	_set_screen(delve)
 	delve.on_shown()
 	play_floor_music()
@@ -189,7 +214,7 @@ func play_floor_music() -> void:
 ## Called by DelveScreen. on_done(result: Dictionary) gets {won, hp, loot, fallen_loot, xp, boss_killed, potions_used}.
 func start_combat(event: Dictionary, on_done: Callable, saved := {}) -> void:
 	for t in toast_box.get_children(): t.queue_free()   # nothing floats over the fight
-	var s := CombatScreen.new(); s.main = self
+	var s = load("res://scripts/ui/combat_screen.gd").new(); s.main = self
 	s.setup(event, on_done, saved)
 	_set_screen(s)
 	if event.get("boss", false): Sfx.music(DB.biomes[GameState.run.biome].boss_music); Sfx.play("boss")

@@ -10,6 +10,9 @@ static var _badge_rects := {}
 ## SPD's pixel_font.ttf draws one font pixel per 100 units (2048 per em), so sizes that are
 ## multiples of 20.48 give whole-pixel glyphs. Every text size is snapped to that grid (DECISIONS #71).
 const FONT_PX := 20.48
+static func uses_system_font_fallback(os_name: String = OS.get_name()) -> bool:
+	return os_name != "Vita"
+
 static func font_px(sz: float) -> int:
 	var n := sz / FONT_PX
 	# whole font pixels, plus half steps above 1x so hint text sits between body sizes (DECISIONS #73)
@@ -404,9 +407,12 @@ static func make_theme(fs: int) -> Theme:
 		pixel_font.antialiasing = TextServer.FONT_ANTIALIASING_NONE
 		pixel_font.hinting = TextServer.HINTING_NONE
 		pixel_font.subpixel_positioning = TextServer.SUBPIXEL_POSITIONING_DISABLED
-		var sys := SystemFont.new()   # glyphs the pixel font lacks (project custom_font is the pixel font itself)
-		sys.font_names = PackedStringArray(["sans-serif"])
-		pixel_font.fallbacks = [sys]
+		# Vita has no system fonts. SystemFont falls back into this same pixel font and
+		# recurses on the first Label, inside SceneTree::initialize.
+		if uses_system_font_fallback():
+			var sys := SystemFont.new()
+			sys.font_names = PackedStringArray(["sans-serif"])
+			pixel_font.fallbacks = [sys]
 	th.default_font = pixel_font
 	var bp := fs * 0.4
 	var normal := chrome("red_button", Color.WHITE, bp)

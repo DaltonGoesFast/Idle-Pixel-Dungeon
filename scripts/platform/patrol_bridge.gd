@@ -12,7 +12,13 @@ const OPEN_SECTION := "patrols"
 
 var queued_open := false
 
+## Vita has no PatrolWidget singleton. Skip the plugin lookup at boot.
+static func runs_on(os_name: String = OS.get_name()) -> bool:
+	return os_name != "Vita"
+
 func _ready() -> void:
+	if not runs_on():
+		return
 	var p = _plugin()
 	if p != null:
 		if p.has_signal("open_guild"):
