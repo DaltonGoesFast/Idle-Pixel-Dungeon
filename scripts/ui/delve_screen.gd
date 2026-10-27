@@ -266,13 +266,13 @@ func _process(delta: float) -> void:
 func _process_vita(delta: float) -> void:
 	var run: Dictionary = GameState.run
 	if run.is_empty(): return
-	# Accumulate delve progress every frame; run the heavy UI/advance path at ~10 Hz.
+	# Accumulate delve progress every frame; run the heavy UI/advance path at ~6 Hz.
 	_vita_adv_acc += delta
 	_vita_proc_acc += delta
 	_save_t += delta
 	if _save_t > 10.0:
 		_save_t = 0.0; SaveSystem.save_game()
-	if _vita_proc_acc < 0.1:
+	if _vita_proc_acc < 0.16:
 		return
 	var step := _vita_proc_acc
 	var adv := _vita_adv_acc

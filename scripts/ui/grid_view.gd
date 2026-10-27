@@ -316,10 +316,10 @@ func _process(d: float) -> void:
 		_vita_place_bake()
 		_vita_mark_dirty()
 		_vita_acc += d
-		var due := _vita_acc >= 1.0 / 5.0
+		var due := _vita_acc >= 1.0 / 3.0
 		if due:
-			_vita_acc -= 1.0 / 5.0
-		# 5 Hz idle bob; combat flashes/moves redraw on the dirty flag without waiting a full tick.
+			_vita_acc -= 1.0 / 3.0
+		# 3 Hz idle bob; combat flashes/moves redraw on the dirty flag without waiting a full tick.
 		if due or _vita_dirty:
 			_vita_dirty = false
 			queue_redraw()

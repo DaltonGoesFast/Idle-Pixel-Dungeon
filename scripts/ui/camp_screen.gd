@@ -101,7 +101,7 @@ func _vita_on_changed() -> void:
 	if _vita_changed_armed:
 		return
 	_vita_changed_armed = true
-	get_tree().create_timer(0.8).timeout.connect(_vita_changed_flush, CONNECT_ONE_SHOT)
+	get_tree().create_timer(1.2).timeout.connect(_vita_changed_flush, CONNECT_ONE_SHOT)
 
 func _vita_changed_flush() -> void:
 	_vita_changed_armed = false

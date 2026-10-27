@@ -125,9 +125,9 @@ func _process(delta: float) -> void:
 	if vita:
 		_vita_place_bake()
 		_vita_acc += delta
-		# 6 Hz overlay (hero/pops/fade). Tiles come from the baked strip.
-		if _vita_acc >= 1.0 / 6.0:
-			_vita_acc -= 1.0 / 6.0
+		# 4 Hz overlay (hero/pops/fade). Tiles come from the baked strip.
+		if _vita_acc >= 0.25:
+			_vita_acc -= 0.25
 			queue_redraw()
 		VitaBoot.add_us("delve_scene", int(Time.get_ticks_usec() - t0))
 	else:
@@ -752,13 +752,13 @@ func _vita_place_bake() -> void:
 	var cols := int(ceil(size.x / maxf(cs, 1.0))) + 2
 	var hero_col := int(floor(scroll))
 	var ev := encounter()
-	var ev_key := "" if ev.is_empty() else "%s|%s" % [ev.get("kind", ""), str(ev.get("mobs", ev.get("special", "")))]
-	var dying_col := -999 if _dying.is_empty() else int(_dying.get("col", -999))
-	# Narrow sliding strip: paint ~viewport+pad only; recenter+rebake when the hero nears an edge.
-	const EDGE := 4
-	var margin := cols + 8
-	var content := "%s|%s|%s|%s|%s|%s" % [r.get("floor", 1), r.get("biome", ""), int(round(cs)), cols, ev_key, dying_col]
-	var near_edge := _vita_hi <= _vita_lo or hero_col - _vita_lo < cols + EDGE or _vita_hi - hero_col < cols + EDGE
+	# Kind only — mob lists and dying columns used to force a full strip rebake every fight tick.
+	var ev_key := "" if ev.is_empty() else String(ev.get("kind", ""))
+	# Viewport-half strip + pad. Old margin=cols+8 rebaked every ~4 tiles (travel = margin-cols-EDGE).
+	const EDGE := 3
+	var half := int(ceil(float(cols) * 0.5)) + 8
+	var content := "%s|%s|%s|%s|%s" % [r.get("floor", 1), r.get("biome", ""), int(round(cs)), cols, ev_key]
+	var near_edge := _vita_hi <= _vita_lo or hero_col - _vita_lo < EDGE or _vita_hi - hero_col < EDGE
 	if _vita_frames.is_empty():
 		for i in VITA_FRAME_N:
 			var frame := _vita_canvas("VitaFrame%d" % i)
@@ -774,8 +774,8 @@ func _vita_place_bake() -> void:
 		RenderingServer.canvas_item_set_visible(_vita_light.get_canvas_item(), false)
 		_vita_light.set_meta("vita_on", false)
 	if content != _vita_content_key or near_edge:
-		var new_lo := hero_col - margin
-		var new_hi := hero_col + margin
+		var new_lo := hero_col - half
+		var new_hi := hero_col + half
 		if content != _vita_content_key or new_lo != _vita_lo or new_hi != _vita_hi:
 			_vita_content_key = content
 			_vita_lo = new_lo
@@ -837,13 +837,10 @@ func _vita_paint_static(phase: int = 0) -> void:
 	var ci: Node2D = _vita_frames[phase]
 	var frame_sz: Vector2 = ci.get_meta("vita_sz", Vector2.ZERO)
 	ci.draw_rect(Rect2(Vector2(-2, -2), frame_sz + Vector2(4, 4)), Color(0.02, 0.01, 0.03))
-	var k := pk()
 	var cs := cell()
 	var y0 := floorf((size.y - cs * ROWS) / 2.0)
 	var biome: Dictionary = DB.biomes[r.biome]
 	var tiles := _t("res://assets/tiles/%s.png" % biome.tile)
-	var water := _t("res://assets/tiles/%s.png" % biome.get("water", "water0"))
-	var wo := Vector2(float(phase) * 8.0, float(phase) * 6.0)
 	var ev := encounter()
 	var hero_col := int(floor(scroll))
 	var stop_col := hero_col + 2
@@ -863,7 +860,6 @@ func _vita_paint_static(phase: int = 0) -> void:
 		if not ev.is_empty():
 			wi = _encounter_wall(ev, wcx - stop_col, wi)
 		wall[wcx] = wi
-	var deco_cells := []
 	var grass_cells := []
 	for cx in range(_vita_lo, _vita_hi + 1):
 		var x := float(cx - _vita_lo) * cs
@@ -881,41 +877,17 @@ func _vita_paint_static(phase: int = 0) -> void:
 				1:
 					idx = _face_tile(wall, cx)
 				4:
-					if not busy and _puddle_spills(cx):
-						_water_cell(water, rc.position, k, wo + Vector2(cx * 16, 64), Color.WHITE, ci)
-						_tile_at(tiles, rc, CHASM_WATER, ci)
-					else:
-						_tile_at(tiles, rc, CHASM_FLOOR, ci)
+					# Flat chasm tile only — no water 9-patch on Vita.
+					_tile_at(tiles, rc, CHASM_WATER if (not busy and _puddle_spills(cx)) else CHASM_FLOOR, ci)
 					continue
 				_:
 					idx = 1 if _h(cx * 3 + row, 2) % 11 == 0 and not near_grass and not busy else 0
-			if row == 2 and _deco_at(cx) and not busy:
-				deco_cells.append([rc, cx])
 			if row == 3 and not busy and _grass_at(cx):
 				idx = 2
-				grass_cells.append([rc, cx & 1, cx])
-			if not busy and _puddle(cx, row):
-				var wet := func(c2: int, r2: int) -> bool: return r2 <= 1 or (r2 >= 4 and _puddle_spills(c2)) or (_puddle(c2, r2) and not (c2 >= busy_from and c2 <= busy_to))
-				_water_cell(water, rc.position, k, wo + Vector2(cx * 16, row * 16), Color.WHITE, ci)
-				idx = WATER + (0 if wet.call(cx, row - 1) else 1) + (0 if wet.call(cx + 1, row) else 2) + (0 if wet.call(cx, row + 1) else 4) + (0 if wet.call(cx - 1, row) else 8)
+				grass_cells.append([rc, cx & 1])
 			_tile_at(tiles, rc, idx, ci)
-		if not busy and cx > hero_col + 1 and _h(cx, 5) % 17 == 0 and not _grass_at(cx) and not _deco_at(cx) and not _puddle(cx, 2):
-			var ir := UIKit.item_rect(DB.icon_index("BONES"))
-			var isz := ir.size * k
-			ci.draw_texture_rect_region(_t("res://assets/sprites/items.png"), Rect2((Vector2(x, y0 + 2 * cs) + (Vector2(cs, cs) - isz) / 2.0).floor(), isz), ir, Color(1, 1, 1, 0.85))
-	var decos: Array = REGION_DECO.get(String(r.biome), REGION_DECO.sewers)
-	for d in deco_cells:
-		var dr: Rect2 = d[0]
-		var pr: Array = decos[_h(int(d[1]), 22) % decos.size()]
-		ci.draw_texture_rect_region(_grass_tex(tiles, pr[0]), dr, Rect2(0, 0, 16, 16))
-		ci.draw_texture_rect_region(tiles, Rect2(dr.position - Vector2(0, cs), dr.size), Rect2((pr[1] % 16) * 16, (pr[1] / 16) * 16, 16, 16))
 	for g in grass_cells:
-		var gr: Rect2 = g[0]
-		var gb: int = HIGH_GRASS[g[1]]
-		var gi: int = HIGH_GRASS_TOP[g[1]]
-		var sw := roundf(sin(float(phase) * TAU / 4.0 + float(g[2]) * 0.9)) * k
-		ci.draw_texture_rect_region(_grass_tex(tiles, gb), Rect2(gr.position + Vector2(sw, 0), gr.size), Rect2(0, 0, 16, 16))
-		ci.draw_texture_rect_region(tiles, Rect2(gr.position + Vector2(sw, -cs), gr.size), Rect2((gi % 16) * 16, (gi / 16) * 16, 16, 16))
+		ci.draw_texture_rect_region(_grass_tex(tiles, HIGH_GRASS[g[1]]), g[0], Rect2(0, 0, 16, 16))
 	if phase == _vita_warm:
 		ci.set_meta("vita_painted", true)
 		_vita_advance_warm(phase)
