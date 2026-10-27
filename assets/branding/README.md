@@ -11,6 +11,9 @@ Final launcher art, wired into Godot (DECISIONS #243).
 | `idle_pd_mono_432.png` | Android monochrome / themed icon |
 | `idle_pd.ico` | Windows exe + `windows_native_icon` |
 | `favicon_16.png` / `favicon_32.png` | Browser tabs (copied by `tools/deploy_web.sh`) |
+| `vita_icon_128.png` | PS Vita LiveArea `icon0.png` |
+| `vita_bg_840x500.png` | PS Vita LiveArea background |
+| `vita_startup_280x158.png` | PS Vita LiveArea gate / startup |
 | `idle_pd_master_32.png` | Pixel source reference |
 | `idle_pd_guide_512.png` / `mockup_preview.png` | Guides only — not used by export |
 
