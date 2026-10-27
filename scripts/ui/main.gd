@@ -112,7 +112,9 @@ static func ui_font_size(shortest: float, text_scale: float = 1.0, vita := false
 	return int(clampf(shortest / 24.0 * text_scale, 14, 60))
 
 func _process(delta: float) -> void:
-	if VitaBoot.runs_on_vita():
+	var vita := VitaBoot.runs_on_vita()
+	var t0 := Time.get_ticks_usec() if vita else 0
+	if vita:
 		_vita_frame(delta)
 	# toasts never cover a tutorial card (they keep their timers and reappear when it closes)
 	toast_box.visible = not tip_open()
@@ -120,6 +122,8 @@ func _process(delta: float) -> void:
 	if _id_timer > 1.0:
 		_id_timer = 0.0
 		GameState.tick_identify()
+	if vita:
+		VitaBoot.add_us("main", int(Time.get_ticks_usec() - t0))
 
 func _vita_frame(delta: float) -> void:
 	var ms := int(delta * 1000.0)
@@ -133,7 +137,11 @@ func _vita_frame(delta: float) -> void:
 	if camp != null:
 		draw_us = int(camp.get("_last_draw_us"))
 	var nodes := int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT))
-	VitaBoot.mark("tick worst_ms=%d camp_draw_us=%d nodes=%d" % [_vita_worst_ms, draw_us, nodes])
+	var line := "tick worst_ms=%d camp_draw_us=%d nodes=%d" % [_vita_worst_ms, draw_us, nodes]
+	var report := VitaBoot.take_report()
+	if report != "":
+		line += " " + report
+	VitaBoot.mark_tick(line)
 	_vita_prof = 0.0
 	_vita_worst_ms = 0
 

@@ -44,12 +44,24 @@ func _process(_delta: float) -> void:
 			load("res://scripts/ui/camp_screen.gd")
 			VitaBoot.mark("camp script")
 		5:
-			_label.text = "Loading interface"
+			_label.text = "Loading delve"
 		6:
+			VitaBoot.mark("before delve script")
+			load("res://scripts/ui/delve_screen.gd")
+			VitaBoot.mark("delve script")
+		7:
+			_label.text = "Loading combat"
+		8:
+			VitaBoot.mark("before combat script")
+			load("res://scripts/ui/combat_screen.gd")
+			VitaBoot.mark("combat script")
+		9:
+			_label.text = "Loading interface"
+		10:
 			VitaBoot.mark("before main scene")
 			_main = load("res://scenes/main.tscn")
 			VitaBoot.mark("main scene")
-		7:
+		11:
 			_label.text = "Opening camp"
 		_:
 			set_process(false)

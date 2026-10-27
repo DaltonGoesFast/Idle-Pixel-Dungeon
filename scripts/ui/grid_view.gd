@@ -69,6 +69,8 @@ const S_RAISED_GRASS := 122; const S_RAISED_GRASS_ALT := 125
 const S_WALL_INTERNAL := 144; const S_WALL_OVERHANG := 192
 const S_DOOR_OVERHANG := 224; const S_DOOR_SIDEWAYS := 227
 const S_GRASS_OVERHANG := 234; const S_GRASS_OVERHANG_ALT := 237
+var _vita_acc := 0.0
+var _last_draw_us := 0
 
 func _ready() -> void:
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -242,6 +244,8 @@ func _zap_visual(p: Vector2i, fired: Dictionary, ev := {}) -> void:
 		return
 
 func _process(d: float) -> void:
+	var vita := VitaBoot.runs_on_vita()
+	var t0 := Time.get_ticks_usec() if vita else 0
 	anim_t += d
 	if combat:
 		for y in combat.h:
@@ -285,7 +289,14 @@ func _process(d: float) -> void:
 	for q in parts:
 		q.t += d; q.p += q.v * d; q.v.y += 3.0 * d   # light gravity (cells/s^2)
 	parts = parts.filter(func(q): return q.t < q.life)
-	queue_redraw()
+	if vita:
+		_vita_acc += d
+		if _vita_acc >= 1.0 / 20.0:
+			_vita_acc -= 1.0 / 20.0
+			queue_redraw()
+		VitaBoot.add_us("grid_proc", int(Time.get_ticks_usec() - t0))
+	else:
+		queue_redraw()
 
 ## Particles in cell space: n pixels flung from the centre of cell p.
 func _burst(p: Vector2, c: Color, n: int, speed := 1.6, up := 0.0) -> void:
@@ -490,6 +501,8 @@ func _corner_dark(cx: int, cy: int, ctr: Vector2, lr: float) -> float:
 	return clampf(maxf(fog, torch) + fog * torch * 0.3, 0.0, 0.92)
 
 func _draw() -> void:
+	var vita_draw := VitaBoot.runs_on_vita()
+	var vita_t0 := Time.get_ticks_usec() if vita_draw else 0
 	if combat == null: return
 	var cs := cell_size()
 	var ps := cs / 16.0
@@ -646,6 +659,9 @@ func _draw() -> void:
 		var col: Color = f.color; col.a = 1.0 - maxf(0, f.t - 0.5) / 0.4
 		draw_string_outline(font, p, f.text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, maxi(2, int(ps)), Color(0, 0, 0, col.a))
 		draw_string(font, p, f.text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, col)
+	if vita_draw:
+		_last_draw_us = int(Time.get_ticks_usec() - vita_t0)
+		VitaBoot.add_us("grid_draw", _last_draw_us)
 
 ## Draw one sprite frame bottom-centred in its cell; returns the sprite's top-left (for bars/icons).
 func _draw_sprite(spr: String, fw: int, fh: int, frame: int, p: Vector2, flip: bool, scale: float, mod: Color, white := 0.0) -> Vector2:

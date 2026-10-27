@@ -38,6 +38,8 @@ var _dying := {}                  # foes playing their SPD die frames after a wo
 var hit_flash := 0.0              # hero white flash this frame (0 or 1), recomputed every draw from the foes' blows
 const FLASH_S := 0.05             # SPD CharSprite.FLASH_INTERVAL: full white for 0.05 s, no fade (DECISIONS #187)
 var _snd_t := {}
+var _vita_acc := 0.0
+var _last_draw_us := 0
 
 func _pickup(idx: int, n: int, snd: String) -> void:
 	pops.append({"idx": idx, "age": 0.0, "n": n})
@@ -69,6 +71,8 @@ func encounter() -> Dictionary:
 	return p if p.get("kind", "") in ["combat", "door", "special", "campfire", "floor_done"] else {}
 
 func _process(delta: float) -> void:
+	var vita := VitaBoot.runs_on_vita()
+	var t0 := Time.get_ticks_usec() if vita else 0
 	if not is_visible_in_tree() or _run().is_empty(): return
 	t += delta; _hs_t -= delta
 	var r := _run()
@@ -105,7 +109,14 @@ func _process(delta: float) -> void:
 		_dying.age = float(_dying.age) + delta
 		# kept until the fight's columns scroll off the left edge, so its cleared ground never pops props in view
 		if float(_dying.age) > 2.5 and (int(_dying.col) + 6 < _vis_left or float(_dying.age) > 30.0): _dying = {}
-	queue_redraw()   # 60 fps: the draw is now ~40 quads (DECISIONS #99)
+	if vita:
+		_vita_acc += delta
+		if _vita_acc >= 1.0 / 20.0:
+			_vita_acc -= 1.0 / 20.0
+			queue_redraw()
+		VitaBoot.add_us("delve_scene", int(Time.get_ticks_usec() - t0))
+	else:
+		queue_redraw()   # 60 fps: the draw is now ~40 quads (DECISIONS #99)
 
 ## The wall face at the encounter (DECISIONS #179): a door card shows its two doors, closed or locked if that door
 ## needs a key; a special room shows its closed door with the room's icon above it. Doors are always shut unless
@@ -266,8 +277,11 @@ func _side_door(cx: int) -> bool:
 	return _h(cx, 3) % 23 == 0 and not _deco_at(cx)
 
 func _draw() -> void:
+	var vita_draw := VitaBoot.runs_on_vita()
+	var vita_t0 := Time.get_ticks_usec() if vita_draw else 0
 	var r := _run()
-	if r.is_empty(): return
+	if r.is_empty():
+		return
 	var k := pk(); var cs := cell()
 	draw_rect(Rect2(Vector2.ZERO, size), Color(0.02, 0.01, 0.03))
 	var y0 := floorf((size.y - cs * ROWS) / 2.0)
@@ -476,6 +490,9 @@ func _draw() -> void:
 	if _fade > 0.0: draw_rect(Rect2(Vector2.ZERO, size), Color(0, 0, 0, _fade))
 	# border
 	draw_rect(Rect2(Vector2.ZERO, size), Color(0, 0, 0, 0.9), false, maxf(2.0, k))
+	if vita_draw:
+		_last_draw_us = int(Time.get_ticks_usec() - vita_t0)
+		VitaBoot.add_us("delve_draw", _last_draw_us)
 
 ## Special-room scenes (DECISIONS #180): each room is built on the corridor floor ahead of its door from SPD's own
 ## tiles. Ops are [kind, what, dx, row]: "t" level tile (biome sheet), "f" terrain_features.png, "w" animated water,

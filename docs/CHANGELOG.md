@@ -5,6 +5,7 @@
 - PS Vita export preset for the Godot 4 Vita runtime (960×544, two worker threads, touch layout, face buttons and D-pad). Phone, desktop, and web layouts stay as they are. Saves on a Vita go to `ux0:/data/idlepd-saves/` (DECISIONS #244, +tests).
 - PS Vita boot no longer constructs an HTTP client, hides the engine logo behind a flat color, and writes `user://vita_boot.log` from the first script. Game data stays the loose `game_data/` tree (`project.binary` and `.godot/`), which is what this runtime loads. The first frame no longer builds Camp, music, SystemFont, or PatrolWidget inside `SceneTree::initialize` (DECISIONS #245, +tests).
 - PS Vita 00.54 shows a loading line before camp and the content tables are parsed, hides the clearing while a camp page is open, and draws a short 20 fps camp instead of the full 60 fps clearing. Camp text is larger on the 960×544 panel. Phone, desktop, and web behavior is unchanged (DECISIONS #246, +tests).
+- PS Vita 00.55 keeps the 2 second frame log on stderr without reopening the save file, preloads delve and combat on the loading card, and stops rebuilding delve, combat, and the enchanter page on every tick. The corridor and the combat grid draw at 20 fps. Phone, desktop, and web behavior is unchanged (DECISIONS #247, +tests).
 
 ## 0.50.4
 - The player-facing title is Idle PD.

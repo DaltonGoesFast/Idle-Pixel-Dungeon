@@ -142,6 +142,8 @@ func _build_shell() -> void:
 
 func rebuild() -> void:
 	if not is_inside_tree() or summary == null: return
+	var vita := VitaBoot.runs_on_vita()
+	var t0 := Time.get_ticks_usec() if vita else 0
 	# Recheck when returning to Camp after a long session (cooldown inside Updater).
 	Updater.maybe_check()
 	_journal_dot()
@@ -157,6 +159,8 @@ func rebuild() -> void:
 	if open_name != "": _fill_window()
 	# Named chrome offsets (Live Editor) re-apply after container layout.
 	call_deferred("_apply_live_layout")
+	if vita:
+		VitaBoot.add_us("camp_rebuild", int(Time.get_ticks_usec() - t0))
 
 func _apply_live_layout() -> void:
 	LiveLayout.apply_tree(self)
@@ -420,6 +424,8 @@ func _show_msg(msg: Label, text: String, hold: float) -> void:
 	var tw := msg.create_tween(); tw.tween_interval(maxf(0.1, hold)); tw.tween_property(msg, "modulate:a", 0.0, 0.6)
 
 func _fill_window() -> void:
+	var vita_page := VitaBoot.runs_on_vita()
+	var page_t0 := Time.get_ticks_usec() if vita_page else 0
 	var keep_scroll := 0
 	if win_layer:
 		var old_sc: ScrollContainer = win_layer.get_meta("sc"); keep_scroll = 0 if top_next else old_sc.scroll_vertical
@@ -438,6 +444,8 @@ func _fill_window() -> void:
 	(func(): if is_instance_valid(w[3]): w[3].scroll_vertical = keep_scroll).call_deferred()
 	if info_layer: move_child(info_layer, -1)
 	_vita_camp_visible()
+	if vita_page:
+		VitaBoot.add_us("camp_page", int(Time.get_ticks_usec() - page_t0))
 
 ## While a page is open the clearing is hidden, so its _draw does not run under the window.
 func _vita_camp_visible() -> void:
@@ -1741,7 +1749,9 @@ func _identify_section(v: VBoxContainer) -> void:
 		row.add_child(UIKit.icon(gear_icon(g), -1, "NONE"))
 		var cv := UIKit.vbox(row); cv.size_flags_horizontal = SIZE_EXPAND_FILL
 		var tail := "" if st == "running" else ("  (same type)" if st == "same type" else "  (waiting)")
-		cv.add_child(UIKit.label("%s   %d:%02d%s" % [GameState.gear_name(g), int(left) / 60, int(left) % 60, tail], 0.85))
+		var left_l := UIKit.label("%s   %d:%02d%s" % [GameState.gear_name(g), int(left) / 60, int(left) % 60, tail], 0.85)
+		left_l.name = "IdentifyLeft"
+		cv.add_child(left_l)
 		var pb := ProgressBar.new(); pb.name = "IdentifyBar"; pb.max_value = 1.0; pb.step = 0.0; pb.show_percentage = false
 		pb.value = GameState.identify_progress(q); pb.custom_minimum_size.y = UIKit.font_size * 0.5
 		cv.add_child(pb)
@@ -1763,7 +1773,43 @@ func _identify_section(v: VBoxContainer) -> void:
 			ug.add_child(item_slot(gear_icon(g), "", "?", func(): info(gear_icon(g), GameState.gear_name(g), gear_lines(g), [["Queue for identification", func(): GameState.enqueue_identify(g.uid), ""]], "NONE"), Color.WHITE, "", g))
 	if not GameState.id_queue.is_empty():
 		var t := Timer.new(); t.wait_time = 1.0; t.autostart = true; v.add_child(t)
-		t.timeout.connect(func(): if open_name == "Enchanter" and info_layer == null: _fill_window())
+		if VitaBoot.runs_on_vita():
+			t.timeout.connect(_vita_identify_tick)
+		else:
+			t.timeout.connect(func(): if open_name == "Enchanter" and info_layer == null: _fill_window())
+
+## The identify page used to rebuild its whole tree once a second. On Vita only the countdown and bar move.
+func _vita_identify_tick() -> void:
+	if open_name != "Enchanter" or info_layer != null or not is_instance_valid(win_layer):
+		return
+	var bars: Array = []
+	_vita_find_bars(win_layer, bars)
+	var i := 0
+	for q in GameState.id_queue:
+		if i >= bars.size():
+			_fill_window()
+			return
+		var pb: ProgressBar = bars[i]
+		pb.value = GameState.identify_progress(q)
+		var left := maxf(0.0, float(q.ready_at) - GameState.now())
+		var st := GameState.identify_state(q)
+		var tail := "" if st == "running" else ("  (same type)" if st == "same type" else "  (waiting)")
+		var g := GameState.gear_by_uid(q.uid)
+		var parent := pb.get_parent()
+		var label := parent.get_node_or_null("IdentifyLeft") if parent != null else null
+		if label is Label:
+			label.text = "%s   %d:%02d%s" % [GameState.gear_name(g), int(left) / 60, int(left) % 60, tail]
+		i += 1
+	if i != bars.size():
+		_fill_window()
+
+func _vita_find_bars(n: Node, out: Array) -> void:
+	if n == null:
+		return
+	for c in n.get_children():
+		if c.name == "IdentifyBar" and c is ProgressBar:
+			out.append(c)
+		_vita_find_bars(c, out)
 
 func _page_guild() -> void:
 	_pin_mats("guild")

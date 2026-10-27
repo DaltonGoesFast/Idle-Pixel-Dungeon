@@ -107,6 +107,8 @@ var _area := Vector2.ZERO
 var desktop_ui := false
 
 func apply_layout(portrait: bool, s: Vector2, desk_ui := false) -> void:
+	if VitaBoot.runs_on_vita():
+		_vita_btn_key = ""
 	var changed := desk_ui != desktop_ui or (split == null and desk == null)
 	_portrait = portrait; _area = s; desktop_ui = desk_ui
 	if changed or (desktop_ui and desk == null) or (not desktop_ui and split == null):
@@ -331,7 +333,14 @@ func side_min_width() -> float:
 		w = maxf(w, (c as Control).get_combined_minimum_size().x)
 	return w
 
+var _vita_btn_key := ""
+var _vita_log_key := ""
+var _vita_auto_at := 0
+
 func _process(d: float) -> void:
+	if VitaBoot.runs_on_vita():
+		_process_vita()
+		return
 	if main and main.tip_open(): return
 	if finished: return
 	if passage_confirm or menu_open or bag_open: return
@@ -339,6 +348,22 @@ func _process(d: float) -> void:
 		_auto_t += d
 		if _auto_t > 0.35:
 			_auto_t = 0.0; _do_bot()
+
+## Wall-clock gap so a slow frame cannot fire Auto on every frame. The 0.35 s wait is the same pause.
+func _process_vita() -> void:
+	if main and main.tip_open(): return
+	if finished: return
+	if passage_confirm or menu_open or bag_open: return
+	if not auto:
+		return
+	if _vita_auto_at == 0:
+		_vita_auto_at = Time.get_ticks_msec() + 350
+	if Time.get_ticks_msec() < _vita_auto_at:
+		return
+	var t0 := Time.get_ticks_usec()
+	_do_bot()
+	VitaBoot.add_us("combat_bot", int(Time.get_ticks_usec() - t0))
+	_vita_auto_at = Time.get_ticks_msec() + 350
 
 ## Combat keyboard (DECISIONS #232) and the Vita pad (DECISIONS #244). Bag / Passage / Menu / tip own cancel first.
 func _unhandled_input(event: InputEvent) -> void:
@@ -684,7 +709,13 @@ func _build_mobile_controls() -> void:
 	menu_b.size_flags_horizontal = SIZE_EXPAND_FILL
 
 func _refresh() -> void:
-	if status == null: return
+	var vita := VitaBoot.runs_on_vita()
+	var t0 := Time.get_ticks_usec() if vita else 0
+	if vita and _vita_refresh_skip():
+		VitaBoot.add_us("combat_refresh", int(Time.get_ticks_usec() - t0))
+		return
+	if status == null:
+		return
 	var h := combat.hero
 	var bl := []
 	if int(h.get("poison", 0)) > 0: bl.append(3)              # POISON
@@ -723,7 +754,10 @@ func _refresh() -> void:
 	_skill_cbs.clear(); _skill_enabled.clear()
 	_clear_result_layer()
 	if finished:
-		_result_buttons(); _refresh_log(); _refresh_bag(); _refresh_passage(); _fit_split(); return
+		_result_buttons(); _refresh_log(); _refresh_bag(); _refresh_passage(); _fit_split()
+		if vita:
+			VitaBoot.add_us("combat_refresh", int(Time.get_ticks_usec() - t0))
+		return
 	if desktop_ui:
 		_btn("Wait", func(): _act(func(): combat.hero_wait()))
 		_add_skill_buttons(buttons)
@@ -746,6 +780,58 @@ func _refresh() -> void:
 	_refresh_menu()
 	_refresh_passage()
 	_fit_split()
+	if vita:
+		VitaBoot.add_us("combat_refresh", int(Time.get_ticks_usec() - t0))
+
+## Vita: the status pane still redraws, but the button tree stays until the buttons themselves change.
+func _vita_refresh_skip() -> bool:
+	if status == null or buttons == null or combat == null:
+		return false
+	var h := combat.hero
+	var bl := []
+	if int(h.get("poison", 0)) > 0: bl.append(3)
+	if combat.hidden(): bl.append(12)
+	if int(h.barrier) > 0: bl.append(20)
+	var run: Dictionary = GameState.run
+	var lvl := 1
+	if not run.is_empty(): lvl = int(GameState.heroes[run.hero].level)
+	var minis := []
+	if not run.is_empty():
+		minis = [{"kind": "exp", "icon": "torch", "frac": float(run.torch) / 100.0, "text": "Torch %d%%" % run.torch},
+			{"kind": "shield", "icon": "ration", "frac": float(run.satiety) / 100.0, "text": "Food %d%%" % run.satiety}]
+	pane.set_data({"name": h.name, "level": lvl, "hp": h.hp, "ht": h.ht, "shield": h.barrier, "shield_hits": combat.barrier_hits(), "buffs": bl,
+		"floor": int(run.get("floor", 1)) if not run.is_empty() else 0,
+		"feeling": String(run.get("feeling", "")) if not run.is_empty() else "",
+		"danger": combat.enemies().filter(func(e): return e.hp > 0).size(), "minis": minis})
+	_guide_update()
+	var slam_adj := false
+	if "slam" in h.abilities:
+		slam_adj = combat.enemies().any(func(e): return Combat.cheb(e.pos, h.pos) == 1)
+	var key := "%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s" % [
+		finished, auto, mode, bag_open, menu_open, passage_confirm, desktop_ui,
+		potions - potions_used, h.get("searched", false), Delve.scroll_passage_count(GameState),
+		int(h.get("charges", 0)), int(h.get("slams", 0)), int(h.get("cloak_charges", 0)),
+		combat.hidden(), int(h.hp) < int(h.ht), slam_adj]
+	var log_key := str(combat.log_lines.size())
+	if not combat.log_lines.is_empty():
+		log_key += str(combat.log_lines[-1])
+	log_key += "|%s|%s" % [combat.surprise_ready(), combat.danger.is_empty()]
+	if key != _vita_btn_key or buttons.get_child_count() == 0:
+		_vita_btn_key = key
+		_vita_log_key = log_key
+		return false
+	if log_key != _vita_log_key:
+		_vita_log_key = log_key
+		_refresh_log()
+	_vita_combat_tips()
+	return true
+
+func _vita_combat_tips() -> void:
+	if main == null or finished:
+		return
+	if combat.surprise_ready() and (guide == 0 or guide >= 4): main.tip("surprise")
+	if not combat.danger.is_empty(): main.tip("telegraph")
+	if combat.traps.values().any(func(t): return not t.hidden): main.tip("trap")
 
 ## In-combat Bag: swap weapon/armor/ring/wand from the backpack; a swap costs the hero's turn (1 tick).
 ## A carried Scroll of Passage is listed here too. Read opens the confirm; accepting extracts with no tick.

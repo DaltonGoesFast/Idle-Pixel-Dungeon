@@ -127,8 +127,17 @@ func on_shown() -> void:
 	main.tip("delve_bar")
 
 var _save_t := 0.0
+var _vita_rest := ""
+var _vita_bar := -1.0
+var _vita_win_size := Vector2(-1, -1)
+var _vita_win_left := 0
 
 func _process(delta: float) -> void:
+	if VitaBoot.runs_on_vita():
+		var t0 := Time.get_ticks_usec()
+		_process_vita(delta)
+		VitaBoot.add_us("delve_proc", int(Time.get_ticks_usec() - t0))
+		return
 	var run: Dictionary = GameState.run
 	if run.is_empty(): return
 	_expire_card_toasts()
@@ -154,6 +163,65 @@ func _process(delta: float) -> void:
 			var ev := Delve.advance(GameState, delta * SPEED * speed_mult())
 			if not ev.is_empty():
 				pending = ev; _encounter_cue(ev); _show_card(); SaveSystem.save_game()
+	_refresh()
+
+## Vita frame: same advance, save, and auto rules. The window is measured for a few frames after it opens,
+## then left alone, and the bar label changes when the integer percent changes.
+func _process_vita(delta: float) -> void:
+	var run: Dictionary = GameState.run
+	if run.is_empty(): return
+	_expire_card_toasts()
+	_place_window_vita()
+	_tick_danger(delta)
+	_save_t += delta
+	if _save_t > 3.0:
+		_save_t = 0.0; SaveSystem.save_game()
+	if main and main.tip_open(): _refresh_vita(); return
+	if _summary_on:
+		_refresh_vita(); return
+	var held := _is_encounter(_under)
+	if pending.is_empty() and not held and not run.get("overflow", []).is_empty():
+		_open_panel("backpack")
+	elif pending.is_empty() and not held and running and GameState.talent_points_total_free(run.hero) > 0 and not run.get("talent_prompted", false):
+		run.talent_prompted = true; _open_panel("talents")
+	if GameState.settings.get("full_auto", false): _auto_tick(delta)
+	if running and pending.is_empty() and not _is_encounter(_under):
+		if Delve.floor_done(run):
+			_floor_cleared()
+		else:
+			var ev := Delve.advance(GameState, delta * SPEED * speed_mult())
+			if not ev.is_empty():
+				pending = ev; _encounter_cue(ev); _show_card(); SaveSystem.save_game()
+	_refresh_vita()
+
+func _place_window_vita() -> void:
+	if win_layer == null or not win_layer.visible or size.y <= 0.0:
+		return
+	if _vita_win_left <= 0 and _vita_win_size == size:
+		return
+	_place_window()
+	_vita_win_size = size
+	if _vita_win_left > 0:
+		_vita_win_left -= 1
+
+func _refresh_vita() -> void:
+	var run: Dictionary = GameState.run
+	if run.is_empty():
+		return
+	var h: Dictionary = GameState.heroes[run.hero]
+	var rest := "%s|%d|%s|%s|%s|%s|%d|%d|%d|%s|%d|%s|%d|%d|%s" % [
+		run.hero, int(h.level), str(h.weapon), str(h.armor), str(h.ring), str(h.get("artifact", 0)),
+		int(run.hp), int(run.torch), int(run.satiety), String(run.get("feeling", "")),
+		int(run.floor), String(run.biome), GameState.log_serial, int(run.get("next_event", 0)),
+		_supplies_key(run)]
+	var prog := float(run.progress)
+	if rest == _vita_rest:
+		if int(prog) != int(_vita_bar):
+			_vita_bar = prog
+			bar.value = prog
+		return
+	_vita_rest = rest
+	_vita_bar = prog
 	_refresh()
 
 # ---------------------------------------------------------------- Auto Battle (DECISIONS #105)
@@ -516,6 +584,8 @@ func _card(title_text: String, body: String) -> VBoxContainer:
 	return v
 
 func _show_card() -> void:
+	if VitaBoot.runs_on_vita():
+		_vita_win_left = 3
 	if card_host == null: return
 	UIKit.clear(card_host)
 	UIKit.clear(log_host)
