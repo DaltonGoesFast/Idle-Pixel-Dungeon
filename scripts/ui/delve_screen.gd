@@ -303,25 +303,25 @@ func _refresh_vita() -> void:
 	if run.is_empty():
 		return
 	var prog := int(run.progress)
-	var watch := "%s|%s|%s|%s|%s|%s" % [GameState.log_serial, int(run.hp), int(run.torch), int(run.satiety), int(run.floor), int(run.get("next_event", 0))]
-	if watch == _vita_watch:
+	# Log lines: cheap label rebuild only — do not rebuild status/supplies chrome.
+	if GameState.log_serial != _log_serial:
+		_fill_log()
+	# Torch/food in 5% bands so auto-delve does not full-refresh every percent.
+	var torch_b := int(run.torch) / 5
+	var food_b := int(run.satiety) / 5
+	var h: Dictionary = GameState.heroes[run.hero]
+	var chrome := "%s|%d|%s|%s|%s|%s|%d|%d|%d|%s|%d|%s|%d|%s|%s" % [
+		run.hero, int(h.level), str(h.weapon), str(h.armor), str(h.ring), str(h.get("artifact", 0)),
+		int(run.hp), torch_b, food_b, String(run.get("feeling", "")),
+		int(run.floor), String(run.biome), int(run.get("next_event", 0)),
+		_supplies_key(run), str(pending.get("kind", ""))]
+	if chrome == _vita_rest:
 		if prog != int(_vita_bar):
 			_vita_bar = float(prog)
 			bar.value = float(run.progress)
 		return
-	_vita_watch = watch
-	var h: Dictionary = GameState.heroes[run.hero]
-	var rest := "%s|%d|%s|%s|%s|%s|%d|%d|%d|%s|%d|%s|%d|%d|%s" % [
-		run.hero, int(h.level), str(h.weapon), str(h.armor), str(h.ring), str(h.get("artifact", 0)),
-		int(run.hp), int(run.torch), int(run.satiety), String(run.get("feeling", "")),
-		int(run.floor), String(run.biome), GameState.log_serial, int(run.get("next_event", 0)),
-		_supplies_key(run)]
-	if rest == _vita_rest:
-		if int(prog) != int(_vita_bar):
-			_vita_bar = prog
-			bar.value = prog
-		return
-	_vita_rest = rest
+	_vita_rest = chrome
+	_vita_watch = chrome
 	_vita_bar = prog
 	_refresh()
 

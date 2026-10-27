@@ -71,7 +71,7 @@ const S_DOOR_OVERHANG := 224; const S_DOOR_SIDEWAYS := 227
 const S_GRASS_OVERHANG := 234; const S_GRASS_OVERHANG_ALT := 237
 var _vita_acc := 0.0
 var _last_draw_us := 0
-const VITA_FRAME_N := 2
+const VITA_FRAME_N := 1
 const VITA_BAKE_LO := -2
 var _vita_frames: Array = []
 var _vita_wall_fx: Array = []
@@ -83,6 +83,8 @@ var _vita_bake_key := ""
 var _vita_fog_key := ""
 var _vita_warm := 0
 var _vita_phase := 0
+var _vita_dirty := true
+var _vita_disp_key := ""
 
 func _ready() -> void:
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -303,10 +305,14 @@ func _process(d: float) -> void:
 	parts = parts.filter(func(q): return q.t < q.life)
 	if vita:
 		_vita_place_bake()
+		_vita_mark_dirty()
 		_vita_acc += d
-		# 8 fps is enough for sprite bob on GXM; 12 was ~200ms/s of grid_proc in the logs.
-		if _vita_acc >= 1.0 / 8.0:
-			_vita_acc -= 1.0 / 8.0
+		var due := _vita_acc >= 1.0 / 5.0
+		if due:
+			_vita_acc -= 1.0 / 5.0
+		# 5 Hz idle bob; combat flashes/moves redraw on the dirty flag without waiting a full tick.
+		if due or _vita_dirty:
+			_vita_dirty = false
 			queue_redraw()
 			if _vita_fx != null:
 				_vita_fx.queue_redraw()
@@ -314,13 +320,31 @@ func _process(d: float) -> void:
 	else:
 		queue_redraw()
 
+func _vita_mark_dirty() -> void:
+	if _vita_dirty:
+		return
+	var dk := "%s|%s|%s|%s|%s|%s|%s" % [flash.size(), floaters.size(), shots.size(), dying.size(), door_tween.size(), parts.size(), blasts.size() + rings.size()]
+	var disp_bits := ""
+	if combat:
+		for u in combat.units:
+			var p: Vector2 = disp.get(u.uid, Vector2(u.pos))
+			disp_bits += "%s:%d,%d|" % [u.uid, int(round(p.x * 4.0)), int(round(p.y * 4.0))]
+	if dk != _vita_disp_key or disp_bits != str(get_meta("_vita_disp_bits", "")):
+		_vita_disp_key = dk
+		set_meta("_vita_disp_bits", disp_bits)
+		_vita_dirty = true
+
 ## Particles in cell space: n pixels flung from the centre of cell p.
 func _burst(p: Vector2, c: Color, n: int, speed := 1.6, up := 0.0) -> void:
-	if parts.size() > 160: return   # perf cap
-	for i in n:
+	var cap := 40 if VitaBoot.runs_on_vita() else 160
+	if parts.size() > cap: return
+	var count := mini(n, cap - parts.size())
+	for i in count:
 		var a := _rng.randf() * TAU
 		var v := Vector2(cos(a), sin(a)) * speed * (0.4 + _rng.randf() * 0.6) + Vector2(0, -up - 0.6)
 		parts.append({"p": p + Vector2(0.5, 0.5), "v": v, "t": 0.0, "life": 0.35 + _rng.randf() * 0.25, "c": c, "s": 1 + _rng.randi() % 2})
+	if VitaBoot.runs_on_vita() and count > 0:
+		_vita_dirty = true
 
 ## Light radius in cells: SPD-like torchlight that shrinks as the torch burns down; darkness = tiny radius.
 func light_radius() -> float:
@@ -726,12 +750,10 @@ func _vita_place_bake() -> void:
 			_vita_frames[i].set_meta("vita_painted", false)
 			_vita_wall_fx[i].set_meta("vita_painted", false)
 		_vita_walls.queue_redraw()
-	var ctr := _vita_fog_center()
-	var fog_key := "%s|%s|%s|%s" % [Vector2i(int(round(ctr.x * 2.0)), int(round(ctr.y * 2.0))), int(light_radius() * 4.0), combat.units.size(), key]
-	if fog_key != _vita_fog_key:
-		_vita_fog_key = fog_key
-		VitaBoot.add_n("grid_fog_key_n")
-		_vita_fog.queue_redraw()
+	# Flat visibility on Vita — torch fog was rebaking every hero step (grid_fog_key_n churn).
+	if _vita_fog != null and bool(_vita_fog.get_meta("vita_on", true)):
+		_vita_fog.set_meta("vita_on", false)
+		RenderingServer.canvas_item_set_visible(_vita_fog.get_canvas_item(), false)
 	_vita_phase = posmod(int(floor(anim_t / 0.22)), VITA_FRAME_N)
 	var show_i := _vita_warm if _vita_warm < VITA_FRAME_N else _vita_phase
 	# visible=true repaints. The server flag swaps pre-baked water and grass frames without a rebake.
@@ -857,60 +879,16 @@ func _vita_paint_walls() -> void:
 				_tile(_vita_cell(Vector2(x, y), cs), wv, ci)
 
 func _vita_paint_wall_fx(phase: int) -> void:
-	if combat == null or phase < 0 or phase >= _vita_wall_fx.size():
+	# Vita: skip SceneFX wall/stream overlays; static bake already has deco tiles.
+	if phase < 0 or phase >= _vita_wall_fx.size():
 		return
-	var ci: Node2D = _vita_wall_fx[phase]
-	var cs := cell_size()
-	var ps := cs / 16.0
-	var ft := float(phase) * 0.22
-	var bio := biome()
-	var lo := VITA_BAKE_LO
-	var hi_x := _aw() + 1
-	var hi_y := _ah() + 1
-	var clip := Rect2(Vector2(-VITA_BAKE_LO, -VITA_BAKE_LO) * cs, Vector2(_aw(), _ah()) * cs)
-	for y in range(lo, hi_y + 1):
-		for x in range(lo, hi_x + 1):
-			var c := Vector2i(x, y)
-			var v := terrain_visual(c)
-			if v - v % 4 == S_RAISED_WALL_DECO or v - v % 4 == S_RAISED_WALL_DECO_ALT:
-				SceneFX.wall_visual(ci, ft, bio, _vita_cell(Vector2(x, y), cs), v, ps, clip)
-			if _t(c) == Combat.T.WATER and bio == "halls":
-				SceneFX.halls_stream(ci, ft, _vita_cell(Vector2(x, y), cs), ps)
-	_chasm_wind(cs, ps, ci, ft, true)
 	if phase == _vita_warm:
-		ci.set_meta("vita_painted", true)
+		_vita_wall_fx[phase].set_meta("vita_painted", true)
 		_vita_advance_warm(phase)
 
 func _vita_paint_fog() -> void:
-	var t0 := Time.get_ticks_usec()
-	if combat == null or _vita_fog == null or not lighting:
-		return
-	var lr := light_radius()
-	if lr >= 50.0:
-		return
-	var ci := _vita_fog
-	var cs := cell_size()
-	var lo := VITA_BAKE_LO
-	var hi_x := _aw() + 1
-	var hi_y := _ah() + 1
-	var ctr := _vita_fog_center() + Vector2(0.5, 0.5)
-	var dark := {}
-	for y in range(lo, hi_y + 2):
-		for x in range(lo, hi_x + 2):
-			dark[Vector2i(x, y)] = _corner_dark(x, y, ctr, lr)
-	for y in range(lo, hi_y + 1):
-		for x in range(lo, hi_x + 1):
-			var a: float = dark[Vector2i(x, y)]
-			var b: float = dark[Vector2i(x + 1, y)]
-			var c2: float = dark[Vector2i(x + 1, y + 1)]
-			var d2: float = dark[Vector2i(x, y + 1)]
-			if a + b + c2 + d2 <= 0.0:
-				continue
-			var r := _vita_cell(Vector2(x, y), cs)
-			ci.draw_polygon(PackedVector2Array([r.position, r.position + Vector2(cs, 0), r.end, r.position + Vector2(0, cs)]),
-				PackedColorArray([Color(0, 0, 0, a), Color(0, 0, 0, b), Color(0, 0, 0, c2), Color(0, 0, 0, d2)]))
-	VitaBoot.add_n("grid_fog_n")
-	VitaBoot.add_us("grid_fog", int(Time.get_ticks_usec() - t0))
+	# Torch fog disabled on Vita (hidden in _vita_place_bake); node kept for bake wiring.
+	pass
 
 func _vita_paint_effects() -> void:
 	if _vita_fx == null:

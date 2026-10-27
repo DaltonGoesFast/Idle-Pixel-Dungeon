@@ -40,8 +40,9 @@ const FLASH_S := 0.05             # SPD CharSprite.FLASH_INTERVAL: full white fo
 var _snd_t := {}
 var _vita_acc := 0.0
 var _last_draw_us := 0
-# Two water/grass phases: half the warm cost of 4, still enough flicker on 544p.
-const VITA_FRAME_N := 2
+# One static bake frame on Vita: flicker costs a second warm paint for little gain on GXM.
+const VITA_FRAME_N := 1
+
 var _vita_frames: Array = []
 var _vita_fx: Array = []
 var _vita_light: Node2D
@@ -123,8 +124,9 @@ func _process(delta: float) -> void:
 	if vita:
 		_vita_place_bake()
 		_vita_acc += delta
-		if _vita_acc >= 1.0 / 12.0:
-			_vita_acc -= 1.0 / 12.0
+		# 6 Hz overlay (hero/pops/fade). Tiles come from the baked strip.
+		if _vita_acc >= 1.0 / 6.0:
+			_vita_acc -= 1.0 / 6.0
 			queue_redraw()
 		VitaBoot.add_us("delve_scene", int(Time.get_ticks_usec() - t0))
 	else:
@@ -751,9 +753,8 @@ func _vita_place_bake() -> void:
 	var ev := encounter()
 	var ev_key := "" if ev.is_empty() else "%s|%s" % [ev.get("kind", ""), str(ev.get("mobs", ev.get("special", "")))]
 	var dying_col := -999 if _dying.is_empty() else int(_dying.get("col", -999))
-	# Wider scroll buckets: auto-delve was rebaking every ~16 columns (~1–3s each on device).
-	# Margin must cover a full bucket of travel plus the on-screen columns or the strip blanks out.
-	const BAKE_BUCKET := 32
+	# Wide buckets: rebake less while auto-delving. Margin must cover a full bucket of travel + viewport.
+	const BAKE_BUCKET := 48
 	var bucket := int(floor(float(hero_col) / float(BAKE_BUCKET)))
 	var margin := cols + BAKE_BUCKET + 2
 	# Integer cell and column span only. The raw control size jitters by a pixel and must not rebake.
@@ -936,52 +937,11 @@ func _vita_paint_static(phase: int = 0) -> void:
 	VitaBoot.add_us("delve_bake", int(Time.get_ticks_usec() - t0))
 
 func _vita_paint_fx(phase: int) -> void:
-	var r := _run()
-	if r.is_empty() or phase < 0 or phase >= _vita_fx.size():
+	# Vita: skip SceneFX wall/stream/flame overlays — static bake already has deco tiles.
+	if phase < 0 or phase >= _vita_fx.size():
 		return
-	var ci: Node2D = _vita_fx[phase]
-	var k := pk()
-	var cs := cell()
-	var y0 := floorf((size.y - cs * ROWS) / 2.0)
-	var biome_name := String(r.biome)
-	var ft := float(phase) * 0.22
-	var ev := encounter()
-	var hero_col := int(floor(scroll))
-	var stop_col := hero_col + 2
-	var busy_from := stop_col - 1
-	var busy_to := stop_col + 5
-	if ev.is_empty():
-		busy_to = busy_from - 1
-	if ev.is_empty() and not _dying.is_empty():
-		busy_from = int(_dying.col) - 1
-		busy_to = int(_dying.col) + 5
-	var wall := {}
-	for wcx in range(_vita_lo - 1, _vita_hi + 2):
-		var wb := wcx >= busy_from and wcx <= busy_to
-		var wi := _wall_tile(wcx)
-		if _side_door(wcx) and not wb:
-			wi = DOOR_CLOSED
-		if not ev.is_empty():
-			wi = _encounter_wall(ev, wcx - stop_col, wi)
-		wall[wcx] = wi
-	var decos: Array = REGION_DECO.get(biome_name, REGION_DECO.sewers)
-	for cx in range(_vita_lo, _vita_hi + 1):
-		var x := float(cx - _vita_lo) * cs
-		var busy := cx >= busy_from and cx <= busy_to
-		if busy:
-			continue
-		var face := _face_tile(wall, cx)
-		if face in [84, 100]:
-			SceneFX.wall_visual(ci, ft, biome_name, Rect2(x, y0 + cs, cs, cs), face, k)
-		for row in [2, 3]:
-			if _puddle(cx, row) and biome_name == "halls":
-				SceneFX.halls_stream(ci, ft, Rect2(x, y0 + row * cs, cs, cs), k)
-		if biome_name == "city" and _deco_at(cx):
-			var pr: Array = decos[_h(cx, 22) % decos.size()]
-			if pr[0] == 130:
-				SceneFX.green_flame(ci, ft, Vector2(x + cs * 0.5, y0 + 2.0 * cs - cs * 0.55), k, cx)
 	if phase == _vita_warm:
-		ci.set_meta("vita_painted", true)
+		_vita_fx[phase].set_meta("vita_painted", true)
 		_vita_advance_warm(phase)
 
 ## Sprites, the open special room, pickup pops, and the fade. Tiles come from the bake.

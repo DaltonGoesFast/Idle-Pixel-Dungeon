@@ -369,8 +369,8 @@ func _process(d: float) -> void:
 		if _auto_t > 0.35:
 			_auto_t = 0.0; _do_bot()
 
-## Wall-clock gap so a slow frame cannot fire Auto on every frame. Vita waits 700 ms so a slow
-## turn does not start another on the next frame. Phone auto still uses _auto_t > 0.35.
+## Wall-clock gap so a slow frame cannot fire Auto on every frame. Vita waits 1000 ms so bot
+## + redraw do not stack on the same slow frames. Phone auto still uses _auto_t > 0.35.
 ## Left stick walks in 8 directions with a short cooldown (D-pad stays edge-triggered).
 func _process_vita() -> void:
 	if main and main.tip_open(): return
@@ -380,13 +380,13 @@ func _process_vita() -> void:
 		_vita_stick_move()
 		return
 	if _vita_auto_at == 0:
-		_vita_auto_at = Time.get_ticks_msec() + 700
+		_vita_auto_at = Time.get_ticks_msec() + 1000
 	if Time.get_ticks_msec() < _vita_auto_at:
 		return
 	var t0 := Time.get_ticks_usec()
 	_do_bot()
 	VitaBoot.add_us("combat_bot", int(Time.get_ticks_usec() - t0))
-	_vita_auto_at = Time.get_ticks_msec() + 700
+	_vita_auto_at = Time.get_ticks_msec() + 1000
 
 func _vita_stick_move() -> void:
 	var step := Keybinds.vita_stick_step()
