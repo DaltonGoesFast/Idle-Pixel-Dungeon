@@ -3325,7 +3325,7 @@ func test_export_presets() -> void:
 		check(String(cfg.get_value(vopt, "textures/gpu_format", "")) == "RGBA4444", "PS Vita textures default to RGBA4444")
 		check(String(cfg.get_value(vopt, "performance/capunlocker", "")) == "optional", "CapUnlocker is optional")
 		check(String(cfg.get_value(vopt, "application/title_id", "")) == "IDLEPD001", "PS Vita title id is IDLEPD001")
-		check(String(cfg.get_value(vopt, "application/version", "")) == "00.52", "PS Vita PARAM.SFO version is 00.52")
+		check(String(cfg.get_value(vopt, "application/version", "")) == "00.53", "PS Vita PARAM.SFO version is 00.53")
 		check(String(cfg.get_value(vopt, "application/title", "")) == "Idle PD", "PS Vita bubble title is Idle PD")
 	check(found_vita, "PS Vita export preset exists")
 	var proj := ConfigFile.new()
