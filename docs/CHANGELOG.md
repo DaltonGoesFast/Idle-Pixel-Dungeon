@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- The floor icon beside the depth number in the hero header matches that number's height, in combat and on the delve bar (DECISIONS #244, +tests).
+
 ## 0.50.4
 - The player-facing title is Idle PD.
 - Launcher icons: Android adaptive FG/BG/mono, Windows `.ico`, and web favicons from `assets/branding/` (DECISIONS #243, +tests).
