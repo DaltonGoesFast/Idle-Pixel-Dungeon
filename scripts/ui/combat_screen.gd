@@ -124,6 +124,10 @@ func apply_layout(portrait: bool, s: Vector2, desk_ui := false) -> void:
 		grid.size_flags_vertical = SIZE_SHRINK_BEGIN if portrait else SIZE_FILL
 		if pane: pane.set_max_w(0.0); pane.size_flags_horizontal = SIZE_EXPAND_FILL
 	_refresh()
+	# Vita auto-light refresh can skip _fit_split; _ready also runs with _area=0. Always size the grid here.
+	_fit_split()
+	if VitaBoot.runs_on_vita() and grid != null and grid.custom_minimum_size == Vector2.ZERO:
+		call_deferred("_fit_split")
 
 ## Desktop: keep the status strip phone-wide instead of spanning the whole monitor.
 func _fit_desk_pane() -> void:
@@ -313,6 +317,9 @@ func _fit_split() -> void:
 		return
 	if VitaBoot.runs_on_vita():
 		# Physical pad: no on-screen D-pad. Give the arena most of the 960×544 frame.
+		# Always landscape — a wrong first aspect must not leave the grid collapsed above the chrome.
+		if split:
+			split.vertical = false
 		var sep := float(split.get_theme_constant("separation")) if split else 8.0
 		var side_w := minf(260.0, floorf(_area.x * 0.30))
 		var g := floorf(maxf(160.0, minf(_area.y, _area.x - side_w - sep)))
@@ -904,16 +911,24 @@ func _vita_refresh_skip() -> bool:
 		_vita_btn_key = key
 		_vita_log_key = log_key
 		return false
+	# _ready builds buttons with _area=0; if we skip the full refresh here the grid stays collapsed
+	# until something (e.g. Start → Auto) forces a rebuild. Always keep the split sized.
+	if grid != null and (grid.custom_minimum_size == Vector2.ZERO or _area == Vector2.ZERO):
+		return false
 	if log_key != _vita_log_key:
 		_vita_log_key = log_key
 		_refresh_log()
 	_vita_combat_tips()
+	_fit_split()
 	return true
 
 ## While Auto is running and the buttons already exist, skip the button rebuild. Status and the log still move.
 ## Fight end sets auto off before _refresh, so the result buttons still build.
 func _vita_auto_light() -> bool:
 	if not auto or finished or status == null or combat == null or buttons == null or buttons.get_child_count() == 0:
+		return false
+	# Same collapse as _vita_refresh_skip: first layout after _ready must not take this path.
+	if grid != null and (grid.custom_minimum_size == Vector2.ZERO or _area == Vector2.ZERO):
 		return false
 	_vita_status_only()
 	_guide_update()
@@ -925,6 +940,7 @@ func _vita_auto_light() -> bool:
 		_vita_log_key = log_key
 		_refresh_log()
 	_vita_combat_tips()
+	_fit_split()
 	return true
 
 func _vita_status_only() -> void:
