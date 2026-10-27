@@ -47,11 +47,12 @@ func _process(d: float) -> void:
 	# (render submit itself was ~10 ms). 20 fps and a short draw list are the handheld path.
 	# Phone, desktop, and web keep the 60 fps clearing below.
 	if VitaBoot.runs_on_vita():
-		if not is_visible_in_tree():
+		if not is_visible_in_tree() or not visible:
 			return
 		t += d
 		_acc += d
-		if _acc >= 1.0 / 20.0:
+		# 2 Hz while the hub is bare; pages hide this Control entirely.
+		if _acc >= 0.5:
 			_acc = 0.0
 			queue_redraw()
 		return

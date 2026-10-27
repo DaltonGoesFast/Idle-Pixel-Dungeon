@@ -195,6 +195,14 @@ static func _chrome_atlas() -> Texture2D:
 		_chrome_tex = ImageTexture.create_from_image(img); _chrome_k = px_scale
 	return _chrome_tex
 
+## Vita: pay CPU atlas resize once at boot so the first hub page open does not hitch on get_image+resize.
+static func warm_vita_atlases() -> void:
+	_chrome_atlas()
+	_toolbar_atlas()
+	_status_pane_atlas()
+	for n in ["prefs", "journal", "exit", "info", "gold", "backpack", "alchemy", "catalog", "talent"]:
+		toolbar_icon(n)
+
 static func chrome(name: String, tint := Color.WHITE, pad := -1.0) -> StyleBoxTexture:
 	var r: Array = CHROME[name]; var k := px_scale
 	var sb := StyleBoxTexture.new()

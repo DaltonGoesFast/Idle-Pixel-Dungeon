@@ -60,6 +60,9 @@ func _init() -> void:
 	mark("init")
 
 func _ready() -> void:
+	# Stable handheld target: chasing 60 then hitching to ~7 FPS feels worse than a flat 30.
+	if runs_on_vita():
+		Engine.max_fps = 30
 	mark("ready")
 
 ## Boot stages. Opens the save log once and keeps it. Memory figures belong here, not on the 2s tick.

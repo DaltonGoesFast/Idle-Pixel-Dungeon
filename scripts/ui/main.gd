@@ -92,6 +92,9 @@ func _ready() -> void:
 	PatrolBridge.open_guild.connect(_open_guild_patrols)
 	_relayout()
 	_vita_log("theme ready")
+	if VitaBoot.runs_on_vita():
+		UIKit.warm_vita_atlases()
+		_vita_log("atlases warm")
 	# SceneTree::initialize is root->_set_tree. Building Camp inside that call sits on the
 	# loader's 8 MiB main stack and is where the device died (last line: initialize begin).
 	if OS.get_name() == "Vita":

@@ -101,7 +101,7 @@ func _vita_on_changed() -> void:
 	if _vita_changed_armed:
 		return
 	_vita_changed_armed = true
-	get_tree().create_timer(0.4).timeout.connect(_vita_changed_flush, CONNECT_ONE_SHOT)
+	get_tree().create_timer(0.8).timeout.connect(_vita_changed_flush, CONNECT_ONE_SHOT)
 
 func _vita_changed_flush() -> void:
 	_vita_changed_armed = false
@@ -530,12 +530,14 @@ func _make_window(title: String, icon_name: String, close_cb: Callable, w_frac :
 	if tic: title_w -= tic.get_combined_minimum_size().x + sep
 	tl.custom_maximum_size.x = maxf(UIKit.font_size * 6.0, title_w)
 	tr.add_child(tl); tr.add_child(x)
+	layer.set_meta("title", tl)
 	# Vendor pages fill this; stays above the scroller so materials stay put while the shop scrolls.
 	var mats_host := VBoxContainer.new(); mats_host.name = "MatsHost"; mats_host.visible = false; v.add_child(mats_host)
 	layer.set_meta("mats_host", mats_host)
 	var sc := ScrollContainer.new(); sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	sc.size_flags_vertical = SIZE_EXPAND_FILL; v.add_child(sc)
 	var body := UIKit.vbox(sc); body.size_flags_horizontal = SIZE_EXPAND_FILL
+	layer.set_meta("body", body)
 	var foot := UIKit.vbox(v); foot.visible = false; layer.set_meta("foot", foot)
 	# message strip at the window's foot: toasts land here instead of floating over the window
 	var msg := UIKit.label("", 0.8, Color("ffff88")); msg.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -562,12 +564,41 @@ func _fill_window() -> void:
 	var vita_page := VitaBoot.runs_on_vita()
 	var page_t0 := Time.get_ticks_usec() if vita_page else 0
 	var keep_scroll := 0
-	if win_layer:
-		var old_sc: ScrollContainer = win_layer.get_meta("sc"); keep_scroll = 0 if top_next else old_sc.scroll_vertical
-		win_layer.queue_free()
+	var sc: ScrollContainer = null
+	var body: VBoxContainer = null
+	var title_text := open_name if open_name != "Delve" else "Expedition"
+	# Vita: reuse the dimmer+panel chrome; only rebuild the scrolling body (tearing down the
+	# whole window was 0.3–3s in camp_page logs).
+	if vita_page and win_layer and is_instance_valid(win_layer) and win_layer.has_meta("body"):
+		sc = win_layer.get_meta("sc")
+		keep_scroll = 0 if top_next else sc.scroll_vertical
+		body = win_layer.get_meta("body")
+		UIKit.clear(body)
+		var title_l: Label = win_layer.get_meta("title")
+		if title_l:
+			title_l.text = title_text
+		var mats: VBoxContainer = win_layer.get_meta("mats_host")
+		if mats:
+			UIKit.clear(mats)
+			mats.visible = false
+		var foot: VBoxContainer = win_layer.get_meta("foot")
+		if foot:
+			UIKit.clear(foot)
+			foot.visible = false
+		pages[open_name] = body
+	else:
+		if win_layer:
+			var old_sc: ScrollContainer = win_layer.get_meta("sc")
+			keep_scroll = 0 if top_next else old_sc.scroll_vertical
+			win_layer.queue_free()
+			win_layer = null
+		var w := _make_window(title_text, PAGE_ICONS[open_name], close_page)
+		win_layer = w[0]
+		win_layer.set_meta("sc", w[3])
+		body = w[1]
+		sc = w[3]
+		pages[open_name] = body
 	top_next = false
-	var w := _make_window(open_name if open_name != "Delve" else "Expedition", PAGE_ICONS[open_name], close_page)
-	win_layer = w[0]; win_layer.set_meta("sc", w[3]); pages[open_name] = w[1]
 	match open_name:
 		"Delve": _page_delve()
 		"Heroes": _page_heroes()
@@ -576,7 +607,7 @@ func _fill_window() -> void:
 		"Journal": _page_journal()
 		"Settings": SettingsPanel.build(_p("Settings"))
 		_: _page_facility(open_name, FAC_PAGE[open_name])
-	(func(): if is_instance_valid(w[3]): w[3].scroll_vertical = keep_scroll).call_deferred()
+	(func(): if is_instance_valid(sc): sc.scroll_vertical = keep_scroll).call_deferred()
 	if info_layer: move_child(info_layer, -1)
 	_vita_camp_visible()
 	if vita_page:
@@ -584,8 +615,8 @@ func _fill_window() -> void:
 		_vita_page_sig = _vita_page_sig_now()
 		VitaBoot.add_us("camp_page", int(Time.get_ticks_usec() - page_t0))
 
-## What an open page is showing, without the clocks (identify seconds left, patrol hours). A matching
-## signature skips the full page rebuild that used to run on every coalesced changed signal.
+## What an open page is showing, without clocks or live mat counts. Gold/ore ticks already
+## refresh via _vita_update_summary; including mats here rebuilt Stash/Guild trees every craft tick.
 func _vita_page_sig_now() -> String:
 	if open_name == "":
 		return ""
@@ -595,10 +626,10 @@ func _vita_page_sig_now() -> String:
 			known += 1
 	var q := ""
 	for item in GameState.id_queue:
-		q += "%s:%s|" % [int(item.get("uid", 0)), item.get("ready_at", 0)]
-	return "%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s" % [
+		q += "%s|" % int(item.get("uid", 0))
+	return "%s|%s|%s|%s|%s|%s|%s|%s|%s|%s" % [
 		open_name, str(section.get(open_name, "")), journal_view, chosen_hero, chosen_biome,
-		known, GameState.gear.size(), GameState.mats, q, GameState.facilities, GameState.settings]
+		known, GameState.gear.size(), q, GameState.facilities, GameState.settings]
 
 ## While a page is open the clearing is hidden, so its _draw does not run under the window.
 func _vita_camp_visible() -> void:
