@@ -371,8 +371,33 @@ func _paint_bg() -> void:
 
 func _paint_water() -> void:
 	var t0 := Time.get_ticks_usec()
+	# Only the columns on screen. The bake is wider than the view so it can scroll; walking that
+	# whole strip every frame cost more than the tiles it replaced (DECISIONS #244).
 	if _win_hi > _win_lo and not _run().is_empty():
-		_paint_range(_water_lyr, true)
+		var r := _run()
+		var s := _span()
+		var cs: float = s.cs
+		var k: float = s.k
+		var y0: float = s.y0
+		var hero_col := int(s.hero_col)
+		var cols := int(s.cols)
+		var hero_x: float = s.hero_x
+		var busy_from := int(s.busy_from)
+		var busy_to := int(s.busy_to)
+		var biome: Dictionary = DB.biomes[r.biome]
+		var water := _t("res://assets/tiles/%s.png" % biome.get("water", "water0"))
+		var wo := Vector2(fposmod(t * 3.0, 32.0), fposmod(t * 2.0, 32.0)).floor()
+		var ci: CanvasItem = _water_lyr
+		for i in range(-int(hero_x / cs) - 2, cols):
+			var cx := hero_col + i
+			if cx < _win_lo or cx >= _win_hi: continue
+			if cx >= busy_from and cx <= busy_to: continue
+			var x := float(cx - _win_lo) * cs
+			if _puddle_spills(cx):
+				_water_cell(water, Vector2(x, y0 + 4.0 * cs), k, wo + Vector2(cx * 16, 64), Color.WHITE, ci)
+			for row in [2, 3]:
+				if _puddle(cx, row):
+					_water_cell(water, Vector2(x, y0 + float(row) * cs), k, wo + Vector2(cx * 16, row * 16), Color.WHITE, ci)
 	draw_us_sum += int(Time.get_ticks_usec() - t0)
 
 func _paint_bake() -> void:

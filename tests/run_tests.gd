@@ -6501,8 +6501,8 @@ func test_perf_caches(gs, ss) -> void:
 	check(icon_a == icon_b and DB._icon_cache.has("potion_healing"), "icon_index caches a repeated id")
 	DB._icon_cache.erase("potion_healing")
 	check(DB.icon_index("potion_healing") == icon_a, "a cold icon_index matches the cached value")
-	var old_auto := ss.autosave
-	var old_path := ss.path
+	var old_auto: bool = ss.autosave
+	var old_path: String = ss.path
 	ss.autosave = false
 	ss._dirty = false
 	ss.request_save()
