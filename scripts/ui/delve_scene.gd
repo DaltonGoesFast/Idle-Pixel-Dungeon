@@ -47,6 +47,7 @@ var _vita_frames: Array = []
 var _vita_fx: Array = []
 var _vita_light: Node2D
 var _vita_light_key := ""
+var _vita_content_key := ""
 var _vita_bake_key := ""
 var _vita_lo := 0
 var _vita_hi := 0
@@ -753,12 +754,11 @@ func _vita_place_bake() -> void:
 	var ev := encounter()
 	var ev_key := "" if ev.is_empty() else "%s|%s" % [ev.get("kind", ""), str(ev.get("mobs", ev.get("special", "")))]
 	var dying_col := -999 if _dying.is_empty() else int(_dying.get("col", -999))
-	# Wide buckets: rebake less while auto-delving. Margin must cover a full bucket of travel + viewport.
-	const BAKE_BUCKET := 48
-	var bucket := int(floor(float(hero_col) / float(BAKE_BUCKET)))
-	var margin := cols + BAKE_BUCKET + 2
-	# Integer cell and column span only. The raw control size jitters by a pixel and must not rebake.
-	var key := "%s|%s|%s|%s|%s|%s|%s" % [r.get("floor", 1), r.get("biome", ""), int(round(cs)), cols, bucket, ev_key, dying_col]
+	# Narrow sliding strip: paint ~viewport+pad only; recenter+rebake when the hero nears an edge.
+	const EDGE := 4
+	var margin := cols + 8
+	var content := "%s|%s|%s|%s|%s|%s" % [r.get("floor", 1), r.get("biome", ""), int(round(cs)), cols, ev_key, dying_col]
+	var near_edge := _vita_hi <= _vita_lo or hero_col - _vita_lo < cols + EDGE or _vita_hi - hero_col < cols + EDGE
 	if _vita_frames.is_empty():
 		for i in VITA_FRAME_N:
 			var frame := _vita_canvas("VitaFrame%d" % i)
@@ -770,16 +770,23 @@ func _vita_place_bake() -> void:
 			var fx := _vita_canvas("VitaFx%d" % i)
 			fx.draw.connect(_vita_paint_fx.bind(i))
 			_vita_fx.append(fx)
+		# Flat corridor light on Vita — SceneFX darkness was another full-screen paint.
+		RenderingServer.canvas_item_set_visible(_vita_light.get_canvas_item(), false)
+		_vita_light.set_meta("vita_on", false)
+	if content != _vita_content_key or near_edge:
+		var new_lo := hero_col - margin
+		var new_hi := hero_col + margin
+		if content != _vita_content_key or new_lo != _vita_lo or new_hi != _vita_hi:
+			_vita_content_key = content
+			_vita_lo = new_lo
+			_vita_hi = new_hi
+			_vita_bake_key = "%s|%s|%s" % [content, _vita_lo, _vita_hi]
+			VitaBoot.add_n("delve_bake_key_n")
+			_vita_warm = 0
+			for i in VITA_FRAME_N:
+				_vita_frames[i].set_meta("vita_painted", false)
+				_vita_fx[i].set_meta("vita_painted", false)
 	var hero_x := floorf(size.x * 0.32)
-	if key != _vita_bake_key:
-		_vita_bake_key = key
-		VitaBoot.add_n("delve_bake_key_n")
-		_vita_lo = hero_col - margin
-		_vita_hi = hero_col + margin
-		_vita_warm = 0
-		for i in VITA_FRAME_N:
-			_vita_frames[i].set_meta("vita_painted", false)
-			_vita_fx[i].set_meta("vita_painted", false)
 	var pos := Vector2(hero_x - (scroll - float(_vita_lo)) * cs, 0)
 	var sz := Vector2(float(_vita_hi - _vita_lo + 1) * cs, size.y)
 	for i in VITA_FRAME_N:
@@ -787,20 +794,10 @@ func _vita_place_bake() -> void:
 			_vita_frames[i].position = pos
 		if _vita_fx[i].position != pos:
 			_vita_fx[i].position = pos
-		if key == _vita_bake_key:
-			_vita_frames[i].set_meta("vita_sz", sz)
-			_vita_fx[i].set_meta("vita_sz", sz)
-	if _vita_light.position != Vector2.ZERO:
-		_vita_light.position = Vector2.ZERO
-	var dk := Delve.darkness(r)
-	# 8 px buckets: a 1 px layout jitter must not repaint the vignette.
-	var light_key := "%s|%s|%s|%s|%s" % [int(size.x) >> 3, int(size.y) >> 3, int(float(r.get("torch", 0)) / 10.0), dk, r.get("biome", "")]
-	if light_key != _vita_light_key:
-		_vita_light_key = light_key
-		_vita_light.queue_redraw()
-	_vita_phase = posmod(int(floor(t / 0.22)), VITA_FRAME_N)
-	var show_i := _vita_warm if _vita_warm < VITA_FRAME_N else _vita_phase
-	# Showing a CanvasItem calls queue_redraw. Cycle with the server flag so a pre-baked frame stays painted.
+		_vita_frames[i].set_meta("vita_sz", sz)
+		_vita_fx[i].set_meta("vita_sz", sz)
+	_vita_phase = 0
+	var show_i := 0
 	_vita_show_baked(_vita_frames, show_i)
 	_vita_show_baked(_vita_fx, show_i)
 	if _vita_warm < VITA_FRAME_N:
@@ -829,19 +826,8 @@ func _vita_advance_warm(phase: int) -> void:
 	_vita_warm = phase + 1
 
 func _vita_paint_light() -> void:
-	var r := _run()
-	if r.is_empty() or _vita_light == null:
-		return
-	var cs := cell()
-	var y0 := floorf((size.y - cs * ROWS) / 2.0)
-	var hero_x := floorf(size.x * 0.32)
-	var dk := Delve.darkness(r)
-	var lit := float(r.get("torch", 0)) > 0.0 and not dk
-	var rad := cs * (6.5 if lit else (2.6 if dk else 4.6))
-	var hc := Vector2(hero_x + cs / 2.0, y0 + 3.0 * cs)
-	SceneFX.darkness(_vita_light, Rect2(Vector2.ZERO, size), hc, rad, 0.78)
-	if lit:
-		SceneFX.glow(_vita_light, hc, rad * 0.55, Color(1.0, 0.7, 0.35, 0.10))
+	# Hidden in _vita_place_bake — full-screen SceneFX darkness is too costly on GXM.
+	pass
 
 func _vita_paint_static(phase: int = 0) -> void:
 	var t0 := Time.get_ticks_usec()

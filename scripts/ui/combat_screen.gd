@@ -380,13 +380,13 @@ func _process_vita() -> void:
 		_vita_stick_move()
 		return
 	if _vita_auto_at == 0:
-		_vita_auto_at = Time.get_ticks_msec() + 1000
+		_vita_auto_at = Time.get_ticks_msec() + 1200
 	if Time.get_ticks_msec() < _vita_auto_at:
 		return
 	var t0 := Time.get_ticks_usec()
 	_do_bot()
 	VitaBoot.add_us("combat_bot", int(Time.get_ticks_usec() - t0))
-	_vita_auto_at = Time.get_ticks_msec() + 1000
+	_vita_auto_at = Time.get_ticks_msec() + 1200
 
 func _vita_stick_move() -> void:
 	var step := Keybinds.vita_stick_step()

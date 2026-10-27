@@ -225,6 +225,8 @@ var _vita_bar := -1.0
 var _vita_watch := ""
 var _vita_win_size := Vector2(-1, -1)
 var _vita_win_left := 0
+var _vita_proc_acc := 0.0
+var _vita_adv_acc := 0.0
 
 func _process(delta: float) -> void:
 	if VitaBoot.runs_on_vita():
@@ -264,12 +266,21 @@ func _process(delta: float) -> void:
 func _process_vita(delta: float) -> void:
 	var run: Dictionary = GameState.run
 	if run.is_empty(): return
+	# Accumulate delve progress every frame; run the heavy UI/advance path at ~10 Hz.
+	_vita_adv_acc += delta
+	_vita_proc_acc += delta
+	_save_t += delta
+	if _save_t > 10.0:
+		_save_t = 0.0; SaveSystem.save_game()
+	if _vita_proc_acc < 0.1:
+		return
+	var step := _vita_proc_acc
+	var adv := _vita_adv_acc
+	_vita_proc_acc = 0.0
+	_vita_adv_acc = 0.0
 	_expire_card_toasts()
 	_place_window_vita()
-	_tick_danger(delta)
-	_save_t += delta
-	if _save_t > 3.0:
-		_save_t = 0.0; SaveSystem.save_game()
+	_tick_danger(step)
 	if main and main.tip_open(): _refresh_vita(); return
 	if _summary_on:
 		_refresh_vita(); return
@@ -278,12 +289,12 @@ func _process_vita(delta: float) -> void:
 		_open_panel("backpack")
 	elif pending.is_empty() and not held and running and GameState.talent_points_total_free(run.hero) > 0 and not run.get("talent_prompted", false):
 		run.talent_prompted = true; _open_panel("talents")
-	if GameState.settings.get("full_auto", false): _auto_tick(delta)
+	if GameState.settings.get("full_auto", false): _auto_tick(step)
 	if running and pending.is_empty() and not _is_encounter(_under):
 		if Delve.floor_done(run):
 			_floor_cleared()
 		else:
-			var ev := Delve.advance(GameState, delta * SPEED * speed_mult())
+			var ev := Delve.advance(GameState, adv * SPEED * speed_mult())
 			if not ev.is_empty():
 				pending = ev; _encounter_cue(ev); _show_card(); SaveSystem.save_game()
 	_refresh_vita()

@@ -257,19 +257,28 @@ func _zap_visual(p: Vector2i, fired: Dictionary, ev := {}) -> void:
 			_: _shot("magic", from, Vector2(p), Color("88ccff"))
 		return
 
+var _vita_door_turn := -1
+
 func _process(d: float) -> void:
 	var vita := VitaBoot.runs_on_vita()
 	var t0 := Time.get_ticks_usec() if vita else 0
 	anim_t += d
 	if combat:
-		for y in combat.h:
-			for x in combat.w:
-				var c := Vector2i(x, y)
-				if combat.tile(c) != Combat.T.DOOR: continue
-				var now := not combat.door_closed(c)
-				if _door_was.get(c, now) != now:
-					door_tween[c] = {"open": now, "t": 0.0}
-				_door_was[c] = now
+		# Full board door scan only when the turn counter moves (was every frame on Vita).
+		var door_scan := not vita or int(combat.hero_turns) != _vita_door_turn or not door_tween.is_empty()
+		if door_scan:
+			if vita:
+				_vita_door_turn = int(combat.hero_turns)
+			for y in combat.h:
+				for x in combat.w:
+					var c := Vector2i(x, y)
+					if combat.tile(c) != Combat.T.DOOR: continue
+					var now := not combat.door_closed(c)
+					if _door_was.get(c, now) != now:
+						door_tween[c] = {"open": now, "t": 0.0}
+						if vita:
+							_vita_dirty = true
+					_door_was[c] = now
 		for k in door_tween.keys():
 			door_tween[k].t += d
 			if door_tween[k].t >= MOVE_TIME: door_tween.erase(k)
