@@ -75,9 +75,10 @@ const VITA_FRAME_N := 4
 const VITA_BAKE_LO := -2
 var _vita_frames: Array = []
 var _vita_wall_fx: Array = []
-var _vita_walls: Control
-var _vita_fog: Control
-var _vita_fx: Control
+var _vita_walls: Node2D
+var _vita_fog: Node2D
+var _vita_fx: Node2D
+var _vita_stamp := ""
 var _vita_bake_key := ""
 var _vita_fog_key := ""
 var _vita_warm := 0
@@ -666,10 +667,10 @@ func _draw() -> void:
 
 ## Ground frames sit behind sprites. Wall tops, fog, and effects are later children, so they draw
 ## in front. A pan only moves the baked items. Water and grass are four retained frames.
-func _vita_canvas(node_name: String, behind: bool) -> Control:
-	var c := Control.new()
+## Node2D so a pan or a 1 px size jitter does not mark the canvas dirty (Control.set_size does).
+func _vita_canvas(node_name: String, behind: bool) -> Node2D:
+	var c := Node2D.new()
 	c.name = node_name
-	c.mouse_filter = MOUSE_FILTER_IGNORE
 	c.texture_filter = TEXTURE_FILTER_NEAREST
 	c.show_behind_parent = behind
 	add_child(c)
@@ -681,7 +682,11 @@ func _vita_place_bake() -> void:
 	var cs := cell_size()
 	if cs <= 0.0:
 		return
-	var key := _vita_bake_key_now()
+	var stamp := _vita_stamp_now()
+	var key := _vita_bake_key
+	if _vita_frames.is_empty() or stamp != _vita_stamp:
+		_vita_stamp = stamp
+		key = _vita_bake_key_now()
 	if _vita_frames.is_empty():
 		for i in VITA_FRAME_N:
 			var frame := _vita_canvas("VitaFrame%d" % i, true)
@@ -700,37 +705,61 @@ func _vita_place_bake() -> void:
 	var bake_pos := origin() + Vector2(VITA_BAKE_LO, VITA_BAKE_LO) * cs
 	var bake_sz := Vector2((_aw() + 4) * cs, (_ah() + 4) * cs)
 	for i in VITA_FRAME_N:
-		_vita_frames[i].position = bake_pos
-		_vita_frames[i].size = bake_sz
-		_vita_wall_fx[i].position = bake_pos
-		_vita_wall_fx[i].size = bake_sz
-	_vita_walls.position = bake_pos
-	_vita_walls.size = bake_sz
-	_vita_fog.position = bake_pos
-	_vita_fog.size = bake_sz
-	_vita_fx.position = Vector2.ZERO
-	_vita_fx.size = size
+		if _vita_frames[i].position != bake_pos:
+			_vita_frames[i].position = bake_pos
+		if _vita_wall_fx[i].position != bake_pos:
+			_vita_wall_fx[i].position = bake_pos
+		_vita_frames[i].set_meta("vita_sz", bake_sz)
+	if _vita_walls.position != bake_pos:
+		_vita_walls.position = bake_pos
+	if _vita_fog.position != bake_pos:
+		_vita_fog.position = bake_pos
+	if _vita_fx.position != Vector2.ZERO:
+		_vita_fx.position = Vector2.ZERO
 	if key != _vita_bake_key:
 		_vita_bake_key = key
+		VitaBoot.add_n("grid_bake_key_n")
 		_vita_warm = 0
 		for i in VITA_FRAME_N:
 			_vita_frames[i].set_meta("vita_painted", false)
 			_vita_wall_fx[i].set_meta("vita_painted", false)
 		_vita_walls.queue_redraw()
 	var ctr := _vita_fog_center()
-	var fog_key := "%s|%s|%s|%s|%s" % [Vector2i(int(round(ctr.x * 2.0)), int(round(ctr.y * 2.0))), int(light_radius() * 4.0), combat.terrain.hash(), combat.units.size(), key]
+	var fog_key := "%s|%s|%s|%s" % [Vector2i(int(round(ctr.x * 2.0)), int(round(ctr.y * 2.0))), int(light_radius() * 4.0), combat.units.size(), key]
 	if fog_key != _vita_fog_key:
 		_vita_fog_key = fog_key
+		VitaBoot.add_n("grid_fog_key_n")
 		_vita_fog.queue_redraw()
 	_vita_phase = posmod(int(floor(anim_t / 0.22)), VITA_FRAME_N)
 	var show_i := _vita_warm if _vita_warm < VITA_FRAME_N else _vita_phase
-	for i in VITA_FRAME_N:
-		var on := i == show_i
-		_vita_frames[i].visible = on
-		_vita_wall_fx[i].visible = on
+	# visible=true repaints. The server flag swaps pre-baked water and grass frames without a rebake.
+	_vita_show_baked(_vita_frames, show_i)
+	_vita_show_baked(_vita_wall_fx, show_i)
 	if _vita_warm < VITA_FRAME_N:
-		_vita_frames[show_i].queue_redraw()
-		_vita_wall_fx[show_i].queue_redraw()
+		if not _vita_frames[show_i].get_meta("vita_painted", false):
+			_vita_frames[show_i].queue_redraw()
+		if not _vita_wall_fx[show_i].get_meta("vita_painted", false):
+			_vita_wall_fx[show_i].queue_redraw()
+
+func _vita_show_baked(nodes: Array, show_i: int) -> void:
+	for i in nodes.size():
+		var node: CanvasItem = nodes[i]
+		var on := i == show_i
+		if node.has_meta("vita_on") and bool(node.get_meta("vita_on")) == on:
+			continue
+		node.set_meta("vita_on", on)
+		RenderingServer.canvas_item_set_visible(node.get_canvas_item(), on)
+
+## Cheap change detector. The full door and trap strings are walked only when this changes.
+func _vita_stamp_now() -> String:
+	if combat == null:
+		return ""
+	var tw := 0
+	for k in door_tween:
+		tw += 1 if float(door_tween[k].t) < MOVE_TIME * 0.45 else 10
+	return "%s|%s|%s|%s|%s|%s|%s|%s" % [
+		int(round(cell_size())), tileset, _boss, combat.trampled.size(), combat.hero_turns,
+		combat.traps.size(), combat.traps_found, tw]
 
 func _vita_advance_warm(phase: int) -> void:
 	if phase != _vita_warm or phase < 0 or phase >= VITA_FRAME_N:
@@ -758,7 +787,7 @@ func _vita_bake_key_now() -> String:
 	var traps := ""
 	for k in combat.traps:
 		traps += "%s:%s|" % [str(k), combat.traps[k].hidden]
-	return "%s|%s|%s|%s|%s|%s|%s" % [size, cell_size(), tileset, _boss, combat.trampled.size(), doors, traps]
+	return "%s|%s|%s|%s|%s|%s" % [int(round(cell_size())), tileset, _boss, combat.trampled.size(), doors, traps]
 
 func _vita_cell(c: Vector2, cs: float) -> Rect2:
 	return Rect2(Vector2((c.x - VITA_BAKE_LO) * cs, (c.y - VITA_BAKE_LO) * cs), Vector2(cs, cs))
@@ -767,8 +796,9 @@ func _vita_paint_bake(phase: int = 0) -> void:
 	var t0 := Time.get_ticks_usec()
 	if combat == null or phase < 0 or phase >= _vita_frames.size():
 		return
-	var ci: Control = _vita_frames[phase]
-	ci.draw_rect(Rect2(Vector2.ZERO, ci.size), Color(0, 0, 0))
+	var ci: Node2D = _vita_frames[phase]
+	var frame_sz: Vector2 = ci.get_meta("vita_sz", Vector2.ZERO)
+	ci.draw_rect(Rect2(Vector2(-2, -2), frame_sz + Vector2(4, 4)), Color(0, 0, 0))
 	var cs := cell_size()
 	var ps := cs / 16.0
 	var lo := VITA_BAKE_LO
@@ -804,8 +834,10 @@ func _vita_paint_bake(phase: int = 0) -> void:
 		if not combat.traps[k].hidden:
 			var idx := int(DB.traps[combat.traps[k].id].sprite)
 			ci.draw_texture_rect_region(features, _vita_cell(Vector2(k), cs), Rect2((idx % 16) * 16, (idx / 16) * 16, 16, 16))
-	ci.set_meta("vita_painted", true)
-	_vita_advance_warm(phase)
+	if phase == _vita_warm:
+		ci.set_meta("vita_painted", true)
+		_vita_advance_warm(phase)
+	VitaBoot.add_n("grid_bake_n")
 	VitaBoot.add_us("grid_bake", int(Time.get_ticks_usec() - t0))
 
 func _vita_paint_walls() -> void:
@@ -825,7 +857,7 @@ func _vita_paint_walls() -> void:
 func _vita_paint_wall_fx(phase: int) -> void:
 	if combat == null or phase < 0 or phase >= _vita_wall_fx.size():
 		return
-	var ci: Control = _vita_wall_fx[phase]
+	var ci: Node2D = _vita_wall_fx[phase]
 	var cs := cell_size()
 	var ps := cs / 16.0
 	var ft := float(phase) * 0.22
@@ -843,8 +875,9 @@ func _vita_paint_wall_fx(phase: int) -> void:
 			if _t(c) == Combat.T.WATER and bio == "halls":
 				SceneFX.halls_stream(ci, ft, _vita_cell(Vector2(x, y), cs), ps)
 	_chasm_wind(cs, ps, ci, ft, true)
-	ci.set_meta("vita_painted", true)
-	_vita_advance_warm(phase)
+	if phase == _vita_warm:
+		ci.set_meta("vita_painted", true)
+		_vita_advance_warm(phase)
 
 func _vita_paint_fog() -> void:
 	var t0 := Time.get_ticks_usec()
@@ -874,6 +907,7 @@ func _vita_paint_fog() -> void:
 			var r := _vita_cell(Vector2(x, y), cs)
 			ci.draw_polygon(PackedVector2Array([r.position, r.position + Vector2(cs, 0), r.end, r.position + Vector2(0, cs)]),
 				PackedColorArray([Color(0, 0, 0, a), Color(0, 0, 0, b), Color(0, 0, 0, c2), Color(0, 0, 0, d2)]))
+	VitaBoot.add_n("grid_fog_n")
 	VitaBoot.add_us("grid_fog", int(Time.get_ticks_usec() - t0))
 
 func _vita_paint_effects() -> void:

@@ -129,10 +129,12 @@ func _apply_layout_vita(s: Vector2) -> void:
 
 var _vita_area := Vector2.ZERO
 
-## Two wrapped log lines. A 0.36-tall corridor floor plus this slot used to push the toolbar past y=544.
+## Two wrapped log lines, the gap between them, and a few pixels so the last line's baseline is inside the slot.
 func _vita_log_slot_h() -> float:
 	var fs := float(UIKit.font_size)
-	return maxf(fs * 2.0, float(UIKit.font_px(fs * 0.85)) * 2.4)
+	var line := float(UIKit.font_px(fs * 0.85))
+	var sep := float(int(fs * 0.4))
+	return line * 2.0 + sep + 6.0
 
 ## The corridor takes whatever height is left after the status pane, bar, supplies, log, and the toolbar's real minimum.
 ## The log slot is capped and clipped so an unwrapped line cannot paint past the pane or grow the column.
@@ -220,6 +222,7 @@ func on_shown() -> void:
 var _save_t := 0.0
 var _vita_rest := ""
 var _vita_bar := -1.0
+var _vita_watch := ""
 var _vita_win_size := Vector2(-1, -1)
 var _vita_win_left := 0
 
@@ -299,13 +302,20 @@ func _refresh_vita() -> void:
 	var run: Dictionary = GameState.run
 	if run.is_empty():
 		return
+	var prog := int(run.progress)
+	var watch := "%s|%s|%s|%s|%s|%s" % [GameState.log_serial, int(run.hp), int(run.torch), int(run.satiety), int(run.floor), int(run.get("next_event", 0))]
+	if watch == _vita_watch:
+		if prog != int(_vita_bar):
+			_vita_bar = float(prog)
+			bar.value = float(run.progress)
+		return
+	_vita_watch = watch
 	var h: Dictionary = GameState.heroes[run.hero]
 	var rest := "%s|%d|%s|%s|%s|%s|%d|%d|%d|%s|%d|%s|%d|%d|%s" % [
 		run.hero, int(h.level), str(h.weapon), str(h.armor), str(h.ring), str(h.get("artifact", 0)),
 		int(run.hp), int(run.torch), int(run.satiety), String(run.get("feeling", "")),
 		int(run.floor), String(run.biome), GameState.log_serial, int(run.get("next_event", 0)),
 		_supplies_key(run)]
-	var prog := float(run.progress)
 	if rest == _vita_rest:
 		if int(prog) != int(_vita_bar):
 			_vita_bar = prog

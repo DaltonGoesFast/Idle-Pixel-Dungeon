@@ -23,6 +23,8 @@ static func runs_on_vita(vita_feature: bool = OS.has_feature("vita"), os_name: S
 
 ## Microseconds accumulated since the last tick line. Printed by mark_tick, then cleared.
 static var _us := {}
+## Call counts for the same window (delve_bake_n, grid_bake_n, ...).
+static var _n := {}
 
 ## No-op off Vita. Names show up on the 2s tick line (delve_proc, grid_draw, ...).
 static func add_us(bucket: String, us: int) -> void:
@@ -30,15 +32,26 @@ static func add_us(bucket: String, us: int) -> void:
 		return
 	_us[bucket] = int(_us.get(bucket, 0)) + us
 
+## No-op off Vita. Pair with add_us so a tick can show how many times a bake ran, not only how long.
+static func add_n(bucket: String, n: int = 1) -> void:
+	if n <= 0 or not runs_on_vita():
+		return
+	_n[bucket] = int(_n.get(bucket, 0)) + n
+
 static func take_report() -> String:
-	if _us.is_empty():
+	if _us.is_empty() and _n.is_empty():
 		return ""
 	var keys: Array = _us.keys()
 	keys.sort()
 	var parts: PackedStringArray = []
 	for k in keys:
 		parts.append("%s=%d" % [String(k), int(_us[k])])
+	var nk: Array = _n.keys()
+	nk.sort()
+	for k in nk:
+		parts.append("%s=%d" % [String(k), int(_n[k])])
 	_us.clear()
+	_n.clear()
 	return " ".join(parts)
 
 var _log: FileAccess

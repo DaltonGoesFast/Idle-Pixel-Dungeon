@@ -9,6 +9,7 @@
 - PS Vita 00.56 keeps the corridor and combat ground on a cached canvas and redraws sprites at 12 fps, drops the Vita fog and vignette, and gives the 960×544 delve screen a shorter status pane, one supply row, and a log that is not clipped. Combat auto waits 700 ms and skips the mid-fight button rebuild. Camp reuses its dock and supply rows. `db.gd` parses on the loading card. Phone, desktop, and web behavior is unchanged (DECISIONS #248, +tests).
 - PS Vita 00.57 puts the fog, vignette, dust, and water and grass motion back on the cached canvases. Combat wall tops draw in front of sprites again. Sprites still redraw at 12 fps. `IDLEPD_VITA=1` runs that path on desktop for screenshots. Phone, desktop, and web behavior is unchanged when the variable is unset (DECISIONS #249, +tests).
 - PS Vita 00.58 fits the delve toolbar inside 960×544 and wraps the log inside the pane. The corridor takes the height that is left. Phone, desktop, and web layouts are unchanged (DECISIONS #250, +tests).
+- PS Vita 00.59 paints corridor and combat tiles only when the map changes, and cycles the pre-baked water and grass frames without repainting them. Camp no longer rebuilds an open page on a timer. The delve log's last line sits fully inside its slot. Phone, desktop, and web behavior is unchanged when `IDLEPD_VITA` is unset (DECISIONS #251, +tests).
 
 ## 0.50.4
 - The player-facing title is Idle PD.

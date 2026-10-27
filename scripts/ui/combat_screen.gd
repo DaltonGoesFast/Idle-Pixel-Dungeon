@@ -838,7 +838,13 @@ func _vita_auto_light() -> bool:
 		return false
 	_vita_status_only()
 	_guide_update()
-	_refresh_log()
+	var log_key := str(combat.log_lines.size())
+	if not combat.log_lines.is_empty():
+		log_key += str(combat.log_lines[-1])
+	log_key += "|%s|%s" % [combat.surprise_ready(), combat.danger.is_empty()]
+	if log_key != _vita_log_key:
+		_vita_log_key = log_key
+		_refresh_log()
 	_vita_combat_tips()
 	return true
 

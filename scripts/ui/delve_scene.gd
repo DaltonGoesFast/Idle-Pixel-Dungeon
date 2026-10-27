@@ -43,7 +43,7 @@ var _last_draw_us := 0
 const VITA_FRAME_N := 4
 var _vita_frames: Array = []
 var _vita_fx: Array = []
-var _vita_light: Control
+var _vita_light: Node2D
 var _vita_light_key := ""
 var _vita_bake_key := ""
 var _vita_lo := 0
@@ -730,10 +730,11 @@ func _specks(kind: int, tl: Vector2, cs: float, k: float) -> void:
 ## the floor, encounter, or column window changes. Four frames hold water drift and grass sway and are
 ## shown one at a time. A screen-fixed light canvas is the vignette. Wall drips sit above that light and
 ## still behind sprites, matching the phone corridor. Sprites and dust redraw at 12 fps.
-func _vita_canvas(node_name: String) -> Control:
-	var c := Control.new()
+## Node2D, not Control: Control.set_size marks the canvas dirty, and a 1 px layout jitter was repainting
+## the whole corridor every frame on device.
+func _vita_canvas(node_name: String) -> Node2D:
+	var c := Node2D.new()
 	c.name = node_name
-	c.mouse_filter = MOUSE_FILTER_IGNORE
 	c.texture_filter = TEXTURE_FILTER_NEAREST
 	c.show_behind_parent = true
 	add_child(c)
@@ -744,14 +745,15 @@ func _vita_place_bake() -> void:
 	if r.is_empty() or size.x < 8.0 or size.y < 8.0:
 		return
 	var cs := cell()
-	var cols := int(ceil(size.x / cs)) + 2
+	var cols := int(ceil(size.x / maxf(cs, 1.0))) + 2
 	var margin := cols + 24
 	var hero_col := int(floor(scroll))
 	var ev := encounter()
 	var ev_key := "" if ev.is_empty() else "%s|%s" % [ev.get("kind", ""), str(ev.get("mobs", ev.get("special", "")))]
 	var dying_col := -999 if _dying.is_empty() else int(_dying.get("col", -999))
 	var bucket := int(floor(float(hero_col) / 16.0))
-	var key := "%s|%s|%s|%s|%s|%s|%s" % [r.get("floor", 1), r.get("biome", ""), size, cs, bucket, ev_key, dying_col]
+	# Integer cell and column span only. The raw control size jitters by a pixel and must not rebake.
+	var key := "%s|%s|%s|%s|%s|%s|%s" % [r.get("floor", 1), r.get("biome", ""), int(round(cs)), cols, bucket, ev_key, dying_col]
 	if _vita_frames.is_empty():
 		for i in VITA_FRAME_N:
 			var frame := _vita_canvas("VitaFrame%d" % i)
@@ -766,6 +768,7 @@ func _vita_place_bake() -> void:
 	var hero_x := floorf(size.x * 0.32)
 	if key != _vita_bake_key:
 		_vita_bake_key = key
+		VitaBoot.add_n("delve_bake_key_n")
 		_vita_lo = hero_col - margin
 		_vita_hi = hero_col + margin
 		_vita_warm = 0
@@ -775,26 +778,41 @@ func _vita_place_bake() -> void:
 	var pos := Vector2(hero_x - (scroll - float(_vita_lo)) * cs, 0)
 	var sz := Vector2(float(_vita_hi - _vita_lo + 1) * cs, size.y)
 	for i in VITA_FRAME_N:
-		_vita_frames[i].position = pos
-		_vita_frames[i].size = sz
-		_vita_fx[i].position = pos
-		_vita_fx[i].size = sz
-	_vita_light.position = Vector2.ZERO
-	_vita_light.size = size
+		if _vita_frames[i].position != pos:
+			_vita_frames[i].position = pos
+		if _vita_fx[i].position != pos:
+			_vita_fx[i].position = pos
+		if key == _vita_bake_key:
+			_vita_frames[i].set_meta("vita_sz", sz)
+			_vita_fx[i].set_meta("vita_sz", sz)
+	if _vita_light.position != Vector2.ZERO:
+		_vita_light.position = Vector2.ZERO
 	var dk := Delve.darkness(r)
-	var light_key := "%s|%s|%s|%s" % [size, int(float(r.get("torch", 0)) / 10.0), dk, r.get("biome", "")]
+	# 8 px buckets: a 1 px layout jitter must not repaint the vignette.
+	var light_key := "%s|%s|%s|%s|%s" % [int(size.x) >> 3, int(size.y) >> 3, int(float(r.get("torch", 0)) / 10.0), dk, r.get("biome", "")]
 	if light_key != _vita_light_key:
 		_vita_light_key = light_key
 		_vita_light.queue_redraw()
 	_vita_phase = posmod(int(floor(t / 0.22)), VITA_FRAME_N)
 	var show_i := _vita_warm if _vita_warm < VITA_FRAME_N else _vita_phase
-	for i in VITA_FRAME_N:
-		var on := i == show_i
-		_vita_frames[i].visible = on
-		_vita_fx[i].visible = on
+	# Showing a CanvasItem calls queue_redraw. Cycle with the server flag so a pre-baked frame stays painted.
+	_vita_show_baked(_vita_frames, show_i)
+	_vita_show_baked(_vita_fx, show_i)
 	if _vita_warm < VITA_FRAME_N:
-		_vita_frames[show_i].queue_redraw()
-		_vita_fx[show_i].queue_redraw()
+		if not _vita_frames[show_i].get_meta("vita_painted", false):
+			_vita_frames[show_i].queue_redraw()
+		if not _vita_fx[show_i].get_meta("vita_painted", false):
+			_vita_fx[show_i].queue_redraw()
+
+## Hide every baked frame except `show_i` without queue_redraw. Godot's visible=true always repaints.
+func _vita_show_baked(nodes: Array, show_i: int) -> void:
+	for i in nodes.size():
+		var node: CanvasItem = nodes[i]
+		var on := i == show_i
+		if bool(node.get_meta("vita_on", false)) == on and node.has_meta("vita_on"):
+			continue
+		node.set_meta("vita_on", on)
+		RenderingServer.canvas_item_set_visible(node.get_canvas_item(), on)
 
 func _vita_advance_warm(phase: int) -> void:
 	if phase != _vita_warm or phase < 0 or phase >= VITA_FRAME_N:
@@ -825,8 +843,9 @@ func _vita_paint_static(phase: int = 0) -> void:
 	var r := _run()
 	if r.is_empty() or phase < 0 or phase >= _vita_frames.size():
 		return
-	var ci: Control = _vita_frames[phase]
-	ci.draw_rect(Rect2(Vector2.ZERO, ci.size), Color(0.02, 0.01, 0.03))
+	var ci: Node2D = _vita_frames[phase]
+	var frame_sz: Vector2 = ci.get_meta("vita_sz", Vector2.ZERO)
+	ci.draw_rect(Rect2(Vector2(-2, -2), frame_sz + Vector2(4, 4)), Color(0.02, 0.01, 0.03))
 	var k := pk()
 	var cs := cell()
 	var y0 := floorf((size.y - cs * ROWS) / 2.0)
@@ -906,15 +925,17 @@ func _vita_paint_static(phase: int = 0) -> void:
 		var sw := roundf(sin(float(phase) * TAU / 4.0 + float(g[2]) * 0.9)) * k
 		ci.draw_texture_rect_region(_grass_tex(tiles, gb), Rect2(gr.position + Vector2(sw, 0), gr.size), Rect2(0, 0, 16, 16))
 		ci.draw_texture_rect_region(tiles, Rect2(gr.position + Vector2(sw, -cs), gr.size), Rect2((gi % 16) * 16, (gi / 16) * 16, 16, 16))
-	ci.set_meta("vita_painted", true)
-	_vita_advance_warm(phase)
+	if phase == _vita_warm:
+		ci.set_meta("vita_painted", true)
+		_vita_advance_warm(phase)
+	VitaBoot.add_n("delve_bake_n")
 	VitaBoot.add_us("delve_bake", int(Time.get_ticks_usec() - t0))
 
 func _vita_paint_fx(phase: int) -> void:
 	var r := _run()
 	if r.is_empty() or phase < 0 or phase >= _vita_fx.size():
 		return
-	var ci: Control = _vita_fx[phase]
+	var ci: Node2D = _vita_fx[phase]
 	var k := pk()
 	var cs := cell()
 	var y0 := floorf((size.y - cs * ROWS) / 2.0)
@@ -955,8 +976,9 @@ func _vita_paint_fx(phase: int) -> void:
 			var pr: Array = decos[_h(cx, 22) % decos.size()]
 			if pr[0] == 130:
 				SceneFX.green_flame(ci, ft, Vector2(x + cs * 0.5, y0 + 2.0 * cs - cs * 0.55), k, cx)
-	ci.set_meta("vita_painted", true)
-	_vita_advance_warm(phase)
+	if phase == _vita_warm:
+		ci.set_meta("vita_painted", true)
+		_vita_advance_warm(phase)
 
 ## Sprites, the open special room, pickup pops, and the fade. Tiles come from the bake.
 func _draw_vita() -> void:

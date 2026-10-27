@@ -20,6 +20,7 @@ var chosen_biome := "sewers"
 var portrait := true
 var open_name := ""          # page shown in the window ("" = hub)
 var _vita_dock_key := ""
+var _vita_page_sig := ""
 var _vita_changed_armed := false
 var _vita_filled_frame := -1
 var win_layer: Control       # page window
@@ -167,8 +168,10 @@ func rebuild() -> void:
 	_journal_dot()
 	_settings_dot()
 	if vita and _vita_reuse_shell():
-		if open_name != "" and _vita_filled_frame != Engine.get_process_frames():
-			_fill_window()
+		if open_name != "":
+			var sig := _vita_page_sig_now()
+			if sig != _vita_page_sig:
+				_fill_window()
 		call_deferred("_apply_live_layout")
 		VitaBoot.add_us("camp_rebuild", int(Time.get_ticks_usec() - t0))
 		return
@@ -526,7 +529,24 @@ func _fill_window() -> void:
 	_vita_camp_visible()
 	if vita_page:
 		_vita_filled_frame = Engine.get_process_frames()
+		_vita_page_sig = _vita_page_sig_now()
 		VitaBoot.add_us("camp_page", int(Time.get_ticks_usec() - page_t0))
+
+## What an open page is showing, without the clocks (identify seconds left, patrol hours). A matching
+## signature skips the full page rebuild that used to run on every coalesced changed signal.
+func _vita_page_sig_now() -> String:
+	if open_name == "":
+		return ""
+	var known := 0
+	for g in GameState.gear:
+		if g.get("known", false):
+			known += 1
+	var q := ""
+	for item in GameState.id_queue:
+		q += "%s:%s|" % [int(item.get("uid", 0)), item.get("ready_at", 0)]
+	return "%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s" % [
+		open_name, str(section.get(open_name, "")), journal_view, chosen_hero, chosen_biome,
+		known, GameState.gear.size(), GameState.mats, q, GameState.facilities, GameState.settings]
 
 ## While a page is open the clearing is hidden, so its _draw does not run under the window.
 func _vita_camp_visible() -> void:
@@ -1898,6 +1918,8 @@ func _vita_identify_tick() -> void:
 	_vita_find_bars(win_layer, bars)
 	var i := 0
 	for q in GameState.id_queue:
+		if GameState.identify_state(q) == "same type":
+			continue
 		if i >= bars.size():
 			_fill_window()
 			return
