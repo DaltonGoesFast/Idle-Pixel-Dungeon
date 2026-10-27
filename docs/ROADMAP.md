@@ -1,6 +1,8 @@
 # Roadmap / TODO
 
 ## Next up (suggested order)
+- [x] Phase 1 shared leanness on `main`: icon / FOV / path caches; export `builds/*` exclude; no Vita merge (DECISIONS #246). PRs #126/#127 closed for a clean restart.
+- [ ] Phase 2 Vita (side branch only): feature-tagged overrides, boot stub + deferred DB reload, bake draw backend if still needed (#247), landscape layout via `apply_layout` / LiveLayout, no HTTP / SystemFont / more than 2 threads; cherry-pick shared fixes from `main` — do not merge the port until `main` only has shared-safe pieces. Desktop `IDLEPD_VITA=1` / `custom_features=vita` is the 960×544 proxy.
 - [ ] Real-device playtest on the Fold 6 (cover + inner): text sizes, tip card sizing at Huge text, haptic strength, Prison difficulty for a human player (the sim bot is better than a new player).
 - [x] Mage vs Tengu (v0.8.0: 6/10).
 - [x] Caves biome, floors 11-15, DM-300 (v0.9.0).

@@ -48,6 +48,11 @@ var boss_killed := false
 var _uid := 0
 var traps := {}                 # Vector2i -> {"id": String, "hidden": bool}
 var trap_pool: Array = ["worn_dart", "gripping", "teleport"]
+## FOV / path_step memo keyed by board stamps (not wall-clock). Cleared when the stamp drifts.
+var _fov_cache := {}            # Vector2i origin -> Dictionary of visible cells
+var _fov_stamp := 0
+var _path_cache := {}           # Array key -> next step (or null)
+var _path_stamp := 0
 var kills := 0                  # meta stats reported in the fight result
 var traps_found := 0
 var trap_ids_seen: Array = []   # codex: trap types revealed or triggered
@@ -266,7 +271,43 @@ static func cheb(a: Vector2i, b: Vector2i) -> int:
 func sees(a: Vector2i, b: Vector2i) -> bool:
 	if a == b: return true
 	if not in_bounds(a) or not in_bounds(b): return false
-	return _cast_fov(a).has(b)
+	return _fov_at(a).has(b)
+
+## Sight board fingerprint: terrain, door remains, and units standing in door cells (door_closed).
+func _sight_stamp() -> int:
+	var h: int = hash(terrain) ^ hash(remains)
+	for u in units:
+		var p: Vector2i = u.pos
+		if in_bounds(p) and tile(p) == T.DOOR:
+			h = h ^ hash(p) ^ (int(u.uid) * 0x9e3779b9)
+	return h
+
+## Path board fingerprint: terrain, traps, unit cells, danger tiles.
+func _path_board_stamp() -> int:
+	var h: int = hash(terrain) ^ hash(traps)
+	for u in units:
+		h = h ^ hash(u.pos) ^ (int(u.uid) * 17)
+	for d in danger:
+		h = h ^ hash(d.pos)
+	return h
+
+func _fov_at(origin: Vector2i) -> Dictionary:
+	var stamp := _sight_stamp()
+	if stamp != _fov_stamp:
+		_fov_stamp = stamp
+		_fov_cache.clear()
+	if _fov_cache.has(origin):
+		return _fov_cache[origin]
+	var fov := _cast_fov(origin)
+	_fov_cache[origin] = fov
+	return fov
+
+## Drop FOV/path memos (tests that poke terrain/traps directly can call this; stamps also self-heal).
+func invalidate_board_caches() -> void:
+	_fov_cache.clear()
+	_path_cache.clear()
+	_fov_stamp = 0
+	_path_stamp = 0
 
 ## Build SPD-style FOV from `origin` (set of visible Vector2i). viewDistance covers the arena.
 func _cast_fov(origin: Vector2i) -> Dictionary:
@@ -1684,6 +1725,18 @@ func _tengu_hurt(m: Dictionary) -> void:
 ## First step of a shortest 8-way path from `from` to a tile adjacent to `to`. null if none.
 ## avoid_traps: mobs know every trap; known_only restricts that to revealed traps (hero-side pathing).
 func path_step(from: Vector2i, to: Vector2i, avoid_danger := false, avoid_traps := false, known_only := false):
+	var stamp := _path_board_stamp()
+	if stamp != _path_stamp:
+		_path_stamp = stamp
+		_path_cache.clear()
+	var key := [from, to, avoid_danger, avoid_traps, known_only]
+	if _path_cache.has(key):
+		return _path_cache[key]
+	var step = _path_step_uncached(from, to, avoid_danger, avoid_traps, known_only)
+	_path_cache[key] = step
+	return step
+
+func _path_step_uncached(from: Vector2i, to: Vector2i, avoid_danger: bool, avoid_traps: bool, known_only: bool):
 	var prev := {from: from}
 	var q := [from]
 	while not q.is_empty():

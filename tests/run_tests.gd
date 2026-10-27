@@ -42,6 +42,8 @@ func _ready() -> void:
 	test_sprite_draw(gs)
 	test_spd_ai_doors(gs)
 	test_spd_fov_corners(gs)
+	test_board_caches(gs)
+	test_icon_index_cache(gs)
 	test_lose_enemies(gs)
 	test_rooms_surprise(gs)
 	test_paperdoll(gs)
@@ -3307,6 +3309,9 @@ func test_export_presets() -> void:
 			found_android = true
 			check(String(cfg.get_value(opt, "version/name", "")) == pver, "Android version/name matches project.godot (%s)" % pver)
 			check(bool(cfg.get_value(opt, "gradle_build/use_gradle_build", false)), "Android uses Gradle build (required by addons/apk_install)")
+			var aex := String(cfg.get_value(s, "exclude_filter", ""))
+			check(aex.contains("builds/*") and aex.contains("mockup") and aex.contains("*.pdn"),
+				"Android exclude_filter drops builds/, branding guides/mockups, and .pdn (DECISIONS #246)")
 			# DECISIONS #243: launcher icons from assets/branding
 			for key in ["launcher_icons/main_192x192", "launcher_icons/adaptive_foreground_432x432", "launcher_icons/adaptive_background_432x432", "launcher_icons/adaptive_monochrome_432x432"]:
 				var ipath := String(cfg.get_value(opt, key, ""))
@@ -3333,7 +3338,14 @@ func test_export_presets() -> void:
 		check(not bool(cfg.get_value(wopt, "variant/extensions_support", true)), "Web preset has no GDExtension support")
 		check(String(cfg.get_value(s, "export_path", "")).ends_with("index.html"), "Web preset exports index.html")
 		check(String(cfg.get_value(s, "exclude_filter", "")).contains("tests/*"), "Web preset excludes tests")
+		check(String(cfg.get_value(s, "exclude_filter", "")).contains("builds/*"), "Web preset excludes builds/*")
 	check(found_web, "Web export preset exists")
+	# DECISIONS #246: every ship preset excludes builds/* (screenshots / prior APKs must not re-pack).
+	for s in cfg.get_sections():
+		if s.ends_with(".options"): continue
+		var plat2 := String(cfg.get_value(s, "platform", ""))
+		if plat2 == "": continue
+		check(String(cfg.get_value(s, "exclude_filter", "")).contains("builds/*"), "%s exclude_filter lists builds/*" % plat2)
 	check(FileAccess.file_exists("res://tools/deploy_web.sh"), "web deploy script present")
 	var Main: GDScript = load("res://scripts/ui/main.gd")
 	check(not Main.use_integer_content_scale(false, Vector2i(2000, 2500)),
@@ -5718,6 +5730,56 @@ func test_spd_fov_corners(gs) -> void:
 	check(c.door_closed(Vector2i(4, 3)) and not c.sees(Vector2i(4, 1), Vector2i(4, 5)), "closed door still blocks SPD FOV")
 	c.terrain[3][4] = Combat.T.GRASS
 	check(not c.sees(Vector2i(4, 1), Vector2i(4, 5)), "tall grass still blocks SPD FOV")
+
+## FOV + path_step memos: warm cache matches cold; board stamp clears on terrain change.
+func test_board_caches(gs) -> void:
+	print("[board caches]")
+	var c := Combat.new(); c.setup(DB.rooms[0], warrior(gs), 20, ["rat"])
+	for y in Combat.SIZE:
+		for x in Combat.SIZE: c.terrain[y][x] = Combat.T.FLOOR
+	c.invalidate_board_caches()
+	var a := Vector2i(1, 1); var b := Vector2i(5, 5)
+	var cold_see := c.sees(a, b)
+	var warm_see := c.sees(a, b)
+	check(cold_see and warm_see, "FOV cache warm matches cold for open floor")
+	check(c._fov_cache.has(a), "FOV dict is memoized by origin")
+	c.terrain[3][3] = Combat.T.WALL
+	check(not c.sees(Vector2i(2, 2), Vector2i(4, 4)), "terrain change busts FOV memo (cell behind wall dark)")
+	check(c.sees(Vector2i(2, 2), Vector2i(4, 3)), "peek past the corner still works after stamp refresh")
+	var rat: Dictionary = c.enemies()[0]
+	for y in Combat.SIZE:
+		for x in Combat.SIZE: c.terrain[y][x] = Combat.T.FLOOR
+	rat.pos = Vector2i(4, 1); c.hero.pos = Vector2i(1, 1)
+	c.invalidate_board_caches()
+	var step1 = c.path_step(c.hero.pos, rat.pos)
+	var step2 = c.path_step(c.hero.pos, rat.pos)
+	check(step1 != null and step1 == step2, "path_step warm matches cold")
+	check(c._path_cache.size() >= 1, "path_step stores results including null misses")
+	# Wall off every approach so no adjacent step to the rat remains.
+	for p in [Vector2i(3, 1), Vector2i(4, 0), Vector2i(4, 2), Vector2i(5, 1)]:
+		c.terrain[p.y][p.x] = Combat.T.WALL
+	check(c.path_step(c.hero.pos, rat.pos) == null, "path stamp refreshes when the target is walled in")
+	c.invalidate_board_caches()
+	var miss = c.path_step(Vector2i(0, 0), Vector2i(7, 7))
+	var miss2 = c.path_step(Vector2i(0, 0), Vector2i(7, 7))
+	check(miss == miss2, "cached path miss (null) is stable")
+
+## DB.icon_index memo: repeated ids match; reload clears; unknown mats stay uncached.
+func test_icon_index_cache(gs) -> void:
+	print("[icon index cache]")
+	DB.reload()
+	check(DB._icon_index_cache.is_empty(), "reload clears icon_index memo")
+	var sword := DB.icon_index("worn_shortsword")
+	check(DB.icon_index("worn_shortsword") == sword and DB._icon_index_cache.has("worn_shortsword"), "stable item id is memoized")
+	var unknowns: Array = gs.unknown_mats()
+	if not unknowns.is_empty():
+		var u: String = unknowns[0]
+		var before_n: int = DB._icon_index_cache.size()
+		var uidx := DB.icon_index(u)
+		check(DB.icon_index(u) == uidx, "unknown mat icon is stable for a call pair")
+		check(not DB._icon_index_cache.has(u) and DB._icon_index_cache.size() == before_n, "unknown mats are not memoized (GameState.looks)")
+	DB.reload()
+	check(DB._icon_index_cache.is_empty(), "second reload clears icon_index memo again")
 
 ## DECISIONS #177: SPD "lose them around a pillar / grass": break sight, the mob walks to your last-seen cell and
 ## arrives unaware, your swing is a Surprise, and the attack reveals you. Driven through hero_tap + the real clock.

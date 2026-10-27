@@ -470,7 +470,8 @@ func grass_overhang(c: Vector2i) -> int:
 var _vis := {}
 var _vis_key := []
 func _visible(c: Vector2i) -> bool:
-	var key := [combat.hero.pos, combat.terrain.hash(), combat.units.size()]
+	## Match Combat sight stamp (terrain, remains, door occupancy) so fog tracks door open/close.
+	var key := [combat.hero.pos, combat._sight_stamp()]
 	if key != _vis_key:
 		_vis_key = key; _vis.clear()
 	if not _vis.has(c): _vis[c] = combat.sees(combat.hero.pos, c)

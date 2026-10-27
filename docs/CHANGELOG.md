@@ -1,6 +1,8 @@
 # Changelog
 
 ## Unreleased
+- Shared leanness (Phase 1): memoize `DB.icon_index` for stable ids, cache combat FOV and `path_step` behind board stamps, and point GridView fog at the sight stamp. No Vita forks, no save coalesce, no toolbar reuse. Export presets exclude `builds/*`. Tile bake stays deferred (DECISIONS #246–#247, +tests).
+- APK size note: ~90 MB ship is dominated by the official Godot `.so` (~74 MB); content is ~13–14 MB (music ~10 MB). No under-50 MB APK target under official templates. See `docs/APK_SIZE.md`.
 - A Crazy Thief no longer vanishes after a few unhit turns. It runs at 5/6 speed and escapes only when neither of you can see the other and it is at least 4 tiles away (SPD's distance roll, scaled from 6 to 4). Cornered and still in sight, it turns and fights. Killing it returns the stolen gold instead of paying that gold again on top of its loot (DECISIONS #245, +tests).
 
 - The floor icon beside the depth number in the hero header matches that number's height, in combat and on the delve bar (DECISIONS #244, +tests).

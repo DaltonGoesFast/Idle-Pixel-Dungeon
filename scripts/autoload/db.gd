@@ -20,6 +20,8 @@ var milestone_categories: Array   # display order of milestone categories (DECIS
 var tips: Dictionary
 var talents: Dictionary
 var biome_rooms: Dictionary
+## Memo of id -> icon cell for stable (non-unknown) ids. Cleared on reload().
+var _icon_index_cache: Dictionary = {}
 
 func _init() -> void:
 	reload()
@@ -43,6 +45,7 @@ func reload() -> void:
 	biomes = _load("biomes")
 	var ev := _load("events")
 	doors = ev.doors; specials = ev.specials
+	_icon_index_cache.clear()
 
 func _load(name: String) -> Dictionary:
 	var path := "res://data/%s.json" % name
@@ -74,10 +77,18 @@ func display_name(id: String) -> String:
 	return mat_name(id)
 
 ## Icon index into assets/sprites/items.png (16x16 cells, 16 per row).
+## Unknown potions/scrolls depend on GameState.looks and are not memoized.
 func icon_index(id: String) -> int:
-	if icons.has(id): return int(icons[id])
-	if materials.get(id, {}).get("unknown", false):
+	if _icon_index_cache.has(id): return int(_icon_index_cache[id])
+	var idx: int
+	if icons.has(id):
+		idx = int(icons[id])
+	elif materials.get(id, {}).get("unknown", false):
 		var lk: String = GameState.mat_icon_key(id)
-		if lk != "": return int(icons.get(lk, 0))
-	var key: String = items.get(id, materials.get(id, {})).get("icon", "SOMETHING")
-	return int(icons.get(key, 0))
+		idx = int(icons.get(lk, 0)) if lk != "" else 0
+		return idx
+	else:
+		var key: String = items.get(id, materials.get(id, {})).get("icon", "SOMETHING")
+		idx = int(icons.get(key, 0))
+	_icon_index_cache[id] = idx
+	return idx
