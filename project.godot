@@ -43,6 +43,15 @@ Telemetry="*res://scripts/autoload/telemetry.gd"
 PatrolBridge="*res://scripts/platform/patrol_bridge.gd"
 LiveLayout="*res://scripts/autoload/live_layout.gd"
 
+; The real db.gd is ~8.5s to parse. On Vita that parse waits until the loading card calls DB.reload().
+[autoload.vita]
+
+DB="*res://scripts/autoload/db_vita.gd"
+
+[autoload.Vita]
+
+DB="*res://scripts/autoload/db_vita.gd"
+
 [editor_plugins]
 
 enabled=PackedStringArray("res://addons/apk_install/plugin.cfg", "res://addons/patrol_widget/plugin.cfg")

@@ -19,6 +19,9 @@ var chosen_hero := "warrior"
 var chosen_biome := "sewers"
 var portrait := true
 var open_name := ""          # page shown in the window ("" = hub)
+var _vita_dock_key := ""
+var _vita_changed_armed := false
+var _vita_filled_frame := -1
 var win_layer: Control       # page window
 var info_layer: Control      # item info popup (on top of the window)
 var _update_btn: Button      # Camp header Update control (Android / Windows)
@@ -34,10 +37,25 @@ const HERO_FRAME := Vector2i(12, 15)
 
 func _ready() -> void:
 	_build_shell()
-	GameState.changed.connect(rebuild)
+	if VitaBoot.runs_on_vita():
+		GameState.changed.connect(_vita_on_changed)
+	else:
+		GameState.changed.connect(rebuild)
 	Updater.changed.connect(_on_updater)
 	Updater.maybe_check()
 	rebuild()
+
+## Several changed signals in one craft used to rebuild the dock once each. Wait, then rebuild once.
+func _vita_on_changed() -> void:
+	if _vita_changed_armed:
+		return
+	_vita_changed_armed = true
+	get_tree().create_timer(0.4).timeout.connect(_vita_changed_flush, CONNECT_ONE_SHOT)
+
+func _vita_changed_flush() -> void:
+	_vita_changed_armed = false
+	if is_inside_tree():
+		rebuild()
 
 func _on_updater() -> void:
 	if not is_inside_tree() or root_box == null:
@@ -148,19 +166,81 @@ func rebuild() -> void:
 	Updater.maybe_check()
 	_journal_dot()
 	_settings_dot()
+	if vita and _vita_reuse_shell():
+		if open_name != "" and _vita_filled_frame != Engine.get_process_frames():
+			_fill_window()
+		call_deferred("_apply_live_layout")
+		VitaBoot.add_us("camp_rebuild", int(Time.get_ticks_usec() - t0))
+		return
 	UIKit.clear(summary)
 	for k in ["gold", "iron_ore", "dark_gold", "seeds", "arcane_resin", "dew", "scroll_upgrade", "torch", "ration", "potion_healing"]:
 		if GameState.mat(k) > 0 or k in ["gold", "iron_ore", "seeds"]:
-			var chip := UIKit.res_chip(k, str(GameState.mat(k)), 0.9); chip.tooltip_text = DB.mat_name(k); summary.add_child(chip)
+			var chip := UIKit.res_chip(k, str(GameState.mat(k)), 0.9)
+			if vita:
+				chip.name = "chip_" + k
+			chip.tooltip_text = DB.mat_name(k)
+			summary.add_child(chip)
 	if not GameState.heroes[chosen_hero].unlocked: chosen_hero = "warrior"
 	if not (chosen_biome in start_biomes(chosen_hero)): chosen_biome = "sewers"
 	scene.hero = chosen_hero
 	_build_side()
-	if open_name != "": _fill_window()
+	if vita:
+		_vita_dock_key = _vita_dock_key_now()
+	if open_name != "":
+		if not vita or _vita_filled_frame != Engine.get_process_frames():
+			_fill_window()
 	# Named chrome offsets (Live Editor) re-apply after container layout.
 	call_deferred("_apply_live_layout")
 	if vita:
 		VitaBoot.add_us("camp_rebuild", int(Time.get_ticks_usec() - t0))
+
+## Hero, destination, portrait, and who is out on patrol. Gold and supply counts are not in this key.
+func _vita_dock_key_now() -> String:
+	var parts: PackedStringArray = PackedStringArray()
+	parts.append("%s|%s|%s|%s" % [chosen_hero, chosen_biome, portrait, GameState.can_start_run(chosen_hero)])
+	parts.append(str(GameState.patrol_max_hours()))
+	for c in GameState.heroes:
+		var h: Dictionary = GameState.heroes[c]
+		var p: Dictionary = h.get("patrol", {})
+		parts.append("%s:%s:%s:%s:%s:%s:%s" % [c, h.get("unlocked", false), h.get("level", 0), h.get("str", 0), GameState.armor_tier(c), p.get("biome", ""), p.get("start", "")])
+	return "|".join(parts)
+
+func _vita_reuse_shell() -> bool:
+	if side == null or side.get_child_count() == 0:
+		return false
+	var key := _vita_dock_key_now()
+	if key != _vita_dock_key:
+		return false
+	_vita_update_summary()
+	scene.hero = chosen_hero
+	return true
+
+func _vita_update_summary() -> void:
+	var keys: PackedStringArray = PackedStringArray()
+	for k in ["gold", "iron_ore", "dark_gold", "seeds", "arcane_resin", "dew", "scroll_upgrade", "torch", "ration", "potion_healing"]:
+		if GameState.mat(k) > 0 or k in ["gold", "iron_ore", "seeds"]:
+			keys.append(k)
+	var same := summary.get_child_count() == keys.size()
+	if same:
+		for i in keys.size():
+			if summary.get_child(i).name != "chip_" + keys[i]:
+				same = false
+				break
+	if not same:
+		UIKit.clear(summary)
+		for k in keys:
+			var chip := UIKit.res_chip(k, str(GameState.mat(k)), 0.9)
+			chip.name = "chip_" + k
+			chip.tooltip_text = DB.mat_name(k)
+			summary.add_child(chip)
+		return
+	for i in keys.size():
+		var chip := summary.get_child(i)
+		if chip.get_child_count() < 2:
+			continue
+		var lab := chip.get_child(1) as Label
+		if lab:
+			lab.text = str(GameState.mat(keys[i]))
 
 func _apply_live_layout() -> void:
 	LiveLayout.apply_tree(self)
@@ -445,6 +525,7 @@ func _fill_window() -> void:
 	if info_layer: move_child(info_layer, -1)
 	_vita_camp_visible()
 	if vita_page:
+		_vita_filled_frame = Engine.get_process_frames()
 		VitaBoot.add_us("camp_page", int(Time.get_ticks_usec() - page_t0))
 
 ## While a page is open the clearing is hidden, so its _draw does not run under the window.
@@ -732,7 +813,38 @@ func supply_max() -> Dictionary:
 func _supply_delta(key: String, d: int) -> void:
 	var packable := mini(GameState.mat(key), GameState.supply_cap(key))
 	loadout[key] = clampi(int(loadout.get(key, 0)) + d, 0, packable)
+	if VitaBoot.runs_on_vita() and _vita_patch_supply(key):
+		return
 	_fill_window()
+
+## +/- used to queue_free the whole Expedition page. The count and the two buttons already have stable names.
+func _vita_patch_supply(key: String) -> bool:
+	if win_layer == null or not is_instance_valid(win_layer):
+		return false
+	var row := win_layer.find_child("SupplyRow_" + key, true, false)
+	if row == null:
+		return false
+	var packable := mini(GameState.mat(key), GameState.supply_cap(key))
+	var n := int(loadout.get(key, 0))
+	var minus := row.find_child("SupplyMinus_" + key, true, false) as Button
+	var plus := row.find_child("SupplyPlus_" + key, true, false) as Button
+	if minus == null or plus == null:
+		return false
+	minus.disabled = n <= 0
+	plus.disabled = n >= packable
+	var want := "%s  x%d" % [DB.mat_name(key), n]
+	var found := false
+	for lab in row.find_children("*", "Label", true, false):
+		if String(lab.text).begins_with(DB.mat_name(key)):
+			lab.text = want
+			found = true
+			break
+	if not found:
+		return false
+	var mall := win_layer.find_child("MaxAll", true, false) as Button
+	if mall:
+		mall.disabled = supplies_all_max()
+	return true
 
 ## Camp recipe that sells exactly one of this supply for gold. Guild singles win over other facilities.
 ## Bulk deals (the ration crate) and gold-free crafts (Alchemy brews) are not buys. Empty if nothing sells it.

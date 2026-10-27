@@ -137,7 +137,7 @@ func _vita_frame(delta: float) -> void:
 	if camp != null:
 		draw_us = int(camp.get("_last_draw_us"))
 	var nodes := int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT))
-	var line := "tick worst_ms=%d camp_draw_us=%d nodes=%d" % [_vita_worst_ms, draw_us, nodes]
+	var line := "tick worst_ms=%d scene_draw_us=%d nodes=%d" % [_vita_worst_ms, draw_us, nodes]
 	var report := VitaBoot.take_report()
 	if report != "":
 		line += " " + report

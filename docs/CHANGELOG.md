@@ -6,6 +6,7 @@
 - PS Vita boot no longer constructs an HTTP client, hides the engine logo behind a flat color, and writes `user://vita_boot.log` from the first script. Game data stays the loose `game_data/` tree (`project.binary` and `.godot/`), which is what this runtime loads. The first frame no longer builds Camp, music, SystemFont, or PatrolWidget inside `SceneTree::initialize` (DECISIONS #245, +tests).
 - PS Vita 00.54 shows a loading line before camp and the content tables are parsed, hides the clearing while a camp page is open, and draws a short 20 fps camp instead of the full 60 fps clearing. Camp text is larger on the 960×544 panel. Phone, desktop, and web behavior is unchanged (DECISIONS #246, +tests).
 - PS Vita 00.55 keeps the 2 second frame log on stderr without reopening the save file, preloads delve and combat on the loading card, and stops rebuilding delve, combat, and the enchanter page on every tick. The corridor and the combat grid draw at 20 fps. Phone, desktop, and web behavior is unchanged (DECISIONS #247, +tests).
+- PS Vita 00.56 keeps the corridor and combat ground on a cached canvas and redraws sprites at 12 fps, drops the Vita fog and vignette, and gives the 960×544 delve screen a shorter status pane, one supply row, and a log that is not clipped. Combat auto waits 700 ms and skips the mid-fight button rebuild. Camp reuses its dock and supply rows. `db.gd` parses on the loading card. Phone, desktop, and web behavior is unchanged (DECISIONS #248, +tests).
 
 ## 0.50.4
 - The player-facing title is Idle PD.

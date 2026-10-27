@@ -94,17 +94,35 @@ func _place_window() -> void:
 func apply_layout(p: bool, s: Vector2, desk_ui := false) -> void:
 	portrait = p
 	desktop_ui = desk_ui
-	bar.custom_minimum_size.y = UIKit.font_size * 1.6
+	var vita := VitaBoot.runs_on_vita()
+	bar.custom_minimum_size.y = UIKit.font_size * (1.05 if vita else 1.6)
 	win_panel.add_theme_stylebox_override("panel", UIKit.chrome("window", Color.WHITE, UIKit.font_size * 0.6))
 	_fit_desk_bars(s.x)
-	# corridor height: a multiple of 5 tile rows, as tall as the rows under it allow (tiles and sprites scale with it)
-	var fs := float(UIKit.font_size)
-	var reserved := 40.0 * float(maxi(2, UIKit.px_scale)) + fs * 1.6 + fs * 3.6 + fs * 5.5 + UIKit.btn_height() * 1.2 + fs * 3.0
-	var hmin := minf(s.y * 0.2, fs * 7.0)
-	scene.custom_minimum_size.y = floorf(clampf(s.y - reserved, hmin, s.y * (0.36 if p else 0.3)) / 5.0) * 5.0
-	pips.custom_minimum_size = Vector2(fs * 4.6, fs * 1.6)
+	if vita:
+		_apply_layout_vita(s)
+	else:
+		# corridor height: a multiple of 5 tile rows, as tall as the rows under it allow (tiles and sprites scale with it)
+		var fs := float(UIKit.font_size)
+		var reserved := 40.0 * float(maxi(2, UIKit.px_scale)) + fs * 1.6 + fs * 3.6 + fs * 5.5 + UIKit.btn_height() * 1.2 + fs * 3.0
+		var hmin := minf(s.y * 0.2, fs * 7.0)
+		scene.custom_minimum_size.y = floorf(clampf(s.y - reserved, hmin, s.y * (0.36 if p else 0.3)) / 5.0) * 5.0
+		pips.custom_minimum_size = Vector2(fs * 4.6, fs * 1.6)
 	_refresh_controls(); _show_card()
 	if _summary_on: _build_summary()
+
+## 960×544: the phone chrome (4x status pane, two wrapping supply rows, an expanding log) clips the log.
+## The corridor takes the leftover height. The log keeps two lines. Toolbar slots are set in _slot.
+func _apply_layout_vita(s: Vector2) -> void:
+	var fs := float(UIKit.font_size)
+	var log_sc := log_host.get_parent() as ScrollContainer
+	if log_sc:
+		log_sc.size_flags_vertical = SIZE_SHRINK_END
+		log_sc.custom_minimum_size.y = fs * 2.8
+	stats.size_flags_vertical = SIZE_SHRINK_END
+	scene.size_flags_vertical = SIZE_EXPAND_FILL
+	var tile := maxf(16.0, floorf(s.y * 0.36 / 5.0))
+	scene.custom_minimum_size.y = maxf(16.0 * 5.0, tile * 5.0)
+	pips.custom_minimum_size = Vector2(fs * 3.2, fs * 1.05)
 
 ## Desktop: status pane + floor ProgressBar stay phone-wide; Mobile keeps full-bleed.
 func _fit_desk_bars(area_w: float) -> void:
@@ -395,6 +413,9 @@ func _refresh() -> void:
 	var rk := _supplies_key(run)
 	if rk == _row_key: return
 	_row_key = rk
+	if VitaBoot.runs_on_vita():
+		_vita_supply_line(run)
+		return
 	UIKit.clear(stats)
 	var line := ""
 	if Delve.darkness(run): line += "DARK: no Barrier in fights!   "
@@ -416,6 +437,46 @@ func _refresh() -> void:
 	var new_gear := _found_gear(run).size()
 	if new_gear > 0: found.add_child(_row_note("+%d item%s" % [new_gear, "" if new_gear == 1 else "s"], Color.WHITE))
 	if found.get_child_count() == 1: found.add_child(_row_note("nothing yet"))
+
+## One sideways row. "Found (lost on death)" wrapped onto a second line and pushed the log off the panel.
+func _vita_supply_line(run: Dictionary) -> void:
+	UIKit.clear(stats)
+	var line := ""
+	if Delve.darkness(run): line += "DARK  "
+	if float(run.satiety) <= 0.0: line += "STARVING"
+	if line != "":
+		stats.add_child(UIKit.label(line, 0.85, Color("ff7070")))
+	var sc := ScrollContainer.new()
+	sc.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	sc.custom_minimum_size.y = 40
+	stats.add_child(sc)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	sc.add_child(row)
+	row.add_child(_row_note("Brought", Color("9a8f7c")))
+	var any_b := false
+	for k in run.supplies:
+		if int(run.supplies[k]) > 0:
+			row.add_child(UIKit.res_chip(k, str(run.supplies[k]), 0.85, 32))
+			any_b = true
+	if GameState.cloak_cap(run.hero) > 0:
+		row.add_child(_row_note("Cloak %d/%d" % [GameState.cloak_charges(run.hero), GameState.cloak_cap(run.hero)], Color.WHITE))
+		any_b = true
+	if not any_b:
+		row.add_child(_row_note("none"))
+	row.add_child(_row_note("Found", Color("ff9944")))
+	var any_f := false
+	for k in run.pack:
+		if int(run.pack[k]) > 0:
+			row.add_child(UIKit.res_chip(k, str(run.pack[k]), 0.85, 32))
+			any_f = true
+	var new_gear := _found_gear(run).size()
+	if new_gear > 0:
+		row.add_child(_row_note("+%d" % new_gear, Color.WHITE))
+		any_f = true
+	if not any_f:
+		row.add_child(_row_note("none"))
 
 func _chip_row(heading: String, color: Color) -> HFlowContainer:
 	var flow := HFlowContainer.new(); stats.add_child(flow)
@@ -468,7 +529,10 @@ func _slot(tip: String, icon_name: String, text: String, cb: Callable) -> Button
 	b.autowrap_mode = TextServer.AUTOWRAP_OFF
 	b.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	b.vertical_icon_alignment = VERTICAL_ALIGNMENT_TOP if text != "" else VERTICAL_ALIGNMENT_CENTER
-	b.custom_minimum_size = Vector2(0, UIKit.btn_height() * 1.2)
+	if VitaBoot.runs_on_vita():
+		b.custom_minimum_size = Vector2(64, 64)
+	else:
+		b.custom_minimum_size = Vector2(0, UIKit.btn_height() * 1.2)
 	b.size_flags_horizontal = SIZE_EXPAND_FILL
 	if text != "":
 		var l := UIKit.label(text, 0.75)

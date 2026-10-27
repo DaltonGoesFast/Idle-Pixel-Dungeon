@@ -336,6 +336,7 @@ func side_min_width() -> float:
 var _vita_btn_key := ""
 var _vita_log_key := ""
 var _vita_auto_at := 0
+var _vita_save_at := 0
 
 func _process(d: float) -> void:
 	if VitaBoot.runs_on_vita():
@@ -349,7 +350,8 @@ func _process(d: float) -> void:
 		if _auto_t > 0.35:
 			_auto_t = 0.0; _do_bot()
 
-## Wall-clock gap so a slow frame cannot fire Auto on every frame. The 0.35 s wait is the same pause.
+## Wall-clock gap so a slow frame cannot fire Auto on every frame. Vita waits 700 ms so a slow
+## turn does not start another on the next frame. Phone auto still uses _auto_t > 0.35.
 func _process_vita() -> void:
 	if main and main.tip_open(): return
 	if finished: return
@@ -357,13 +359,13 @@ func _process_vita() -> void:
 	if not auto:
 		return
 	if _vita_auto_at == 0:
-		_vita_auto_at = Time.get_ticks_msec() + 350
+		_vita_auto_at = Time.get_ticks_msec() + 700
 	if Time.get_ticks_msec() < _vita_auto_at:
 		return
 	var t0 := Time.get_ticks_usec()
 	_do_bot()
 	VitaBoot.add_us("combat_bot", int(Time.get_ticks_usec() - t0))
-	_vita_auto_at = Time.get_ticks_msec() + 350
+	_vita_auto_at = Time.get_ticks_msec() + 700
 
 ## Combat keyboard (DECISIONS #232) and the Vita pad (DECISIONS #244). Bag / Passage / Menu / tip own cancel first.
 func _unhandled_input(event: InputEvent) -> void:
@@ -714,6 +716,9 @@ func _refresh() -> void:
 	if vita and _vita_refresh_skip():
 		VitaBoot.add_us("combat_refresh", int(Time.get_ticks_usec() - t0))
 		return
+	if vita and _vita_auto_light():
+		VitaBoot.add_us("combat_refresh", int(Time.get_ticks_usec() - t0))
+		return
 	if status == null:
 		return
 	var h := combat.hero
@@ -825,6 +830,35 @@ func _vita_refresh_skip() -> bool:
 		_refresh_log()
 	_vita_combat_tips()
 	return true
+
+## While Auto is running and the buttons already exist, skip the button rebuild. Status and the log still move.
+## Fight end sets auto off before _refresh, so the result buttons still build.
+func _vita_auto_light() -> bool:
+	if not auto or finished or status == null or combat == null or buttons == null or buttons.get_child_count() == 0:
+		return false
+	_vita_status_only()
+	_guide_update()
+	_refresh_log()
+	_vita_combat_tips()
+	return true
+
+func _vita_status_only() -> void:
+	var h := combat.hero
+	var bl := []
+	if int(h.get("poison", 0)) > 0: bl.append(3)
+	if combat.hidden(): bl.append(12)
+	if int(h.barrier) > 0: bl.append(20)
+	var run: Dictionary = GameState.run
+	var lvl := 1
+	if not run.is_empty(): lvl = int(GameState.heroes[run.hero].level)
+	var minis := []
+	if not run.is_empty():
+		minis = [{"kind": "exp", "icon": "torch", "frac": float(run.torch) / 100.0, "text": "Torch %d%%" % run.torch},
+			{"kind": "shield", "icon": "ration", "frac": float(run.satiety) / 100.0, "text": "Food %d%%" % run.satiety}]
+	pane.set_data({"name": h.name, "level": lvl, "hp": h.hp, "ht": h.ht, "shield": h.barrier, "shield_hits": combat.barrier_hits(), "buffs": bl,
+		"floor": int(run.get("floor", 1)) if not run.is_empty() else 0,
+		"feeling": String(run.get("feeling", "")) if not run.is_empty() else "",
+		"danger": combat.enemies().filter(func(e): return e.hp > 0).size(), "minis": minis})
 
 func _vita_combat_tips() -> void:
 	if main == null or finished:
@@ -1018,7 +1052,13 @@ func _on_cell(c: Vector2i) -> void:
 		)
 
 ## Keep the fight in the save so Android killing the app doesn't lose it.
+## Vita writes at most once every 2 seconds. A slow ux0 save was inside every auto action.
 func _persist() -> void:
+	if VitaBoot.runs_on_vita():
+		var now := Time.get_ticks_msec()
+		if now < _vita_save_at:
+			return
+		_vita_save_at = now + 2000
 	if GameState.run.has("active_fight"):
 		GameState.run.active_fight.combat = combat.to_dict()
 		SaveSystem.save_game()

@@ -1,6 +1,8 @@
 ## Vita's first scene. main.gd took ~29s to parse on device (it preloads camp) and db.gd took ~8.5s
 ## inside the autoload, both before any pixel that is not the flat engine splash. This scene draws
 ## a loading line first, then does that work one step per frame so the label can paint.
+## On Vita the DB autoload is a stub: step 2's DB.reload() is what parses db.gd, under "Loading data".
+## camp_screen.gd stays one file. Splitting it would add another multi-second parse per extra script.
 extends Control
 
 var _label: Label
