@@ -108,21 +108,99 @@ func apply_layout(p: bool, s: Vector2, desk_ui := false) -> void:
 		scene.custom_minimum_size.y = floorf(clampf(s.y - reserved, hmin, s.y * (0.36 if p else 0.3)) / 5.0) * 5.0
 		pips.custom_minimum_size = Vector2(fs * 4.6, fs * 1.6)
 	_refresh_controls(); _show_card()
+	if vita:
+		_vita_fit_chrome(s)
 	if _summary_on: _build_summary()
 
-## 960×544: the phone chrome (4x status pane, two wrapping supply rows, an expanding log) clips the log.
-## The corridor takes the leftover height. The log keeps two lines. Toolbar slots are set in _slot.
+## 960×544: flags only. Heights are fitted in _vita_fit_chrome after the supply row and the toolbar exist.
 func _apply_layout_vita(s: Vector2) -> void:
+	_vita_area = s
 	var fs := float(UIKit.font_size)
 	var log_sc := log_host.get_parent() as ScrollContainer
 	if log_sc:
 		log_sc.size_flags_vertical = SIZE_SHRINK_END
-		log_sc.custom_minimum_size.y = fs * 2.8
+		log_sc.size_flags_horizontal = SIZE_EXPAND_FILL
+		log_sc.clip_contents = true
+		log_sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	stats.size_flags_vertical = SIZE_SHRINK_END
+	controls.size_flags_vertical = SIZE_SHRINK_END
 	scene.size_flags_vertical = SIZE_EXPAND_FILL
-	var tile := maxf(16.0, floorf(s.y * 0.36 / 5.0))
-	scene.custom_minimum_size.y = maxf(16.0 * 5.0, tile * 5.0)
 	pips.custom_minimum_size = Vector2(fs * 3.2, fs * 1.05)
+
+var _vita_area := Vector2.ZERO
+
+## Two wrapped log lines. A 0.36-tall corridor floor plus this slot used to push the toolbar past y=544.
+func _vita_log_slot_h() -> float:
+	var fs := float(UIKit.font_size)
+	return maxf(fs * 2.0, float(UIKit.font_px(fs * 0.85)) * 2.4)
+
+## The corridor takes whatever height is left after the status pane, bar, supplies, log, and the toolbar's real minimum.
+## The log slot is capped and clipped so an unwrapped line cannot paint past the pane or grow the column.
+func _vita_fit_chrome(s: Vector2) -> void:
+	if s.y <= 0.0 or not VitaBoot.runs_on_vita(): return
+	_vita_area = s
+	var sep := float(box.get_theme_constant("separation"))
+	var log_h := _vita_log_slot_h()
+	var log_sc := log_host.get_parent() as ScrollContainer
+	if log_sc:
+		log_sc.custom_minimum_size = Vector2(0, log_h)
+		log_sc.custom_maximum_size.y = log_h
+		log_sc.clip_contents = true
+	var tool_h := 64.0
+	if controls.get_child_count() > 0:
+		tool_h = maxf(tool_h, controls.get_combined_minimum_size().y)
+	controls.custom_minimum_size.y = tool_h
+	var stats_h := maxf(40.0, stats.get_combined_minimum_size().y)
+	var chrome := ceilf(pane.get_combined_minimum_size().y + bar_row.get_combined_minimum_size().y + stats_h + log_h + tool_h + sep * 5.0)
+	var room := floorf(s.y - chrome)
+	if room < 64.0:
+		log_h = maxf(float(UIKit.font_px(float(UIKit.font_size) * 0.85)), log_h - (64.0 - room))
+		if log_sc:
+			log_sc.custom_minimum_size.y = log_h
+			log_sc.custom_maximum_size.y = log_h
+		room = 64.0
+	scene.custom_minimum_size.y = room
+	_vita_wrap_log_tree(log_host)
+	call_deferred("_vita_clip_log")
+
+## Labels inside the bare-screen log wrap to the pane and ellipsize a single overlong word. Phone labels are untouched.
+func _vita_wrap_log_tree(n: Node) -> void:
+	if n == null or not VitaBoot.runs_on_vita(): return
+	for c in n.get_children():
+		if c is Label:
+			var lab := c as Label
+			lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			lab.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+			lab.size_flags_horizontal = SIZE_EXPAND_FILL
+			lab.custom_minimum_size.x = 0
+			var pad := StyleBoxEmpty.new()
+			pad.set_content_margin(SIDE_LEFT, 2)
+			pad.set_content_margin(SIDE_RIGHT, 8)
+			lab.add_theme_stylebox_override("normal", pad)
+		if c.get_child_count() > 0:
+			_vita_wrap_log_tree(c)
+
+## After the scroll has a width, break lines on that width (minus the vertical bar) so glyphs stay inside the pane.
+func _vita_clip_log() -> void:
+	if not VitaBoot.runs_on_vita(): return
+	var log_sc := log_host.get_parent() as ScrollContainer
+	if log_sc == null: return
+	log_sc.clip_contents = true
+	var w := log_sc.size.x
+	if w < 8.0: return
+	var bar := log_sc.get_v_scroll_bar()
+	if bar != null and bar.visible:
+		w = maxf(8.0, w - bar.size.x)
+	_vita_apply_log_width(log_host, w)
+
+func _vita_apply_log_width(n: Node, w: float) -> void:
+	for c in n.get_children():
+		if c is Label:
+			var lab := c as Label
+			lab.custom_minimum_size.x = 0
+			lab.size.x = w
+		if c.get_child_count() > 0:
+			_vita_apply_log_width(c, w)
 
 ## Desktop: status pane + floor ProgressBar stay phone-wide; Mobile keeps full-bleed.
 func _fit_desk_bars(area_w: float) -> void:
@@ -368,6 +446,9 @@ func _fill_log() -> void:
 	for i in range(maxi(0, msgs.size() - _log_limit), msgs.size()):
 		var k: String = kinds[i] if i < kinds.size() else "info"
 		_log_box.add_child(UIKit.label(msgs[i], 0.8, GameState.LOG_COLORS.get(k, Color("bdb3a0"))))
+	if VitaBoot.runs_on_vita():
+		_vita_wrap_log_tree(_log_box)
+		call_deferred("_vita_clip_log")
 
 func _sync_haul() -> void:
 	if not is_instance_valid(_haul_label): return
@@ -477,6 +558,8 @@ func _vita_supply_line(run: Dictionary) -> void:
 		any_f = true
 	if not any_f:
 		row.add_child(_row_note("none"))
+	if _vita_area.y > 0.0:
+		_vita_fit_chrome(_vita_area)
 
 func _chip_row(heading: String, color: Color) -> HFlowContainer:
 	var flow := HFlowContainer.new(); stats.add_child(flow)
@@ -671,6 +754,9 @@ func _show_card() -> void:
 		var hint := "The bar holds until you deal with the encounter." if _is_encounter(_under) else ("Exploring... encounters every ~20-25%." if running else "Paused.")
 		log_host.add_child(UIKit.label(hint, 0.9, Color("9a8f7c")))
 		_mount_log(log_host, LOG_LINES, false)
+		if VitaBoot.runs_on_vita():
+			_vita_wrap_log_tree(log_host)
+			call_deferred("_vita_clip_log")
 		return
 	if main and pending.kind in ["door", "special", "floor_done", "campfire"]: main.tip(pending.kind)
 	match pending.kind:
