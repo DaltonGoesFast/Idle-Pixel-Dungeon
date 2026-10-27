@@ -3325,7 +3325,7 @@ func test_export_presets() -> void:
 		check(String(cfg.get_value(vopt, "textures/gpu_format", "")) == "RGBA4444", "PS Vita textures default to RGBA4444")
 		check(String(cfg.get_value(vopt, "performance/capunlocker", "")) == "optional", "CapUnlocker is optional")
 		check(String(cfg.get_value(vopt, "application/title_id", "")) == "IDLEPD001", "PS Vita title id is IDLEPD001")
-		check(String(cfg.get_value(vopt, "application/version", "")) == "00.53", "PS Vita PARAM.SFO version is 00.53")
+		check(String(cfg.get_value(vopt, "application/version", "")) == "00.54", "PS Vita PARAM.SFO version is 00.54")
 		check(String(cfg.get_value(vopt, "application/title", "")) == "Idle PD", "PS Vita bubble title is Idle PD")
 	check(found_vita, "PS Vita export preset exists")
 	var proj := ConfigFile.new()
@@ -3344,6 +3344,9 @@ func test_export_presets() -> void:
 	check(proj.get_section_keys("autoload")[0] == "VitaBoot", "VitaBoot is the first autoload")
 	check(String(proj.get_value("rendering", "renderer/rendering_method", "")) == "gl_compatibility", "Compatibility renderer stays the project default")
 	check(String(proj.get_value("rendering", "renderer/rendering_method.vita", "")) == "gl_compatibility", "vita feature keeps the Compatibility renderer")
+	check(String(proj.get_value("application", "run/main_scene", "")) == "res://scenes/main.tscn", "phone main scene stays scenes/main.tscn")
+	check(String(proj.get_value("application", "run/main_scene.vita", "")) == "res://scenes/vita_boot.tscn", "vita feature main scene is the loading card")
+	check(String(proj.get_value("application", "run/main_scene.Vita", "")) == "res://scenes/vita_boot.tscn", "Vita export main scene is the loading card")
 
 ## DECISIONS #244: Vita is the wide mobile layout plus the native pad. Phone desktop rules stay put.
 func test_vita_handheld() -> void:
@@ -3364,6 +3367,13 @@ func test_vita_handheld() -> void:
 	check(not PatrolBridge.runs_on("Vita") and PatrolBridge.runs_on("Android"), "PatrolWidget stays off on Vita")
 	var main_src := FileAccess.get_file_as_string("res://scripts/ui/main.gd")
 	check(not main_src.contains("preload(\"res://scripts/ui/delve_screen.gd\")") and not main_src.contains("preload(\"res://scripts/ui/combat_screen.gd\")"), "delve and combat scripts load on demand")
+	check(Main.ui_font_size(544.0, 1.0, false) == int(clampf(544.0 / 24.0, 14, 60)), "non-Vita font size stays shortest/24 clamped 14..60")
+	check(Main.ui_font_size(544.0, 1.0, true) >= 28, "Vita font size is at least 28 on a 544-tall panel")
+	check(not VitaBoot.runs_on_vita(false, "Android") and not VitaBoot.runs_on_vita(false, "Windows") and not VitaBoot.runs_on_vita(false, "Web"), "Android, Windows, and web are not the Vita runtime")
+	check(VitaBoot.runs_on_vita(true, "Linux") and VitaBoot.runs_on_vita(false, "Vita"), "the vita feature or the Vita OS name selects the handheld path")
+	var camp_src := FileAccess.get_file_as_string("res://scripts/ui/camp_scene.gd")
+	check(camp_src.contains("func _draw_vita()") and camp_src.contains("if VitaBoot.runs_on_vita():"), "camp keeps a Vita draw path and the phone _draw")
+	check(FileAccess.file_exists("res://scenes/vita_boot.tscn"), "Vita loading scene exists")
 	check(not Updater.http_uses_threads("Vita") and Updater.http_uses_threads("Android"), "updater threads stay off on Vita and on for Android")
 	var updater_src := FileAccess.get_file_as_string("res://scripts/autoload/updater.gd")
 	var updater_ready := updater_src.substr(updater_src.find("func _ready()"))

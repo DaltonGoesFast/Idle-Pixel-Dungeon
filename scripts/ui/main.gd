@@ -23,6 +23,8 @@ var tips: Control            # TipOverlay (tutorial cards above everything), the
 const TIP_LAYER := 100
 var tip_layer: CanvasLayer
 var _id_timer := 0.0
+var _vita_prof := 0.0
+var _vita_worst_ms := 0
 
 ## DECISIONS #224: integer content scale on web when at least 1× of the design size fits (crisp pixels).
 ## Godot clips instead of shrinking when integer scale would be below 1×, so desktop browsers and most
@@ -104,13 +106,36 @@ func _open_initial_screen() -> void:
 		_open_guild_patrols()
 	_vita_log("screen open")
 
+static func ui_font_size(shortest: float, text_scale: float = 1.0, vita := false) -> int:
+	if vita:
+		return int(clampf(shortest / 16.0 * text_scale, 28, 40))
+	return int(clampf(shortest / 24.0 * text_scale, 14, 60))
+
 func _process(delta: float) -> void:
+	if VitaBoot.runs_on_vita():
+		_vita_frame(delta)
 	# toasts never cover a tutorial card (they keep their timers and reappear when it closes)
 	toast_box.visible = not tip_open()
 	_id_timer += delta
 	if _id_timer > 1.0:
 		_id_timer = 0.0
 		GameState.tick_identify()
+
+func _vita_frame(delta: float) -> void:
+	var ms := int(delta * 1000.0)
+	if ms > _vita_worst_ms:
+		_vita_worst_ms = ms
+	_vita_prof += delta
+	if _vita_prof < 2.0:
+		return
+	var draw_us := -1
+	var camp: Variant = screen.get("scene") if screen != null else null
+	if camp != null:
+		draw_us = int(camp.get("_last_draw_us"))
+	var nodes := int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT))
+	VitaBoot.mark("tick worst_ms=%d camp_draw_us=%d nodes=%d" % [_vita_worst_ms, draw_us, nodes])
+	_vita_prof = 0.0
+	_vita_worst_ms = 0
 
 ## Live Editor layout mode: drag named Camp chrome (DECISIONS #233). Camp NPCs use CampScene._gui_input.
 func _input(e: InputEvent) -> void:
@@ -149,6 +174,8 @@ func _relayout() -> void:
 	for p in [["left", l], ["top", t], ["right", r], ["bottom", b]]:
 		margin.add_theme_constant_override("margin_" + p[0], int(clampf(p[1], 4.0 if desktop_ui else 8.0, cap)))
 	var fs := int(clampf(minf(vs.x, vs.y) / 24.0 * float(GameState.settings.get("text_scale", 1.0)), 14, 60))
+	if VitaBoot.runs_on_vita():
+		fs = ui_font_size(minf(vs.x, vs.y), float(GameState.settings.get("text_scale", 1.0)), true)
 	theme = UIKit.make_theme(fs)
 	get_window().theme = theme   # popups / anything parented outside Main inherit the SPD theme too
 	if tips: tips.theme = theme   # a CanvasLayer breaks Control theme inheritance, so the tip layer gets it directly

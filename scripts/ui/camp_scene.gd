@@ -40,7 +40,21 @@ func _ready() -> void:
 		LiveLayout.layout_changed.connect(queue_redraw)
 
 var _acc := 0.0
+var _last_draw_us := 0
+var _shadow: Texture2D
 func _process(d: float) -> void:
+	# Vita: one core was spending ~450 ms in idle process while this Control redrew ~660 quads
+	# (render submit itself was ~10 ms). 20 fps and a short draw list are the handheld path.
+	# Phone, desktop, and web keep the 60 fps clearing below.
+	if VitaBoot.runs_on_vita():
+		if not is_visible_in_tree():
+			return
+		t += d
+		_acc += d
+		if _acc >= 1.0 / 20.0:
+			_acc = 0.0
+			queue_redraw()
+		return
 	# Camp motion (clouds, fire, stars, pot) at ~60 fps so drift and flicker stay smooth (#225).
 	t += d; _acc += d
 	if _acc >= 1.0 / 60.0 and is_visible_in_tree():
@@ -310,7 +324,79 @@ func _draw_hero(c: String, r: Rect2, fire: Vector2, frad: float, flk: float) -> 
 		mod = Color(minf(1.0, mod.r * 1.12), minf(1.0, mod.g * 1.1), minf(1.0, mod.b * 1.05), mod.a)
 	draw_texture_rect_region(hs, r, src, mod)
 
+func _shadow_tex() -> Texture2D:
+	if _shadow == null:
+		_shadow = load("res://assets/ui/shadow.png")
+	return _shadow
+
+## Handheld clearing: flat ground, a short path, a horizon, one fire, heroes and NPCs once.
+## The phone draw (full tile grid, grass clumps, second character pass, fireflies) is what pegged the CPU.
+func _draw_vita() -> void:
+	var kk := k()
+	var cs := 16.0 * kk
+	var sky_h := sky_height()
+	draw_texture_rect(_sky_tex(kk, sky_h), Rect2(0, 0, size.x, sky_h), false)
+	for i in 8:
+		var p := Vector2(fposmod(float(i * 97), maxf(1.0, size.x)), fposmod(float(i * 53), maxf(1.0, sky_h * 0.85)))
+		draw_rect(Rect2(p.floor(), Vector2(kk, kk)), Color(1, 1, 0.9, 0.75))
+	draw_rect(Rect2(0, sky_h, size.x, size.y - sky_h), Color("2f4a22"))
+	var fire := Vector2(size.x * 0.5, ground_y(FIRE_Y))
+	var steps := int(ceil(maxf(0.0, size.y - fire.y) / cs)) + 1
+	for i in steps:
+		_tile(Rect2(fire.x - cs * 0.5, fire.y + float(i) * cs, cs, cs), 0)
+	var cols := int(ceil(size.x / cs)) + 1
+	var ox := floorf((size.x - cols * cs) / 2.0)
+	for x in range(0, cols, 2):
+		_raised(Rect2(ox + float(x) * cs, sky_h, cs, cs), 0 if (x * 7) % 3 else 1)
+	var flk := SceneFX.flicker(t)
+	var ground := Rect2(0, sky_h, size.x, size.y - sky_h)
+	SceneFX.glow(self, fire, cs * 2.2, Color(1.0, 0.55, 0.2, 0.22), ground)
+	_tile(Rect2((fire - Vector2(cs, cs) / 2.0).floor(), Vector2(cs, cs)), 3, _masked(3, [0, 1, 2, 6, 8], false))
+	for i in 8:
+		var ph := fposmod(t * (1.2 + float(i) * 0.17) + float(i), 1.0)
+		var s := maxf(kk, floorf((3.0 - ph * 2.0) * kk))
+		var fp := fire + Vector2((float(i) - 3.5) * kk * 0.8, -ph * cs * 0.55)
+		draw_rect(Rect2((fp - Vector2(s, s) / 2.0).floor(), Vector2(s, s)), Color(1.0, 0.55 + ph * 0.2, 0.15, 1.0 - ph))
+	var frad := minf(size.x, maxf(1.0, size.y - sky_h)) * 0.75
+	for pair in hero_rects():
+		_draw_hero(pair[0], pair[1], fire, frad, flk)
+	var font := get_theme_default_font()
+	var fs := UIKit.font_px(UIKit.font_size * 0.85)
+	for s in SPOTS:
+		_draw_spot_vita(s, fire, frad, flk)
+		var lr := label_rect(s)
+		draw_rect(lr, Color(0, 0, 0, 0.55))
+		if font:
+			draw_string(font, lr.position + Vector2(kk * 2, fs * 0.9), _spot_label(s), HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color.WHITE)
+
+func _draw_spot_vita(s: Array, fire: Vector2, frad: float, flk: float) -> void:
+	var kk := k()
+	var sr := spot_rect(s)
+	var sh := _shadow_tex()
+	if sh:
+		draw_texture_rect_region(sh, Rect2(sr.position.x + sr.size.x * 0.1, sr.end.y - kk * 3, sr.size.x * 0.8, kk * 5), Rect2(0, 0, 6, 6), Color(1, 1, 1, 0.6))
+	var mod := SceneFX.firelit(sr.get_center(), fire, frad, flk)
+	match String(s[1]):
+		"_pot":
+			draw_rect(sr, Color("5c3b22"))
+			draw_rect(sr.grow(-kk * 3.0), Color("e0a040"))
+		"_chest":
+			var cr := UIKit.item_rect(36)
+			var cz := cr.size * floorf(sr.size.x / 16.0)
+			draw_texture_rect_region(items, Rect2((sr.get_center() - cz / 2.0).floor(), cz), cr, mod)
+		_:
+			var fw: int = int(s[2])
+			var an: Array = NPC_IDLE[String(s[1])]
+			var fl: Array = an[1]
+			var frame: int = int(fl[int((t + float(s[4]) * 3.0) * float(an[0])) % fl.size()])
+			draw_texture_rect_region(_sprite(String(s[1])), sr, Rect2(frame * fw, 0, fw, int(s[3])), mod)
+
 func _draw() -> void:
+	if VitaBoot.runs_on_vita():
+		var t0 := Time.get_ticks_usec()
+		_draw_vita()
+		_last_draw_us = int(Time.get_ticks_usec() - t0)
+		return
 	var kk := k(); var cs := 16.0 * kk
 	var sky_h := sky_height()
 	# night sky + twinkling stars + drifting SPD clouds (surface.png 88,0 / 88,20 / 88,42). Firelight stays off the sky (#225).

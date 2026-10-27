@@ -7,7 +7,9 @@ var path := "user://save.json"
 var autosave := true
 
 func _ready() -> void:
-	load_game()
+	# Vita loads the save after DB.reload() on the loading scene. Other platforms load as before.
+	if not VitaBoot.runs_on_vita():
+		load_game()
 	GameState.changed.connect(_on_changed)
 
 ## Android may kill a backgrounded app at any time: save whenever we lose focus or are asked to quit.

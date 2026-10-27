@@ -338,6 +338,7 @@ func open_page(p: String) -> void:
 func close_page() -> void:
 	open_name = ""; _close_info()
 	if win_layer: win_layer.queue_free(); win_layer = null
+	_vita_camp_visible()
 
 ## A dimmed overlay with a centred SPD window: title row (icon, name, close), an optional pinned materials
 ## strip (vendor pages), a scrolling body, and a footer under the scroller for the page's main action
@@ -366,7 +367,13 @@ func _make_window(title: String, icon_name: String, close_cb: Callable, w_frac :
 	var pc := PanelContainer.new(); layer.add_child(pc)
 	var vs := get_viewport_rect().size
 	var w := minf(vs.x * w_frac, UIKit.font_size * 36.0); var h := vs.y * h_frac
+	# 960×544: a 0.96 window still left the clearing drawing behind it (and that draw was the frame).
+	if VitaBoot.runs_on_vita():
+		w = vs.x * 0.98
+		h = vs.y * 0.96
 	pc.position = ((vs - Vector2(w, h)) / 2.0).floor(); pc.size = Vector2(w, h); pc.custom_minimum_size = Vector2(w, 0)
+	if VitaBoot.runs_on_vita():
+		pc.clip_contents = true
 	var v := UIKit.vbox(pc)
 	var tr := UIKit.hbox(v)
 	var tic: Control = null
@@ -430,6 +437,13 @@ func _fill_window() -> void:
 		_: _page_facility(open_name, FAC_PAGE[open_name])
 	(func(): if is_instance_valid(w[3]): w[3].scroll_vertical = keep_scroll).call_deferred()
 	if info_layer: move_child(info_layer, -1)
+	_vita_camp_visible()
+
+## While a page is open the clearing is hidden, so its _draw does not run under the window.
+func _vita_camp_visible() -> void:
+	if not VitaBoot.runs_on_vita() or scene == null:
+		return
+	scene.visible = open_name == ""
 
 func _p(name: String) -> VBoxContainer:
 	var v: VBoxContainer = pages[name]

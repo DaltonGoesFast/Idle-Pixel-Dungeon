@@ -13,6 +13,10 @@ config_version=5
 config/name="Idle PD"
 config/version="0.50.4"
 run/main_scene="res://scenes/main.tscn"
+; Vita's first scene is a loading card. Parsing main.gd (and the camp it preloads) took ~29s on device
+; and the engine splash is only a flat color until that returns. Desktop, Android, and web stay on main.tscn.
+run/main_scene.vita="res://scenes/vita_boot.tscn"
+run/main_scene.Vita="res://scenes/vita_boot.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 config/icon="res://icon.png"
 config/windows_native_icon="res://assets/branding/idle_pd.ico"

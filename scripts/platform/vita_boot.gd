@@ -6,14 +6,18 @@ extends Node
 
 const LOG := "user://vita_boot.log"
 
+## True on the Vita runtime (feature "vita", OS name "Vita"). Desktop, Android, and web stay false.
+static func runs_on_vita(vita_feature: bool = OS.has_feature("vita"), os_name: String = OS.get_name()) -> bool:
+	return vita_feature or os_name == "Vita"
+
 func _init() -> void:
-	_mark("init")
+	mark("init")
 
 func _ready() -> void:
-	_mark("ready")
+	mark("ready")
 
-func _mark(stage: String) -> void:
-	if OS.get_name() != "Vita":
+func mark(stage: String) -> void:
+	if not runs_on_vita():
 		return
 	var line := "%s static=%d peak=%d user=%s\n" % [stage, OS.get_static_memory_usage(), OS.get_static_memory_peak_usage(), OS.get_user_data_dir()]
 	printerr("[vita-boot] " + line.strip_edges())

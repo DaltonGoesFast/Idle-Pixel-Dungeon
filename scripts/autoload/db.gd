@@ -22,6 +22,9 @@ var talents: Dictionary
 var biome_rooms: Dictionary
 
 func _init() -> void:
+	# Vita shows a loading scene first and calls reload() from there. Other platforms load as before.
+	if VitaBoot.runs_on_vita():
+		return
 	reload()
 
 func reload() -> void:

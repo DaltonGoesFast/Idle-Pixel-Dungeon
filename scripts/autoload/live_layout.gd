@@ -51,6 +51,11 @@ func _ready() -> void:
 	reload()
 
 func _process(_d: float) -> void:
+	# The editor applies chrome offsets every frame. Vita does not edit layout, and a per-frame
+	# tree walk would sit on the same idle step that already costs hundreds of milliseconds.
+	if VitaBoot.runs_on_vita():
+		set_process(false)
+		return
 	if ui_offsets.is_empty() and not editing:
 		return
 	var main := find_main()

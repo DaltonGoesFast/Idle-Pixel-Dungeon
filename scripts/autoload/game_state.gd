@@ -55,6 +55,9 @@ var _suspend_patrol_sync := false  # from_dict's new_game must not publish an em
 var messages: PackedStringArray = []
 
 func _ready() -> void:
+	# Vita defers content until the loading scene has called DB.reload(). Other platforms start here.
+	if VitaBoot.runs_on_vita():
+		return
 	if heroes.is_empty(): new_game()
 
 func now() -> float:
