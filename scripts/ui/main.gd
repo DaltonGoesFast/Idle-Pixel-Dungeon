@@ -64,6 +64,10 @@ func _vita_log(stage: String) -> void:
 	printerr("[vita-boot] %s static=%d peak=%d" % [stage, OS.get_static_memory_usage(), OS.get_static_memory_peak_usage()])
 
 func _ready() -> void:
+	# Desktop stand-in for the Vita panel. The env does not change a normal launch.
+	if OS.get_environment("IDLEPD_VITA") == "1" and not VitaBoot.on_device():
+		get_tree().root.content_scale_size = Vector2i(960, 544)
+		get_window().size = Vector2i(960, 544)
 	_vita_log("main enter")
 	Keybinds.apply()
 	_apply_content_scale()

@@ -71,9 +71,17 @@ const S_DOOR_OVERHANG := 224; const S_DOOR_SIDEWAYS := 227
 const S_GRASS_OVERHANG := 234; const S_GRASS_OVERHANG_ALT := 237
 var _vita_acc := 0.0
 var _last_draw_us := 0
-var _vita_bake: Control
-var _vita_bake_key := ""
+const VITA_FRAME_N := 4
 const VITA_BAKE_LO := -2
+var _vita_frames: Array = []
+var _vita_wall_fx: Array = []
+var _vita_walls: Control
+var _vita_fog: Control
+var _vita_fx: Control
+var _vita_bake_key := ""
+var _vita_fog_key := ""
+var _vita_warm := 0
+var _vita_phase := 0
 
 func _ready() -> void:
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -298,6 +306,8 @@ func _process(d: float) -> void:
 		if _vita_acc >= 1.0 / 12.0:
 			_vita_acc -= 1.0 / 12.0
 			queue_redraw()
+			if _vita_fx != null:
+				_vita_fx.queue_redraw()
 		VitaBoot.add_us("grid_proc", int(Time.get_ticks_usec() - t0))
 	else:
 		queue_redraw()
@@ -612,7 +622,12 @@ func _draw() -> void:
 		var top := _draw_sprite(u.sprite, u.fw, u.fh, fr + int(u.get("row", 0)) * 1000, p, st.flip, scale, mod, fl)
 		_health_bar(u, top, scale)
 		_status_icons(u, top, scale)
-	# 5. walls layer over characters (SPD perspective wall tops / overhangs). Vita bakes these with the ground.
+	# 5. walls layer over characters (SPD perspective wall tops / overhangs).
+	# Vita draws walls, fog, and effects on front canvases so tops stay above sprites.
+	if vita_draw:
+		_last_draw_us = int(Time.get_ticks_usec() - vita_t0)
+		VitaBoot.add_us("grid_draw", _last_draw_us)
+		return
 	if not vita_draw:
 		for y in range(lo, hi_y + 1):
 			for x in range(lo, hi_x + 1):
@@ -643,36 +658,23 @@ func _draw() -> void:
 				draw_polygon(PackedVector2Array([r.position, r.position + Vector2(cs, 0), r.end, r.position + Vector2(0, cs)]),
 					PackedColorArray([Color(0, 0, 0, a), Color(0, 0, 0, b), Color(0, 0, 0, c2), Color(0, 0, 0, d2)]))
 		draw_circle(cell_rect(hero_disp).get_center(), cs * 0.9, Color(1.0, 0.75, 0.35, 0.07 + 0.02 * sin(anim_t * 5.0)))
-	# 7. effects
-	for q in parts:
-		var qa: float = 1.0 - float(q.t) / float(q.life)
-		var px: float = maxf(2.0, ps) * float(q.s)
-		draw_rect(Rect2((origin() + q.p * cs).floor(), Vector2(px, px)), Color(q.c.r, q.c.g, q.c.b, qa))
-	for sh in shots: _draw_shot(sh, cs, ps)
-	for b in blasts:
-		var c := Color(1, 0.6, 0.1, 1.0 - b.t / 0.35) if b.get("fire", false) else Color(1, 0.3, 0.2, 1.0 - b.t / 0.35)
-		if b.get("trap", false): c = Color(1, 0.9, 0.3, 1.0 - b.t / 0.35)
-		if b.get("shock", false): c = Color(0.7, 0.9, 1.0, 1.0 - b.t / 0.35)
-		draw_rect(cell_rect(b.pos).grow(b.t * cs * 0.3), c, false, 3.0)
-	for r in rings:
-		var c := cell_rect(r.pos).get_center()
-		draw_arc(c, (0.5 + r.r) * cs * clampf(r.t / 0.4, 0, 1), 0, TAU, 48, Color(1, 0.85, 0.4, 1.0 - r.t / 0.5), 3.0)
-	# SPD FloatingText: pixel font, rises and fades, whole-pixel sizes
-	var font := get_theme_default_font()
-	var fs := UIKit.font_px(maxf(14, cs * 0.34))
-	for f in floaters:
-		var r := cell_rect(f.pos)
-		var w := font.get_string_size(f.text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
-		var p := (r.get_center() + Vector2(-w / 2.0, -cs * 0.25 - f.t * cs * 0.7)).floor()
-		var col: Color = f.color; col.a = 1.0 - maxf(0, f.t - 0.5) / 0.4
-		draw_string_outline(font, p, f.text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, maxi(2, int(ps)), Color(0, 0, 0, col.a))
-		draw_string(font, p, f.text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, col)
+	# 7. effects. Vita draws these on a front canvas, after the fog.
+	_paint_effects(self)
 	if vita_draw:
 		_last_draw_us = int(Time.get_ticks_usec() - vita_t0)
 		VitaBoot.add_us("grid_draw", _last_draw_us)
 
-## Static arena (ground, walls, revealed traps) on a child item. A pan only moves it. A door, trap,
-## or room change paints it again. Fog polygons and wall particles stay on the phone draw.
+## Ground frames sit behind sprites. Wall tops, fog, and effects are later children, so they draw
+## in front. A pan only moves the baked items. Water and grass are four retained frames.
+func _vita_canvas(node_name: String, behind: bool) -> Control:
+	var c := Control.new()
+	c.name = node_name
+	c.mouse_filter = MOUSE_FILTER_IGNORE
+	c.texture_filter = TEXTURE_FILTER_NEAREST
+	c.show_behind_parent = behind
+	add_child(c)
+	return c
+
 func _vita_place_bake() -> void:
 	if combat == null or size.x < 2.0:
 		return
@@ -680,19 +682,71 @@ func _vita_place_bake() -> void:
 	if cs <= 0.0:
 		return
 	var key := _vita_bake_key_now()
-	if _vita_bake == null:
-		_vita_bake = Control.new()
-		_vita_bake.name = "VitaBake"
-		_vita_bake.mouse_filter = MOUSE_FILTER_IGNORE
-		_vita_bake.texture_filter = TEXTURE_FILTER_NEAREST
-		_vita_bake.show_behind_parent = true
-		_vita_bake.draw.connect(_vita_paint_bake)
-		add_child(_vita_bake)
-	_vita_bake.position = origin() + Vector2(VITA_BAKE_LO, VITA_BAKE_LO) * cs
-	_vita_bake.size = Vector2((_aw() + 4) * cs, (_ah() + 4) * cs)
+	if _vita_frames.is_empty():
+		for i in VITA_FRAME_N:
+			var frame := _vita_canvas("VitaFrame%d" % i, true)
+			frame.draw.connect(_vita_paint_bake.bind(i))
+			_vita_frames.append(frame)
+		_vita_walls = _vita_canvas("VitaWalls", false)
+		_vita_walls.draw.connect(_vita_paint_walls)
+		for i in VITA_FRAME_N:
+			var fx := _vita_canvas("VitaWallFx%d" % i, false)
+			fx.draw.connect(_vita_paint_wall_fx.bind(i))
+			_vita_wall_fx.append(fx)
+		_vita_fog = _vita_canvas("VitaFog", false)
+		_vita_fog.draw.connect(_vita_paint_fog)
+		_vita_fx = _vita_canvas("VitaFx", false)
+		_vita_fx.draw.connect(_vita_paint_effects)
+	var bake_pos := origin() + Vector2(VITA_BAKE_LO, VITA_BAKE_LO) * cs
+	var bake_sz := Vector2((_aw() + 4) * cs, (_ah() + 4) * cs)
+	for i in VITA_FRAME_N:
+		_vita_frames[i].position = bake_pos
+		_vita_frames[i].size = bake_sz
+		_vita_wall_fx[i].position = bake_pos
+		_vita_wall_fx[i].size = bake_sz
+	_vita_walls.position = bake_pos
+	_vita_walls.size = bake_sz
+	_vita_fog.position = bake_pos
+	_vita_fog.size = bake_sz
+	_vita_fx.position = Vector2.ZERO
+	_vita_fx.size = size
 	if key != _vita_bake_key:
 		_vita_bake_key = key
-		_vita_bake.queue_redraw()
+		_vita_warm = 0
+		for i in VITA_FRAME_N:
+			_vita_frames[i].set_meta("vita_painted", false)
+			_vita_wall_fx[i].set_meta("vita_painted", false)
+		_vita_walls.queue_redraw()
+	var ctr := _vita_fog_center()
+	var fog_key := "%s|%s|%s|%s|%s" % [Vector2i(int(round(ctr.x * 2.0)), int(round(ctr.y * 2.0))), int(light_radius() * 4.0), combat.terrain.hash(), combat.units.size(), key]
+	if fog_key != _vita_fog_key:
+		_vita_fog_key = fog_key
+		_vita_fog.queue_redraw()
+	_vita_phase = posmod(int(floor(anim_t / 0.22)), VITA_FRAME_N)
+	var show_i := _vita_warm if _vita_warm < VITA_FRAME_N else _vita_phase
+	for i in VITA_FRAME_N:
+		var on := i == show_i
+		_vita_frames[i].visible = on
+		_vita_wall_fx[i].visible = on
+	if _vita_warm < VITA_FRAME_N:
+		_vita_frames[show_i].queue_redraw()
+		_vita_wall_fx[show_i].queue_redraw()
+
+func _vita_advance_warm(phase: int) -> void:
+	if phase != _vita_warm or phase < 0 or phase >= VITA_FRAME_N:
+		return
+	if not _vita_frames[phase].get_meta("vita_painted", false):
+		return
+	if not _vita_wall_fx[phase].get_meta("vita_painted", false):
+		return
+	_vita_warm = phase + 1
+
+func _vita_fog_center() -> Vector2:
+	var cell := Vector2(combat.hero.pos)
+	var hero: Vector2 = disp.get(combat.hero.uid, cell)
+	if hero.distance_to(cell) > 0.4:
+		return hero
+	return cell
 
 func _vita_bake_key_now() -> String:
 	var doors := ""
@@ -709,22 +763,25 @@ func _vita_bake_key_now() -> String:
 func _vita_cell(c: Vector2, cs: float) -> Rect2:
 	return Rect2(Vector2((c.x - VITA_BAKE_LO) * cs, (c.y - VITA_BAKE_LO) * cs), Vector2(cs, cs))
 
-func _vita_paint_bake() -> void:
-	if combat == null or _vita_bake == null:
+func _vita_paint_bake(phase: int = 0) -> void:
+	var t0 := Time.get_ticks_usec()
+	if combat == null or phase < 0 or phase >= _vita_frames.size():
 		return
-	var ci := _vita_bake
+	var ci: Control = _vita_frames[phase]
 	ci.draw_rect(Rect2(Vector2.ZERO, ci.size), Color(0, 0, 0))
 	var cs := cell_size()
+	var ps := cs / 16.0
 	var lo := VITA_BAKE_LO
 	var hi_x := _aw() + 1
 	var hi_y := _ah() + 1
+	var off := Vector2(float(phase) * 8.0, float(phase) * 4.0)
 	for y in range(lo, hi_y + 1):
 		for x in range(lo, hi_x + 1):
 			var c := Vector2i(x, y)
 			var t := _t(c)
 			var r := _vita_cell(Vector2(x, y), cs)
 			if t == Combat.T.WATER:
-				ci.draw_texture_rect_region(water, r, Rect2(Vector2(x * 16, y * 16), Vector2(16, 16)))
+				ci.draw_texture_rect_region(water, r, Rect2(Vector2(x * 16, y * 16) + off, Vector2(16, 16)))
 			var v := terrain_visual(c)
 			if _pylon(c):
 				v = S_FLOOR
@@ -735,19 +792,128 @@ func _vita_paint_bake() -> void:
 			if t == Combat.T.WALL and _is_wall(c + Vector2i(0, 1)):
 				_tile(r, S_WALL_INTERNAL + 15, ci)
 			if t == Combat.T.GRASS:
-				_tile_grass(r, grass_visual(c), 0.0, ci)
+				var sway := roundf(sin(float(phase) * TAU / 4.0 + float(x) * 0.9 + float(y) * 0.5) * 0.6) * ps
+				_tile_grass(r, grass_visual(c), sway, ci)
 			var go := grass_overhang(c)
 			if go >= 0:
-				_tile(r, go, ci)
+				var sway2 := 0.0
+				if _t(c + Vector2i(0, 1)) == Combat.T.GRASS:
+					sway2 = roundf(sin(float(phase) * TAU / 4.0 + float(x) * 0.9 + float(y + 1) * 0.5) * 0.6) * ps
+				_tile(Rect2(r.position + Vector2(sway2, 0), r.size), go, ci)
 	for k in combat.traps:
 		if not combat.traps[k].hidden:
 			var idx := int(DB.traps[combat.traps[k].id].sprite)
 			ci.draw_texture_rect_region(features, _vita_cell(Vector2(k), cs), Rect2((idx % 16) * 16, (idx / 16) * 16, 16, 16))
+	ci.set_meta("vita_painted", true)
+	_vita_advance_warm(phase)
+	VitaBoot.add_us("grid_bake", int(Time.get_ticks_usec() - t0))
+
+func _vita_paint_walls() -> void:
+	if combat == null or _vita_walls == null:
+		return
+	var ci := _vita_walls
+	var cs := cell_size()
+	var lo := VITA_BAKE_LO
+	var hi_x := _aw() + 1
+	var hi_y := _ah() + 1
 	for y in range(lo, hi_y + 1):
 		for x in range(lo, hi_x + 1):
 			var wv := wall_visual(Vector2i(x, y))
 			if wv >= 0:
 				_tile(_vita_cell(Vector2(x, y), cs), wv, ci)
+
+func _vita_paint_wall_fx(phase: int) -> void:
+	if combat == null or phase < 0 or phase >= _vita_wall_fx.size():
+		return
+	var ci: Control = _vita_wall_fx[phase]
+	var cs := cell_size()
+	var ps := cs / 16.0
+	var ft := float(phase) * 0.22
+	var bio := biome()
+	var lo := VITA_BAKE_LO
+	var hi_x := _aw() + 1
+	var hi_y := _ah() + 1
+	var clip := Rect2(Vector2(-VITA_BAKE_LO, -VITA_BAKE_LO) * cs, Vector2(_aw(), _ah()) * cs)
+	for y in range(lo, hi_y + 1):
+		for x in range(lo, hi_x + 1):
+			var c := Vector2i(x, y)
+			var v := terrain_visual(c)
+			if v - v % 4 == S_RAISED_WALL_DECO or v - v % 4 == S_RAISED_WALL_DECO_ALT:
+				SceneFX.wall_visual(ci, ft, bio, _vita_cell(Vector2(x, y), cs), v, ps, clip)
+			if _t(c) == Combat.T.WATER and bio == "halls":
+				SceneFX.halls_stream(ci, ft, _vita_cell(Vector2(x, y), cs), ps)
+	_chasm_wind(cs, ps, ci, ft, true)
+	ci.set_meta("vita_painted", true)
+	_vita_advance_warm(phase)
+
+func _vita_paint_fog() -> void:
+	var t0 := Time.get_ticks_usec()
+	if combat == null or _vita_fog == null or not lighting:
+		return
+	var lr := light_radius()
+	if lr >= 50.0:
+		return
+	var ci := _vita_fog
+	var cs := cell_size()
+	var lo := VITA_BAKE_LO
+	var hi_x := _aw() + 1
+	var hi_y := _ah() + 1
+	var ctr := _vita_fog_center() + Vector2(0.5, 0.5)
+	var dark := {}
+	for y in range(lo, hi_y + 2):
+		for x in range(lo, hi_x + 2):
+			dark[Vector2i(x, y)] = _corner_dark(x, y, ctr, lr)
+	for y in range(lo, hi_y + 1):
+		for x in range(lo, hi_x + 1):
+			var a: float = dark[Vector2i(x, y)]
+			var b: float = dark[Vector2i(x + 1, y)]
+			var c2: float = dark[Vector2i(x + 1, y + 1)]
+			var d2: float = dark[Vector2i(x, y + 1)]
+			if a + b + c2 + d2 <= 0.0:
+				continue
+			var r := _vita_cell(Vector2(x, y), cs)
+			ci.draw_polygon(PackedVector2Array([r.position, r.position + Vector2(cs, 0), r.end, r.position + Vector2(0, cs)]),
+				PackedColorArray([Color(0, 0, 0, a), Color(0, 0, 0, b), Color(0, 0, 0, c2), Color(0, 0, 0, d2)]))
+	VitaBoot.add_us("grid_fog", int(Time.get_ticks_usec() - t0))
+
+func _vita_paint_effects() -> void:
+	if _vita_fx == null:
+		return
+	_paint_effects(_vita_fx)
+	if lighting and light_radius() < 50.0 and combat != null:
+		var cs := cell_size()
+		var hero_disp: Vector2 = disp.get(combat.hero.uid, Vector2(combat.hero.pos))
+		_vita_fx.draw_circle(cell_rect(hero_disp).get_center(), cs * 0.9, Color(1.0, 0.75, 0.35, 0.07 + 0.02 * sin(anim_t * 5.0)))
+
+func _paint_effects(dst: CanvasItem) -> void:
+	var cs := cell_size()
+	var ps := cs / 16.0
+	for q in parts:
+		var qa: float = 1.0 - float(q.t) / float(q.life)
+		var px: float = maxf(2.0, ps) * float(q.s)
+		dst.draw_rect(Rect2((origin() + q.p * cs).floor(), Vector2(px, px)), Color(q.c.r, q.c.g, q.c.b, qa))
+	for sh in shots:
+		_draw_shot(sh, cs, ps, dst)
+	for b in blasts:
+		var c := Color(1, 0.6, 0.1, 1.0 - b.t / 0.35) if b.get("fire", false) else Color(1, 0.3, 0.2, 1.0 - b.t / 0.35)
+		if b.get("trap", false):
+			c = Color(1, 0.9, 0.3, 1.0 - b.t / 0.35)
+		if b.get("shock", false):
+			c = Color(0.7, 0.9, 1.0, 1.0 - b.t / 0.35)
+		dst.draw_rect(cell_rect(b.pos).grow(b.t * cs * 0.3), c, false, 3.0)
+	for ring in rings:
+		var center := cell_rect(ring.pos).get_center()
+		dst.draw_arc(center, (0.5 + ring.r) * cs * clampf(ring.t / 0.4, 0, 1), 0, TAU, 48, Color(1, 0.85, 0.4, 1.0 - ring.t / 0.5), 3.0)
+	var font := get_theme_default_font()
+	var fs := UIKit.font_px(maxf(14, cs * 0.34))
+	for floater in floaters:
+		var rr := cell_rect(floater.pos)
+		var w := font.get_string_size(floater.text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+		var p := (rr.get_center() + Vector2(-w / 2.0, -cs * 0.25 - floater.t * cs * 0.7)).floor()
+		var col: Color = floater.color
+		col.a = 1.0 - maxf(0, floater.t - 0.5) / 0.4
+		dst.draw_string_outline(font, p, floater.text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, maxi(2, int(ps)), Color(0, 0, 0, col.a))
+		dst.draw_string(font, p, floater.text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, col)
 
 ## Draw one sprite frame bottom-centred in its cell; returns the sprite's top-left (for bars/icons).
 func _draw_sprite(spr: String, fw: int, fh: int, frame: int, p: Vector2, flip: bool, scale: float, mod: Color, white := 0.0) -> Vector2:
@@ -937,7 +1103,8 @@ func _emit_tap(local_pos: Vector2) -> void:
 ## SPD projectiles in flight (cell space -> screen): the spirit arrow item sprite turned along its path
 ## (MissileSprite; the art points up-right), MagicMissile as a bright core pouring particles, Lightning as the
 ## effects.png bolt strip bent at a random midpoint, DeathRay / LightRay beams that thin out as they fade.
-func _draw_shot(sh: Dictionary, cs: float, ps: float) -> void:
+func _draw_shot(sh: Dictionary, cs: float, ps: float, ci: CanvasItem = null) -> void:
+	var dst: CanvasItem = self if ci == null else ci
 	var a := cell_rect(sh.from).get_center(); var b := cell_rect(sh.to).get_center()
 	var k := clampf(float(sh.t) / float(sh.dur), 0.0, 1.0)
 	var px := maxf(1.0, floorf(ps))
@@ -945,9 +1112,9 @@ func _draw_shot(sh: Dictionary, cs: float, ps: float) -> void:
 		"arrow":
 			var ir := UIKit.item_rect(24)   # SPD ItemSpriteSheet.SPIRIT_ARROW
 			var sz := ir.size * px
-			draw_set_transform(a.lerp(b, k).floor(), (b - a).angle() + PI / 4.0)
-			draw_texture_rect_region(sprite("items"), Rect2(-sz / 2.0, sz), ir)
-			draw_set_transform(Vector2.ZERO)
+			dst.draw_set_transform(a.lerp(b, k).floor(), (b - a).angle() + PI / 4.0)
+			dst.draw_texture_rect_region(sprite("items"), Rect2(-sz / 2.0, sz), ir)
+			dst.draw_set_transform(Vector2.ZERO)
 		"magic", "shadow":
 			var col: Color = sh.col
 			var c := a.lerp(b, k)
@@ -957,23 +1124,23 @@ func _draw_shot(sh: Dictionary, cs: float, ps: float) -> void:
 				var j := Vector2(SceneFX._rnd(i, seed) - 0.5, SceneFX._rnd(i + 9, seed) - 0.5) * 3.0 * px
 				var tc := col.lerp(Color(0, 0, 0) if sh.kind == "shadow" else Color.WHITE, SceneFX._rnd(i, 3) * 0.6); tc.a = 1.0 - float(i) / 8.0
 				var ts := maxf(1.0, roundf(3.0 - float(i) * 0.3)) * px
-				draw_rect(Rect2((a.lerp(b, q) + j - Vector2(ts, ts) / 2.0).floor(), Vector2(ts, ts)), tc)
-			draw_rect(Rect2((c - Vector2(2, 2) * px).floor(), Vector2(4, 4) * px), col)
-			draw_rect(Rect2((c - Vector2(1, 1) * px).floor(), Vector2(2, 2) * px), Color.WHITE if sh.kind == "magic" else Color("22102e"))
+				dst.draw_rect(Rect2((a.lerp(b, q) + j - Vector2(ts, ts) / 2.0).floor(), Vector2(ts, ts)), tc)
+			dst.draw_rect(Rect2((c - Vector2(2, 2) * px).floor(), Vector2(4, 4) * px), col)
+			dst.draw_rect(Rect2((c - Vector2(1, 1) * px).floor(), Vector2(2, 2) * px), Color.WHITE if sh.kind == "magic" else Color("22102e"))
 		"lightning":
 			var m := cell_rect(sh.mid).get_center()
 			for seg in [[a, m], [m, b]]:
 				var p0: Vector2 = seg[0]; var p1: Vector2 = seg[1]
-				draw_set_transform(p0.floor(), (p1 - p0).angle())
-				draw_texture_rect_region(effects, Rect2(0, -4.0 * px, p0.distance_to(p1), 8.0 * px), Rect2(16, 0, 16, 8), Color(1, 1, 1, 1.0 - k))
-				draw_set_transform(Vector2.ZERO)
+				dst.draw_set_transform(p0.floor(), (p1 - p0).angle())
+				dst.draw_texture_rect_region(effects, Rect2(0, -4.0 * px, p0.distance_to(p1), 8.0 * px), Rect2(16, 0, 16, 8), Color(1, 1, 1, 1.0 - k))
+				dst.draw_set_transform(Vector2.ZERO)
 		"deathray", "lightray":
 			var h := floorf(8.0 * px * (1.0 - k))
 			if h <= 0.0: return
 			var src := Rect2(16, 16, 16, 8) if sh.kind == "deathray" else Rect2(16, 23, 16, 8)
-			draw_set_transform(a.floor(), (b - a).angle())
-			draw_texture_rect_region(effects, Rect2(0, -h / 2.0, a.distance_to(b) + cs * 0.5, h), src)
-			draw_set_transform(Vector2.ZERO)
+			dst.draw_set_transform(a.floor(), (b - a).angle())
+			dst.draw_texture_rect_region(effects, Rect2(0, -h / 2.0, a.distance_to(b) + cs * 0.5, h), src)
+			dst.draw_set_transform(Vector2.ZERO)
 
 # ---- SPD boss-room dressing (DECISIONS #185) ----
 # Boss arenas keep their combat layout; only the art changes, from SPD's own custom boss tiles:
@@ -1073,7 +1240,9 @@ func _keyed(n: String, t: Vector2i, bg: Array) -> Texture2D:
 ## SPD WindParticle.Wind over every pit cell the hero can see (Level.addVisuals): one faint white mote per cell
 ## every 2.5 s, living 1-2 s, drifting 5 px/s x its size (1-3 px) along one level-wide heading, alpha rising and
 ## falling to size x 0.2. Stateless: each mote is seeded by its cell and cycle, sizes are whole art pixels.
-func _chasm_wind(cs: float, ps: float) -> void:
+func _chasm_wind(cs: float, ps: float, ci: CanvasItem = null, at_time := -1.0, local := false) -> void:
+	var dst: CanvasItem = self if ci == null else ci
+	var time := anim_t if at_time < 0.0 else at_time
 	var ang := float(variance.get(Vector2i(-2, -2), 0)) / 100.0 * TAU
 	var dir := Vector2(cos(ang), sin(ang))
 	for y in _ah():
@@ -1081,8 +1250,8 @@ func _chasm_wind(cs: float, ps: float) -> void:
 			var c := Vector2i(x, y)
 			if _t(c) != Combat.T.CHASM or (lighting and not _visible(c)): continue
 			var sd := x * 31 + y * 17
-			var cyc := floorf((anim_t + SceneFX._rnd(sd, 3) * 2.5) / 2.5)
-			var age := anim_t + SceneFX._rnd(sd, 3) * 2.5 - cyc * 2.5
+			var cyc := floorf((time + SceneFX._rnd(sd, 3) * 2.5) / 2.5)
+			var age := time + SceneFX._rnd(sd, 3) * 2.5 - cyc * 2.5
 			var seq := sd * 1000 + int(cyc)
 			var life := 1.0 + SceneFX._rnd(seq, 5)
 			if age > life: continue
@@ -1090,4 +1259,5 @@ func _chasm_wind(cs: float, ps: float) -> void:
 			var p := 1.0 - age / life
 			var a := (p if p < 0.5 else 1.0 - p) * sz * 0.2
 			var at := Vector2(x + SceneFX._rnd(seq, 9), y + SceneFX._rnd(seq, 11)) * cs + dir * 5.0 * sz * (age - life / 2.0) * ps
-			draw_rect(Rect2((origin() + at).floor(), Vector2(sz, sz) * maxf(1.0, floorf(ps))), Color(1, 1, 1, a))
+			var pos := (at - Vector2(VITA_BAKE_LO, VITA_BAKE_LO) * cs) if local else (origin() + at)
+			dst.draw_rect(Rect2(pos.floor(), Vector2(sz, sz) * maxf(1.0, floorf(ps))), Color(1, 1, 1, a))

@@ -56,7 +56,7 @@ var messages: PackedStringArray = []
 
 func _ready() -> void:
 	# Vita defers content until the loading scene has called DB.reload(). Other platforms start here.
-	if VitaBoot.runs_on_vita():
+	if VitaBoot.on_device():
 		return
 	if heroes.is_empty(): new_game()
 

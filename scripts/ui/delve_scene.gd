@@ -40,10 +40,16 @@ const FLASH_S := 0.05             # SPD CharSprite.FLASH_INTERVAL: full white fo
 var _snd_t := {}
 var _vita_acc := 0.0
 var _last_draw_us := 0
-var _vita_bake: Control
+const VITA_FRAME_N := 4
+var _vita_frames: Array = []
+var _vita_fx: Array = []
+var _vita_light: Control
+var _vita_light_key := ""
 var _vita_bake_key := ""
 var _vita_lo := 0
 var _vita_hi := 0
+var _vita_warm := 0
+var _vita_phase := 0
 
 func _pickup(idx: int, n: int, snd: String) -> void:
 	pops.append({"idx": idx, "age": 0.0, "n": n})
@@ -720,14 +726,23 @@ func _specks(kind: int, tl: Vector2, cs: float, k: float) -> void:
 		var sz := Vector2(7, 7) * k * sc
 		draw_texture_rect_region(_speck_tex, Rect2((pos - sz / 2.0).floor(), sz), Rect2(kind * 7, 0, 7, 7), Color(1, 1, 1, a))
 
-## Vita keeps the static corridor on a child canvas item. Scrolling moves that item; GDScript does not
-## reissue a tile draw until the floor, the encounter, or the baked column window changes. Sprites redraw
-## at 12 fps. Lighting, dust, and the vignette stay on the phone path.
+## Vita keeps the corridor on a few child canvases. Scrolling moves them; GDScript paints again only when
+## the floor, encounter, or column window changes. Four frames hold water drift and grass sway and are
+## shown one at a time. A screen-fixed light canvas is the vignette. Wall drips sit above that light and
+## still behind sprites, matching the phone corridor. Sprites and dust redraw at 12 fps.
+func _vita_canvas(node_name: String) -> Control:
+	var c := Control.new()
+	c.name = node_name
+	c.mouse_filter = MOUSE_FILTER_IGNORE
+	c.texture_filter = TEXTURE_FILTER_NEAREST
+	c.show_behind_parent = true
+	add_child(c)
+	return c
+
 func _vita_place_bake() -> void:
 	var r := _run()
 	if r.is_empty() or size.x < 8.0 or size.y < 8.0:
 		return
-	var k := pk()
 	var cs := cell()
 	var cols := int(ceil(size.x / cs)) + 2
 	var margin := cols + 24
@@ -737,28 +752,80 @@ func _vita_place_bake() -> void:
 	var dying_col := -999 if _dying.is_empty() else int(_dying.get("col", -999))
 	var bucket := int(floor(float(hero_col) / 16.0))
 	var key := "%s|%s|%s|%s|%s|%s|%s" % [r.get("floor", 1), r.get("biome", ""), size, cs, bucket, ev_key, dying_col]
-	if _vita_bake == null:
-		_vita_bake = Control.new()
-		_vita_bake.name = "VitaBake"
-		_vita_bake.mouse_filter = MOUSE_FILTER_IGNORE
-		_vita_bake.texture_filter = TEXTURE_FILTER_NEAREST
-		_vita_bake.show_behind_parent = true
-		_vita_bake.draw.connect(_vita_paint_static)
-		add_child(_vita_bake)
+	if _vita_frames.is_empty():
+		for i in VITA_FRAME_N:
+			var frame := _vita_canvas("VitaFrame%d" % i)
+			frame.draw.connect(_vita_paint_static.bind(i))
+			_vita_frames.append(frame)
+		_vita_light = _vita_canvas("VitaLight")
+		_vita_light.draw.connect(_vita_paint_light)
+		for i in VITA_FRAME_N:
+			var fx := _vita_canvas("VitaFx%d" % i)
+			fx.draw.connect(_vita_paint_fx.bind(i))
+			_vita_fx.append(fx)
 	var hero_x := floorf(size.x * 0.32)
 	if key != _vita_bake_key:
 		_vita_bake_key = key
 		_vita_lo = hero_col - margin
 		_vita_hi = hero_col + margin
-		_vita_bake.queue_redraw()
-	_vita_bake.position = Vector2(hero_x - (scroll - float(_vita_lo)) * cs, 0)
-	_vita_bake.size = Vector2(float(_vita_hi - _vita_lo + 1) * cs, size.y)
+		_vita_warm = 0
+		for i in VITA_FRAME_N:
+			_vita_frames[i].set_meta("vita_painted", false)
+			_vita_fx[i].set_meta("vita_painted", false)
+	var pos := Vector2(hero_x - (scroll - float(_vita_lo)) * cs, 0)
+	var sz := Vector2(float(_vita_hi - _vita_lo + 1) * cs, size.y)
+	for i in VITA_FRAME_N:
+		_vita_frames[i].position = pos
+		_vita_frames[i].size = sz
+		_vita_fx[i].position = pos
+		_vita_fx[i].size = sz
+	_vita_light.position = Vector2.ZERO
+	_vita_light.size = size
+	var dk := Delve.darkness(r)
+	var light_key := "%s|%s|%s|%s" % [size, int(float(r.get("torch", 0)) / 10.0), dk, r.get("biome", "")]
+	if light_key != _vita_light_key:
+		_vita_light_key = light_key
+		_vita_light.queue_redraw()
+	_vita_phase = posmod(int(floor(t / 0.22)), VITA_FRAME_N)
+	var show_i := _vita_warm if _vita_warm < VITA_FRAME_N else _vita_phase
+	for i in VITA_FRAME_N:
+		var on := i == show_i
+		_vita_frames[i].visible = on
+		_vita_fx[i].visible = on
+	if _vita_warm < VITA_FRAME_N:
+		_vita_frames[show_i].queue_redraw()
+		_vita_fx[show_i].queue_redraw()
 
-func _vita_paint_static() -> void:
-	var r := _run()
-	if r.is_empty() or _vita_bake == null:
+func _vita_advance_warm(phase: int) -> void:
+	if phase != _vita_warm or phase < 0 or phase >= VITA_FRAME_N:
 		return
-	var ci := _vita_bake
+	if not _vita_frames[phase].get_meta("vita_painted", false):
+		return
+	if not _vita_fx[phase].get_meta("vita_painted", false):
+		return
+	_vita_warm = phase + 1
+
+func _vita_paint_light() -> void:
+	var r := _run()
+	if r.is_empty() or _vita_light == null:
+		return
+	var cs := cell()
+	var y0 := floorf((size.y - cs * ROWS) / 2.0)
+	var hero_x := floorf(size.x * 0.32)
+	var dk := Delve.darkness(r)
+	var lit := float(r.get("torch", 0)) > 0.0 and not dk
+	var rad := cs * (6.5 if lit else (2.6 if dk else 4.6))
+	var hc := Vector2(hero_x + cs / 2.0, y0 + 3.0 * cs)
+	SceneFX.darkness(_vita_light, Rect2(Vector2.ZERO, size), hc, rad, 0.78)
+	if lit:
+		SceneFX.glow(_vita_light, hc, rad * 0.55, Color(1.0, 0.7, 0.35, 0.10))
+
+func _vita_paint_static(phase: int = 0) -> void:
+	var t0 := Time.get_ticks_usec()
+	var r := _run()
+	if r.is_empty() or phase < 0 or phase >= _vita_frames.size():
+		return
+	var ci: Control = _vita_frames[phase]
 	ci.draw_rect(Rect2(Vector2.ZERO, ci.size), Color(0.02, 0.01, 0.03))
 	var k := pk()
 	var cs := cell()
@@ -766,6 +833,7 @@ func _vita_paint_static() -> void:
 	var biome: Dictionary = DB.biomes[r.biome]
 	var tiles := _t("res://assets/tiles/%s.png" % biome.tile)
 	var water := _t("res://assets/tiles/%s.png" % biome.get("water", "water0"))
+	var wo := Vector2(float(phase) * 8.0, float(phase) * 6.0)
 	var ev := encounter()
 	var hero_col := int(floor(scroll))
 	var stop_col := hero_col + 2
@@ -804,7 +872,7 @@ func _vita_paint_static() -> void:
 					idx = _face_tile(wall, cx)
 				4:
 					if not busy and _puddle_spills(cx):
-						_water_cell(water, rc.position, k, Vector2(cx * 16, 64), Color.WHITE, ci)
+						_water_cell(water, rc.position, k, wo + Vector2(cx * 16, 64), Color.WHITE, ci)
 						_tile_at(tiles, rc, CHASM_WATER, ci)
 					else:
 						_tile_at(tiles, rc, CHASM_FLOOR, ci)
@@ -815,10 +883,10 @@ func _vita_paint_static() -> void:
 				deco_cells.append([rc, cx])
 			if row == 3 and not busy and _grass_at(cx):
 				idx = 2
-				grass_cells.append([rc, cx & 1])
+				grass_cells.append([rc, cx & 1, cx])
 			if not busy and _puddle(cx, row):
 				var wet := func(c2: int, r2: int) -> bool: return r2 <= 1 or (r2 >= 4 and _puddle_spills(c2)) or (_puddle(c2, r2) and not (c2 >= busy_from and c2 <= busy_to))
-				_water_cell(water, rc.position, k, Vector2(cx * 16, row * 16), Color.WHITE, ci)
+				_water_cell(water, rc.position, k, wo + Vector2(cx * 16, row * 16), Color.WHITE, ci)
 				idx = WATER + (0 if wet.call(cx, row - 1) else 1) + (0 if wet.call(cx + 1, row) else 2) + (0 if wet.call(cx, row + 1) else 4) + (0 if wet.call(cx - 1, row) else 8)
 			_tile_at(tiles, rc, idx, ci)
 		if not busy and cx > hero_col + 1 and _h(cx, 5) % 17 == 0 and not _grass_at(cx) and not _deco_at(cx) and not _puddle(cx, 2):
@@ -835,8 +903,60 @@ func _vita_paint_static() -> void:
 		var gr: Rect2 = g[0]
 		var gb: int = HIGH_GRASS[g[1]]
 		var gi: int = HIGH_GRASS_TOP[g[1]]
-		ci.draw_texture_rect_region(_grass_tex(tiles, gb), gr, Rect2(0, 0, 16, 16))
-		ci.draw_texture_rect_region(tiles, Rect2(gr.position + Vector2(0, -cs), gr.size), Rect2((gi % 16) * 16, (gi / 16) * 16, 16, 16))
+		var sw := roundf(sin(float(phase) * TAU / 4.0 + float(g[2]) * 0.9)) * k
+		ci.draw_texture_rect_region(_grass_tex(tiles, gb), Rect2(gr.position + Vector2(sw, 0), gr.size), Rect2(0, 0, 16, 16))
+		ci.draw_texture_rect_region(tiles, Rect2(gr.position + Vector2(sw, -cs), gr.size), Rect2((gi % 16) * 16, (gi / 16) * 16, 16, 16))
+	ci.set_meta("vita_painted", true)
+	_vita_advance_warm(phase)
+	VitaBoot.add_us("delve_bake", int(Time.get_ticks_usec() - t0))
+
+func _vita_paint_fx(phase: int) -> void:
+	var r := _run()
+	if r.is_empty() or phase < 0 or phase >= _vita_fx.size():
+		return
+	var ci: Control = _vita_fx[phase]
+	var k := pk()
+	var cs := cell()
+	var y0 := floorf((size.y - cs * ROWS) / 2.0)
+	var biome_name := String(r.biome)
+	var ft := float(phase) * 0.22
+	var ev := encounter()
+	var hero_col := int(floor(scroll))
+	var stop_col := hero_col + 2
+	var busy_from := stop_col - 1
+	var busy_to := stop_col + 5
+	if ev.is_empty():
+		busy_to = busy_from - 1
+	if ev.is_empty() and not _dying.is_empty():
+		busy_from = int(_dying.col) - 1
+		busy_to = int(_dying.col) + 5
+	var wall := {}
+	for wcx in range(_vita_lo - 1, _vita_hi + 2):
+		var wb := wcx >= busy_from and wcx <= busy_to
+		var wi := _wall_tile(wcx)
+		if _side_door(wcx) and not wb:
+			wi = DOOR_CLOSED
+		if not ev.is_empty():
+			wi = _encounter_wall(ev, wcx - stop_col, wi)
+		wall[wcx] = wi
+	var decos: Array = REGION_DECO.get(biome_name, REGION_DECO.sewers)
+	for cx in range(_vita_lo, _vita_hi + 1):
+		var x := float(cx - _vita_lo) * cs
+		var busy := cx >= busy_from and cx <= busy_to
+		if busy:
+			continue
+		var face := _face_tile(wall, cx)
+		if face in [84, 100]:
+			SceneFX.wall_visual(ci, ft, biome_name, Rect2(x, y0 + cs, cs, cs), face, k)
+		for row in [2, 3]:
+			if _puddle(cx, row) and biome_name == "halls":
+				SceneFX.halls_stream(ci, ft, Rect2(x, y0 + row * cs, cs, cs), k)
+		if biome_name == "city" and _deco_at(cx):
+			var pr: Array = decos[_h(cx, 22) % decos.size()]
+			if pr[0] == 130:
+				SceneFX.green_flame(ci, ft, Vector2(x + cs * 0.5, y0 + 2.0 * cs - cs * 0.55), k, cx)
+	ci.set_meta("vita_painted", true)
+	_vita_advance_warm(phase)
 
 ## Sprites, the open special room, pickup pops, and the fade. Tiles come from the bake.
 func _draw_vita() -> void:
@@ -856,9 +976,11 @@ func _draw_vita() -> void:
 	var ev := encounter()
 	var stop_col := hero_col + 2
 	_vis_left = hero_col - int(ceil(hero_x / cs)) - 1
-	_la = 0.0
-	_lc = Vector2(hero_x + cs / 2.0, y0 + 3 * cs)
-	_lr = cs * 8.0
+	var dk := Delve.darkness(r)
+	var lit := float(r.get("torch", 0)) > 0.0 and not dk
+	_lc = Vector2(hero_x + cs / 2.0, y0 + 3.0 * cs)
+	_lr = cs * (6.5 if lit else (2.6 if dk else 4.6))
+	_la = 0.78
 	var biome: Dictionary = DB.biomes[r.biome]
 	var tiles := _t("res://assets/tiles/%s.png" % biome.tile)
 	var arrive := clampf(_ev_t / 0.45, 0.0, 1.0)
@@ -867,10 +989,11 @@ func _draw_vita() -> void:
 		var ex := floorf(ox + (stop_col - hero_col) * cs)
 		match ev.kind:
 			"floor_done":
-				draw_texture_rect_region(tiles, Rect2(ex, y0 + 2 * cs, cs, cs), Rect2((EXIT % 16) * 16, (EXIT / 16) * 16, 16, 16))
+				draw_texture_rect_region(tiles, Rect2(ex, y0 + 2 * cs, cs, cs), Rect2((EXIT % 16) * 16, (EXIT / 16) * 16, 16, 16), _lm(Vector2(ex + cs / 2.0, y0 + 2.5 * cs)))
 			"campfire":
 				var fp := Vector2(ex + cs / 2.0, y0 + 3.4 * cs).floor()
-				draw_texture_rect_region(_grass_tex(tiles, 3), Rect2(fp - Vector2(cs / 2.0, cs * 0.7), Vector2(cs, cs)), Rect2(0, 0, 16, 16))
+				SceneFX.glow(self, fp - Vector2(0, 3 * k), cs * 2.2, Color(1.0, 0.55, 0.2, 0.25))
+				draw_texture_rect_region(_grass_tex(tiles, 3), Rect2(fp - Vector2(cs / 2.0, cs * 0.7), Vector2(cs, cs)), Rect2(0, 0, 16, 16), _lm(fp))
 				SceneFX.fire(self, fp, k, t, 7.0)
 	var actors := []
 	hit_flash = 0.0
@@ -947,6 +1070,11 @@ func _draw_vita() -> void:
 	actors.sort_custom(func(p, q): return p.feet.y < q.feet.y)
 	for ac in actors:
 		_sprite(ac.spr, ac.fw, ac.fh, ac.fr, ac.row, ac.feet, ac.k, ac.flip, true, ac.flash, ac.alpha)
+	for layer in [[0.3, 0.25, 9], [1.4, 0.5, 6]]:
+		for n in int(layer[2]):
+			var px := fposmod(n * 137.0 * k - scroll * cs * float(layer[0]) + sin(t + n) * k * 3.0, size.x)
+			var py := fposmod(n * 59.0 * k + t * k * 2.0 * (n % 3 + 1), size.y)
+			draw_rect(Rect2(Vector2(px, py).floor(), Vector2(k, k)), Color(1, 0.9, 0.7, float(layer[1])))
 	if glow > 0.0:
 		SceneFX.glow(self, _lc - Vector2(0, cs * 0.6), cs * 1.2, Color(1.0, 0.9, 0.4, 0.3 * glow))
 	var font := get_theme_default_font()

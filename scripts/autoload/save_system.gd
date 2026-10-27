@@ -8,7 +8,7 @@ var autosave := true
 
 func _ready() -> void:
 	# Vita loads the save after DB.reload() on the loading scene. Other platforms load as before.
-	if not VitaBoot.runs_on_vita():
+	if not VitaBoot.on_device():
 		load_game()
 	GameState.changed.connect(_on_changed)
 

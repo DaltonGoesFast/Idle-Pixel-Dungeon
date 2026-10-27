@@ -6,9 +6,20 @@ extends Node
 
 const LOG := "user://vita_boot.log"
 
-## True on the Vita runtime (feature "vita", OS name "Vita"). Desktop, Android, and web stay false.
-static func runs_on_vita(vita_feature: bool = OS.has_feature("vita"), os_name: String = OS.get_name()) -> bool:
+## The real handheld. Startup skips (DB load, the save) use this, not the desktop proxy.
+static func on_device(vita_feature: bool = OS.has_feature("vita"), os_name: String = OS.get_name()) -> bool:
 	return vita_feature or os_name == "Vita"
+
+## True on the Vita runtime (feature "vita", OS name "Vita"). Desktop, Android, and web stay false
+## unless IDLEPD_VITA=1, which forces a default call true so a desktop window can run the Vita
+## draw path. Explicit args such as runs_on_vita(false, "Android") stay false. The env does not
+## make on_device() true, so a proxy still loads db.gd and the save.
+static func runs_on_vita(vita_feature: bool = OS.has_feature("vita"), os_name: String = OS.get_name()) -> bool:
+	if on_device(vita_feature, os_name):
+		return true
+	if OS.get_environment("IDLEPD_VITA") == "1" and vita_feature == OS.has_feature("vita") and os_name == OS.get_name():
+		return true
+	return false
 
 ## Microseconds accumulated since the last tick line. Printed by mark_tick, then cleared.
 static var _us := {}
