@@ -41,7 +41,8 @@ static func use_integer_content_scale(is_web: bool = OS.has_feature("web"), win:
 ## DECISIONS #232: Desktop UI when set to desktop, or Auto on non-mobile. Mobile OS feature covers Android/iOS.
 ## Vita is a 960×544 touch handheld (DECISIONS #244). It keeps the wide mobile chrome even if interface is desktop.
 static func resolve_desktop_ui(settings: Dictionary = GameState.settings, is_mobile: bool = OS.has_feature("mobile"), os_name: String = OS.get_name()) -> bool:
-	if os_name == "Vita":
+	# Real Vita + IDLEPD_VITA desktop proxy both use the mobile split (compact chrome, no desktop toolbar).
+	if os_name == "Vita" or VitaBoot.runs_on_vita():
 		return false
 	match String(settings.get("interface", "auto")):
 		"desktop": return true
@@ -111,8 +112,9 @@ func _open_initial_screen() -> void:
 	_vita_log("screen open")
 
 static func ui_font_size(shortest: float, text_scale: float = 1.0, vita := false) -> int:
+	# Vita: keep chrome compact so the 960×544 combat grid still fits (28–40 made the D-pad/skills dominate).
 	if vita:
-		return int(clampf(shortest / 16.0 * text_scale, 28, 40))
+		return int(clampf(shortest / 22.0 * text_scale, 20, 28))
 	return int(clampf(shortest / 24.0 * text_scale, 14, 60))
 
 func _process(delta: float) -> void:
@@ -182,9 +184,12 @@ func _relayout() -> void:
 	# Desktop chrome uses less padding so the dungeon fills like vanilla SPD.
 	if desktop_ui:
 		l = minf(l, 8.0); t = minf(t, 8.0); r = minf(r, 8.0); b = minf(b, 8.0)
+	if VitaBoot.runs_on_vita():
+		l = 4.0; t = 4.0; r = 4.0; b = 4.0
 	var cap := minf(vs.x, vs.y) * 0.2
+	var margin_floor := 4.0 if (desktop_ui or VitaBoot.runs_on_vita()) else 8.0
 	for p in [["left", l], ["top", t], ["right", r], ["bottom", b]]:
-		margin.add_theme_constant_override("margin_" + p[0], int(clampf(p[1], 4.0 if desktop_ui else 8.0, cap)))
+		margin.add_theme_constant_override("margin_" + p[0], int(clampf(p[1], margin_floor, cap)))
 	var fs := int(clampf(minf(vs.x, vs.y) / 24.0 * float(GameState.settings.get("text_scale", 1.0)), 14, 60))
 	if VitaBoot.runs_on_vita():
 		fs = ui_font_size(minf(vs.x, vs.y), float(GameState.settings.get("text_scale", 1.0)), true)

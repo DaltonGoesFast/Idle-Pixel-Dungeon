@@ -311,6 +311,17 @@ func _fit_split() -> void:
 		if toolbar_scroll:
 			toolbar_scroll.custom_minimum_size.y = _desk_toolbar_h()
 		return
+	if VitaBoot.runs_on_vita():
+		# Physical pad: no on-screen D-pad. Give the arena most of the 960×544 frame.
+		var sep := float(split.get_theme_constant("separation")) if split else 8.0
+		var side_w := minf(260.0, floorf(_area.x * 0.30))
+		var g := floorf(maxf(160.0, minf(_area.y, _area.x - side_w - sep)))
+		grid.custom_minimum_size = Vector2(g, g)
+		grid.size_flags_horizontal = SIZE_SHRINK_BEGIN
+		grid.size_flags_vertical = SIZE_SHRINK_BEGIN
+		if log_scroll:
+			log_scroll.custom_minimum_size.y = UIKit.font_size * 2.0
+		return
 	if _portrait:
 		# Full-width square used to eat the Fold cover; shrink so D-pad + Bag/Auto/Menu stay on screen.
 		var sep := float(split.get_theme_constant("separation")) if split else 12.0
@@ -696,6 +707,9 @@ func _add_skill_buttons(parent: Node) -> void:
 		_btn("Bolt: ON (%d)" % h.charges if mode == "bolt" else "Bolt (%d)" % h.charges, _bolt_press, h.charges > 0, true, parent)
 
 func _build_mobile_controls() -> void:
+	if VitaBoot.runs_on_vita():
+		_build_vita_controls()
+		return
 	# Middle row: half movement, half actions (no side icon column).
 	var actions := UIKit.hbox(buttons)
 	actions.size_flags_horizontal = SIZE_EXPAND_FILL
@@ -703,6 +717,59 @@ func _build_mobile_controls() -> void:
 	actions.add_theme_constant_override("separation", int(UIKit.font_size * 0.35))
 	_build_mobile_pad(actions)
 	_build_mobile_skills(actions)
+	_build_mobile_chrome()
+
+## Vita: physical D-pad/stick — skip the giant on-screen pad so the arena can show. Compact skills + chrome only.
+func _build_vita_controls() -> void:
+	var row_h := UIKit.btn_height()
+	var skills := UIKit.hbox(buttons)
+	skills.size_flags_horizontal = SIZE_EXPAND_FILL
+	skills.size_flags_vertical = SIZE_SHRINK_BEGIN
+	skills.add_theme_constant_override("separation", int(UIKit.font_size * 0.2))
+	var h := combat.hero
+	var tgt := _attack_target()
+	var atk := _icon_btn("Attack", "challenge", _attack_press, not tgt.is_empty(), skills, _attack_weapon_tex())
+	atk.custom_minimum_size = Vector2(row_h, row_h)
+	atk.size_flags_horizontal = SIZE_EXPAND_FILL
+	if "shove" in h.abilities:
+		var shove_on := mode == "shove"
+		var shove := _icon_btn("Shove: ON" if shove_on else "Shove", "arrow", func():
+			mode = "" if mode == "shove" else "shove"
+			grid.mode = mode
+			_refresh()
+		, true, skills)
+		shove.custom_minimum_size = Vector2(row_h, row_h)
+		shove.size_flags_horizontal = SIZE_EXPAND_FILL
+		if shove_on:
+			shove.modulate = Color(1.15, 1.15, 0.85)
+		_register_skill(func(): mode = "" if mode == "shove" else "shove"; grid.mode = mode; _refresh(), true)
+	if "slam" in h.abilities:
+		var can_slam := int(h.slams) > 0 and combat.enemies().any(func(e): return Combat.cheb(e.pos, h.pos) == 1)
+		var slam := _icon_btn("Slam (%d)" % h.slams, "warning", func(): _act(func(): combat.hero_slam()), can_slam, skills)
+		slam.custom_minimum_size = Vector2(row_h, row_h)
+		slam.size_flags_horizontal = SIZE_EXPAND_FILL
+		_register_skill(func(): _act(func(): combat.hero_slam()), can_slam)
+	if not h.cloak.is_empty():
+		var can_cloak := int(h.cloak_charges) > 0 and not combat.hidden()
+		var cloak := _icon_btn("Cloak (%d/%d)" % [int(h.cloak_charges), _cloak_cap(h)], "buffs", func(): _act(func(): combat.hero_cloak()), can_cloak, skills)
+		cloak.custom_minimum_size = Vector2(row_h, row_h)
+		cloak.size_flags_horizontal = SIZE_EXPAND_FILL
+		_register_skill(func(): _act(func(): combat.hero_cloak()), can_cloak)
+	if not h.bolt.is_empty() and not h.bolt.get("infinite", false):
+		var bolt_on := mode == "bolt"
+		var bolt := _icon_btn("Bolt: ON (%d)" % h.charges if bolt_on else "Bolt (%d)" % h.charges, "target", _bolt_press, h.charges > 0, skills)
+		bolt.custom_minimum_size = Vector2(row_h, row_h)
+		bolt.size_flags_horizontal = SIZE_EXPAND_FILL
+		if bolt_on:
+			bolt.modulate = Color(1.15, 1.15, 0.85)
+		_register_skill(_bolt_press, h.charges > 0)
+	var pot_n := potions - potions_used
+	var pot := _icon_btn("Potion of Healing (%d)" % pot_n, "", _drink, pot_n > 0 and h.hp < h.ht, skills, _item_icon_tex("potion_healing"))
+	pot.custom_minimum_size = Vector2(row_h, row_h)
+	pot.size_flags_horizontal = SIZE_EXPAND_FILL
+	_build_mobile_chrome()
+
+func _build_mobile_chrome() -> void:
 	# Bottom chrome: Search, optional Passage, Bag, Auto, Menu.
 	var chrome := UIKit.hbox(buttons)
 	chrome.size_flags_horizontal = SIZE_EXPAND_FILL

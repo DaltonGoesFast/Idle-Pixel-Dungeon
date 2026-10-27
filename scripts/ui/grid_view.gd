@@ -71,7 +71,7 @@ const S_DOOR_OVERHANG := 224; const S_DOOR_SIDEWAYS := 227
 const S_GRASS_OVERHANG := 234; const S_GRASS_OVERHANG_ALT := 237
 var _vita_acc := 0.0
 var _last_draw_us := 0
-const VITA_FRAME_N := 4
+const VITA_FRAME_N := 2
 const VITA_BAKE_LO := -2
 var _vita_frames: Array = []
 var _vita_wall_fx: Array = []
@@ -304,8 +304,9 @@ func _process(d: float) -> void:
 	if vita:
 		_vita_place_bake()
 		_vita_acc += d
-		if _vita_acc >= 1.0 / 12.0:
-			_vita_acc -= 1.0 / 12.0
+		# 8 fps is enough for sprite bob on GXM; 12 was ~200ms/s of grid_proc in the logs.
+		if _vita_acc >= 1.0 / 8.0:
+			_vita_acc -= 1.0 / 8.0
 			queue_redraw()
 			if _vita_fx != null:
 				_vita_fx.queue_redraw()

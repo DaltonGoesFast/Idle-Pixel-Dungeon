@@ -40,7 +40,8 @@ const FLASH_S := 0.05             # SPD CharSprite.FLASH_INTERVAL: full white fo
 var _snd_t := {}
 var _vita_acc := 0.0
 var _last_draw_us := 0
-const VITA_FRAME_N := 4
+# Two water/grass phases: half the warm cost of 4, still enough flicker on 544p.
+const VITA_FRAME_N := 2
 var _vita_frames: Array = []
 var _vita_fx: Array = []
 var _vita_light: Node2D
@@ -746,12 +747,15 @@ func _vita_place_bake() -> void:
 		return
 	var cs := cell()
 	var cols := int(ceil(size.x / maxf(cs, 1.0))) + 2
-	var margin := cols + 24
 	var hero_col := int(floor(scroll))
 	var ev := encounter()
 	var ev_key := "" if ev.is_empty() else "%s|%s" % [ev.get("kind", ""), str(ev.get("mobs", ev.get("special", "")))]
 	var dying_col := -999 if _dying.is_empty() else int(_dying.get("col", -999))
-	var bucket := int(floor(float(hero_col) / 16.0))
+	# Wider scroll buckets: auto-delve was rebaking every ~16 columns (~1–3s each on device).
+	# Margin must cover a full bucket of travel plus the on-screen columns or the strip blanks out.
+	const BAKE_BUCKET := 32
+	var bucket := int(floor(float(hero_col) / float(BAKE_BUCKET)))
+	var margin := cols + BAKE_BUCKET + 2
 	# Integer cell and column span only. The raw control size jitters by a pixel and must not rebake.
 	var key := "%s|%s|%s|%s|%s|%s|%s" % [r.get("floor", 1), r.get("biome", ""), int(round(cs)), cols, bucket, ev_key, dying_col]
 	if _vita_frames.is_empty():
