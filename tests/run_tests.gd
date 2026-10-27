@@ -6482,6 +6482,8 @@ func test_perf_caches(gs, ss) -> void:
 	check(nowhere == null and blocked.path_step(blocked.hero.pos, blocked.hero.pos + Vector2i(3, 0)) == null and blocked.path_hits == nh + 1, "a cached miss is a path hit")
 	var origin: Vector2i = c.hero.pos
 	var dest := origin + Vector2i(1, 0)
+	c._fov_cache.clear()
+	c._fov_stamp = 0
 	var casts: int = c.fov_casts
 	c.sees(origin, dest)
 	c.sees(origin, dest)
