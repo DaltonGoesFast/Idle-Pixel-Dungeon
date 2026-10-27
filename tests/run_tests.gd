@@ -404,29 +404,78 @@ func test_prison(gs) -> void:
 	var s0 = sk.enemies()[0]
 	sk.hit_mob(s0, 99, false, true)
 	check(sk.danger.size() >= 6, "Skeleton death telegraphs a bone burst")
-	# Crazy Thief: steals 5% of pack gold on first hit, flees, escapes if not hit for escape_turns
+	# Crazy Thief (DECISIONS #244): steal, flee at 5/6 speed, escape only out of sight and far enough.
 	var room := ["########", "#H.....#", "#......#", "#......#", "#......#", "#......#", "#.....1#", "########"]
 	var th := Combat.new(); th.setup(room, hs, hs.ht, ["thief"]); th.purse = 100
 	var expect_steal := maxi(1, int(100 * float(DB.mobs.thief.steal_pct)))
+	var min_dist := int(DB.mobs.thief.escape_dist)
+	check(min_dist == 4, "thief escape distance is 4")
 	var tf = th.enemies()[0]
 	tf.pos = Vector2i(2, 1); th.hero.pos = Vector2i(1, 1)
 	th._mob_act(tf)
 	check(int(tf.stolen) == expect_steal, "thief steals 5%% of purse gold on its first melee hit")
-	check(int(tf.escape_left) == int(DB.mobs.thief.escape_turns), "thief escape timer starts at escape_turns")
-	for _i in int(DB.mobs.thief.escape_turns) - 1:
+	check(bool(tf.fleeing), "stealing starts the flee")
+	th.hero.next = 2.0
+	th.run_until_hero()
+	check(is_equal_approx(float(tf.next), 2.2), "a flee step costs 1.2 (delay 1 plus the 5/6 slow)")
+	check(tf.hp > 0 and th.gold_debt == 0, "a visible flee step does not escape")
+	for _i in 16:
+		if tf.hp <= 0 or th.over: break
 		th._mob_act(tf)
-		check(tf.hp > 0 and th.gold_debt == 0, "thief still fleeing before the last escape turn")
-	th._mob_act(tf)
-	check(tf.hp <= 0 and th.gold_debt == expect_steal, "thief escapes with the stolen gold after escape_turns without a hit")
-	check(th.won and th.loot == 0, "an escaped thief clears the room with no kill loot")
+	check(tf.hp > 0 and th.gold_debt == 0, "a thief the hero can see never escapes, however long it runs")
+	# In sight at distance 4, a succeeding roll still does not escape.
 	th = Combat.new(); th.setup(room, hs, hs.ht, ["thief"]); th.purse = 100
 	tf = th.enemies()[0]
-	tf.pos = Vector2i(2, 1); th.hero.pos = Vector2i(1, 1)
+	tf.pos = Vector2i(5, 1); th.hero.pos = Vector2i(1, 1)
+	tf.stolen = expect_steal; tf.fleeing = true; tf.escape_salt = 3
+	check(Combat.cheb(tf.pos, th.hero.pos) == 4 and th.sees(th.hero.pos, tf.pos), "open row of 4 is in sight")
 	th._mob_act(tf)
-	for _i in 2: th._mob_act(tf)
-	var left_before := int(tf.escape_left)
-	th.hit_mob(tf, 1, false, true)
-	check(int(tf.escape_left) == int(DB.mobs.thief.escape_turns), "hitting the fleeing thief resets its escape timer (was %d)" % left_before)
+	check(tf.hp > 0 and th.gold_debt == 0, "distance 4 in sight does not escape even when the roll would pass")
+	# Solid wall: neither side can see. Roll and distance decide it.
+	var walled := ["########", "#H.....#", "########", "#....1.#", "#......#", "#......#", "#......#", "########"]
+	th = Combat.new(); th.setup(walled, hs, hs.ht, ["thief"]); th.purse = 100
+	tf = th.enemies()[0]
+	check(Combat.cheb(tf.pos, th.hero.pos) == 4, "walled pair starts 4 apart")
+	check(not th.sees(th.hero.pos, tf.pos) and not th.sees(tf.pos, th.hero.pos), "a solid wall hides each from the other")
+	tf.stolen = expect_steal; tf.fleeing = true; tf.escape_salt = 0
+	th._mob_act(tf)
+	check(tf.hp > 0 and th.gold_debt == 0, "out of sight at 4 tiles does not escape when the distance roll fails")
+	th = Combat.new(); th.setup(walled, hs, hs.ht, ["thief"]); th.purse = 100
+	tf = th.enemies()[0]
+	tf.stolen = expect_steal; tf.fleeing = true; tf.escape_salt = 3
+	th._mob_act(tf)
+	check(tf.hp <= 0 and th.gold_debt == expect_steal and th.loot == 0 and th.won, "out of sight at 4 tiles escapes when the roll passes, with no kill loot")
+	# One tile short of the minimum, no roll can save the thief.
+	th = Combat.new(); th.setup(walled, hs, hs.ht, ["thief"]); th.purse = 100
+	tf = th.enemies()[0]
+	tf.pos = Vector2i(4, 3); th.hero.pos = Vector2i(1, 1)
+	check(Combat.cheb(tf.pos, th.hero.pos) == 3 and not th.sees(th.hero.pos, tf.pos), "three tiles through the wall is still hidden")
+	tf.stolen = expect_steal; tf.fleeing = true; tf.escape_salt = 2
+	th._mob_act(tf)
+	check(tf.hp > 0 and th.gold_debt == 0, "distance 3 never escapes")
+	for min_d in [3, 4, 5]:
+		for dist in range(min_d, min_d + 4):
+			var ok := 0
+			for salt in dist:
+				tf.escape_salt = salt
+				if th._escape_roll_succeeds(tf, dist, min_d): ok += 1
+			check(ok == dist - min_d + 1, "distance roll scaled to %d hits %d/%d at range %d" % [min_d, dist - min_d + 1, dist, dist])
+	# Cornered and still in sight: fight, don't vanish.
+	var box := ["########", "#1.....#", "#H.....#", "#......#", "#......#", "#......#", "#......#", "########"]
+	th = Combat.new(); th.setup(box, hs, hs.ht, ["thief"]); th.purse = 100
+	tf = th.enemies()[0]
+	tf.stolen = expect_steal; tf.fleeing = true; tf.escape_salt = 3
+	th.hero.dr = 0; th.hero.barrier = 0
+	var hp0 := int(th.hero.hp)
+	th._mob_act(tf)
+	check(tf.hp > 0 and th.gold_debt == 0 and not bool(tf.fleeing), "a cornered thief that can see you turns and fights")
+	check(int(th.hero.hp) < hp0, "the cornered thief swings instead of escaping")
+	# Kill returns the reserved gold; it is not paid again on top of the thief's loot.
+	th = Combat.new(); th.setup(room, hs, hs.ht, ["thief"]); th.purse = 100
+	tf = th.enemies()[0]
+	tf.stolen = expect_steal
+	th.hit_mob(tf, 99, false, true)
+	check(tf.hp <= 0 and th.gold_debt == 0 and th.loot == int(DB.mobs.thief.loot) and th.xp == int(DB.mobs.thief.exp), "killing the thief returns the gold and still drops its own loot")
 	gs.start_run("warrior", {}, "prison", 42)
 	gs.run.pack.gold = 100
 	var res := {"won": true, "hp": hs.ht, "loot": 0, "fallen_loot": 0, "gold_debt": expect_steal, "xp": 0, "boss_killed": false, "kills": 0, "traps_found": 0, "trap_ids": []}
