@@ -5755,9 +5755,10 @@ func test_board_caches(gs) -> void:
 	var step2 = c.path_step(c.hero.pos, rat.pos)
 	check(step1 != null and step1 == step2, "path_step warm matches cold")
 	check(c._path_cache.size() >= 1, "path_step stores results including null misses")
-	# Wall off every approach so no adjacent step to the rat remains.
-	for p in [Vector2i(3, 1), Vector2i(4, 0), Vector2i(4, 2), Vector2i(5, 1)]:
-		c.terrain[p.y][p.x] = Combat.T.WALL
+	# Wall off every 8-way neighbour so no cell adjacent to the rat is reachable.
+	for d in Combat.DIRS:
+		var p: Vector2i = rat.pos + d
+		if c.in_bounds(p): c.terrain[p.y][p.x] = Combat.T.WALL
 	check(c.path_step(c.hero.pos, rat.pos) == null, "path stamp refreshes when the target is walled in")
 	c.invalidate_board_caches()
 	var miss = c.path_step(Vector2i(0, 0), Vector2i(7, 7))
