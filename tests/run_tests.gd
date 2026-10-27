@@ -144,6 +144,8 @@ func _ready() -> void:
 	await test_wipe_save_confirm(gs)
 	await test_victory_card(gs)
 	await test_telemetry(gs)
+	test_perf_caches(gs, ss)
+	await test_perf_redraw(gs)
 	print("TESTS: %d passed, %d failed -> %s" % [passes, fails, "PASS" if fails == 0 else "FAIL"])
 	get_tree().quit(1 if fails else 0)
 
@@ -6451,3 +6453,159 @@ func test_patrol_widget(gs) -> void:
 	gs.settings.dev_tools = had_dev
 	gs.settings.patrol_notify = false
 	gs.new_game()
+
+## DECISIONS #244: sight, path steps, and icon indexes are reused; saves from a burst share one write.
+func test_perf_caches(gs, ss) -> void:
+	print("[perf caches]")
+	var rows := ["########", "#......#", "#.H1...#", "#......#", "#......#", "#......#", "#......#", "########"]
+	var c := Combat.new()
+	c.setup(rows, warrior(gs), 99, ["rat"])
+	var foe: Dictionary = c.enemies()[0]
+	var step = c.path_step(foe.pos, c.hero.pos)
+	var hits: int = c.path_hits
+	check(c.path_step(foe.pos, c.hero.pos) == step and c.path_hits == hits + 1, "path_step reuses the cached step")
+	c._path_cache.clear()
+	c._path_stamp = 0
+	check(c.path_step(foe.pos, c.hero.pos) == step, "a cold path_step matches the cached step")
+	foe.pos += Vector2i(0, 1)
+	var hits2: int = c.path_hits
+	c.path_step(foe.pos, c.hero.pos)
+	check(c.path_hits == hits2, "moving a unit misses the path cache")
+	var blocked := Combat.new()
+	blocked.setup(rows, warrior(gs), 99, ["rat"])
+	for y in blocked.h:
+		for x in blocked.w:
+			blocked.terrain[y][x] = Combat.T.WALL
+	blocked.terrain[blocked.hero.pos.y][blocked.hero.pos.x] = Combat.T.FLOOR
+	var nowhere = blocked.path_step(blocked.hero.pos, blocked.hero.pos + Vector2i(3, 0))
+	var nh: int = blocked.path_hits
+	check(nowhere == null and blocked.path_step(blocked.hero.pos, blocked.hero.pos + Vector2i(3, 0)) == null and blocked.path_hits == nh + 1, "a cached miss is a path hit")
+	var origin: Vector2i = c.hero.pos
+	var dest := origin + Vector2i(1, 0)
+	var casts: int = c.fov_casts
+	c.sees(origin, dest)
+	c.sees(origin, dest)
+	check(c.fov_casts == casts + 1, "a second sees from the same cell does not recast")
+	c.sees(origin + Vector2i(0, 2), dest)
+	check(c.fov_casts == casts + 2, "a new origin casts once")
+	c.sees(origin + Vector2i(0, 2), dest)
+	check(c.fov_casts == casts + 2, "that origin stays cached")
+	var flip := Vector2i(1, 1)
+	c.terrain[flip.y][flip.x] = Combat.T.WALL if c.tile(flip) != Combat.T.WALL else Combat.T.FLOOR
+	var mid: int = c.fov_casts
+	c.sees(origin, dest)
+	check(c.fov_casts == mid + 1, "a terrain change recasts sight")
+	DB._icon_cache.erase("potion_healing")
+	var icon_a := DB.icon_index("potion_healing")
+	var icon_b := DB.icon_index("potion_healing")
+	check(icon_a == icon_b and DB._icon_cache.has("potion_healing"), "icon_index caches a repeated id")
+	DB._icon_cache.erase("potion_healing")
+	check(DB.icon_index("potion_healing") == icon_a, "a cold icon_index matches the cached value")
+	var old_auto := ss.autosave
+	var old_path := ss.path
+	ss.autosave = false
+	ss._dirty = false
+	ss.request_save()
+	check(not ss._dirty, "autosave off ignores request_save")
+	ss.path = "user://perf_coalesce.json"
+	if FileAccess.file_exists(ss.path):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(ss.path))
+	ss.autosave = true
+	ss.request_save()
+	ss.request_save()
+	check(ss._dirty and not FileAccess.file_exists(ss.path), "two request_save calls arm one write")
+	ss._process(0.2)
+	check(ss._dirty and not FileAccess.file_exists(ss.path), "the save gap has not elapsed")
+	ss._process(0.5)
+	check(FileAccess.file_exists(ss.path) and not ss._dirty, "one coalesced write lands")
+	ss.request_save()
+	check(ss.save_game() and not ss._dirty, "save_game writes immediately and clears the pending save")
+	if FileAccess.file_exists(ss.path):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(ss.path))
+	ss.autosave = old_auto
+	ss.path = old_path
+	ss._dirty = false
+	ss._wait = 0.0
+
+## DECISIONS #244: idle frames keep baked tiles, and a refresh retitles buttons and chips instead of freeing them.
+func test_perf_redraw(gs) -> void:
+	print("[perf redraw]")
+	gs.new_game()
+	gs.settings.tutorial = false
+	var camp = load("res://scripts/ui/camp_screen.gd").new()
+	add_child(camp)
+	camp.size = Vector2(480, 800)
+	await get_tree().process_frame
+	var chip: Node = camp.summary.get_child(0)
+	var side0: int = camp.side.get_child(0).get_instance_id()
+	camp.rebuild()
+	check(camp.summary.get_child(0) == chip and camp.side.get_child(0).get_instance_id() == side0, "unchanged camp chips and the dock stay put")
+	gs.add_mat("gold", 3)
+	camp.rebuild()
+	check(camp.summary.get_child(0) == chip and (chip.get_child(1) as Label).text == str(gs.mat("gold")), "the gold chip updates in place")
+	camp.open_page("Forge")
+	var layer: Control = camp.win_layer
+	var mat_chip: Node = layer.find_child("Mat_gold", true, false)
+	camp.rebuild()
+	check(camp.win_layer == layer and layer.find_child("Mat_gold", true, false) == mat_chip, "an open Forge window and its material chips are reused")
+	camp.close_page()
+	var scene: Node = camp.scene
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var ground0: int = scene._ground_draws
+	for _i in 5:
+		await get_tree().process_frame
+	check(ground0 > 0 and scene._ground_draws == ground0, "idle camp grass stays baked (%d)" % scene._ground_draws)
+	camp.queue_free()
+	gs.start_run("warrior", {"ration": 1, "torch": 1}, "sewers", 5)
+	gs.run.supplies.scroll_passage = 0
+	var fight = load("res://scripts/ui/combat_screen.gd").new()
+	var ev := Delve.combat_event(gs.run, Delve.rng_for(gs.run, 1), ["rat"])
+	fight.setup(ev, func(_r): pass)
+	add_child(fight)
+	fight.size = Vector2(480, 800)
+	fight.apply_layout(true, fight.size)
+	var atk: Button = fight._named_btn("Attack")
+	var id1: int = atk.get_instance_id()
+	fight._refresh()
+	check(fight._named_btn("Attack").get_instance_id() == id1, "a second combat refresh keeps the Attack button")
+	var shove: Button = fight._named_btn("Shove")
+	fight.mode = "shove"
+	fight.grid.mode = "shove"
+	fight._refresh()
+	check(shove.get_instance_id() == fight._named_btn("Shove").get_instance_id() and shove.tooltip_text == "Shove: ON", "Shove retitles the same button")
+	gs.run.supplies.scroll_passage = 1
+	fight._refresh()
+	check(fight._named_btn("Attack").get_instance_id() != id1 and fight._named_btn("Passage") != null, "gaining a Scroll of Passage rebuilds the toolbar")
+	fight.finished = true
+	fight._refresh()
+	check(fight._named_btn("Attack") == null, "a finished fight clears the action buttons")
+	fight.queue_free()
+	var gv = load("res://scripts/ui/grid_view.gd").new()
+	gv.size = Vector2(460, 460)
+	gv.lighting = true
+	var arena := Combat.new()
+	arena.setup(DB.rooms[0], warrior(gs), 20, ["gnoll"])
+	gv.set_combat(arena)
+	add_child(gv)
+	for _j in 3:
+		await get_tree().process_frame
+	var g0: int = gv._ground_draws
+	var w0: int = gv._wall_draws
+	var f0: int = gv._fog_draws
+	for _k in 5:
+		await get_tree().process_frame
+	check(g0 > 0 and gv._ground_draws == g0 and gv._wall_draws == w0 and gv._fog_draws == f0, "an idle arena keeps ground, walls, and fog (%d)" % g0)
+	gv.queue_free()
+	var delve := DelveScene.new()
+	delve.size = Vector2(960, 280)
+	add_child(delve)
+	for _n in 3:
+		await get_tree().process_frame
+	var s0: int = delve._static_draws
+	for _p in 5:
+		await get_tree().process_frame
+	check(s0 > 0 and delve._static_draws == s0, "a still corridor keeps its tile bake (%d)" % s0)
+	delve.queue_free()
+	gs.new_game()
+	await get_tree().process_frame

@@ -20,11 +20,13 @@ var milestone_categories: Array   # display order of milestone categories (DECIS
 var tips: Dictionary
 var talents: Dictionary
 var biome_rooms: Dictionary
+var _icon_cache := {}
 
 func _init() -> void:
 	reload()
 
 func reload() -> void:
+	_icon_cache.clear()
 	heroes = _strip(_load("heroes"))
 	mobs = _strip(_load("mobs"))
 	var it := _load("items")
@@ -74,10 +76,19 @@ func display_name(id: String) -> String:
 	return mat_name(id)
 
 ## Icon index into assets/sprites/items.png (16x16 cells, 16 per row).
+## Repeated ids (chips, pops, bag rows) hit the cache; reload() drops it (DECISIONS #244).
 func icon_index(id: String) -> int:
-	if icons.has(id): return int(icons[id])
-	if materials.get(id, {}).get("unknown", false):
-		var lk: String = GameState.mat_icon_key(id)
-		if lk != "": return int(icons.get(lk, 0))
-	var key: String = items.get(id, materials.get(id, {})).get("icon", "SOMETHING")
-	return int(icons.get(key, 0))
+	if _icon_cache.has(id): return int(_icon_cache[id])
+	var n := 0
+	if icons.has(id):
+		n = int(icons[id])
+	else:
+		var lk := ""
+		if materials.get(id, {}).get("unknown", false): lk = GameState.mat_icon_key(id)
+		if lk != "":
+			n = int(icons.get(lk, 0))
+		else:
+			var key: String = items.get(id, materials.get(id, {})).get("icon", "SOMETHING")
+			n = int(icons.get(key, 0))
+	_icon_cache[id] = n
+	return n

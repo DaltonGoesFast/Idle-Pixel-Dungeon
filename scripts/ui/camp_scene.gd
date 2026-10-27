@@ -36,15 +36,68 @@ func _ready() -> void:
 	texture_filter = TEXTURE_FILTER_NEAREST
 	mouse_filter = MOUSE_FILTER_STOP
 	clip_contents = true
-	if not LiveLayout.layout_changed.is_connected(queue_redraw):
-		LiveLayout.layout_changed.connect(queue_redraw)
+	_shadow = load("res://assets/ui/shadow.png")
+	_ground = Control.new()
+	_ground.name = "CampGround"
+	_ground.mouse_filter = MOUSE_FILTER_IGNORE
+	_ground.texture_filter = TEXTURE_FILTER_NEAREST
+	_ground.show_behind_parent = true
+	_ground.z_index = -1
+	_ground.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
+	_ground.draw.connect(_paint_ground)
+	add_child(_ground)
+	if not LiveLayout.layout_changed.is_connected(_on_layout):
+		LiveLayout.layout_changed.connect(_on_layout)
+	resized.connect(_sync_ground)
 
 var _acc := 0.0
+var _shadow: Texture2D
+var _star_rng := RandomNumberGenerator.new()
+var _ground: Control
+var _ground_key := ""
+var _ground_draws := 0
+var _paint: CanvasItem
+
+func _on_layout() -> void:
+	_ground_key = ""
+	_sync_ground()
+	queue_redraw()
+
 func _process(d: float) -> void:
 	# Camp motion (clouds, fire, stars, pot) at ~60 fps so drift and flicker stay smooth (#225).
 	t += d; _acc += d
+	_sync_ground()
 	if _acc >= 1.0 / 60.0 and is_visible_in_tree():
 		_acc = 0.0; queue_redraw()
+
+## The grass grid does not move with the fire, stars, or clouds. One bake, then the node stays (DECISIONS #244).
+func _sync_ground() -> void:
+	if _ground == null: return
+	var key := "%s|%s|%s" % [size, sky_height(), FIRE_Y]
+	if key == _ground_key: return
+	_ground_key = key
+	_ground_draws += 1
+	_ground.queue_redraw()
+
+func _paint_ground() -> void:
+	var t0 := Time.get_ticks_usec()
+	_paint = _ground
+	var kk := k(); var cs := 16.0 * kk
+	var sky_h := sky_height()
+	var cols := int(ceil(size.x / cs)) + 1
+	var rows := int(ceil((size.y - sky_h) / cs)) + 1
+	var ox := floorf((size.x - cols * cs) / 2.0)
+	var fire := Vector2(size.x * 0.5, ground_y(FIRE_Y))
+	_ground.draw_rect(Rect2(0, sky_h, size.x, size.y - sky_h), Color("2f4a22"))
+	for y in rows:
+		for x in cols:
+			var rc := Rect2(ox + x * cs, sky_h + y * cs, cs, cs)
+			var hh := (x * 73856093) ^ (y * 19349663)
+			var ctr := rc.get_center()
+			var path := absf(ctr.x - fire.x) < cs * 0.6 and ctr.y > fire.y
+			_tile(rc, (0 if hh % 3 else 6) if path else (2 if hh % 4 else 8))
+	_paint = null
+	draw_us_sum += int(Time.get_ticks_usec() - t0)
 
 func _sprite(n: String) -> Texture2D:
 	if not tex.has(n): tex[n] = load("res://assets/sprites/%s.png" % n)
@@ -136,9 +189,10 @@ func _sky_tex(kk: float, sky_h: float) -> ImageTexture:
 	return _sky
 
 func _tile(r: Rect2, idx: int, tx: Texture2D = null) -> void:
+	var ci: CanvasItem = _paint if _paint != null else self
 	if tx is ImageTexture and tx.get_width() == 16:
-		draw_texture_rect_region(tx, r, Rect2(0, 0, 16, 16)); return
-	draw_texture_rect_region(tx if tx else tiles, r, Rect2((idx % 16) * 16, (idx / 16) * 16, 16, 16))
+		ci.draw_texture_rect_region(tx, r, Rect2(0, 0, 16, 16)); return
+	ci.draw_texture_rect_region(tx if tx else tiles, r, Rect2((idx % 16) * 16, (idx / 16) * 16, 16, 16))
 
 ## Sky height: about two tiles at most, capped lower so the clearing has room for seated heroes.
 func sky_height() -> float:
@@ -277,7 +331,7 @@ func _draw_pot(sr: Rect2, fire: Vector2, frad: float, flk: float) -> void:
 func _draw_spot_sprite(s: Array, fire: Vector2, frad: float, flk: float) -> void:
 	var kk := k()
 	var sr := spot_rect(s)
-	draw_texture_rect_region(load("res://assets/ui/shadow.png"), Rect2(sr.position.x + sr.size.x * 0.1, sr.end.y - kk * 3, sr.size.x * 0.8, kk * 5), Rect2(0, 0, 6, 6), Color(1, 1, 1, 0.6))
+	draw_texture_rect_region(_shadow, Rect2(sr.position.x + sr.size.x * 0.1, sr.end.y - kk * 3, sr.size.x * 0.8, kk * 5), Rect2(0, 0, 6, 6), Color(1, 1, 1, 0.6))
 	if hot == s[0]: draw_rect(sr.grow(kk * 2), Color(1, 1, 0.6, 0.18))
 	match s[1]:
 		"_pot":
@@ -301,7 +355,7 @@ func _draw_hero(c: String, r: Rect2, fire: Vector2, frad: float, flk: float) -> 
 	var hf := int(hfl[int(t * float(idle.fps) + phase) % hfl.size()])
 	var cols_h := int(hs.get_width() / 12)
 	var src := Rect2((hf % cols_h) * 12, (hf / cols_h + GameState.armor_tier(c)) * 15, 12, 15)
-	draw_texture_rect_region(load("res://assets/ui/shadow.png"), Rect2(r.position.x + r.size.x * 0.1, r.end.y - kk * 3, r.size.x * 0.8, kk * 5), Rect2(0, 0, 6, 6), Color(1, 1, 1, 0.55))
+	draw_texture_rect_region(_shadow, Rect2(r.position.x + r.size.x * 0.1, r.end.y - kk * 3, r.size.x * 0.8, kk * 5), Rect2(0, 0, 6, 6), Color(1, 1, 1, 0.55))
 	var mod := SceneFX.firelit(r.get_center(), fire, frad, flk)
 	if not GameState.heroes[c].get("patrol", {}).is_empty():
 		mod = Color(mod.r * 0.45, mod.g * 0.45, mod.b * 0.5, 0.75)
@@ -310,12 +364,16 @@ func _draw_hero(c: String, r: Rect2, fire: Vector2, frad: float, flk: float) -> 
 		mod = Color(minf(1.0, mod.r * 1.12), minf(1.0, mod.g * 1.1), minf(1.0, mod.b * 1.05), mod.a)
 	draw_texture_rect_region(hs, r, src, mod)
 
+var draw_n := 0
+var draw_us_sum := 0
+
 func _draw() -> void:
+	var _t0 := Time.get_ticks_usec()
 	var kk := k(); var cs := 16.0 * kk
 	var sky_h := sky_height()
 	# night sky + twinkling stars + drifting SPD clouds (surface.png 88,0 / 88,20 / 88,42). Firelight stays off the sky (#225).
 	draw_texture_rect(_sky_tex(kk, sky_h), Rect2(0, 0, size.x, sky_h), false)
-	var r := RandomNumberGenerator.new(); r.seed = 7
+	var r := _star_rng; r.seed = 7
 	for i in 40:
 		var p := Vector2(r.randf() * size.x, r.randf() * sky_h * 0.9)
 		var base := 0.45 + 0.55 * r.randf()
@@ -335,18 +393,7 @@ func _draw() -> void:
 		var cy := minf(4 * kk + i * 9 * kk, sky_h - cl.size.y * kk * 0.75)
 		draw_texture_rect_region(surface, Rect2(Vector2(cx, cy).floor(), cl.size * kk * 0.75), cl, Color(1, 1, 1, 0.55))
 	# ground: grass with alternates, a stone path to the fire, tall grass along the horizon
-	var cols := int(ceil(size.x / cs)) + 1
-	var rows := int(ceil((size.y - sky_h) / cs)) + 1
-	var ox := floorf((size.x - cols * cs) / 2.0)
 	var fire := Vector2(size.x * 0.5, ground_y(FIRE_Y))
-	draw_rect(Rect2(0, sky_h, size.x, size.y - sky_h), Color("2f4a22"))
-	for y in rows:
-		for x in cols:
-			var rc := Rect2(ox + x * cs, sky_h + y * cs, cs, cs)
-			var h := (x * 73856093) ^ (y * 19349663)
-			var ctr := rc.get_center()
-			var path := absf(ctr.x - fire.x) < cs * 0.6 and ctr.y > fire.y
-			_tile(rc, (0 if h % 3 else 6) if path else (2 if h % 4 else 8))
 	var seats: Array = hero_rects()
 	# raised grass after the night pass (not darkened twice); never over NPCs, barrels, or seated heroes
 	var grass: Array = grass_clumps(seats)
@@ -405,6 +452,8 @@ func _draw() -> void:
 		if hr.has_area():
 			draw_rect(hr.grow(kk * 2), Color(0.2, 0.9, 1.0, 0.2))
 			draw_rect(hr.grow(kk * 2), Color(0.3, 0.95, 1.0, 0.95), false, maxf(2.0, kk * 0.75))
+	draw_n += 1
+	draw_us_sum += int(Time.get_ticks_usec() - _t0)
 
 ## Rect for the Live Editor's current camp selection (empty if none / not on this scene).
 func _live_sel_rect() -> Rect2:

@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Camp, delve, and combat keep static tiles on a layer and redraw them only when the map changes. Unchanged buttons, chips, and open windows update in place, and a burst of actions shares one save. Sight, path steps, and item icons are cached (DECISIONS #244, +tests).
 
 ## 0.50.4
 - The player-facing title is Idle PD.

@@ -56,6 +56,24 @@ func _ready() -> void:
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	clip_contents = true; mouse_filter = MOUSE_FILTER_IGNORE
 	_anims = JSON.parse_string(FileAccess.get_file_as_string("res://data/anims.json"))
+	_bg = _layer("DelveBg", -10)
+	_water_lyr = _layer("DelveWater", -6)
+	_bake = _layer("DelveBake", -5)
+	_bg.draw.connect(_paint_bg)
+	_water_lyr.draw.connect(_paint_water)
+	_bake.draw.connect(_paint_bake)
+	resized.connect(func(): _bake_key = "")
+
+func _layer(nm: String, z: int) -> Control:
+	var n := Control.new()
+	n.name = nm
+	n.mouse_filter = MOUSE_FILTER_IGNORE
+	n.texture_filter = TEXTURE_FILTER_NEAREST
+	n.show_behind_parent = true
+	n.z_as_relative = true
+	n.z_index = z
+	add_child(n)
+	return n
 
 func _t(n: String) -> Texture2D:
 	if not _tex.has(n): _tex[n] = load(n)
@@ -105,6 +123,7 @@ func _process(delta: float) -> void:
 		_dying.age = float(_dying.age) + delta
 		# kept until the fight's columns scroll off the left edge, so its cleared ground never pops props in view
 		if float(_dying.age) > 2.5 and (int(_dying.col) + 6 < _vis_left or float(_dying.age) > 30.0): _dying = {}
+	_sync_static()
 	queue_redraw()   # 60 fps: the draw is now ~40 quads (DECISIONS #99)
 
 ## The wall face at the encounter (DECISIONS #179): a door card shows its two doors, closed or locked if that door
@@ -259,84 +278,202 @@ func _top_tile(wall: Dictionary, cx: int) -> int:
 
 const CHASM_FLOOR := 25; const CHASM_WATER := 28   # DungeonTileSheet CHASM + 1 / + 4
 
-func _tile_at(tiles: Texture2D, rc: Rect2, idx: int) -> void:
-	draw_texture_rect_region(tiles, rc, Rect2((idx % 16) * 16, (idx / 16) * 16, 16, 16))
+func _tile_at(tiles: Texture2D, rc: Rect2, idx: int, ci: CanvasItem = null) -> void:
+	(ci if ci != null else self).draw_texture_rect_region(tiles, rc, Rect2((idx % 16) * 16, (idx / 16) * 16, 16, 16))
 
 func _side_door(cx: int) -> bool:
 	return _h(cx, 3) % 23 == 0 and not _deco_at(cx)
 
-func _draw() -> void:
-	var r := _run()
-	if r.is_empty(): return
-	var k := pk(); var cs := cell()
-	draw_rect(Rect2(Vector2.ZERO, size), Color(0.02, 0.01, 0.03))
-	var y0 := floorf((size.y - cs * ROWS) / 2.0)
-	var biome: Dictionary = DB.biomes[r.biome]
-	var tiles := _t("res://assets/tiles/%s.png" % biome.tile)
+var draw_n := 0
+var draw_us_sum := 0
+var _bg: Control
+var _water_lyr: Control
+var _bake: Control
+var _bake_key := ""
+var _win_lo := 0
+var _win_hi := -1
+var _static_draws := 0
+var _bg_key := ""
+
+## Camera span shared by the scrolling bake and the per-frame actors. cs is an integer multiple of 16,
+## so floor(ox + i * cs) == floor(ox) + i * cs and the bake can scroll by moving the node (DECISIONS #244).
+func _span() -> Dictionary:
+	var cs := cell()
 	var cols := int(ceil(size.x / cs)) + 2
-	var base := int(floor(scroll)); var frac := scroll - base
+	var base := int(floor(scroll))
+	var frac := scroll - float(base)
 	var hero_x := floorf(size.x * 0.32)
-	var ox := hero_x - frac * cs
 	var hero_col := base
 	var ev := encounter()
-	var stop_col := hero_col + 2         # where an encounter's door/enemies stand
-	var busy_from := stop_col - 1; var busy_to := stop_col + 5
+	var stop_col := hero_col + 2
+	var busy_from := stop_col - 1
+	var busy_to := stop_col + 5
 	if ev.is_empty(): busy_to = busy_from - 1
-	if ev.is_empty() and not _dying.is_empty():   # the won fight's ground stays clear (no barrel popping up under a corpse)
-		busy_from = int(_dying.col) - 1; busy_to = int(_dying.col) + 5
-	_vis_left = hero_col - int(ceil(hero_x / cs)) - 1
-	var grass_cells := []
-	var deco_cells := []
-	var wet_cells := []
-	var water := _t("res://assets/tiles/%s.png" % biome.get("water", "water0"))
-	var wo := Vector2(fposmod(t * 3.0, 32.0), fposmod(t * 2.0, 32.0)).floor()   # SPD water drifts slowly
-	var wall_fx := []   # SPD wall-deco cells that carry their region's visual (drip, torch, sparkle, smoke)
-	# the wall row first (one extra column each side), so faces and tops can stitch against their neighbours
+	if ev.is_empty() and not _dying.is_empty():
+		busy_from = int(_dying.col) - 1
+		busy_to = int(_dying.col) + 5
+	return {"cs": cs, "k": pk(), "cols": cols, "hero_x": hero_x, "ox": hero_x - frac * cs,
+		"hero_col": hero_col, "ev": ev, "stop_col": stop_col, "busy_from": busy_from, "busy_to": busy_to,
+		"y0": floorf((size.y - cs * ROWS) / 2.0)}
+
+func _build_wall(s: Dictionary, lo: int, hi: int) -> Dictionary:
 	var wall := {}
-	for i in range(-int(hero_x / cs) - 3, cols + 1):
-		var wcx := hero_col + i
+	var ev: Dictionary = s.ev
+	var stop_col := int(s.stop_col)
+	var busy_from := int(s.busy_from)
+	var busy_to := int(s.busy_to)
+	for wcx in range(lo, hi):
 		var wb := wcx >= busy_from and wcx <= busy_to
 		var wi := _wall_tile(wcx)
-		if _side_door(wcx) and not wb: wi = DOOR_CLOSED   # side rooms pass by, shut
+		if _side_door(wcx) and not wb: wi = DOOR_CLOSED
 		if not ev.is_empty(): wi = _encounter_wall(ev, wcx - stop_col, wi)
 		wall[wcx] = wi
-	for i in range(-int(hero_x / cs) - 2, cols):
-		var cx := hero_col + i
-		var x := floorf(ox + i * cs)
+	return wall
+
+func _sync_static() -> void:
+	if _bake == null or _run().is_empty() or size.y < 8.0: return
+	var s := _span()
+	var cs: float = s.cs
+	var hero_col := int(s.hero_col)
+	var cols := int(s.cols)
+	var hero_x: float = s.hero_x
+	var i0 := -int(hero_x / cs) - 2
+	var need_lo := hero_col + i0 - 3
+	var need_hi := hero_col + cols + 1
+	var ev: Dictionary = s.ev
+	var evs := ""
+	if not ev.is_empty():
+		evs = "%s|%s|%s|%s|%d" % [ev.get("kind", ""), ev.get("door", {}), ev.get("special", {}).get("id", ""), ev.get("mobs", ""), hero_col]
+	var r := _run()
+	var dying := "" if _dying.is_empty() else str(int(_dying.col))
+	var key := "%s|%s|%s|%s|%s|%s" % [r.biome, r.get("floor", 1), size, cs, evs, dying]
+	var bg_key := str(size)
+	if bg_key != _bg_key:
+		_bg_key = bg_key
+		_bg.queue_redraw()
+	if key != _bake_key or hero_col < _win_lo + 8 or hero_col + cols > _win_hi - 8 or _win_hi < 0:
+		_bake_key = key
+		_win_lo = need_lo - 16
+		_win_hi = need_hi + 16
+		_static_draws += 1
+		var w := float(_win_hi - _win_lo) * cs
+		_bake.size = Vector2(w, size.y)
+		_water_lyr.size = Vector2(w, size.y)
+		_bake.queue_redraw()
+	var pos := Vector2(floor(float(s.ox)) + float(_win_lo - hero_col) * cs, 0)
+	_bake.position = pos
+	_water_lyr.position = pos
+	_vis_left = hero_col - int(ceil(hero_x / cs)) - 1
+	_water_lyr.queue_redraw()
+
+func _paint_bg() -> void:
+	_bg.draw_rect(Rect2(Vector2.ZERO, size), Color(0.02, 0.01, 0.03))
+
+func _paint_water() -> void:
+	var t0 := Time.get_ticks_usec()
+	if _win_hi > _win_lo and not _run().is_empty():
+		_paint_range(_water_lyr, true)
+	draw_us_sum += int(Time.get_ticks_usec() - t0)
+
+func _paint_bake() -> void:
+	var t0 := Time.get_ticks_usec()
+	if _win_hi > _win_lo and not _run().is_empty():
+		_paint_range(_bake, false)
+	draw_us_sum += int(Time.get_ticks_usec() - t0)
+
+## World columns [lo, hi) in layer-local pixels. Water layer draws only the drifting texture; the bake draws
+## stitch tiles, chasm, and bones on top of it. Grass, light, and actors stay on the parent.
+func _paint_range(ci: CanvasItem, water_only: bool) -> void:
+	var r := _run()
+	var s := _span()
+	var cs: float = s.cs
+	var k: float = s.k
+	var y0: float = s.y0
+	var hero_col := int(s.hero_col)
+	var busy_from := int(s.busy_from)
+	var busy_to := int(s.busy_to)
+	var biome: Dictionary = DB.biomes[r.biome]
+	var tiles := _t("res://assets/tiles/%s.png" % biome.tile)
+	var water := _t("res://assets/tiles/%s.png" % biome.get("water", "water0"))
+	var wo := Vector2(fposmod(t * 3.0, 32.0), fposmod(t * 2.0, 32.0)).floor()
+	var wall := _build_wall(s, _win_lo - 3, _win_hi + 3)
+	for cx in range(_win_lo, _win_hi):
+		var x := float(cx - _win_lo) * cs
 		var busy := cx >= busy_from and cx <= busy_to
 		var near_grass := _grass_at(cx - 1) or _grass_at(cx) or _grass_at(cx + 1)
 		for row in ROWS:
 			var rc := Rect2(x, y0 + row * cs, cs, cs)
 			var idx := 0
 			match row:
-				0:   # void above the wall: the wall's top (SPD WALL_INTERNAL, all black) or a door's lintel / shelf top.
-					# The plain black top is left undrawn: the void behind it is already dark, and an opaque black tile
-					# over the scene's vignette showed as boxes.
+				0:
+					if water_only: continue
 					var top := _top_tile(wall, cx)
-					if top != WALL_INTERNAL: _tile_at(tiles, rc, top)
+					if top != WALL_INTERNAL: _tile_at(tiles, rc, top, ci)
 					continue
-				1: idx = _face_tile(wall, cx)
-				4:   # the floor's edge dropping into the void below (SPD CHASM_FLOOR / CHASM_WATER)
-					if not busy and _puddle_spills(cx):
-						_water_cell(water, rc.position, k, wo + Vector2(cx * 16, 64), Color.WHITE); _tile_at(tiles, rc, CHASM_WATER)
-					else: _tile_at(tiles, rc, CHASM_FLOOR)
+				1:
+					if water_only: continue
+					idx = _face_tile(wall, cx)
+				4:
+					if water_only:
+						if not busy and _puddle_spills(cx):
+							_water_cell(water, rc.position, k, wo + Vector2(cx * 16, 64), Color.WHITE, ci)
+						continue
+					if not busy and _puddle_spills(cx): _tile_at(tiles, rc, CHASM_WATER, ci)
+					else: _tile_at(tiles, rc, CHASM_FLOOR, ci)
 					continue
-				_: idx = 1 if _h(cx * 3 + row, 2) % 11 == 0 and not near_grass and not busy else 0   # no moss deco by the grass
-			if row == 1 and idx in [84, 100] and not busy: wall_fx.append([rc, idx])
-			if row == 2 and _deco_at(cx) and not busy: deco_cells.append([rc, cx])
-			# grass clump: SPD short-grass floor (GRASS 2) under the keyed blades, drawn after the light
-			if row == 3 and not busy and _grass_at(cx): idx = 2; grass_cells.append([rc, cx & 1, cx])
-			if not busy and _puddle(cx, row):   # SPD water: scrolling texture, then the stitch tile over it
+				_:
+					if water_only: 
+						if not busy and _puddle(cx, row):
+							_water_cell(water, rc.position, k, wo + Vector2(cx * 16, row * 16), Color.WHITE, ci)
+						continue
+					idx = 1 if _h(cx * 3 + row, 2) % 11 == 0 and not near_grass and not busy else 0
+			if water_only: continue
+			if row == 3 and not busy and _grass_at(cx): idx = 2
+			if not busy and _puddle(cx, row):
 				var wet := func(c2: int, r2: int) -> bool: return r2 <= 1 or (r2 >= 4 and _puddle_spills(c2)) or (_puddle(c2, r2) and not (c2 >= busy_from and c2 <= busy_to))
-				_water_cell(water, rc.position, k, wo + Vector2(cx * 16, row * 16), Color.WHITE)
 				idx = WATER + (0 if wet.call(cx, row - 1) else 1) + (0 if wet.call(cx + 1, row) else 2) + (0 if wet.call(cx, row + 1) else 4) + (0 if wet.call(cx - 1, row) else 8)
-				wet_cells.append(rc)
-			draw_texture_rect_region(tiles, rc, Rect2((idx % 16) * 16, (idx / 16) * 16, 16, 16))
-		# bones on the far floor row (seeded per column, kept clear of the encounter)
-		if not busy and cx > hero_col + 1 and _h(cx, 5) % 17 == 0 and not _grass_at(cx) and not _deco_at(cx) and not _puddle(cx, 2):   # never under a prop or in water
+			ci.draw_texture_rect_region(tiles, rc, Rect2((idx % 16) * 16, (idx / 16) * 16, 16, 16))
+		if water_only or busy: continue
+		if cx > hero_col + 1 and _h(cx, 5) % 17 == 0 and not _grass_at(cx) and not _deco_at(cx) and not _puddle(cx, 2):
 			var ir := UIKit.item_rect(DB.icon_index("BONES"))
 			var isz := ir.size * k
-			draw_texture_rect_region(_t("res://assets/sprites/items.png"), Rect2((Vector2(x, y0 + 2 * cs) + (Vector2(cs, cs) - isz) / 2.0).floor(), isz), ir, Color(1, 1, 1, 0.85))
+			ci.draw_texture_rect_region(_t("res://assets/sprites/items.png"), Rect2((Vector2(x, y0 + 2 * cs) + (Vector2(cs, cs) - isz) / 2.0).floor(), isz), ir, Color(1, 1, 1, 0.85))
+
+func _draw() -> void:
+	var _t0 := Time.get_ticks_usec()
+	var r := _run()
+	if r.is_empty():
+		_note_draw(_t0)
+		return
+	var s := _span()
+	var k: float = s.k; var cs: float = s.cs
+	var y0: float = s.y0
+	var biome: Dictionary = DB.biomes[r.biome]
+	var tiles := _t("res://assets/tiles/%s.png" % biome.tile)
+	var cols := int(s.cols)
+	var hero_x: float = s.hero_x
+	var ox: float = s.ox
+	var hero_col := int(s.hero_col)
+	var ev: Dictionary = s.ev
+	var stop_col := int(s.stop_col)
+	var busy_from := int(s.busy_from); var busy_to := int(s.busy_to)
+	_vis_left = hero_col - int(ceil(hero_x / cs)) - 1
+	var grass_cells := []
+	var deco_cells := []
+	var wet_cells := []
+	var wall_fx := []
+	# Tiles, water, and bones are on the scrolling bake. This pass only collects what still animates.
+	var wall := _build_wall(s, hero_col - int(hero_x / cs) - 5, hero_col + cols + 1)
+	for i in range(-int(hero_x / cs) - 2, cols):
+		var cx := hero_col + i
+		var x := floorf(ox + float(i) * cs)
+		var busy := cx >= busy_from and cx <= busy_to
+		var face := _face_tile(wall, cx)
+		if face in [84, 100] and not busy: wall_fx.append([Rect2(x, y0 + cs, cs, cs), face])
+		if _deco_at(cx) and not busy: deco_cells.append([Rect2(x, y0 + 2.0 * cs, cs, cs), cx])
+		if not busy and _grass_at(cx): grass_cells.append([Rect2(x, y0 + 3.0 * cs, cs, cs), cx & 1, cx])
+		if not busy and _puddle(cx, 2): wet_cells.append(Rect2(x, y0 + 2.0 * cs, cs, cs))
+		if not busy and _puddle(cx, 3): wet_cells.append(Rect2(x, y0 + 3.0 * cs, cs, cs))
 	# lighting pass on the ground layer only; everything drawn after takes _lm() instead (no double darkening)
 	var dk := Delve.darkness(r)
 	var lit := float(r.get("torch", 0)) > 0 and not dk
@@ -476,6 +613,11 @@ func _draw() -> void:
 	if _fade > 0.0: draw_rect(Rect2(Vector2.ZERO, size), Color(0, 0, 0, _fade))
 	# border
 	draw_rect(Rect2(Vector2.ZERO, size), Color(0, 0, 0, 0.9), false, maxf(2.0, k))
+	_note_draw(_t0)
+
+func _note_draw(t0: int) -> void:
+	draw_n += 1
+	draw_us_sum += int(Time.get_ticks_usec() - t0)
 
 ## Special-room scenes (DECISIONS #180): each room is built on the corridor floor ahead of its door from SPD's own
 ## tiles. Ops are [kind, what, dx, row]: "t" level tile (biome sheet), "f" terrain_features.png, "w" animated water,
@@ -630,7 +772,8 @@ const WATER := 32
 
 ## One 16x16 cell of the 32x32 water texture at source offset `o` (wrapped), so neighbouring cells and the
 ## drift stay continuous; drawn as up to four pieces instead of relying on texture repeat.
-func _water_cell(water: Texture2D, tl: Vector2, k: float, o: Vector2, mod: Color) -> void:
+func _water_cell(water: Texture2D, tl: Vector2, k: float, o: Vector2, mod: Color, ci: CanvasItem = null) -> void:
+	var d: CanvasItem = ci if ci != null else self
 	var ox := int(fposmod(o.x, 32.0)); var oy := int(fposmod(o.y, 32.0))
 	var xs := [[ox, mini(16, 32 - ox), 0]]
 	if 32 - ox < 16: xs.append([0, 16 - (32 - ox), 32 - ox])
@@ -638,7 +781,7 @@ func _water_cell(water: Texture2D, tl: Vector2, k: float, o: Vector2, mod: Color
 	if 32 - oy < 16: ys.append([0, 16 - (32 - oy), 32 - oy])
 	for xp in xs:
 		for yp in ys:
-			draw_texture_rect_region(water, Rect2(tl + Vector2(xp[2], yp[2]) * k, Vector2(xp[1], yp[1]) * k), Rect2(xp[0], yp[0], xp[1], yp[1]), mod)
+			d.draw_texture_rect_region(water, Rect2(tl + Vector2(xp[2], yp[2]) * k, Vector2(xp[1], yp[1]) * k), Rect2(xp[0], yp[0], xp[1], yp[1]), mod)
 
 ## The high-grass base tile with its baked stone floor keyed out (flood from the border over floor tile 0/1
 ## colours), so the darkened ground shows through between the blades. Cached per biome sheet.

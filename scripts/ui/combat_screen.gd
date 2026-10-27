@@ -415,10 +415,29 @@ func _btn(text: String, cb: Callable, enabled := true, skill := false, parent: N
 		if text.begins_with(pre) or label.begins_with(pre): ic = BTN_PREFIX_ICONS[pre]
 	UIKit.as_toolbar(b, ic)   # SPD toolbar slots for in-fight actions
 	(parent if parent else buttons).add_child(b)
+	var nm := _control_name(text)
+	if nm != "": b.name = nm
+	b.set_meta("skill_cb", cb)
 	if skill:
 		_skill_cbs.append(cb)
 		_skill_enabled.append(enabled)
 	return b
+
+## Stable node name so a later refresh can retitle the same button (DECISIONS #244).
+func _control_name(text: String) -> String:
+	if text.begins_with("Shove"): return "Shove"
+	if text.begins_with("Slam"): return "Slam"
+	if text.begins_with("Cloak"): return "Cloak"
+	if text.begins_with("Bolt"): return "Bolt"
+	if text.begins_with("Heal") or text.begins_with("Potion"): return "Heal"
+	if text.begins_with("Search"): return "Search"
+	if text.begins_with("Wait"): return "Wait"
+	if text.begins_with("Attack"): return "Attack"
+	if text.begins_with("Scroll") or text.begins_with("Passage"): return "Passage"
+	if text.begins_with("Bag"): return "Bag"
+	if text.begins_with("Auto"): return "Auto"
+	if text.begins_with("Menu"): return "Menu"
+	return ""
 
 ## Icon-only toolbar slot (Search / Wait / D-pad). Tooltip carries the name.
 func _icon_btn(tip: String, icon: String, cb: Callable, enabled := true, parent: Node = null, tex: Texture2D = null) -> Button:
@@ -432,6 +451,9 @@ func _icon_btn(tip: String, icon: String, cb: Callable, enabled := true, parent:
 		b.icon = tex
 		b.expand_icon = false
 	(parent if parent else buttons).add_child(b)
+	var nm := _control_name(tip)
+	if nm != "": b.name = nm
+	b.set_meta("skill_cb", cb)
 	return b
 
 ## Direction chevron at a fixed pixel size (same for cardinals and diagonals).
@@ -570,6 +592,7 @@ func _build_mobile_pad(parent: Node) -> void:
 		else:
 			var dir: Vector2i = d
 			var b := _icon_btn(tips[dir], "", func(): _move_dir(dir), true, pad, _dir_icon(dir, int(cell)))
+			b.name = "Pad_%d_%d" % [dir.x + 1, dir.y + 1]
 			b.custom_minimum_size = Vector2.ONE * cell
 			b.expand_icon = true
 
@@ -719,33 +742,124 @@ func _refresh() -> void:
 		if combat.surprise_ready() and (guide == 0 or guide >= 4): main.tip("surprise")
 		if not combat.danger.is_empty(): main.tip("telegraph")
 		if combat.traps.values().any(func(t): return not t.hidden): main.tip("trap")
-	if buttons: UIKit.clear(buttons)
-	_skill_cbs.clear(); _skill_enabled.clear()
 	_clear_result_layer()
 	if finished:
+		if buttons: UIKit.clear(buttons)
+		_skill_cbs.clear(); _skill_enabled.clear(); _ctrl_sig = ""
 		_result_buttons(); _refresh_log(); _refresh_bag(); _refresh_passage(); _fit_split(); return
-	if desktop_ui:
-		_btn("Wait", func(): _act(func(): combat.hero_wait()))
-		_add_skill_buttons(buttons)
-		_btn("Search" if not h.get("searched", false) else "Search again", func(): _act(func(): combat.hero_search()))
-		var desk_pot := _btn("Heal (%d)" % (potions - potions_used), _drink, potions - potions_used > 0 and h.hp < h.ht)
-		desk_pot.tooltip_text = "Potion of Healing (%d)" % (potions - potions_used)
-		var desk_ptex := _item_icon_tex("potion_healing")
-		if desk_ptex != null:
-			desk_pot.icon = desk_ptex
-			desk_pot.expand_icon = false
-		if Delve.scroll_passage_count(GameState) > 0:
-			_btn("Scroll of Passage", _ask_passage)
-		_btn("Bag", func(): bag_open = not bag_open; menu_open = false; set_meta("bag_scroll", 0); _refresh())
-		_btn("Auto: ON" if auto else "Auto", func(): auto = not auto; _refresh())
-		_btn("Menu", func(): menu_open = not menu_open; bag_open = false; _refresh())
+	var sig := _controls_sig()
+	if buttons and sig == _ctrl_sig and buttons.get_child_count() > 0 and _patch_controls():
+		pass
 	else:
-		_build_mobile_controls()
+		if buttons: UIKit.clear(buttons)
+		_skill_cbs.clear(); _skill_enabled.clear()
+		_ctrl_sig = sig
+		if desktop_ui:
+			_btn("Wait", func(): _act(func(): combat.hero_wait()))
+			_add_skill_buttons(buttons)
+			_btn("Search" if not h.get("searched", false) else "Search again", func(): _act(func(): combat.hero_search()))
+			var desk_pot := _btn("Heal (%d)" % (potions - potions_used), _drink, potions - potions_used > 0 and h.hp < h.ht)
+			desk_pot.tooltip_text = "Potion of Healing (%d)" % (potions - potions_used)
+			var desk_ptex := _item_icon_tex("potion_healing")
+			if desk_ptex != null:
+				desk_pot.icon = desk_ptex
+				desk_pot.expand_icon = false
+			if Delve.scroll_passage_count(GameState) > 0:
+				_btn("Scroll of Passage", _ask_passage)
+			_btn("Bag", func(): bag_open = not bag_open; menu_open = false; set_meta("bag_scroll", 0); _refresh())
+			_btn("Auto: ON" if auto else "Auto", func(): auto = not auto; _refresh())
+			_btn("Menu", func(): menu_open = not menu_open; bag_open = false; _refresh())
+		else:
+			_build_mobile_controls()
 	_refresh_log()
 	_refresh_bag()
-	_refresh_menu()
+	_refresh_menu(false)
 	_refresh_passage()
 	_fit_split()
+
+## Which controls exist. Labels, counts, and on/off tints are patched in place (DECISIONS #244).
+var _ctrl_sig := ""
+func _controls_sig() -> String:
+	var hh := combat.hero
+	return "%s|%s|%s|%s|%s|%s" % [desktop_ui, "shove" if "shove" in hh.abilities else "",
+		"slam" if "slam" in hh.abilities else "", "cloak" if not hh.cloak.is_empty() else "",
+		"bolt" if not hh.bolt.is_empty() and not hh.bolt.get("infinite", false) else "",
+		"pass" if Delve.scroll_passage_count(GameState) > 0 else ""]
+
+func _named_btn(nm: String) -> Button:
+	if buttons == null: return null
+	return buttons.find_child(nm, true, false) as Button
+
+func _apply_btn(nm: String, text: String, enabled: bool, tip := "", mod := Color.WHITE, skill := false, icon_only := false) -> bool:
+	var b := _named_btn(nm)
+	if b == null: return false
+	if not icon_only:
+		var label := String(DESK_LABELS.get(text, text)) if desktop_ui else text
+		if b.text != label: b.text = label
+	b.disabled = not enabled
+	if tip != "": b.tooltip_text = tip
+	b.modulate = mod
+	if skill and b.has_meta("skill_cb"):
+		_skill_cbs.append(b.get_meta("skill_cb"))
+		_skill_enabled.append(enabled)
+	return true
+
+## Retitle the existing toolbar. False if a named control is missing, so the caller rebuilds once.
+func _patch_controls() -> bool:
+	_skill_cbs.clear(); _skill_enabled.clear()
+	var hh := combat.hero
+	var on := Color(1.15, 1.15, 0.85)
+	if desktop_ui:
+		if not _apply_btn("Wait", "Wait", true): return false
+		if "shove" in hh.abilities:
+			var shove_on := mode == "shove"
+			if not _apply_btn("Shove", "Shove: ON" if shove_on else "Shove", true, "", on if shove_on else Color.WHITE, true): return false
+		if "slam" in hh.abilities:
+			var can_slam := int(hh.slams) > 0 and combat.enemies().any(func(e): return Combat.cheb(e.pos, hh.pos) == 1)
+			if not _apply_btn("Slam", "Slam (%d)" % hh.slams, can_slam, "", Color.WHITE, true): return false
+		if not hh.cloak.is_empty():
+			var can_cloak := int(hh.cloak_charges) > 0 and not combat.hidden()
+			if not _apply_btn("Cloak", "Cloak (%d/%d)" % [int(hh.cloak_charges), _cloak_cap(hh)], can_cloak, "", Color.WHITE, true): return false
+		if not hh.bolt.is_empty() and not hh.bolt.get("infinite", false):
+			var bolt_on := mode == "bolt"
+			if not _apply_btn("Bolt", "Bolt: ON (%d)" % hh.charges if bolt_on else "Bolt (%d)" % hh.charges, hh.charges > 0, "", on if bolt_on else Color.WHITE, true): return false
+		if not _apply_btn("Search", "Search" if not hh.get("searched", false) else "Search again", true): return false
+		var pot_n := potions - potions_used
+		if not _apply_btn("Heal", "Heal (%d)" % pot_n, pot_n > 0 and hh.hp < hh.ht, "Potion of Healing (%d)" % pot_n): return false
+		if Delve.scroll_passage_count(GameState) > 0 and not _apply_btn("Passage", "Scroll of Passage", true): return false
+		if not _apply_btn("Bag", "Bag", true): return false
+		if not _apply_btn("Auto", "Auto: ON" if auto else "Auto", true, "", on if auto else Color.WHITE): return false
+		if not _apply_btn("Menu", "Menu", true): return false
+		return true
+	var tgt := _attack_target()
+	if not _apply_btn("Attack", "Attack", not tgt.is_empty(), "Attack"): return false
+	var wtex := _attack_weapon_tex()
+	var atk := _named_btn("Attack")
+	if wtex != null and atk != null:
+		atk.icon = wtex
+		atk.expand_icon = false
+	if "shove" in hh.abilities:
+		var shove_on2 := mode == "shove"
+		if not _apply_btn("Shove", "Shove", true, "Shove: ON" if shove_on2 else "Shove", on if shove_on2 else Color.WHITE, true): return false
+	if "slam" in hh.abilities:
+		var can_slam2 := int(hh.slams) > 0 and combat.enemies().any(func(e): return Combat.cheb(e.pos, hh.pos) == 1)
+		if not _apply_btn("Slam", "Slam %d" % hh.slams, can_slam2, "Slam (%d)" % hh.slams, Color.WHITE, true): return false
+	if not hh.cloak.is_empty():
+		var can_cloak2 := int(hh.cloak_charges) > 0 and not combat.hidden()
+		if not _apply_btn("Cloak", "Cloak", can_cloak2, "Cloak (%d/%d)" % [int(hh.cloak_charges), _cloak_cap(hh)], Color.WHITE, true): return false
+	if not hh.bolt.is_empty() and not hh.bolt.get("infinite", false):
+		var bolt_on2 := mode == "bolt"
+		var bolt_tip := "Bolt: ON (%d)" % hh.charges if bolt_on2 else "Bolt (%d)" % hh.charges
+		if not _apply_btn("Bolt", "Bolt %d" % hh.charges, hh.charges > 0, bolt_tip, on if bolt_on2 else Color.WHITE, true): return false
+	var pot_n2 := potions - potions_used
+	if not _apply_btn("Heal", "Heal %d" % pot_n2, pot_n2 > 0 and hh.hp < hh.ht, "Potion of Healing (%d)" % pot_n2): return false
+	var search_tip := "Search again" if hh.get("searched", false) else "Search"
+	if not _apply_btn("Search", "", true, search_tip, Color.WHITE, false, true): return false
+	if Delve.scroll_passage_count(GameState) > 0 and not _apply_btn("Passage", "", true, "Scroll of Passage", Color.WHITE, false, true): return false
+	if not _apply_btn("Bag", "", true, "Bag", Color.WHITE, false, true): return false
+	if not _apply_btn("Auto", "", true, "Auto battle: ON" if auto else "Auto battle", on if auto else Color.WHITE, false, true): return false
+	if not _apply_btn("Menu", "", true, "Menu", Color.WHITE, false, true): return false
+	return true
 
 ## In-combat Bag: swap weapon/armor/ring/wand from the backpack; a swap costs the hero's turn (1 tick).
 ## A carried Scroll of Passage is listed here too. Read opens the confirm; accepting extracts with no tick.
@@ -794,7 +908,9 @@ func _equip_in_combat() -> void:
 	heal = GameState.potion_heal(GameState.run.hero)
 
 ## In-fight Settings (same panel as Camp / Delve). Auto Battle waits while open.
-func _refresh_menu() -> void:
+func _refresh_menu(force := true) -> void:
+	if not force and menu_open and menu_layer and is_instance_valid(menu_layer) and not finished:
+		return
 	if menu_layer and is_instance_valid(menu_layer):
 		set_meta("menu_scroll", menu_layer.get_meta("sc").scroll_vertical if menu_layer.has_meta("sc") else 0)
 		menu_layer.queue_free()
@@ -885,15 +1001,22 @@ func _combat_tip_lines() -> PackedStringArray:
 		tips.append("Snake: melee needs a Surprise; magic always hits, bows after the first shot")
 	return tips
 
+var _log_key := ""
 func _refresh_log() -> void:
+	var tips := PackedStringArray()
+	if not desktop_ui and not finished:
+		tips = _combat_tip_lines()
+	var key := "\n".join(tips) + "\n--\n" + "\n".join(combat.log_lines) + "|%s|%s" % [finished, desktop_ui]
+	if key == _log_key: return
+	_log_key = key
 	log_label.clear()
 	# Never set custom_minimum_size.x from log_scroll.size — that feedback-looped and walked the
 	# whole combat UI rightward on each click. H-scroll is disabled, so the label is sized to the panel
 	# and autowrap handles long tip lines.
 	log_label.custom_minimum_size.x = 0
-	if not desktop_ui and not finished:
+	if not tips.is_empty():
 		log_label.push_color(Color("c9a96e"))
-		for tip in _combat_tip_lines():
+		for tip in tips:
 			log_label.add_text(tip + "\n")
 		log_label.pop()
 		if not combat.log_lines.is_empty():
@@ -935,7 +1058,9 @@ func _on_cell(c: Vector2i) -> void:
 func _persist() -> void:
 	if GameState.run.has("active_fight"):
 		GameState.run.active_fight.combat = combat.to_dict()
-		SaveSystem.save_game()
+		# A burst of actions shares one write. Ending the fight, and pause/quit, still flush now (DECISIONS #244).
+		if combat.over: SaveSystem.save_game()
+		else: SaveSystem.request_save()
 
 func _inspect(u: Dictionary) -> void:
 	var spd := "fast (%s ticks)" % Weapons.num(float(u.delay), 1) if float(u.delay) < 1.0 else "normal"
@@ -1004,6 +1129,8 @@ func _use_passage() -> void:
 
 ## Mid-fight Passage confirm: same SPD window look as the delve card (title, body, Read / Cancel).
 func _refresh_passage() -> void:
+	if passage_confirm and passage_layer and is_instance_valid(passage_layer) and not finished:
+		return
 	if passage_layer and is_instance_valid(passage_layer):
 		passage_layer.queue_free()
 	passage_layer = null

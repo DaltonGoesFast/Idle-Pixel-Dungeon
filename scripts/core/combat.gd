@@ -69,6 +69,7 @@ func setup(room_rows: Array, hs: Dictionary, hp: int, mob_ids: Array, darkness :
 	kills = 0; traps_found = 0; trap_ids_seen = []; dmg_in = 0; absorbed_total = 0; dmg_out = 0; hero_turns = 0
 	surprises = 0; kill_ids = {}; auto_used = false; hp_lost = 0; potions_drunk = 0; last_target = 0
 	remains = {}
+	_fov_cache.clear(); _fov_stamp = 0; _path_cache.clear(); _path_stamp = 0
 	if not pool.is_empty(): trap_pool = pool
 	time = 0.0; loot = 0; fallen_loot = 0; gold_debt = 0; purse = 0; xp = 0; over = false; won = false; boss_killed = false; _uid = 0
 	h = room_rows.size(); w = String(room_rows[0]).length() if h > 0 else SIZE
@@ -263,13 +264,65 @@ static func cheb(a: Vector2i, b: Vector2i) -> int:
 
 ## SPD FOV (ShadowCaster): true when `b` is in the circular shadowcast from `a`.
 ## Walls, tall grass and closed doors block; units do not. Projectiles still use `line_clear` (Ballistica).
+## The cast for one origin is reused until terrain, door blockers, or remains change (DECISIONS #244).
 func sees(a: Vector2i, b: Vector2i) -> bool:
 	if a == b: return true
 	if not in_bounds(a) or not in_bounds(b): return false
-	return _cast_fov(a).has(b)
+	var stamp := _sight_stamp()
+	if stamp != _fov_stamp:
+		_fov_stamp = stamp
+		_fov_cache.clear()
+	if not _fov_cache.has(a):
+		_fov_cache[a] = _cast_fov(a)
+	return (_fov_cache[a] as Dictionary).has(b)
 
 ## Build SPD-style FOV from `origin` (set of visible Vector2i). viewDistance covers the arena.
+var fov_casts := 0
+var path_calls := 0
+var path_hits := 0
+var _fov_cache := {}
+var _fov_stamp := 0
+var _path_cache := {}
+var _path_stamp := 0
+
+## FNV over terrain cells. Doors stay DOOR while open or shut, so sight also hashes who stands on them.
+func _grid_hash() -> int:
+	var hsh := 2166136261
+	for yy in h:
+		var row: Array = terrain[yy]
+		for xx in w:
+			hsh = (hsh * 16777619) ^ int(row[xx])
+	return hsh
+
+func _sight_stamp() -> int:
+	var hsh := _grid_hash()
+	for k in remains:
+		var p: Vector2i = k
+		hsh = (hsh * 16777619) ^ (p.x * 64 + p.y)
+	for u in units:
+		if int(u.hp) <= 0: continue
+		if tile(u.pos) != T.DOOR: continue
+		hsh = (hsh * 16777619) ^ (int(u.uid) * 4096 + u.pos.x * 64 + u.pos.y)
+	return hsh
+
+func _path_stamp_now() -> int:
+	var hsh := _grid_hash()
+	for u in units:
+		if int(u.hp) <= 0: continue
+		hsh = (hsh * 16777619) ^ int(u.uid)
+		hsh = (hsh * 16777619) ^ (u.pos.x * 64 + u.pos.y)
+		hsh = (hsh * 16777619) ^ int(u.hp)
+	for d in danger:
+		var p: Vector2i = d.pos
+		hsh = (hsh * 16777619) ^ (p.x * 64 + p.y + 17)
+	for k in traps:
+		var p: Vector2i = k
+		hsh = (hsh * 16777619) ^ (p.x * 64 + p.y + 101)
+		hsh = (hsh * 16777619) ^ (1 if traps[k].hidden else 0)
+	return hsh
+
 func _cast_fov(origin: Vector2i) -> Dictionary:
+	fov_casts += 1
 	_ensure_fov_rounding()
 	var dist := mini(FOV_MAX, maxi(w, h))
 	var fov := {}
@@ -1638,6 +1691,26 @@ func _tengu_hurt(m: Dictionary) -> void:
 ## First step of a shortest 8-way path from `from` to a tile adjacent to `to`. null if none.
 ## avoid_traps: mobs know every trap; known_only restricts that to revealed traps (hero-side pathing).
 func path_step(from: Vector2i, to: Vector2i, avoid_danger := false, avoid_traps := false, known_only := false):
+	path_calls += 1
+	var stamp := _path_stamp_now()
+	if stamp != _path_stamp:
+		_path_stamp = stamp
+		_path_cache.clear()
+	var key := "%d,%d>%d,%d|%d%d%d" % [from.x, from.y, to.x, to.y, int(avoid_danger), int(avoid_traps), int(known_only)]
+	if _path_cache.has(key):
+		path_hits += 1
+		return _path_cache[key]
+	var step = _path_search(from, to, avoid_danger, avoid_traps, known_only)
+	_path_cache[key] = step
+	return step
+
+func _path_search(from: Vector2i, to: Vector2i, avoid_danger: bool, avoid_traps: bool, known_only: bool):
+	var occ := {}
+	for u in units:
+		if int(u.hp) > 0: occ[u.pos] = true
+	var dang := {}
+	if avoid_danger:
+		for d in danger: dang[d.pos] = true
 	var prev := {from: from}
 	var q := [from]
 	while not q.is_empty():
@@ -1648,8 +1721,8 @@ func path_step(from: Vector2i, to: Vector2i, avoid_danger := false, avoid_traps 
 			return c
 		for d in DIRS:
 			var n: Vector2i = c + d
-			if prev.has(n) or not passable(n) or unit_at(n) != null: continue
-			if avoid_danger and is_danger(n): continue
+			if prev.has(n) or not passable(n) or occ.has(n): continue
+			if avoid_danger and dang.has(n): continue
 			if avoid_traps and traps.has(n) and not (known_only and traps[n].hidden): continue
 			prev[n] = c; q.append(n)
 	return null

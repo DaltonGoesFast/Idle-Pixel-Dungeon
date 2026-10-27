@@ -87,6 +87,8 @@ func apply_layout(p: bool, _size: Vector2, _desktop := false) -> void:
 	_build_shell(); rebuild()
 
 func _build_shell() -> void:
+	_sum_keys = []
+	_side_sig = ""
 	for c in get_children(): c.queue_free()
 	var outer := UIKit.vbox(self); outer.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
 	# top bar: title, version, Update (when available), Journal + Settings
@@ -140,23 +142,70 @@ func _build_shell() -> void:
 	root_box.add_child(side)
 	win_layer = null; info_layer = null
 
+var _sum_keys: Array = []
+var _side_sig := ""
 func rebuild() -> void:
 	if not is_inside_tree() or summary == null: return
 	# Recheck when returning to Camp after a long session (cooldown inside Updater).
 	Updater.maybe_check()
 	_journal_dot()
 	_settings_dot()
-	UIKit.clear(summary)
-	for k in ["gold", "iron_ore", "dark_gold", "seeds", "arcane_resin", "dew", "scroll_upgrade", "torch", "ration", "potion_healing"]:
-		if GameState.mat(k) > 0 or k in ["gold", "iron_ore", "seeds"]:
-			var chip := UIKit.res_chip(k, str(GameState.mat(k)), 0.9); chip.tooltip_text = DB.mat_name(k); summary.add_child(chip)
+	_sync_summary()
 	if not GameState.heroes[chosen_hero].unlocked: chosen_hero = "warrior"
 	if not (chosen_biome in start_biomes(chosen_hero)): chosen_biome = "sewers"
 	scene.hero = chosen_hero
-	_build_side()
+	var sig := _dock_sig()
+	if sig != _side_sig:
+		_side_sig = sig
+		_build_side()
 	if open_name != "": _fill_window()
 	# Named chrome offsets (Live Editor) re-apply after container layout.
 	call_deferred("_apply_live_layout")
+
+## Resource chips stay put when the set of materials is unchanged; only the amount label changes.
+func _sync_summary() -> void:
+	var keys: Array = []
+	for k in ["gold", "iron_ore", "dark_gold", "seeds", "arcane_resin", "dew", "scroll_upgrade", "torch", "ration", "potion_healing"]:
+		if GameState.mat(k) > 0 or k in ["gold", "iron_ore", "seeds"]: keys.append(k)
+	if keys == _sum_keys and summary.get_child_count() == keys.size():
+		for i in keys.size():
+			var chip: Node = summary.get_child(i)
+			(chip.get_child(1) as Label).text = str(GameState.mat(keys[i]))
+			(chip as Control).tooltip_text = DB.mat_name(keys[i])
+		return
+	UIKit.clear(summary)
+	_sum_keys = keys.duplicate()
+	for k in keys:
+		var chip := UIKit.res_chip(k, str(GameState.mat(k)), 0.9)
+		chip.tooltip_text = DB.mat_name(k)
+		summary.add_child(chip)
+
+## Everything the dock shows. A matching signature skips freeing and recreating the hero row and patrol list.
+func _dock_sig() -> String:
+	var parts: PackedStringArray = []
+	parts.append(chosen_hero)
+	parts.append(chosen_biome)
+	parts.append(GameState.can_start_run(chosen_hero))
+	parts.append(str(GameState.patrol_max_hours()))
+	parts.append(hero_line(chosen_hero))
+	for c in GameState.heroes:
+		var h: Dictionary = GameState.heroes[c]
+		parts.append("%s|%s|%s|%s|%s" % [c, h.unlocked, h.level, h.str, h.get("patrol", {}).is_empty()])
+		if not h.unlocked: continue
+		if h.patrol.is_empty():
+			parts.append(GameState.can_train(c))
+			parts.append(GameState.cost_text(GameState.train_cost(c)))
+			for b in DB.biomes:
+				var why := GameState.can_patrol(c, b)
+				if why != "" and not why.begins_with("need"): continue
+				parts.append("%s|%s|%s|%s" % [b, why, GameState.patrol_efficiency(c, b), int(GameState.patrol_fee(b, c).gold)])
+		else:
+			var y: Dictionary = GameState.patrol_preview(c)
+			parts.append("%.1f" % float(y.get("_hours", 0.0)))
+			for k in y:
+				if String(k).begins_with("_"): continue
+				parts.append("%s=%s" % [k, y[k]])
+	return "|".join(parts)
 
 func _apply_live_layout() -> void:
 	LiveLayout.apply_tree(self)
@@ -414,12 +463,27 @@ func _show_msg(msg: Label, text: String, hold: float) -> void:
 
 func _fill_window() -> void:
 	var keep_scroll := 0
-	if win_layer:
-		var old_sc: ScrollContainer = win_layer.get_meta("sc"); keep_scroll = 0 if top_next else old_sc.scroll_vertical
-		win_layer.queue_free()
-	top_next = false
-	var w := _make_window(open_name if open_name != "Delve" else "Expedition", PAGE_ICONS[open_name], close_page)
-	win_layer = w[0]; win_layer.set_meta("sc", w[3]); pages[open_name] = w[1]
+	var reuse := win_layer != null and is_instance_valid(win_layer) and str(win_layer.get_meta("page", "")) == open_name and pages.has(open_name)
+	var sc: ScrollContainer
+	if reuse:
+		sc = win_layer.get_meta("sc")
+		keep_scroll = 0 if top_next else sc.scroll_vertical
+		top_next = false
+		var foot: VBoxContainer = win_layer.get_meta("foot")
+		UIKit.clear(foot)
+		foot.visible = false
+	else:
+		if win_layer and is_instance_valid(win_layer):
+			var old_sc: ScrollContainer = win_layer.get_meta("sc")
+			keep_scroll = 0 if top_next else old_sc.scroll_vertical
+			win_layer.queue_free()
+		top_next = false
+		var w := _make_window(open_name if open_name != "Delve" else "Expedition", PAGE_ICONS[open_name], close_page)
+		win_layer = w[0]
+		win_layer.set_meta("sc", w[3])
+		win_layer.set_meta("page", open_name)
+		pages[open_name] = w[1]
+		sc = w[3]
 	match open_name:
 		"Delve": _page_delve()
 		"Heroes": _page_heroes()
@@ -428,8 +492,8 @@ func _fill_window() -> void:
 		"Journal": _page_journal()
 		"Settings": SettingsPanel.build(_p("Settings"))
 		_: _page_facility(open_name, FAC_PAGE[open_name])
-	(func(): if is_instance_valid(w[3]): w[3].scroll_vertical = keep_scroll).call_deferred()
-	if info_layer: move_child(info_layer, -1)
+	(func(): if is_instance_valid(sc): sc.scroll_vertical = keep_scroll).call_deferred()
+	if info_layer and is_instance_valid(info_layer): move_child(info_layer, -1)
 
 func _p(name: String) -> VBoxContainer:
 	var v: VBoxContainer = pages[name]
@@ -595,11 +659,22 @@ func mats_header(id: String) -> HFlowContainer:
 func _pin_mats(id: String) -> void:
 	if win_layer == null or not is_instance_valid(win_layer): return
 	var host: VBoxContainer = win_layer.get_meta("mats_host")
-	UIKit.clear(host)
 	if not FAC_MATS.has(id):
+		if host.get_child_count() > 0: UIKit.clear(host)
 		host.visible = false
+		host.set_meta("fac", "")
 		return
+	if str(host.get_meta("fac", "")) == id and host.get_child_count() > 0:
+		var header := host.get_child(0).get_child(0)
+		for chip in header.get_children():
+			var k := String(chip.get_meta("mat", ""))
+			if k == "" or chip.get_child_count() < 2: continue
+			(chip.get_child(1) as Label).text = "%d" % GameState.mat(k)
+		host.visible = true
+		return
+	UIKit.clear(host)
 	host.visible = true
+	host.set_meta("fac", id)
 	var mc := UIKit.card(); host.add_child(mc); mc.add_child(mats_header(id))
 
 ## Cost as resource chips; amounts you can't afford are red.

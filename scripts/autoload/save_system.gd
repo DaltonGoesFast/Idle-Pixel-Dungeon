@@ -2,12 +2,21 @@
 extends Node
 
 const SAVE_VERSION := 2
+## Coalesce a burst of GameState.changed into one write. Pause / focus-out / quit still flush immediately.
+const SAVE_GAP := 0.6
 var path := "user://save.json"
 var autosave := true
+var _dirty := false
+var _wait := 0.0
 
 func _ready() -> void:
 	load_game()
 	GameState.changed.connect(_on_changed)
+
+func _process(delta: float) -> void:
+	if not _dirty or not autosave: return
+	_wait -= delta
+	if _wait <= 0.0: save_game()
 
 ## Android may kill a backgrounded app at any time: save whenever we lose focus or are asked to quit.
 func _notification(what: int) -> void:
@@ -15,9 +24,19 @@ func _notification(what: int) -> void:
 		if autosave: save_game()
 
 func _on_changed() -> void:
-	if autosave: save_game()
+	request_save()
+
+## Arm one write SAVE_GAP seconds out. Further requests before it fires do not push the deadline back,
+## so a stream of actions still lands on disk. save_game() itself stays synchronous.
+func request_save() -> void:
+	if not autosave: return
+	if _dirty: return
+	_dirty = true
+	_wait = SAVE_GAP
 
 func save_game() -> bool:
+	_dirty = false
+	_wait = 0.0
 	var data := {"version": SAVE_VERSION, "saved_at": Time.get_unix_time_from_system(), "state": GameState.to_dict()}
 	var tmp := path + ".tmp"
 	var f := FileAccess.open(tmp, FileAccess.WRITE)
