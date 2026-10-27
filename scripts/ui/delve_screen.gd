@@ -163,44 +163,39 @@ func _vita_fit_chrome(s: Vector2) -> void:
 	_vita_wrap_log_tree(log_host)
 	call_deferred("_vita_clip_log")
 
-## Labels inside the bare-screen log wrap to the pane and ellipsize a single overlong word. Phone labels are untouched.
+## Labels inside the bare-screen log wrap. Width is applied in _vita_clip_log once the scroll has a size.
+## A minimum width of 0 makes autowrap report one column per glyph (thousands of pixels tall).
 func _vita_wrap_log_tree(n: Node) -> void:
 	if n == null or not VitaBoot.runs_on_vita(): return
 	for c in n.get_children():
 		if c is Label:
 			var lab := c as Label
 			lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-			lab.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 			lab.size_flags_horizontal = SIZE_EXPAND_FILL
-			lab.custom_minimum_size.x = 0
-			var pad := StyleBoxEmpty.new()
-			pad.set_content_margin(SIDE_LEFT, 2)
-			pad.set_content_margin(SIDE_RIGHT, 8)
-			lab.add_theme_stylebox_override("normal", pad)
 		if c.get_child_count() > 0:
 			_vita_wrap_log_tree(c)
 
-## After the scroll has a width, break lines on that width (minus the vertical bar) so glyphs stay inside the pane.
+## Break log lines on the pane width so a long line wraps instead of painting past the right edge.
 func _vita_clip_log() -> void:
 	if not VitaBoot.runs_on_vita(): return
 	var log_sc := log_host.get_parent() as ScrollContainer
 	if log_sc == null: return
 	log_sc.clip_contents = true
-	var w := log_sc.size.x
-	if w < 8.0: return
+	var w := floorf(log_sc.size.x) - 4.0
+	if w < 32.0: return
 	var bar := log_sc.get_v_scroll_bar()
 	if bar != null and bar.visible:
-		w = maxf(8.0, w - bar.size.x)
-	_vita_apply_log_width(log_host, w)
+		w = maxf(32.0, w - bar.size.x)
+	_vita_set_log_wrap(log_host, w)
 
-func _vita_apply_log_width(n: Node, w: float) -> void:
+func _vita_set_log_wrap(n: Node, w: float) -> void:
 	for c in n.get_children():
 		if c is Label:
 			var lab := c as Label
-			lab.custom_minimum_size.x = 0
-			lab.size.x = w
+			if absf(lab.custom_minimum_size.x - w) > 1.0:
+				lab.custom_minimum_size.x = w
 		if c.get_child_count() > 0:
-			_vita_apply_log_width(c, w)
+			_vita_set_log_wrap(c, w)
 
 ## Desktop: status pane + floor ProgressBar stay phone-wide; Mobile keeps full-bleed.
 func _fit_desk_bars(area_w: float) -> void:
