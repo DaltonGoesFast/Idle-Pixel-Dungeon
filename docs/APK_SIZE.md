@@ -15,6 +15,7 @@ Phase 1 does **not** target APK under 50 MB (Discord). Official Godot Android te
 ## Safe hygiene
 
 - Every export preset excludes `tests/*`, `docs/*`, `tools/*`, `*.md`, and `builds/*` (so screenshot trees / prior APKs do not re-pack).
+- Also excluded: branding guides / mockups (`*guide*`, `mockup*`) and `.pdn` sources (not used at runtime; see `assets/branding/README.md`).
 - Prefer filter hygiene over cutting music or stripping engine modules.
 
 ## How to re-measure (PC, no phone)
