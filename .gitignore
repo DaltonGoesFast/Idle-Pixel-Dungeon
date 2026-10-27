@@ -4,6 +4,8 @@
 /reference/shattered-pixel-dungeon/
 /android/
 export_credentials.cfg
+# Local Godot 4 Vita editor + export templates (WolffsRoom build; ~135 MB)
+/Godot4Vita-v0.1-Windows-x64/
 # Builds / signing (never commit keys)
 builds
 *.apk

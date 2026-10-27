@@ -13,12 +13,27 @@ config_version=5
 config/name="Idle PD"
 config/version="0.51.0"
 run/main_scene="res://scenes/main.tscn"
+; Vita's first scene is a loading card. Parsing main.gd (and the camp it preloads) took ~29s on device
+; and the engine splash is only a flat color until that returns. Desktop, Android, and web stay on main.tscn.
+run/main_scene.vita="res://scenes/vita_boot.tscn"
+run/main_scene.Vita="res://scenes/vita_boot.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 config/icon="res://icon.png"
 config/windows_native_icon="res://assets/branding/idle_pd.ico"
+; Vita user:// is ux0:/data/idlepd-saves/ so a recopy of ux0:data/idlepd does not wipe the save.
+config/use_custom_user_dir.vita=true
+config/custom_user_dir_name.vita="idlepd-saves"
+config/use_custom_user_dir.Vita=true
+config/custom_user_dir_name.Vita="idlepd-saves"
+; The Godot logo is the loader animation. A flat color here means the engine splash actually started.
+boot_splash/show_image.vita=false
+boot_splash/show_image.Vita=false
+boot_splash/bg_color.vita=Color(0.05, 0.12, 0.28, 1)
+boot_splash/bg_color.Vita=Color(0.05, 0.12, 0.28, 1)
 
 [autoload]
 
+VitaBoot="*res://scripts/platform/vita_boot.gd"
 DB="*res://scripts/autoload/db.gd"
 GameState="*res://scripts/autoload/game_state.gd"
 SaveSystem="*res://scripts/autoload/save_system.gd"
@@ -27,6 +42,15 @@ Updater="*res://scripts/autoload/updater.gd"
 Telemetry="*res://scripts/autoload/telemetry.gd"
 PatrolBridge="*res://scripts/platform/patrol_bridge.gd"
 LiveLayout="*res://scripts/autoload/live_layout.gd"
+
+; The real db.gd is ~8.5s to parse. On Vita that parse waits until the loading card calls DB.reload().
+[autoload.vita]
+
+DB="*res://scripts/autoload/db_vita.gd"
+
+[autoload.Vita]
+
+DB="*res://scripts/autoload/db_vita.gd"
 
 [editor_plugins]
 
@@ -38,9 +62,20 @@ window/size/viewport_width=968
 window/size/viewport_height=2376
 window/size/window_width_override=484
 window/size/window_height_override=1188
+; PS Vita panel is 960×544 landscape. Feature tags: runtime "vita", export platform "Vita".
+window/size/viewport_width.vita=960
+window/size/viewport_height.vita=544
+window/size/viewport_width.Vita=960
+window/size/viewport_height.Vita=544
+window/size/window_width_override.vita=960
+window/size/window_height_override.vita=544
+window/size/window_width_override.Vita=960
+window/size/window_height_override.Vita=544
 window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
 window/handheld/orientation=6
+window/handheld/orientation.vita=0
+window/handheld/orientation.Vita=0
 
 [gui]
 
@@ -55,6 +90,14 @@ pointing/emulate_touch_from_mouse=true
 textures/canvas_textures/default_texture_filter=0
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
+renderer/rendering_method.vita="gl_compatibility"
+renderer/rendering_method.Vita="gl_compatibility"
 textures/vram_compression/import_etc2_astc=true
 2d/snap/snap_2d_transforms_to_pixel=true
 2d/snap/snap_2d_vertices_to_pixel=true
+
+[threading]
+
+; The Vita runtime crashes if the worker pool is wider than two threads.
+worker_pool/max_threads.vita=2
+worker_pool/max_threads.Vita=2

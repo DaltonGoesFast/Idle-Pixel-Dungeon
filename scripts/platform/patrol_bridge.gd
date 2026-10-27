@@ -1,6 +1,6 @@
 ## Home-screen patrol widget and return alerts (DECISIONS #229).
 ## The snapshot and the alarm list are pure data. Android's PatrolWidget plugin stores them and
-## draws the widget; PC, web, and an export without the plugin no-op.
+## draws the widget; PC, web, Vita, and an export without the plugin no-op.
 extends Node
 
 signal open_guild
@@ -12,7 +12,13 @@ const OPEN_SECTION := "patrols"
 
 var queued_open := false
 
+## Vita has no PatrolWidget singleton. Skip the plugin lookup at boot.
+static func runs_on(os_name: String = OS.get_name()) -> bool:
+	return os_name != "Vita"
+
 func _ready() -> void:
+	if not runs_on():
+		return
 	var p = _plugin()
 	if p != null:
 		if p.has_signal("open_guild"):

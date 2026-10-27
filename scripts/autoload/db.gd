@@ -24,6 +24,9 @@ var biome_rooms: Dictionary
 var _icon_index_cache: Dictionary = {}
 
 func _init() -> void:
+	# Vita shows a loading scene first and calls reload() from there. Other platforms load as before.
+	if VitaBoot.on_device():
+		return
 	reload()
 
 func reload() -> void:

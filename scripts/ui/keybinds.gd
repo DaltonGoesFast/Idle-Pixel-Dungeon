@@ -71,6 +71,7 @@ static func resolved(settings: Dictionary = GameState.settings) -> Dictionary:
 	return out
 
 ## Install or refresh every combat_* action on the InputMap from settings.
+## On Vita (and the IDLEPD_VITA desktop proxy) also binds the face/shoulder/Start pad and ui_accept/ui_cancel.
 static func apply(settings: Dictionary = GameState.settings) -> void:
 	var map := resolved(settings)
 	for action in ACTION_ORDER:
@@ -81,6 +82,32 @@ static func apply(settings: Dictionary = GameState.settings) -> void:
 			var ev := InputEventKey.new()
 			ev.keycode = int(code) as Key
 			InputMap.action_add_event(action, ev)
+		if pad_enabled():
+			var joy := int(vita_joy_buttons().get(action, -1))
+			if joy >= 0:
+				var jb := InputEventJoypadButton.new()
+				jb.button_index = joy as JoyButton
+				InputMap.action_add_event(action, jb)
+	if pad_enabled():
+		_bind_vita_ui_actions()
+
+## Cross confirms, Circle backs out of Godot UI actions (windows, tips that listen for ui_cancel).
+static func _bind_vita_ui_actions() -> void:
+	for pair in [["ui_accept", JOY_BUTTON_A], ["ui_cancel", JOY_BUTTON_B]]:
+		var action: String = pair[0]
+		var button: int = int(pair[1])
+		if not InputMap.has_action(action):
+			InputMap.add_action(action)
+		var has := false
+		for ev in InputMap.action_get_events(action):
+			if ev is InputEventJoypadButton and (ev as InputEventJoypadButton).button_index == button:
+				has = true
+				break
+		if has:
+			continue
+		var jb := InputEventJoypadButton.new()
+		jb.button_index = button as JoyButton
+		InputMap.action_add_event(action, jb)
 
 ## Human-readable keys for an action ("W, Up, Numpad 8").
 static func binding_text(action: String, settings: Dictionary = GameState.settings) -> String:
@@ -115,6 +142,60 @@ static func reset_defaults() -> void:
 	GameState.set_setting("keybinds", {})
 	apply()
 	SaveSystem.save_game()
+
+## Vita pad (JoypadVita): Cross A, Circle B, Square X, Triangle Y, Select BACK, Start START.
+## Diagonals use the left stick (vita_stick_step). Hint stays on the front touch panel.
+static func vita_joy_buttons() -> Dictionary:
+	return {
+		"combat_move_n": JOY_BUTTON_DPAD_UP,
+		"combat_move_s": JOY_BUTTON_DPAD_DOWN,
+		"combat_move_w": JOY_BUTTON_DPAD_LEFT,
+		"combat_move_e": JOY_BUTTON_DPAD_RIGHT,
+		"combat_wait": JOY_BUTTON_A,
+		"combat_cancel": JOY_BUTTON_B,
+		"combat_search": JOY_BUTTON_X,
+		"combat_bag": JOY_BUTTON_Y,
+		"combat_potion": JOY_BUTTON_LEFT_SHOULDER,
+		"combat_skill_1": JOY_BUTTON_RIGHT_SHOULDER,
+		"combat_skill_2": JOY_BUTTON_BACK,
+		"combat_auto": JOY_BUTTON_START,
+	}
+
+static func on_vita(os_name: String = OS.get_name()) -> bool:
+	return os_name == "Vita"
+
+## Real Vita, or the IDLEPD_VITA desktop proxy when the caller is looking at this machine's OS name.
+static func pad_enabled(os_name: String = OS.get_name()) -> bool:
+	if os_name == "Vita":
+		return true
+	if os_name != OS.get_name():
+		return false
+	return VitaBoot.runs_on_vita()
+
+## Left-stick Chebyshev step. Axes are Y-down like the D-pad. Deadzone keeps idle noise off.
+static func vita_stick_step(device: int = 0, dead := 0.55) -> Vector2i:
+	if not pad_enabled():
+		return Vector2i.ZERO
+	return vita_stick_step_from(Input.get_joy_axis(device, JOY_AXIS_LEFT_X), Input.get_joy_axis(device, JOY_AXIS_LEFT_Y), dead)
+
+static func vita_stick_step_from(x: float, y: float, dead := 0.55) -> Vector2i:
+	var sx := 0
+	if x <= -dead:
+		sx = -1
+	elif x >= dead:
+		sx = 1
+	var sy := 0
+	if y <= -dead:
+		sy = -1
+	elif y >= dead:
+		sy = 1
+	return Vector2i(sx, sy)
+
+## Combat shortcuts are keys everywhere. Joypad buttons count only when the Vita pad is enabled.
+static func accepts_combat_shortcut(event: InputEvent, os_name: String = OS.get_name()) -> bool:
+	if event is InputEventKey:
+		return true
+	return event is InputEventJoypadButton and pad_enabled(os_name)
 
 ## True when the event just pressed this action (ignores echo).
 static func just_pressed(action: String, event: InputEvent) -> bool:

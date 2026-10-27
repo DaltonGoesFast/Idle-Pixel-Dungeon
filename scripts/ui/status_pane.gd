@@ -45,6 +45,9 @@ func set_hero(sprite: String, fw: int, fh: int, row := 0) -> void:
 	hero_row = row; hero_sprite = load("res://assets/sprites/%s.png" % sprite); hero_fw = fw; hero_fh = fh
 
 func _k() -> float:
+	# Vita's font pushes px_scale to 4, and 39*4 is 156px of a 544px panel. 2x keeps the SPD pane readable.
+	if VitaBoot.runs_on_vita():
+		return 2.0
 	return float(maxi(2, UIKit.px_scale))
 
 func set_max_w(w: float) -> void:

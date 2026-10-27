@@ -1,4 +1,5 @@
 ## SaveSystem: versioned JSON save in user://save.json, with atomic write + migration hook.
+## On PS Vita that directory is ux0:/data/idlepd-saves/ (project.godot feature override).
 extends Node
 
 const SAVE_VERSION := 2
@@ -6,7 +7,9 @@ var path := "user://save.json"
 var autosave := true
 
 func _ready() -> void:
-	load_game()
+	# Vita loads the save after DB.reload() on the loading scene. Other platforms load as before.
+	if not VitaBoot.on_device():
+		load_game()
 	GameState.changed.connect(_on_changed)
 
 ## Android may kill a backgrounded app at any time: save whenever we lose focus or are asked to quit.

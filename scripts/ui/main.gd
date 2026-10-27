@@ -3,9 +3,9 @@
 extends Control
 
 const CampScreen := preload("res://scripts/ui/camp_screen.gd")
-const DelveScreen := preload("res://scripts/ui/delve_screen.gd")
-const CombatScreen := preload("res://scripts/ui/combat_screen.gd")
 const TipOverlay := preload("res://scripts/ui/tip_overlay.gd")
+## Delve and combat stay unloaded until a run starts. Parsing both at boot cost ~45s on ux0
+## and the free RAM (about 28 MiB before the main scene) that the first frame needs.
 const Keybinds := preload("res://scripts/ui/keybinds.gd")
 
 var margin: MarginContainer
@@ -23,6 +23,8 @@ var tips: Control            # TipOverlay (tutorial cards above everything), the
 const TIP_LAYER := 100
 var tip_layer: CanvasLayer
 var _id_timer := 0.0
+var _vita_prof := 0.0
+var _vita_worst_ms := 0
 
 ## DECISIONS #224: integer content scale on web when at least 1× of the design size fits (crisp pixels).
 ## Godot clips instead of shrinking when integer scale would be below 1×, so desktop browsers and most
@@ -37,17 +39,36 @@ static func use_integer_content_scale(is_web: bool = OS.has_feature("web"), win:
 	return float(win.x) >= bw and float(win.y) >= bh
 
 ## DECISIONS #232: Desktop UI when set to desktop, or Auto on non-mobile. Mobile OS feature covers Android/iOS.
-static func resolve_desktop_ui(settings: Dictionary = GameState.settings, is_mobile: bool = OS.has_feature("mobile")) -> bool:
+## Vita is a 960×544 touch handheld (DECISIONS #244). It keeps the wide mobile chrome even if interface is desktop.
+static func resolve_desktop_ui(settings: Dictionary = GameState.settings, is_mobile: bool = OS.has_feature("mobile"), os_name: String = OS.get_name()) -> bool:
+	if os_name == "Vita":
+		return false
 	match String(settings.get("interface", "auto")):
 		"desktop": return true
 		"mobile": return false
 		_: return not is_mobile
 
+## Same portrait cut as _relayout (aspect < 0.85). The phone design is portrait; 960×544 is wide.
+static func layout_is_portrait(size: Vector2) -> bool:
+	if size.y <= 0.0:
+		return true
+	return size.x / size.y < 0.85
+
 func _apply_content_scale() -> void:
 	var root := get_tree().root
 	root.content_scale_stretch = Window.CONTENT_SCALE_STRETCH_INTEGER if use_integer_content_scale() else Window.CONTENT_SCALE_STRETCH_FRACTIONAL
 
+func _vita_log(stage: String) -> void:
+	if OS.get_name() != "Vita":
+		return
+	printerr("[vita-boot] %s static=%d peak=%d" % [stage, OS.get_static_memory_usage(), OS.get_static_memory_peak_usage()])
+
 func _ready() -> void:
+	# Desktop stand-in for the Vita panel. The env does not change a normal launch.
+	if OS.get_environment("IDLEPD_VITA") == "1" and not VitaBoot.on_device():
+		get_tree().root.content_scale_size = Vector2i(960, 544)
+		get_window().size = Vector2i(960, 544)
+	_vita_log("main enter")
 	Keybinds.apply()
 	_apply_content_scale()
 	set_anchors_and_offsets_preset(PRESET_FULL_RECT)
@@ -69,6 +90,16 @@ func _ready() -> void:
 	get_viewport().size_changed.connect(_relayout)
 	PatrolBridge.open_guild.connect(_open_guild_patrols)
 	_relayout()
+	_vita_log("theme ready")
+	# SceneTree::initialize is root->_set_tree. Building Camp inside that call sits on the
+	# loader's 8 MiB main stack and is where the device died (last line: initialize begin).
+	if OS.get_name() == "Vita":
+		call_deferred("_open_initial_screen")
+	else:
+		_open_initial_screen()
+
+func _open_initial_screen() -> void:
+	_vita_log("open screen")
 	GameState.tick_identify()
 	if Telemetry.needs_notice(): show_data_notice()
 	if GameState.run.is_empty(): show_camp()
@@ -77,14 +108,46 @@ func _ready() -> void:
 		if GameState.run.has("active_fight"): delve.resume_fight()
 	if PatrolBridge.take_open():
 		_open_guild_patrols()
+	_vita_log("screen open")
+
+static func ui_font_size(shortest: float, text_scale: float = 1.0, vita := false) -> int:
+	if vita:
+		return int(clampf(shortest / 16.0 * text_scale, 28, 40))
+	return int(clampf(shortest / 24.0 * text_scale, 14, 60))
 
 func _process(delta: float) -> void:
+	var vita := VitaBoot.runs_on_vita()
+	var t0 := Time.get_ticks_usec() if vita else 0
+	if vita:
+		_vita_frame(delta)
 	# toasts never cover a tutorial card (they keep their timers and reappear when it closes)
 	toast_box.visible = not tip_open()
 	_id_timer += delta
 	if _id_timer > 1.0:
 		_id_timer = 0.0
 		GameState.tick_identify()
+	if vita:
+		VitaBoot.add_us("main", int(Time.get_ticks_usec() - t0))
+
+func _vita_frame(delta: float) -> void:
+	var ms := int(delta * 1000.0)
+	if ms > _vita_worst_ms:
+		_vita_worst_ms = ms
+	_vita_prof += delta
+	if _vita_prof < 2.0:
+		return
+	var draw_us := -1
+	var camp: Variant = screen.get("scene") if screen != null else null
+	if camp != null:
+		draw_us = int(camp.get("_last_draw_us"))
+	var nodes := int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT))
+	var line := "tick worst_ms=%d scene_draw_us=%d nodes=%d" % [_vita_worst_ms, draw_us, nodes]
+	var report := VitaBoot.take_report()
+	if report != "":
+		line += " " + report
+	VitaBoot.mark_tick(line)
+	_vita_prof = 0.0
+	_vita_worst_ms = 0
 
 ## Live Editor layout mode: drag named Camp chrome (DECISIONS #233). Camp NPCs use CampScene._gui_input.
 func _input(e: InputEvent) -> void:
@@ -107,7 +170,7 @@ func _unhandled_input(e: InputEvent) -> void:
 func _relayout() -> void:
 	_apply_content_scale()
 	var vs := get_viewport_rect().size
-	portrait = vs.x / vs.y < 0.85
+	portrait = layout_is_portrait(vs)
 	desktop_ui = resolve_desktop_ui()
 	var l := 12.0; var t := 12.0; var r := 12.0; var b := 12.0
 	var safe := DisplayServer.get_display_safe_area()
@@ -123,6 +186,8 @@ func _relayout() -> void:
 	for p in [["left", l], ["top", t], ["right", r], ["bottom", b]]:
 		margin.add_theme_constant_override("margin_" + p[0], int(clampf(p[1], 4.0 if desktop_ui else 8.0, cap)))
 	var fs := int(clampf(minf(vs.x, vs.y) / 24.0 * float(GameState.settings.get("text_scale", 1.0)), 14, 60))
+	if VitaBoot.runs_on_vita():
+		fs = ui_font_size(minf(vs.x, vs.y), float(GameState.settings.get("text_scale", 1.0)), true)
 	theme = UIKit.make_theme(fs)
 	get_window().theme = theme   # popups / anything parented outside Main inherit the SPD theme too
 	if tips: tips.theme = theme   # a CanvasLayer breaks Control theme inheritance, so the tip layer gets it directly
@@ -163,11 +228,19 @@ func show_camp() -> void:
 		"extract": tip("after_extract")
 	GameState.last_result = ""
 	if int(GameState.stats.runs) == 0: tip("welcome"); tip("camp_delve")
+	if OS.get_name() == "Vita":
+		call_deferred("_vita_camp_music")
+	else:
+		Sfx.music("theme_2" if int(GameState.stats.get("goo_kills", 0)) > 0 else "theme_1")
+
+func _vita_camp_music() -> void:
+	_vita_log("before music")
 	Sfx.music("theme_2" if int(GameState.stats.get("goo_kills", 0)) > 0 else "theme_1")
+	_vita_log("after music")
 
 func show_delve() -> void:
 	if delve == null:
-		delve = DelveScreen.new(); delve.main = self
+		delve = load("res://scripts/ui/delve_screen.gd").new(); delve.main = self
 	_set_screen(delve)
 	delve.on_shown()
 	play_floor_music()
@@ -180,7 +253,7 @@ func play_floor_music() -> void:
 ## Called by DelveScreen. on_done(result: Dictionary) gets {won, hp, loot, fallen_loot, xp, boss_killed, potions_used}.
 func start_combat(event: Dictionary, on_done: Callable, saved := {}) -> void:
 	for t in toast_box.get_children(): t.queue_free()   # nothing floats over the fight
-	var s := CombatScreen.new(); s.main = self
+	var s = load("res://scripts/ui/combat_screen.gd").new(); s.main = self
 	s.setup(event, on_done, saved)
 	_set_screen(s)
 	if event.get("boss", false): Sfx.music(DB.biomes[GameState.run.biome].boss_music); Sfx.play("boss")

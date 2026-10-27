@@ -134,6 +134,7 @@ func _ready() -> void:
 	test_backpack(gs)
 	test_updater()
 	test_export_presets()
+	test_vita_handheld()
 	test_build_script_android_template()
 	test_release_cert_pin()
 	test_verify_apk_java()
@@ -1036,7 +1037,7 @@ func test_render(gs) -> void:
 	check(gv._frame("rat", "attack", 0.0) == 2, "rat attack anim starts on SPD frame 2")
 	gv.free()
 
-## DECISIONS #235: fit default, clamped pan when zoomed, screenâ†’cell, tap vs drag threshold.
+## DECISIONS #235: fit default, clamped pan when zoomed, screen?cell, tap vs drag threshold.
 func test_combat_camera(gs) -> void:
 	print("[combat camera]")
 	var gv = load("res://scripts/ui/grid_view.gd").new()
@@ -1055,7 +1056,7 @@ func test_combat_camera(gs) -> void:
 	var o: Vector2 = gv.origin()
 	check(o.x <= 0.0 and o.y <= 0.0 and o.x + arena.x >= gv.size.x - 0.5 and o.y + arena.y >= gv.size.y - 0.5,
 		"clamped pan keeps a zoomed arena covering the view (%s + %s)" % [o, arena])
-	# screenâ†’cell: centre of cell (2,3) maps back after pan/zoom
+	# screen?cell: centre of cell (2,3) maps back after pan/zoom
 	var target := Vector2i(2, 3)
 	var mid: Vector2 = gv.cell_rect(Vector2(target)).get_center()
 	var hit: Vector2i = Vector2i(gv.screen_to_cell(mid).floor())
@@ -1816,7 +1817,7 @@ func test_weapon_loot(gs) -> void:
 	check(lv.worn_shortsword == 2 and lv.shortsword == 2 and lv.sword == 3 and lv.longsword == 4 and lv.greatsword == 5, "sword recipes by Forge level (L1 repair-only; T5 at L5)")
 	var found := []
 	for t in range(1, 6): found += Weapons.pool(t)
-	# Forge swords outfit Camp (DECISIONS #234); the Mage's Staff is heirloom â€” neither drops.
+	# Forge swords outfit Camp (DECISIONS #234); the Mage's Staff is heirloom — neither drops.
 	var all_w: Array = DB.items.keys().filter(func(k): return Weapons.is_weapon(DB.items[k]) and not DB.items[k].get("heirloom", false) and k not in Weapons.FORGE_SWORDS)
 	check(found.size() == all_w.size() and found.size() == 26 and not ("mages_staff" in found), "every weapon but the Mage's Staff and forge swords can drop (%d)" % found.size())
 	for w in ["spear", "assassins_blade", "dagger", "mace", "glaive", "whip"]:
@@ -1944,7 +1945,7 @@ func test_tip_fit() -> void:
 	UIKit.make_theme(fs0)
 	check(bad.is_empty(), "every tip page fits its card and the screen at cover and inner sizes %s" % [bad.slice(0, 6)])
 
-## Forge/Guild quantity: craft_n pays NÃ— cost; upgrade_cost_n rises per level; repair_all pays the sum of each repair.
+## Forge/Guild quantity: craft_n pays N× cost; upgrade_cost_n rises per level; repair_all pays the sum of each repair.
 func test_forge_bulk(gs) -> void:
 	print("[forge bulk]")
 	gs.new_game(); gs.facilities.blacksmith.level = 3; gs.facilities.guild.level = 2
@@ -2941,7 +2942,7 @@ func test_encounter_summary(gs) -> void:
 	add_child(scr)
 	scr.size = Vector2(968, 900)
 	scr.running = true
-	# Found mace (not a forge sword â€” those outfit Camp and never sit in the pack, DECISIONS #234)
+	# Found mace (not a forge sword — those outfit Camp and never sit in the pack, DECISIONS #234)
 	scr._choose_door({"kind": "chest", "text": "Locked chest", "cost": {"gold": 3}, "reward": {"gold": 7, "item": "mace"}})
 	var txt := _node_text(scr.get_node("EncounterSummary"))
 	check(scr._summary_open() and _find_btn(scr, "OK") != null and txt.contains("Locked chest") and txt.contains("Got") and txt.contains("Lost") and txt.contains("-3 Gold") and txt.contains("+7 Gold") and txt.contains("Mace"), "chest window lists the cost and the find, with OK")
@@ -3371,6 +3372,146 @@ func test_export_presets() -> void:
 	var dsh := deploy.get_as_text() if deploy else ""
 	check(dsh.contains("favicon_16.png") and dsh.contains("favicon_32.png"),
 		"deploy_web.sh copies favicons next to index.html")
+	var found_vita := false
+	for s in cfg.get_sections():
+		if s.ends_with(".options") or String(cfg.get_value(s, "platform", "")) != "PS Vita": continue
+		found_vita = true
+		var vopt := s + ".options"
+		check(String(cfg.get_value(s, "custom_features", "")) == "vita", "PS Vita preset carries the vita feature tag")
+		check(int(cfg.get_value(s, "script_export_mode", -1)) == 0, "PS Vita scripts export as text")
+		check(not bool(cfg.get_value(s, "encrypt_pck", true)) and not bool(cfg.get_value(s, "encrypt_directory", true)), "PS Vita pack is not encrypted")
+		check(String(cfg.get_value(s, "exclude_filter", "")).contains("tests/*"), "PS Vita preset excludes tests")
+		check(String(cfg.get_value(s, "export_path", "")).ends_with(".vpk"), "PS Vita preset exports a .vpk")
+		check(bool(cfg.get_value(vopt, "data/separate_folder", false)), "PS Vita game data is a separate ux0:data folder")
+		check(String(cfg.get_value(vopt, "data/folder_name", "")) == "idlepd", "PS Vita data folder is idlepd")
+		check(String(cfg.get_value(vopt, "textures/gpu_format", "")) == "RGBA4444", "PS Vita textures default to RGBA4444")
+		check(String(cfg.get_value(vopt, "performance/capunlocker", "")) == "optional", "CapUnlocker is optional")
+		check(String(cfg.get_value(vopt, "application/title_id", "")) == "IDLEPD001", "PS Vita title id is IDLEPD001")
+		check(String(cfg.get_value(vopt, "application/version", "")) == "00.51", "PS Vita PARAM.SFO version is 00.51")
+		check(String(cfg.get_value(vopt, "application/title", "")) == "Idle PD", "PS Vita bubble title is Idle PD")
+	check(found_vita, "PS Vita export preset exists")
+	var proj := ConfigFile.new()
+	check(proj.load("res://project.godot") == OK, "project.godot loads")
+	check(int(proj.get_value("display", "window/size/viewport_width", 0)) == 968, "phone viewport width stays 968")
+	check(int(proj.get_value("display", "window/size/viewport_height", 0)) == 2376, "phone viewport height stays 2376")
+	check(int(proj.get_value("display", "window/size/viewport_width.vita", 0)) == 960, "vita feature viewport width is 960")
+	check(int(proj.get_value("display", "window/size/viewport_height.vita", 0)) == 544, "vita feature viewport height is 544")
+	check(int(proj.get_value("display", "window/size/viewport_width.Vita", 0)) == 960, "Vita export feature viewport width is 960")
+	check(int(proj.get_value("display", "window/size/viewport_height.Vita", 0)) == 544, "Vita export feature viewport height is 544")
+	check(int(proj.get_value("threading", "worker_pool/max_threads.vita", 0)) == 2, "vita worker pool is 2")
+	check(int(proj.get_value("threading", "worker_pool/max_threads.Vita", 0)) == 2, "Vita export worker pool is 2")
+	check(bool(proj.get_value("application", "config/use_custom_user_dir.vita", false)), "vita uses a custom user dir")
+	check(String(proj.get_value("application", "config/custom_user_dir_name.vita", "")) == "idlepd-saves", "vita saves live in idlepd-saves")
+	check(bool(proj.get_value("application", "boot_splash/show_image.vita", true)) == false, "vita engine splash hides the Godot logo")
+	check(proj.get_section_keys("autoload")[0] == "VitaBoot", "VitaBoot is the first autoload")
+	check(String(proj.get_value("rendering", "renderer/rendering_method", "")) == "gl_compatibility", "Compatibility renderer stays the project default")
+	check(String(proj.get_value("rendering", "renderer/rendering_method.vita", "")) == "gl_compatibility", "vita feature keeps the Compatibility renderer")
+	check(String(proj.get_value("application", "run/main_scene", "")) == "res://scenes/main.tscn", "phone main scene stays scenes/main.tscn")
+	check(String(proj.get_value("application", "run/main_scene.vita", "")) == "res://scenes/vita_boot.tscn", "vita feature main scene is the loading card")
+	check(String(proj.get_value("application", "run/main_scene.Vita", "")) == "res://scenes/vita_boot.tscn", "Vita export main scene is the loading card")
+	check(String(proj.get_value("autoload", "DB", "")).ends_with("db.gd"), "desktop DB autoload stays db.gd")
+	check(String(proj.get_value("autoload.vita", "DB", "")).ends_with("db_vita.gd"), "vita feature DB autoload is the stub")
+	check(String(proj.get_value("autoload.Vita", "DB", "")).ends_with("db_vita.gd"), "Vita export DB autoload is the stub")
+	check(FileAccess.file_exists("res://scripts/autoload/db_vita.gd"), "vita DB stub exists")
+
+## DECISIONS #244: Vita is the wide mobile layout plus the native pad. Phone desktop rules stay put.
+func test_vita_handheld() -> void:
+	print("[vita handheld]")
+	var Main: GDScript = load("res://scripts/ui/main.gd")
+	check(not Main.resolve_desktop_ui({"interface": "desktop"}, false, "Vita"), "Vita keeps touch chrome when interface is desktop")
+	check(not Main.resolve_desktop_ui({"interface": "auto"}, false, "Vita"), "Vita auto is the mobile layout")
+	check(Main.resolve_desktop_ui({"interface": "desktop"}, false, "Windows"), "Windows desktop interface is unchanged")
+	check(not Main.resolve_desktop_ui({"interface": "auto"}, true, "Android"), "Android auto stays mobile")
+	check(not Main.layout_is_portrait(Vector2(960, 544)), "960x544 uses the wide layout")
+	check(Main.layout_is_portrait(Vector2(968, 2376)), "the phone design size stays portrait")
+	var Live: GDScript = load("res://scripts/autoload/live_layout.gd")
+	check(not Live.desktop_allowed("Vita", false, false), "the Live Editor stays off on Vita")
+	check(Live.desktop_allowed("Linux", false, false), "the Live Editor stays available on Linux")
+	check(not Telemetry.http_uses_threads("Vita") and Telemetry.http_uses_threads("Android"), "telemetry threads stay off on Vita and on for Android")
+	check(not Telemetry.http_client_enabled("Vita") and Telemetry.http_client_enabled("Android"), "telemetry does not open an HTTP client on Vita")
+	check(not UIKit.uses_system_font_fallback("Vita") and UIKit.uses_system_font_fallback("Android"), "Vita does not chain the pixel font through SystemFont")
+	check(not PatrolBridge.runs_on("Vita") and PatrolBridge.runs_on("Android"), "PatrolWidget stays off on Vita")
+	var main_src := FileAccess.get_file_as_string("res://scripts/ui/main.gd")
+	check(not main_src.contains("preload(\"res://scripts/ui/delve_screen.gd\")") and not main_src.contains("preload(\"res://scripts/ui/combat_screen.gd\")"), "delve and combat scripts load on demand")
+	check(main_src.contains("scene_draw_us"), "the Vita tick names the active scene draw")
+	check(main_src.contains("IDLEPD_VITA") and main_src.contains("content_scale_size"), "the desktop Vita proxy lays out at 960x544")
+	check(Main.ui_font_size(544.0, 1.0, false) == int(clampf(544.0 / 24.0, 14, 60)), "non-Vita font size stays shortest/24 clamped 14..60")
+	check(Main.ui_font_size(544.0, 1.0, true) >= 28, "Vita font size is at least 28 on a 544-tall panel")
+	check(not VitaBoot.runs_on_vita(false, "Android") and not VitaBoot.runs_on_vita(false, "Windows") and not VitaBoot.runs_on_vita(false, "Web"), "Android, Windows, and web are not the Vita runtime")
+	check(VitaBoot.runs_on_vita(true, "Linux") and VitaBoot.runs_on_vita(false, "Vita"), "the vita feature or the Vita OS name selects the handheld path")
+	var camp_src := FileAccess.get_file_as_string("res://scripts/ui/camp_scene.gd")
+	check(camp_src.contains("func _draw_vita()") and camp_src.contains("if VitaBoot.runs_on_vita():"), "camp keeps a Vita draw path and the phone _draw")
+	check(FileAccess.file_exists("res://scenes/vita_boot.tscn"), "Vita loading scene exists")
+	var boot_src := FileAccess.get_file_as_string("res://scripts/platform/vita_boot_scene.gd")
+	check(boot_src.contains("res://scripts/ui/delve_screen.gd") and boot_src.contains("res://scripts/ui/combat_screen.gd"), "the Vita boot card loads delve and combat before camp opens")
+	var vita_boot_src := FileAccess.get_file_as_string("res://scripts/platform/vita_boot.gd")
+	check(vita_boot_src.contains("func mark_tick") and vita_boot_src.contains("func add_us"), "the Vita tick line does not reopen the save log")
+	check(vita_boot_src.contains("IDLEPD_VITA") and vita_boot_src.contains("func on_device"), "IDLEPD_VITA can force the Vita path for a desktop proxy")
+	var db_src := FileAccess.get_file_as_string("res://scripts/autoload/db.gd")
+	check(db_src.contains("VitaBoot.on_device()"), "the desktop proxy still loads db.gd at startup")
+	var delve_src := FileAccess.get_file_as_string("res://scripts/ui/delve_screen.gd")
+	check(delve_src.contains("func _process_vita"), "delve keeps a Vita frame path beside the phone _process")
+	check(delve_src.contains("func _vita_supply_line") and delve_src.contains("Vector2(64, 64)"), "Vita delve uses one supply row and 64px slots")
+	check(delve_src.contains("func _vita_fit_chrome") and delve_src.contains("log_sc.clip_contents = true"), "Vita delve fits the toolbar and clips the log")
+	check(delve_src.contains("line * 2.0 + sep + 6.0"), "Vita log slot keeps the last line fully inside the pane")
+	check(delve_src.contains("40.0 * float(maxi(2, UIKit.px_scale))"), "phone delve layout still reserves the tall status pane")
+	var delve_scene_src := FileAccess.get_file_as_string("res://scripts/ui/delve_scene.gd")
+	check(delve_scene_src.contains("1.0 / 12.0") and delve_scene_src.contains("queue_redraw()   # 60 fps"), "the corridor redraws at 12 fps on Vita and 60 fps on the phone")
+	check(delve_scene_src.contains("func _vita_paint_static") and delve_scene_src.contains("show_behind_parent"), "Vita corridor tiles stay on a cached canvas")
+	check(delve_scene_src.contains("func _vita_paint_light") and delve_scene_src.contains("VITA_FRAME_N"), "Vita corridor keeps a baked vignette and cached water and grass frames")
+	check(delve_scene_src.contains("Node2D.new()") and delve_scene_src.contains("canvas_item_set_visible"), "Vita corridor bakes stay put until the tiles change")
+	var grid_src := FileAccess.get_file_as_string("res://scripts/ui/grid_view.gd")
+	check(grid_src.contains("_vita_acc") and grid_src.contains("VitaBoot.runs_on_vita()"), "the combat grid has a Vita redraw gate")
+	check(grid_src.contains("1.0 / 12.0") and grid_src.contains("func _vita_paint_bake") and grid_src.contains("show_behind_parent"), "Vita combat ground stays on a cached canvas and sprites redraw at 12 fps")
+	check(grid_src.contains("func _vita_paint_walls") and grid_src.contains("func _vita_paint_fog"), "Vita combat wall tops and fog stay on cached canvases")
+	check(grid_src.contains("func _vita_stamp_now") and grid_src.contains("canvas_item_set_visible"), "Vita combat ground rebakes when the tiles change, not every frame")
+	check(grid_src.contains("if not vita_draw and lighting"), "phone combat still draws the fog polygons")
+	var combat_src := FileAccess.get_file_as_string("res://scripts/ui/combat_screen.gd")
+	check(combat_src.contains("func _process_vita") and combat_src.contains("_vita_auto_at"), "Vita auto battle waits on a wall clock")
+	check(combat_src.contains("func _vita_auto_light") and combat_src.contains("+ 700"), "Vita auto waits 700 ms and skips the mid-fight button rebuild")
+	check(combat_src.contains("_vita_save_at"), "Vita fight saves are throttled")
+	check(combat_src.contains("_auto_t > 0.35"), "phone auto battle still waits on frame time")
+	var camp_ui := FileAccess.get_file_as_string("res://scripts/ui/camp_screen.gd")
+	check(camp_ui.contains("func _vita_identify_tick") and camp_ui.contains("_fill_window()"), "the enchanter rebuilds on the phone and ticks bars on Vita")
+	check(camp_ui.contains("GameState.changed.connect(rebuild)"), "phone camp still rebuilds on every change")
+	check(camp_ui.contains("func _vita_on_changed") and camp_ui.contains("func _vita_patch_supply"), "Vita camp reuses the dock and patches supply rows")
+	check(camp_ui.contains("func _vita_page_sig_now") and camp_ui.contains("same type"), "Vita camp does not rebuild an open page on the clock")
+	var pane_src := FileAccess.get_file_as_string("res://scripts/ui/status_pane.gd")
+	check(pane_src.contains("return 2.0") and pane_src.contains("return float(maxi(2, UIKit.px_scale))"), "Vita status scale is 2 and the phone scale stays px_scale")
+	check(not Updater.http_uses_threads("Vita") and Updater.http_uses_threads("Android"), "updater threads stay off on Vita and on for Android")
+	var updater_src := FileAccess.get_file_as_string("res://scripts/autoload/updater.gd")
+	var updater_ready := updater_src.substr(updater_src.find("func _ready()"))
+	check(updater_ready.find("if not supports_platform():") != -1 and updater_ready.find("if not supports_platform():") < updater_ready.find("HTTPRequest.new()"), "updater returns before constructing HTTPRequest on an unsupported OS")
+	check(not Updater.supports_platform() or OS.get_name() in ["Android", "Windows"], "in-game updates stay Android and Windows only")
+	var pad: Dictionary = Keybinds.vita_joy_buttons()
+	check(int(pad["combat_move_n"]) == JOY_BUTTON_DPAD_UP and int(pad["combat_wait"]) == JOY_BUTTON_A, "D-pad north and Cross map to move and Wait")
+	check(int(pad["combat_cancel"]) == JOY_BUTTON_B and int(pad["combat_auto"]) == JOY_BUTTON_START, "Circle cancels and Start toggles Auto")
+	check(not pad.has("combat_move_ne") and not pad.has("combat_hint"), "diagonal pad buttons stay off; Hint stays on touch")
+	check(Keybinds.pad_enabled("Vita") and not Keybinds.pad_enabled("Linux"), "pad bindings are Vita-only unless IDLEPD_VITA is set")
+	var delve_pad := FileAccess.get_file_as_string("res://scripts/ui/delve_screen.gd")
+	check(delve_pad.contains("func _vita_pad_confirm") and delve_pad.contains("func _vita_pad_back"), "delve handles Cross and Circle")
+	var camp_pad := FileAccess.get_file_as_string("res://scripts/ui/camp_screen.gd")
+	check(camp_pad.contains("func _vita_cycle_page") and camp_pad.contains("open_page(\"Delve\")"), "camp cycles pages and opens Delve on Cross")
+	var combat_pad := FileAccess.get_file_as_string("res://scripts/ui/combat_screen.gd")
+	check(combat_pad.contains("func _vita_stick_move") and combat_pad.contains("vita_stick_step"), "combat walks on the left stick")
+	var key := InputEventKey.new(); key.pressed = true; key.keycode = KEY_W
+	var cross := InputEventJoypadButton.new(); cross.button_index = JOY_BUTTON_A; cross.pressed = true
+	check(Keybinds.accepts_combat_shortcut(key, "Linux"), "keyboard shortcuts still reach combat on PC")
+	check(not Keybinds.accepts_combat_shortcut(cross, "Linux"), "a PC gamepad does not drive combat")
+	check(Keybinds.accepts_combat_shortcut(cross, "Vita"), "Cross reaches combat on Vita")
+	var action := "combat_wait"
+	if not InputMap.has_action(action):
+		InputMap.add_action(action)
+	var before := InputMap.action_get_events(action).duplicate()
+	InputMap.action_erase_events(action)
+	InputMap.action_add_event(action, cross)
+	check(Keybinds.just_pressed(action, cross), "Cross pressed on the Wait action counts")
+	InputMap.action_erase_events(action)
+	for ev in before:
+		InputMap.action_add_event(action, ev)
+	check(Keybinds.vita_stick_step_from(0.0, 0.0) == Vector2i.ZERO, "stick below deadzone is no step")
+	check(Keybinds.vita_stick_step_from(0.9, 0.0) == Vector2i(1, 0), "stick east is a cardinal step")
+	check(Keybinds.vita_stick_step_from(0.8, -0.8) == Vector2i(1, -1), "stick NE is a diagonal step")
 
 ## DECISIONS #140: Godot's Gradle export checks res://android/.build_version before running Gradle;
 ## tools/build.sh must write it alongside android/build when unpacking android_source.zip.
@@ -4776,7 +4917,7 @@ func test_patrol_perks(gs) -> void:
 	# Guild card: an idle hero lists the gear bonus and perks before setting out; a patrolling one what they left with
 	_pat_camp(gs)
 	gs.heroes.warrior.str = 12   # meet Shortsword Str so camp weapon levels count
-	_camp(gs, "shortsword", "", 2, 0)   # camp weapon +2; Wealth +2 â†’ gear level 4
+	_camp(gs, "shortsword", "", 2, 0)   # camp weapon +2; Wealth +2 ? gear level 4
 	_pat_wear(gs, "warrior", "ring_wealth", 2)
 	gs.heroes.mage.unlocked = true; gs.heroes.mage.cleared.append("sewers"); gs.heroes.mage.wand_lvl = 1
 	check(gs.start_patrol("mage", "sewers"), "mage sets out")
@@ -4944,10 +5085,10 @@ func test_barrier_spd(gs) -> void:
 	# Camp armor under-Str: falls back to Cloth starter (DECISIONS #234); found under-Str weapons still take #220 penalties
 	gs.heroes.warrior.str = 10; gs.heroes.warrior.level = 10
 	gs.heroes.warrior.weapon = gs.add_gear("rapier", true, 0)         # Str 10, +1 block DR
-	_camp(gs, "", "plate_armor", 0, 0)     # 18 Str â€” Warrior keeps Cloth until Str 18
+	_camp(gs, "", "plate_armor", 0, 0)     # 18 Str — Warrior keeps Cloth until Str 18
 	var under_plate: Dictionary = gs.hero_stats("warrior")
 	check(String(gs.resolved_armor("warrior").source) == "starter" and int(under_plate.dr) == 1 + 1 and int(under_plate.barrier_max) == 8, "10-Str hero skips party Plate (Cloth DR 1 + Rapier block 1, class/seal Barrier)")
-	gs.heroes.warrior.str = 16   # still short of Plate 18 â€” Cloth; Rapier ok
+	gs.heroes.warrior.str = 16   # still short of Plate 18 — Cloth; Rapier ok
 	var near_plate: Dictionary = gs.hero_stats("warrior")
 	check(String(gs.resolved_armor("warrior").source) == "starter" and int(near_plate.dr) == 1 + 1, "16-Str hero still skips Plate (needs 18)")
 	gs.heroes.warrior.str = 18
@@ -5015,7 +5156,7 @@ func test_barrier_spd(gs) -> void:
 	var cs_death = load("res://scripts/ui/camp_screen.gd").new()
 	check(gs.can_start_run("warrior") == "" and cs_death.start_biomes("warrior") == ["sewers"], "after death the delve picker is Sewers only")
 	cs_death.free()
-	# Patch up: found low-tier weapons only (camp never cracks). Mace is tier 3 â€” use Hand Axe (tier 2).
+	# Patch up: found low-tier weapons only (camp never cracks). Mace is tier 3 — use Hand Axe (tier 2).
 	for g in gs.gear: g.cracked = false
 	gs.mats.gold = 0; gs.mats.iron_ore = 0
 	check(gs.can_patch_up() == "no low-tier gear to patch", "Patch up with nothing cracked")
@@ -5798,7 +5939,7 @@ func _lose_sight(gs, blocker: int) -> Dictionary:
 	for step in [Vector2i(2, 3), Vector2i(2, 4)]:
 		if c.passable(step) and c.unit_at(step) == null:
 			c.hero_tap(step); out.moves += 1
-	# Rat acts once: out of FOV â†’ seen_hero clears (DECISIONS #176).
+	# Rat acts once: out of FOV ? seen_hero clears (DECISIONS #176).
 	c.hero_wait()
 	out.lost = not c.sees(rat.pos, c.hero.pos) and not rat.seen_hero and c.surprise_against(rat)
 	# Melee Surprise while still unaware (place adjacent without spending a move turn).

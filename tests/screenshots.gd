@@ -23,6 +23,9 @@ func _ready() -> void:
 		for e in OS.get_environment("SHOT_SIZES").split(","):
 			var kv := e.split(":"); var wh := kv[1].split("x")
 			SIZES[kv[0]] = Vector2i(int(wh[0]), int(wh[1]))
+	# SHOT_LOGICAL=1 lays the one SHOT_SIZES entry out at that size instead of the phone viewport.
+	if OS.get_environment("SHOT_LOGICAL") == "1" and SIZES.size() == 1:
+		get_tree().root.content_scale_size = SIZES.values()[0]
 	SaveSystem.autosave = false; SaveSystem.path = "user://shots.json"
 	GameState.new_game()
 	GameState.settings.tutorial = false

@@ -19,6 +19,10 @@ var chosen_hero := "warrior"
 var chosen_biome := "sewers"
 var portrait := true
 var open_name := ""          # page shown in the window ("" = hub)
+var _vita_dock_key := ""
+var _vita_page_sig := ""
+var _vita_changed_armed := false
+var _vita_filled_frame := -1
 var win_layer: Control       # page window
 var info_layer: Control      # item info popup (on top of the window)
 var _update_btn: Button      # Camp header Update control (Android / Windows)
@@ -34,10 +38,75 @@ const HERO_FRAME := Vector2i(12, 15)
 
 func _ready() -> void:
 	_build_shell()
-	GameState.changed.connect(rebuild)
+	if VitaBoot.runs_on_vita():
+		GameState.changed.connect(_vita_on_changed)
+	else:
+		GameState.changed.connect(rebuild)
 	Updater.changed.connect(_on_updater)
 	Updater.maybe_check()
 	rebuild()
+
+## Vita pad on camp: Cross opens Delve or closes nothing; Circle closes the page; D-pad cycles dock pages;
+## Triangle Heroes, Square Stash, Start Settings, Select Journal.
+func _unhandled_input(event: InputEvent) -> void:
+	if not VitaBoot.runs_on_vita():
+		return
+	if main and main.tip_open():
+		return
+	if not Keybinds.accepts_combat_shortcut(event):
+		return
+	if Keybinds.just_pressed("combat_cancel", event):
+		get_viewport().set_input_as_handled()
+		if info_layer != null:
+			_close_info()
+		elif open_name != "":
+			close_page()
+		return
+	if Keybinds.just_pressed("combat_wait", event):
+		get_viewport().set_input_as_handled()
+		if open_name == "":
+			open_page("Delve")
+		return
+	if Keybinds.just_pressed("combat_bag", event):
+		get_viewport().set_input_as_handled()
+		open_page("Heroes")
+		return
+	if Keybinds.just_pressed("combat_search", event):
+		get_viewport().set_input_as_handled()
+		open_page("Stash")
+		return
+	if Keybinds.just_pressed("combat_auto", event):
+		get_viewport().set_input_as_handled()
+		open_page("Settings")
+		return
+	if Keybinds.just_pressed("combat_skill_2", event):
+		get_viewport().set_input_as_handled()
+		open_page("Journal")
+		return
+	if Keybinds.just_pressed("combat_move_w", event) or Keybinds.just_pressed("combat_move_e", event):
+		get_viewport().set_input_as_handled()
+		var dir := -1 if Keybinds.just_pressed("combat_move_w", event) else 1
+		_vita_cycle_page(dir)
+
+func _vita_cycle_page(dir: int) -> void:
+	var i := PAGE_ORDER.find(open_name)
+	if i < 0:
+		open_page(PAGE_ORDER[0] if dir > 0 else PAGE_ORDER[PAGE_ORDER.size() - 1])
+		return
+	var n := PAGE_ORDER.size()
+	open_page(PAGE_ORDER[posmod(i + dir, n)])
+
+## Several changed signals in one craft used to rebuild the dock once each. Wait, then rebuild once.
+func _vita_on_changed() -> void:
+	if _vita_changed_armed:
+		return
+	_vita_changed_armed = true
+	get_tree().create_timer(0.4).timeout.connect(_vita_changed_flush, CONNECT_ONE_SHOT)
+
+func _vita_changed_flush() -> void:
+	_vita_changed_armed = false
+	if is_inside_tree():
+		rebuild()
 
 func _on_updater() -> void:
 	if not is_inside_tree() or root_box == null:
@@ -93,8 +162,10 @@ func _build_shell() -> void:
 	var top := UIKit.hbox(outer)
 	top.name = "CampTopBar"
 	var title := UIKit.header("Surface Camp"); title.size_flags_horizontal = SIZE_EXPAND_FILL; top.add_child(title)
-	var ver := UIKit.label(UIKit.version(), 0.75, Color("9a9488")); ver.size_flags_vertical = SIZE_SHRINK_CENTER
-	ver.autowrap_mode = TextServer.AUTOWRAP_OFF; top.add_child(ver)
+	# 960×544: skip the version chip so Journal/Settings keep room on the top row.
+	if not VitaBoot.runs_on_vita():
+		var ver := UIKit.label(UIKit.version(), 0.75, Color("9a9488")); ver.size_flags_vertical = SIZE_SHRINK_CENTER
+		ver.autowrap_mode = TextServer.AUTOWRAP_OFF; top.add_child(ver)
 	_update_btn = null
 	if Updater.supports_platform() and Updater.has_update():
 		_update_btn = UIKit.button(_camp_update_label(), func(): Updater.start_update())
@@ -142,21 +213,89 @@ func _build_shell() -> void:
 
 func rebuild() -> void:
 	if not is_inside_tree() or summary == null: return
+	var vita := VitaBoot.runs_on_vita()
+	var t0 := Time.get_ticks_usec() if vita else 0
 	# Recheck when returning to Camp after a long session (cooldown inside Updater).
 	Updater.maybe_check()
 	_journal_dot()
 	_settings_dot()
+	if vita and _vita_reuse_shell():
+		if open_name != "":
+			var sig := _vita_page_sig_now()
+			if sig != _vita_page_sig:
+				_fill_window()
+		call_deferred("_apply_live_layout")
+		VitaBoot.add_us("camp_rebuild", int(Time.get_ticks_usec() - t0))
+		return
 	UIKit.clear(summary)
 	for k in ["gold", "iron_ore", "dark_gold", "seeds", "arcane_resin", "dew", "scroll_upgrade", "torch", "ration", "potion_healing"]:
 		if GameState.mat(k) > 0 or k in ["gold", "iron_ore", "seeds"]:
-			var chip := UIKit.res_chip(k, str(GameState.mat(k)), 0.9); chip.tooltip_text = DB.mat_name(k); summary.add_child(chip)
+			var chip := UIKit.res_chip(k, str(GameState.mat(k)), 0.9)
+			if vita:
+				chip.name = "chip_" + k
+			chip.tooltip_text = DB.mat_name(k)
+			summary.add_child(chip)
 	if not GameState.heroes[chosen_hero].unlocked: chosen_hero = "warrior"
 	if not (chosen_biome in start_biomes(chosen_hero)): chosen_biome = "sewers"
 	scene.hero = chosen_hero
 	_build_side()
-	if open_name != "": _fill_window()
+	if vita:
+		_vita_dock_key = _vita_dock_key_now()
+	if open_name != "":
+		if not vita or _vita_filled_frame != Engine.get_process_frames():
+			_fill_window()
 	# Named chrome offsets (Live Editor) re-apply after container layout.
 	call_deferred("_apply_live_layout")
+	if vita:
+		VitaBoot.add_us("camp_rebuild", int(Time.get_ticks_usec() - t0))
+
+## Hero, destination, portrait, and who is out on patrol. Gold and supply counts are not in this key.
+func _vita_dock_key_now() -> String:
+	var parts: PackedStringArray = PackedStringArray()
+	parts.append("%s|%s|%s|%s" % [chosen_hero, chosen_biome, portrait, GameState.can_start_run(chosen_hero)])
+	parts.append(str(GameState.patrol_max_hours()))
+	for c in GameState.heroes:
+		var h: Dictionary = GameState.heroes[c]
+		var p: Dictionary = h.get("patrol", {})
+		parts.append("%s:%s:%s:%s:%s:%s:%s" % [c, h.get("unlocked", false), h.get("level", 0), h.get("str", 0), GameState.armor_tier(c), p.get("biome", ""), p.get("start", "")])
+	return "|".join(parts)
+
+func _vita_reuse_shell() -> bool:
+	if side == null or side.get_child_count() == 0:
+		return false
+	var key := _vita_dock_key_now()
+	if key != _vita_dock_key:
+		return false
+	_vita_update_summary()
+	scene.hero = chosen_hero
+	return true
+
+func _vita_update_summary() -> void:
+	var keys: PackedStringArray = PackedStringArray()
+	for k in ["gold", "iron_ore", "dark_gold", "seeds", "arcane_resin", "dew", "scroll_upgrade", "torch", "ration", "potion_healing"]:
+		if GameState.mat(k) > 0 or k in ["gold", "iron_ore", "seeds"]:
+			keys.append(k)
+	var same := summary.get_child_count() == keys.size()
+	if same:
+		for i in keys.size():
+			if summary.get_child(i).name != "chip_" + keys[i]:
+				same = false
+				break
+	if not same:
+		UIKit.clear(summary)
+		for k in keys:
+			var chip := UIKit.res_chip(k, str(GameState.mat(k)), 0.9)
+			chip.name = "chip_" + k
+			chip.tooltip_text = DB.mat_name(k)
+			summary.add_child(chip)
+		return
+	for i in keys.size():
+		var chip := summary.get_child(i)
+		if chip.get_child_count() < 2:
+			continue
+		var lab := chip.get_child(1) as Label
+		if lab:
+			lab.text = str(GameState.mat(keys[i]))
 
 func _apply_live_layout() -> void:
 	LiveLayout.apply_tree(self)
@@ -338,6 +477,7 @@ func open_page(p: String) -> void:
 func close_page() -> void:
 	open_name = ""; _close_info()
 	if win_layer: win_layer.queue_free(); win_layer = null
+	_vita_camp_visible()
 
 ## A dimmed overlay with a centred SPD window: title row (icon, name, close), an optional pinned materials
 ## strip (vendor pages), a scrolling body, and a footer under the scroller for the page's main action
@@ -366,7 +506,13 @@ func _make_window(title: String, icon_name: String, close_cb: Callable, w_frac :
 	var pc := PanelContainer.new(); layer.add_child(pc)
 	var vs := get_viewport_rect().size
 	var w := minf(vs.x * w_frac, UIKit.font_size * 36.0); var h := vs.y * h_frac
+	# 960×544: a 0.96 window still left the clearing drawing behind it (and that draw was the frame).
+	if VitaBoot.runs_on_vita():
+		w = vs.x * 0.98
+		h = vs.y * 0.96
 	pc.position = ((vs - Vector2(w, h)) / 2.0).floor(); pc.size = Vector2(w, h); pc.custom_minimum_size = Vector2(w, 0)
+	if VitaBoot.runs_on_vita():
+		pc.clip_contents = true
 	var v := UIKit.vbox(pc)
 	var tr := UIKit.hbox(v)
 	var tic: Control = null
@@ -413,6 +559,8 @@ func _show_msg(msg: Label, text: String, hold: float) -> void:
 	var tw := msg.create_tween(); tw.tween_interval(maxf(0.1, hold)); tw.tween_property(msg, "modulate:a", 0.0, 0.6)
 
 func _fill_window() -> void:
+	var vita_page := VitaBoot.runs_on_vita()
+	var page_t0 := Time.get_ticks_usec() if vita_page else 0
 	var keep_scroll := 0
 	if win_layer:
 		var old_sc: ScrollContainer = win_layer.get_meta("sc"); keep_scroll = 0 if top_next else old_sc.scroll_vertical
@@ -430,6 +578,33 @@ func _fill_window() -> void:
 		_: _page_facility(open_name, FAC_PAGE[open_name])
 	(func(): if is_instance_valid(w[3]): w[3].scroll_vertical = keep_scroll).call_deferred()
 	if info_layer: move_child(info_layer, -1)
+	_vita_camp_visible()
+	if vita_page:
+		_vita_filled_frame = Engine.get_process_frames()
+		_vita_page_sig = _vita_page_sig_now()
+		VitaBoot.add_us("camp_page", int(Time.get_ticks_usec() - page_t0))
+
+## What an open page is showing, without the clocks (identify seconds left, patrol hours). A matching
+## signature skips the full page rebuild that used to run on every coalesced changed signal.
+func _vita_page_sig_now() -> String:
+	if open_name == "":
+		return ""
+	var known := 0
+	for g in GameState.gear:
+		if g.get("known", false):
+			known += 1
+	var q := ""
+	for item in GameState.id_queue:
+		q += "%s:%s|" % [int(item.get("uid", 0)), item.get("ready_at", 0)]
+	return "%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s" % [
+		open_name, str(section.get(open_name, "")), journal_view, chosen_hero, chosen_biome,
+		known, GameState.gear.size(), GameState.mats, q, GameState.facilities, GameState.settings]
+
+## While a page is open the clearing is hidden, so its _draw does not run under the window.
+func _vita_camp_visible() -> void:
+	if not VitaBoot.runs_on_vita() or scene == null:
+		return
+	scene.visible = open_name == ""
 
 func _p(name: String) -> VBoxContainer:
 	var v: VBoxContainer = pages[name]
@@ -710,7 +885,38 @@ func supply_max() -> Dictionary:
 func _supply_delta(key: String, d: int) -> void:
 	var packable := mini(GameState.mat(key), GameState.supply_cap(key))
 	loadout[key] = clampi(int(loadout.get(key, 0)) + d, 0, packable)
+	if VitaBoot.runs_on_vita() and _vita_patch_supply(key):
+		return
 	_fill_window()
+
+## +/- used to queue_free the whole Expedition page. The count and the two buttons already have stable names.
+func _vita_patch_supply(key: String) -> bool:
+	if win_layer == null or not is_instance_valid(win_layer):
+		return false
+	var row := win_layer.find_child("SupplyRow_" + key, true, false)
+	if row == null:
+		return false
+	var packable := mini(GameState.mat(key), GameState.supply_cap(key))
+	var n := int(loadout.get(key, 0))
+	var minus := row.find_child("SupplyMinus_" + key, true, false) as Button
+	var plus := row.find_child("SupplyPlus_" + key, true, false) as Button
+	if minus == null or plus == null:
+		return false
+	minus.disabled = n <= 0
+	plus.disabled = n >= packable
+	var want := "%s  x%d" % [DB.mat_name(key), n]
+	var found := false
+	for lab in row.find_children("*", "Label", true, false):
+		if String(lab.text).begins_with(DB.mat_name(key)):
+			lab.text = want
+			found = true
+			break
+	if not found:
+		return false
+	var mall := win_layer.find_child("MaxAll", true, false) as Button
+	if mall:
+		mall.disabled = supplies_all_max()
+	return true
 
 ## Camp recipe that sells exactly one of this supply for gold. Guild singles win over other facilities.
 ## Bulk deals (the ration crate) and gold-free crafts (Alchemy brews) are not buys. Empty if nothing sells it.
@@ -1727,7 +1933,9 @@ func _identify_section(v: VBoxContainer) -> void:
 		row.add_child(UIKit.icon(gear_icon(g), -1, "NONE"))
 		var cv := UIKit.vbox(row); cv.size_flags_horizontal = SIZE_EXPAND_FILL
 		var tail := "" if st == "running" else ("  (same type)" if st == "same type" else "  (waiting)")
-		cv.add_child(UIKit.label("%s   %d:%02d%s" % [GameState.gear_name(g), int(left) / 60, int(left) % 60, tail], 0.85))
+		var left_l := UIKit.label("%s   %d:%02d%s" % [GameState.gear_name(g), int(left) / 60, int(left) % 60, tail], 0.85)
+		left_l.name = "IdentifyLeft"
+		cv.add_child(left_l)
 		var pb := ProgressBar.new(); pb.name = "IdentifyBar"; pb.max_value = 1.0; pb.step = 0.0; pb.show_percentage = false
 		pb.value = GameState.identify_progress(q); pb.custom_minimum_size.y = UIKit.font_size * 0.5
 		cv.add_child(pb)
@@ -1749,7 +1957,45 @@ func _identify_section(v: VBoxContainer) -> void:
 			ug.add_child(item_slot(gear_icon(g), "", "?", func(): info(gear_icon(g), GameState.gear_name(g), gear_lines(g), [["Queue for identification", func(): GameState.enqueue_identify(g.uid), ""]], "NONE"), Color.WHITE, "", g))
 	if not GameState.id_queue.is_empty():
 		var t := Timer.new(); t.wait_time = 1.0; t.autostart = true; v.add_child(t)
-		t.timeout.connect(func(): if open_name == "Enchanter" and info_layer == null: _fill_window())
+		if VitaBoot.runs_on_vita():
+			t.timeout.connect(_vita_identify_tick)
+		else:
+			t.timeout.connect(func(): if open_name == "Enchanter" and info_layer == null: _fill_window())
+
+## The identify page used to rebuild its whole tree once a second. On Vita only the countdown and bar move.
+func _vita_identify_tick() -> void:
+	if open_name != "Enchanter" or info_layer != null or not is_instance_valid(win_layer):
+		return
+	var bars: Array = []
+	_vita_find_bars(win_layer, bars)
+	var i := 0
+	for q in GameState.id_queue:
+		if GameState.identify_state(q) == "same type":
+			continue
+		if i >= bars.size():
+			_fill_window()
+			return
+		var pb: ProgressBar = bars[i]
+		pb.value = GameState.identify_progress(q)
+		var left := maxf(0.0, float(q.ready_at) - GameState.now())
+		var st := GameState.identify_state(q)
+		var tail := "" if st == "running" else ("  (same type)" if st == "same type" else "  (waiting)")
+		var g := GameState.gear_by_uid(q.uid)
+		var parent := pb.get_parent()
+		var label := parent.get_node_or_null("IdentifyLeft") if parent != null else null
+		if label is Label:
+			label.text = "%s   %d:%02d%s" % [GameState.gear_name(g), int(left) / 60, int(left) % 60, tail]
+		i += 1
+	if i != bars.size():
+		_fill_window()
+
+func _vita_find_bars(n: Node, out: Array) -> void:
+	if n == null:
+		return
+	for c in n.get_children():
+		if c.name == "IdentifyBar" and c is ProgressBar:
+			out.append(c)
+		_vita_find_bars(c, out)
 
 func _page_guild() -> void:
 	_pin_mats("guild")

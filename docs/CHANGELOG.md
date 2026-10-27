@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## Vita branch (personal, not for main)
+- Fresh PS Vita port from 0.51.0: `VitaBoot` / `IDLEPD_VITA`, boot loading card, deferred DB, bake/layout forks, PS Vita export preset (`IDLEPD001` / `00.51`).
+- Vita pad: D-pad + face/shoulder/Start in combat; left stick for 8-way steps; Cross/Circle also drive camp and delve chrome.
+
 ## 0.51.0
 - The Android launcher foreground icon was updated.
 - Shared leanness (Phase 1): memoize `DB.icon_index` for stable ids, cache combat FOV and `path_step` behind board stamps, and point GridView fog at the sight stamp. No Vita forks, no save coalesce, no toolbar reuse. Export presets exclude `builds/*`, branding guides/mockups, and `.pdn` sources. Tile bake stays deferred (DECISIONS #246–#247, +tests).

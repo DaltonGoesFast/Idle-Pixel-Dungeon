@@ -68,12 +68,18 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	suppressed_by = suppress_reason()
 	suppressed = suppressed_by != ""
+	# Vita crashes are still undiagnosed at the HTTP stack. Do not construct a client at boot.
+	if not http_client_enabled():
+		suppressed = true
+		if suppressed_by == "":
+			suppressed_by = "vita"
+		return
 	load_config()
 	_load_identity()
 	_load_queue()
 	_http = HTTPRequest.new()
 	_http.timeout = HTTP_TIMEOUT
-	_http.use_threads = OS.get_name() != "Web"   # the web export has no threads; fetch() is async anyway
+	_http.use_threads = http_uses_threads()
 	add_child(_http)
 	_http.request_completed.connect(_on_request_completed)
 	_new_session()
@@ -300,6 +306,14 @@ func _js_beacon(url: String, body: String) -> bool:
 	return automated_browser(win.__spdTelemetryBeacon(url, body))   # a JS true comes back as 1 (DECISIONS #198)
 
 # ------------------------------------------------------------------ events
+## Web has no threads. Vita's export runtime caps the worker pool at two, so telemetry stays on the main thread.
+static func http_uses_threads(os_name: String = OS.get_name()) -> bool:
+	return os_name != "Web" and os_name != "Vita"
+
+## Vita's export runtime has no HTTP client we can rely on. Skip constructing one at boot.
+static func http_client_enabled(os_name: String = OS.get_name()) -> bool:
+	return os_name != "Vita"
+
 static func platform() -> String:
 	match OS.get_name():
 		"Android": return "android"
@@ -417,7 +431,7 @@ func _process(delta: float) -> void:
 
 ## POST up to BATCH_MAX queued events. force skips the routine gap (still respects backoff and one-at-a-time).
 func flush(force := false) -> bool:
-	if not enabled() or _busy or queue.is_empty() or _backoff > 0.0: return false
+	if _http == null or not enabled() or _busy or queue.is_empty() or _backoff > 0.0: return false
 	if not force and _gap_t < MIN_GAP: return false
 	_flush_t = 0.0; _gap_t = 0.0
 	var n := mini(BATCH_MAX, queue.size())

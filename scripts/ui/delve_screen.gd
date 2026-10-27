@@ -94,17 +94,110 @@ func _place_window() -> void:
 func apply_layout(p: bool, s: Vector2, desk_ui := false) -> void:
 	portrait = p
 	desktop_ui = desk_ui
-	bar.custom_minimum_size.y = UIKit.font_size * 1.6
+	var vita := VitaBoot.runs_on_vita()
+	bar.custom_minimum_size.y = UIKit.font_size * (1.05 if vita else 1.6)
 	win_panel.add_theme_stylebox_override("panel", UIKit.chrome("window", Color.WHITE, UIKit.font_size * 0.6))
 	_fit_desk_bars(s.x)
-	# corridor height: a multiple of 5 tile rows, as tall as the rows under it allow (tiles and sprites scale with it)
-	var fs := float(UIKit.font_size)
-	var reserved := 40.0 * float(maxi(2, UIKit.px_scale)) + fs * 1.6 + fs * 3.6 + fs * 5.5 + UIKit.btn_height() * 1.2 + fs * 3.0
-	var hmin := minf(s.y * 0.2, fs * 7.0)
-	scene.custom_minimum_size.y = floorf(clampf(s.y - reserved, hmin, s.y * (0.36 if p else 0.3)) / 5.0) * 5.0
-	pips.custom_minimum_size = Vector2(fs * 4.6, fs * 1.6)
+	if vita:
+		_apply_layout_vita(s)
+	else:
+		# corridor height: a multiple of 5 tile rows, as tall as the rows under it allow (tiles and sprites scale with it)
+		var fs := float(UIKit.font_size)
+		var reserved := 40.0 * float(maxi(2, UIKit.px_scale)) + fs * 1.6 + fs * 3.6 + fs * 5.5 + UIKit.btn_height() * 1.2 + fs * 3.0
+		var hmin := minf(s.y * 0.2, fs * 7.0)
+		scene.custom_minimum_size.y = floorf(clampf(s.y - reserved, hmin, s.y * (0.36 if p else 0.3)) / 5.0) * 5.0
+		pips.custom_minimum_size = Vector2(fs * 4.6, fs * 1.6)
 	_refresh_controls(); _show_card()
+	if vita:
+		_vita_fit_chrome(s)
 	if _summary_on: _build_summary()
+
+## 960×544: flags only. Heights are fitted in _vita_fit_chrome after the supply row and the toolbar exist.
+func _apply_layout_vita(s: Vector2) -> void:
+	_vita_area = s
+	var fs := float(UIKit.font_size)
+	var log_sc := log_host.get_parent() as ScrollContainer
+	if log_sc:
+		log_sc.size_flags_vertical = SIZE_SHRINK_END
+		log_sc.size_flags_horizontal = SIZE_EXPAND_FILL
+		log_sc.clip_contents = true
+		log_sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	stats.size_flags_vertical = SIZE_SHRINK_END
+	controls.size_flags_vertical = SIZE_SHRINK_END
+	scene.size_flags_vertical = SIZE_EXPAND_FILL
+	pips.custom_minimum_size = Vector2(fs * 3.2, fs * 1.05)
+
+var _vita_area := Vector2.ZERO
+
+## Two wrapped log lines, the gap between them, and a few pixels so the last line's baseline is inside the slot.
+func _vita_log_slot_h() -> float:
+	var fs := float(UIKit.font_size)
+	var line := float(UIKit.font_px(fs * 0.85))
+	var sep := float(int(fs * 0.4))
+	return line * 2.0 + sep + 6.0
+
+## The corridor takes whatever height is left after the status pane, bar, supplies, log, and the toolbar's real minimum.
+## The log slot is capped and clipped so an unwrapped line cannot paint past the pane or grow the column.
+func _vita_fit_chrome(s: Vector2) -> void:
+	if s.y <= 0.0 or not VitaBoot.runs_on_vita(): return
+	_vita_area = s
+	var sep := float(box.get_theme_constant("separation"))
+	var log_h := _vita_log_slot_h()
+	var log_sc := log_host.get_parent() as ScrollContainer
+	if log_sc:
+		log_sc.custom_minimum_size = Vector2(0, log_h)
+		log_sc.custom_maximum_size.y = log_h
+		log_sc.clip_contents = true
+	var tool_h := 64.0
+	if controls.get_child_count() > 0:
+		tool_h = maxf(tool_h, controls.get_combined_minimum_size().y)
+	controls.custom_minimum_size.y = tool_h
+	var stats_h := maxf(40.0, stats.get_combined_minimum_size().y)
+	var chrome := ceilf(pane.get_combined_minimum_size().y + bar_row.get_combined_minimum_size().y + stats_h + log_h + tool_h + sep * 5.0)
+	var room := floorf(s.y - chrome)
+	if room < 64.0:
+		log_h = maxf(float(UIKit.font_px(float(UIKit.font_size) * 0.85)), log_h - (64.0 - room))
+		if log_sc:
+			log_sc.custom_minimum_size.y = log_h
+			log_sc.custom_maximum_size.y = log_h
+		room = 64.0
+	scene.custom_minimum_size.y = room
+	_vita_wrap_log_tree(log_host)
+	call_deferred("_vita_clip_log")
+
+## Labels inside the bare-screen log wrap. Width is applied in _vita_clip_log once the scroll has a size.
+## A minimum width of 0 makes autowrap report one column per glyph (thousands of pixels tall).
+func _vita_wrap_log_tree(n: Node) -> void:
+	if n == null or not VitaBoot.runs_on_vita(): return
+	for c in n.get_children():
+		if c is Label:
+			var lab := c as Label
+			lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			lab.size_flags_horizontal = SIZE_EXPAND_FILL
+		if c.get_child_count() > 0:
+			_vita_wrap_log_tree(c)
+
+## Break log lines on the pane width so a long line wraps instead of painting past the right edge.
+func _vita_clip_log() -> void:
+	if not VitaBoot.runs_on_vita(): return
+	var log_sc := log_host.get_parent() as ScrollContainer
+	if log_sc == null: return
+	log_sc.clip_contents = true
+	var w := floorf(log_sc.size.x) - 4.0
+	if w < 32.0: return
+	var bar := log_sc.get_v_scroll_bar()
+	if bar != null and bar.visible:
+		w = maxf(32.0, w - bar.size.x)
+	_vita_set_log_wrap(log_host, w)
+
+func _vita_set_log_wrap(n: Node, w: float) -> void:
+	for c in n.get_children():
+		if c is Label:
+			var lab := c as Label
+			if absf(lab.custom_minimum_size.x - w) > 1.0:
+				lab.custom_minimum_size.x = w
+		if c.get_child_count() > 0:
+			_vita_set_log_wrap(c, w)
 
 ## Desktop: status pane + floor ProgressBar stay phone-wide; Mobile keeps full-bleed.
 func _fit_desk_bars(area_w: float) -> void:
@@ -127,8 +220,18 @@ func on_shown() -> void:
 	main.tip("delve_bar")
 
 var _save_t := 0.0
+var _vita_rest := ""
+var _vita_bar := -1.0
+var _vita_watch := ""
+var _vita_win_size := Vector2(-1, -1)
+var _vita_win_left := 0
 
 func _process(delta: float) -> void:
+	if VitaBoot.runs_on_vita():
+		var t0 := Time.get_ticks_usec()
+		_process_vita(delta)
+		VitaBoot.add_us("delve_proc", int(Time.get_ticks_usec() - t0))
+		return
 	var run: Dictionary = GameState.run
 	if run.is_empty(): return
 	_expire_card_toasts()
@@ -154,6 +257,72 @@ func _process(delta: float) -> void:
 			var ev := Delve.advance(GameState, delta * SPEED * speed_mult())
 			if not ev.is_empty():
 				pending = ev; _encounter_cue(ev); _show_card(); SaveSystem.save_game()
+	_refresh()
+
+## Vita frame: same advance, save, and auto rules. The window is measured for a few frames after it opens,
+## then left alone, and the bar label changes when the integer percent changes.
+func _process_vita(delta: float) -> void:
+	var run: Dictionary = GameState.run
+	if run.is_empty(): return
+	_expire_card_toasts()
+	_place_window_vita()
+	_tick_danger(delta)
+	_save_t += delta
+	if _save_t > 3.0:
+		_save_t = 0.0; SaveSystem.save_game()
+	if main and main.tip_open(): _refresh_vita(); return
+	if _summary_on:
+		_refresh_vita(); return
+	var held := _is_encounter(_under)
+	if pending.is_empty() and not held and not run.get("overflow", []).is_empty():
+		_open_panel("backpack")
+	elif pending.is_empty() and not held and running and GameState.talent_points_total_free(run.hero) > 0 and not run.get("talent_prompted", false):
+		run.talent_prompted = true; _open_panel("talents")
+	if GameState.settings.get("full_auto", false): _auto_tick(delta)
+	if running and pending.is_empty() and not _is_encounter(_under):
+		if Delve.floor_done(run):
+			_floor_cleared()
+		else:
+			var ev := Delve.advance(GameState, delta * SPEED * speed_mult())
+			if not ev.is_empty():
+				pending = ev; _encounter_cue(ev); _show_card(); SaveSystem.save_game()
+	_refresh_vita()
+
+func _place_window_vita() -> void:
+	if win_layer == null or not win_layer.visible or size.y <= 0.0:
+		return
+	if _vita_win_left <= 0 and _vita_win_size == size:
+		return
+	_place_window()
+	_vita_win_size = size
+	if _vita_win_left > 0:
+		_vita_win_left -= 1
+
+func _refresh_vita() -> void:
+	var run: Dictionary = GameState.run
+	if run.is_empty():
+		return
+	var prog := int(run.progress)
+	var watch := "%s|%s|%s|%s|%s|%s" % [GameState.log_serial, int(run.hp), int(run.torch), int(run.satiety), int(run.floor), int(run.get("next_event", 0))]
+	if watch == _vita_watch:
+		if prog != int(_vita_bar):
+			_vita_bar = float(prog)
+			bar.value = float(run.progress)
+		return
+	_vita_watch = watch
+	var h: Dictionary = GameState.heroes[run.hero]
+	var rest := "%s|%d|%s|%s|%s|%s|%d|%d|%d|%s|%d|%s|%d|%d|%s" % [
+		run.hero, int(h.level), str(h.weapon), str(h.armor), str(h.ring), str(h.get("artifact", 0)),
+		int(run.hp), int(run.torch), int(run.satiety), String(run.get("feeling", "")),
+		int(run.floor), String(run.biome), GameState.log_serial, int(run.get("next_event", 0)),
+		_supplies_key(run)]
+	if rest == _vita_rest:
+		if int(prog) != int(_vita_bar):
+			_vita_bar = prog
+			bar.value = prog
+		return
+	_vita_rest = rest
+	_vita_bar = prog
 	_refresh()
 
 # ---------------------------------------------------------------- Auto Battle (DECISIONS #105)
@@ -282,6 +451,9 @@ func _fill_log() -> void:
 	for i in range(maxi(0, msgs.size() - _log_limit), msgs.size()):
 		var k: String = kinds[i] if i < kinds.size() else "info"
 		_log_box.add_child(UIKit.label(msgs[i], 0.8, GameState.LOG_COLORS.get(k, Color("bdb3a0"))))
+	if VitaBoot.runs_on_vita():
+		_vita_wrap_log_tree(_log_box)
+		call_deferred("_vita_clip_log")
 
 func _sync_haul() -> void:
 	if not is_instance_valid(_haul_label): return
@@ -327,6 +499,9 @@ func _refresh() -> void:
 	var rk := _supplies_key(run)
 	if rk == _row_key: return
 	_row_key = rk
+	if VitaBoot.runs_on_vita():
+		_vita_supply_line(run)
+		return
 	UIKit.clear(stats)
 	var line := ""
 	if Delve.darkness(run): line += "DARK: no Barrier in fights!   "
@@ -348,6 +523,48 @@ func _refresh() -> void:
 	var new_gear := _found_gear(run).size()
 	if new_gear > 0: found.add_child(_row_note("+%d item%s" % [new_gear, "" if new_gear == 1 else "s"], Color.WHITE))
 	if found.get_child_count() == 1: found.add_child(_row_note("nothing yet"))
+
+## One sideways row. "Found (lost on death)" wrapped onto a second line and pushed the log off the panel.
+func _vita_supply_line(run: Dictionary) -> void:
+	UIKit.clear(stats)
+	var line := ""
+	if Delve.darkness(run): line += "DARK  "
+	if float(run.satiety) <= 0.0: line += "STARVING"
+	if line != "":
+		stats.add_child(UIKit.label(line, 0.85, Color("ff7070")))
+	var sc := ScrollContainer.new()
+	sc.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	sc.custom_minimum_size.y = 40
+	stats.add_child(sc)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	sc.add_child(row)
+	row.add_child(_row_note("Brought", Color("9a8f7c")))
+	var any_b := false
+	for k in run.supplies:
+		if int(run.supplies[k]) > 0:
+			row.add_child(UIKit.res_chip(k, str(run.supplies[k]), 0.85, 32))
+			any_b = true
+	if GameState.cloak_cap(run.hero) > 0:
+		row.add_child(_row_note("Cloak %d/%d" % [GameState.cloak_charges(run.hero), GameState.cloak_cap(run.hero)], Color.WHITE))
+		any_b = true
+	if not any_b:
+		row.add_child(_row_note("none"))
+	row.add_child(_row_note("Found", Color("ff9944")))
+	var any_f := false
+	for k in run.pack:
+		if int(run.pack[k]) > 0:
+			row.add_child(UIKit.res_chip(k, str(run.pack[k]), 0.85, 32))
+			any_f = true
+	var new_gear := _found_gear(run).size()
+	if new_gear > 0:
+		row.add_child(_row_note("+%d" % new_gear, Color.WHITE))
+		any_f = true
+	if not any_f:
+		row.add_child(_row_note("none"))
+	if _vita_area.y > 0.0:
+		_vita_fit_chrome(_vita_area)
 
 func _chip_row(heading: String, color: Color) -> HFlowContainer:
 	var flow := HFlowContainer.new(); stats.add_child(flow)
@@ -400,7 +617,10 @@ func _slot(tip: String, icon_name: String, text: String, cb: Callable) -> Button
 	b.autowrap_mode = TextServer.AUTOWRAP_OFF
 	b.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	b.vertical_icon_alignment = VERTICAL_ALIGNMENT_TOP if text != "" else VERTICAL_ALIGNMENT_CENTER
-	b.custom_minimum_size = Vector2(0, UIKit.btn_height() * 1.2)
+	if VitaBoot.runs_on_vita():
+		b.custom_minimum_size = Vector2(64, 64)
+	else:
+		b.custom_minimum_size = Vector2(0, UIKit.btn_height() * 1.2)
 	b.size_flags_horizontal = SIZE_EXPAND_FILL
 	if text != "":
 		var l := UIKit.label(text, 0.75)
@@ -450,6 +670,101 @@ func _open_panel(kind: String) -> void:
 func _close_panel() -> void:
 	pending = _under; _under = {}
 	running = pending.is_empty(); _refresh_controls(); _show_card()
+
+## Vita pad on the delve bar (same face buttons as combat). Cross confirms the open card; Circle backs out.
+func _unhandled_input(event: InputEvent) -> void:
+	if not VitaBoot.runs_on_vita():
+		return
+	if main and main.tip_open():
+		return
+	if not Keybinds.accepts_combat_shortcut(event):
+		return
+	if Keybinds.just_pressed("combat_cancel", event):
+		get_viewport().set_input_as_handled()
+		_vita_pad_back()
+		return
+	if Keybinds.just_pressed("combat_wait", event):
+		get_viewport().set_input_as_handled()
+		_vita_pad_confirm()
+		return
+	if Keybinds.just_pressed("combat_bag", event):
+		get_viewport().set_input_as_handled()
+		_open_panel("backpack")
+		return
+	if Keybinds.just_pressed("combat_search", event):
+		get_viewport().set_input_as_handled()
+		_open_panel("talents")
+		return
+	if Keybinds.just_pressed("combat_auto", event):
+		get_viewport().set_input_as_handled()
+		_open_panel("menu")
+		return
+	if Keybinds.just_pressed("combat_skill_2", event):
+		get_viewport().set_input_as_handled()
+		if Delve.scroll_passage_count(GameState) > 0:
+			_confirm_passage()
+		return
+
+func _vita_pad_back() -> void:
+	var kind := String(pending.get("kind", ""))
+	if kind == "confirm_passage":
+		_cancel_passage()
+	elif kind == "confirm_abandon":
+		_cancel_abandon()
+	elif kind in ["backpack", "talents", "menu", "settings"]:
+		_close_panel()
+	elif _is_encounter(pending):
+		_dismiss_encounter()
+	elif _is_encounter(_under):
+		_restore_encounter()
+
+func _vita_pad_confirm() -> void:
+	var kind := String(pending.get("kind", ""))
+	match kind:
+		"combat":
+			_fight(pending, {})
+		"confirm_passage":
+			_read_passage()
+		"floor_done":
+			_vita_press_labeled("Descend")
+		"campfire":
+			_vita_press_labeled("Extract")
+		"door", "special":
+			_vita_press_first_action()
+		"":
+			if not running and pending.is_empty() and _is_encounter(_under):
+				running = true
+				_restore_encounter()
+			else:
+				running = not running
+				_refresh_controls()
+		_:
+			_vita_press_first_action()
+
+## Prefer a primary action button in the open card (Fight / Descend / Extract / first non-Close).
+func _vita_press_labeled(prefix: String) -> void:
+	if card_host == null:
+		return
+	for n in card_host.find_children("*", "Button", true, false):
+		var b := n as BaseButton
+		if b == null or b.disabled:
+			continue
+		if String(b.text).begins_with(prefix):
+			b.pressed.emit()
+			return
+
+func _vita_press_first_action() -> void:
+	if card_host == null:
+		return
+	for n in card_host.find_children("*", "Button", true, false):
+		var b := n as BaseButton
+		if b == null or b.disabled:
+			continue
+		var t := String(b.text)
+		if t == "" or t == "Close" or t.begins_with("Ignore") or t == "Cancel" or t == "Keep delving":
+			continue
+		b.pressed.emit()
+		return
 
 ## Hide the encounter card without resolving it. The bar stays put until it is dealt with.
 func _dismiss_encounter() -> void:
@@ -516,6 +831,8 @@ func _card(title_text: String, body: String) -> VBoxContainer:
 	return v
 
 func _show_card() -> void:
+	if VitaBoot.runs_on_vita():
+		_vita_win_left = 3
 	if card_host == null: return
 	UIKit.clear(card_host)
 	UIKit.clear(log_host)
@@ -537,6 +854,9 @@ func _show_card() -> void:
 		var hint := "The bar holds until you deal with the encounter." if _is_encounter(_under) else ("Exploring... encounters every ~20-25%." if running else "Paused.")
 		log_host.add_child(UIKit.label(hint, 0.9, Color("9a8f7c")))
 		_mount_log(log_host, LOG_LINES, false)
+		if VitaBoot.runs_on_vita():
+			_vita_wrap_log_tree(log_host)
+			call_deferred("_vita_clip_log")
 		return
 	if main and pending.kind in ["door", "special", "floor_done", "campfire"]: main.tip(pending.kind)
 	match pending.kind:
